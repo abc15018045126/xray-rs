@@ -57,13 +57,13 @@ md-5 = "0.10"
 regex = "1.10"
 sha-1 = "0.10"
 base64 = "0.22"
-watfaq-netstack = { path = "clash-netstack" }
+watfaq-netstack = { version = "0.1.0", path = "clash-netstack" }
 tun-rs = { version = "2", features = ["async", "async_framed"] }
 network-interface = "2"
 ipnet = "2"
 
 [target.'cfg(windows)'.dependencies]
-wintun = { package = "wintun-rs", path = "../wintun-rs/api" }
+wintun = { package = "wintun-rs", version = "0.0.4", path = "../wintun-rs/api" }
 windows = { version = "0.62", features = [
     "Win32_Networking_WinSock",
     "Win32_Foundation",
