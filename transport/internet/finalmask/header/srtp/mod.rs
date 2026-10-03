@@ -16,7 +16,7 @@ impl SrtpHeader {
         let mut rng = rand::thread_rng();
         Self {
             header: 0xB5E8,
-            number: rng.gen(),
+            number: rng.r#gen(),
         }
     }
 

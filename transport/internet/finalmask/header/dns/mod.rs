@@ -14,7 +14,7 @@ impl DnsHeader {
     pub fn new(domain: impl Into<String>) -> Self {
         let mut rng = rand::thread_rng();
         Self {
-            id: rng.gen(),
+            id: rng.r#gen(),
             domain: domain.into(),
         }
     }

@@ -31,12 +31,12 @@ pub fn roll_deterministic(n: usize, seed: i64) -> usize {
 
 /// RollUint16 returns a random uint16 value.
 pub fn roll_uint16() -> u16 {
-    rand::thread_rng().gen()
+    rand::thread_rng().r#gen()
 }
 
 /// RollUint64 returns a random uint64 value.
 pub fn roll_uint64() -> u64 {
-    rand::thread_rng().gen()
+    rand::thread_rng().r#gen()
 }
 
 pub use roll_uint16 as roll_u16;

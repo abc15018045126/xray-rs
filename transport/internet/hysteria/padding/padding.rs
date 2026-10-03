@@ -33,5 +33,5 @@ impl Padding {
 
 pub fn generate_padding(len: usize) -> Vec<u8> {
     let mut rng = rand::thread_rng();
-    (0..len).map(|_| rng.gen()).collect()
+    (0..len).map(|_| rng.r#gen()).collect()
 }

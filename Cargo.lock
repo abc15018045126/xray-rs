@@ -2256,7 +2256,7 @@ dependencies = [
 
 [[package]]
 name = "wintun-rs"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "windows-sys 0.61.2",
 ]
@@ -2275,7 +2275,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "aes-gcm",
  "anyhow",

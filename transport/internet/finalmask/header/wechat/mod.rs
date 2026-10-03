@@ -12,7 +12,7 @@ impl WeChatHeader {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
         Self {
-            sn: rng.gen::<u16>() as u32,
+            sn: rng.r#gen::<u16>() as u32,
         }
     }
 

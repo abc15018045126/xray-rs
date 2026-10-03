@@ -18,7 +18,7 @@ impl UtpHeader {
         Self {
             header: 1,
             extension: 0,
-            connection_id: rng.gen(),
+            connection_id: rng.r#gen(),
         }
     }
 

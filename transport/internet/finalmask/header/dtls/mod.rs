@@ -14,7 +14,7 @@ impl DtlsHeader {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
         Self {
-            epoch: rng.gen(),
+            epoch: rng.r#gen(),
             sequence: 0,
             length: 17,
         }
