@@ -6,11 +6,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
+use super::config_pb::Config;
+use super::linked_read_request::read_request;
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use crate::transport::internet::header::ConnectionAuthenticator;
-use super::config_pb::Config;
-use super::linked_read_request::read_request;
 
 pub const CRLF: &str = "\r\n";
 pub const ENDING: &str = "\r\n\r\n";
@@ -80,11 +80,7 @@ impl<S> HttpStream<S> {
         }
     }
 
-    pub fn new_server(
-        inner: S,
-        response_header: Vec<u8>,
-        expected_uris: Vec<String>,
-    ) -> Self {
+    pub fn new_server(inner: S, response_header: Vec<u8>, expected_uris: Vec<String>) -> Self {
         Self {
             inner,
             header_to_write: Some(response_header),
@@ -319,7 +315,8 @@ impl HttpHeaderObfuscator {
             }
             buf.push(chunk[0]);
             if buf.ends_with(b"\r\n\r\n") {
-                let header = String::from_utf8(buf).map_err(|_| Error::Protocol("invalid utf8 header".into()))?;
+                let header = String::from_utf8(buf)
+                    .map_err(|_| Error::Protocol("invalid utf8 header".into()))?;
                 let mut trailing = Vec::new();
                 let mut rest = [0u8; 1024];
                 while let Ok(n) = reader.read(&mut rest).await {
@@ -334,4 +331,3 @@ impl HttpHeaderObfuscator {
         Err(Error::Protocol("header too long".into()))
     }
 }
-

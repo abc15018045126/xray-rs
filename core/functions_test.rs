@@ -3,12 +3,12 @@
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::common::net::{Address, Destination, Network};
     use crate::core::format::CONFIG_FORMAT_JSON;
     use crate::core::functions::{create_object, dial, dial_udp, start_instance};
     use crate::infra::conf::Config;
-    use crate::testing::servers::tcp::{xor_processor, Server as TcpServer};
+    use crate::testing::servers::tcp::{Server as TcpServer, xor_processor};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn test_create_object() {
@@ -50,7 +50,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_xray_dial_stream() {
-        let server = TcpServer::start(None, Some(xor_processor(b'c')), None).await.unwrap();
+        let server = TcpServer::start(None, Some(xor_processor(b'c')), None)
+            .await
+            .unwrap();
         let dest = Destination {
             network: Network::Tcp,
             address: Address::ip(server.addr().ip()),

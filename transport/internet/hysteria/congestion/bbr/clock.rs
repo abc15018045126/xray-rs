@@ -10,7 +10,9 @@ pub struct Clock {
 
 impl Clock {
     pub fn new() -> Self {
-        Self { start: Instant::now() }
+        Self {
+            start: Instant::now(),
+        }
     }
 
     pub fn now(&self) -> Instant {

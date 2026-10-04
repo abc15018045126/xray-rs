@@ -20,6 +20,6 @@ pub use inbound::Shadowsocks2022Inbound;
 pub use inbound_multi::Shadowsocks2022MultiInbound;
 pub use inbound_relay::Shadowsocks2022RelayInbound;
 pub use outbound::Shadowsocks2022Outbound;
-pub use protocol::{SessionHeader, HEADER_TYPE_CLIENT, HEADER_TYPE_SERVER};
+pub use protocol::{HEADER_TYPE_CLIENT, HEADER_TYPE_SERVER, SessionHeader};
 pub use server::Server;
 pub use validator::CipherValidator;

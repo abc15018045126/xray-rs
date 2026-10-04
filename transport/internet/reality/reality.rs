@@ -1,17 +1,17 @@
 // Module: transport\internet\reality\reality.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\reality\reality.go
 
-use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
+use super::config::RealityConfig;
+use crate::common::errors::{Error, Result};
 use aes_gcm::{
-    aead::{Aead, KeyInit, Payload},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, Payload},
 };
 use hkdf::Hkdf;
 use sha2::Sha256;
+use std::collections::HashSet;
+use std::time::{SystemTime, UNIX_EPOCH};
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
-use crate::common::errors::{Error, Result};
-use super::config::RealityConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealityAuthSession {
@@ -24,7 +24,8 @@ pub struct RealityAuthSession {
 pub fn derive_auth_key(shared_secret: &[u8; 32], random_salt_20: &[u8]) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(Some(random_salt_20), shared_secret);
     let mut auth_key = [0u8; 32];
-    hk.expand(b"REALITY", &mut auth_key).expect("32 bytes is valid length for HKDF-SHA256");
+    hk.expand(b"REALITY", &mut auth_key)
+        .expect("32 bytes is valid length for HKDF-SHA256");
     auth_key
 }
 
@@ -92,7 +93,9 @@ pub fn open_session_id(
         .map_err(|e| Error::Protocol(format!("REALITY SessionId open auth error: {:?}", e)))?;
 
     if pt.len() != 16 {
-        return Err(Error::Protocol("Decrypted session plaintext must be 16 bytes".into()));
+        return Err(Error::Protocol(
+            "Decrypted session plaintext must be 16 bytes".into(),
+        ));
     }
 
     let version = (pt[0], pt[1], pt[2]);
@@ -169,16 +172,20 @@ impl RealityServer {
         client_hello_raw: &[u8],
         max_time_diff_sec: u32,
     ) -> Result<RealityAuthSession> {
-        let server_secret = self
-            .private_key
-            .as_ref()
-            .ok_or_else(|| Error::Protocol("REALITY server has no private key configured".into()))?;
+        let server_secret = self.private_key.as_ref().ok_or_else(|| {
+            Error::Protocol("REALITY server has no private key configured".into())
+        })?;
 
         let peer_public = PublicKey::from(*client_pub);
         let shared_secret = server_secret.diffie_hellman(&peer_public);
 
         let auth_key = derive_auth_key(shared_secret.as_bytes(), &client_random[..20]);
-        let session = open_session_id(&auth_key, &client_random[20..], session_id, client_hello_raw)?;
+        let session = open_session_id(
+            &auth_key,
+            &client_random[20..],
+            session_id,
+            client_hello_raw,
+        )?;
 
         // Verify timestamp difference
         let now_unix = SystemTime::now()
@@ -186,11 +193,7 @@ impl RealityServer {
             .unwrap_or_default()
             .as_secs() as u32;
 
-        let diff = if now_unix >= session.timestamp {
-            now_unix - session.timestamp
-        } else {
-            session.timestamp - now_unix
-        };
+        let diff = now_unix.abs_diff(session.timestamp);
 
         if diff > max_time_diff_sec {
             return Err(Error::Protocol(format!(

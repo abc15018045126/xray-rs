@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::app::commander::{Commander, Service};
     use crate::common::buf::Buffer;
-    use crate::transport::pipe::{new_pipe, PipeOption};
+    use crate::transport::pipe::{PipeOption, new_pipe};
+    use std::sync::Arc;
 
     struct MockStatsService;
     impl Service for MockStatsService {

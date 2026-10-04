@@ -9,7 +9,8 @@ use super::config_pb::{Config, Policy, SystemPolicy};
 use crate::common::errors::Result;
 use crate::features::feature::{Feature, TYPE_POLICY_MANAGER};
 use crate::features::policy::{
-    session_default, PolicyManager as IPolicyManager, SessionPolicy, SystemPolicy as CoreSystemPolicy,
+    PolicyManager as IPolicyManager, SessionPolicy, SystemPolicy as CoreSystemPolicy,
+    session_default,
 };
 
 /// Instance is an instance of Policy manager.

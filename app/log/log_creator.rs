@@ -1,6 +1,6 @@
-use std::path::Path;
 use crate::app::log::LogLevel;
 use crate::common::errors::{Error, Result};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogType {

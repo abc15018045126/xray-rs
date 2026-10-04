@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\salamander\conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\salamander\conn.go
 
-use crate::common::errors::{Error, Result};
 use super::config::SalamanderConfig;
-use super::salamander::{SalamanderObfuscator, SM_SALT_LEN};
+use super::salamander::{SM_SALT_LEN, SalamanderObfuscator};
+use crate::common::errors::{Error, Result};
 
 pub struct SalamanderPacketConn {
     obfs: SalamanderObfuscator,

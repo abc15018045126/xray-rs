@@ -1,10 +1,10 @@
-use std::net::IpAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use async_trait::async_trait;
 use crate::app::dns::cache_controller::CacheController;
 use crate::app::dns::nameserver::NameServer;
 use crate::common::errors::Result;
+use async_trait::async_trait;
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub struct CachedNameServer {
     server: Arc<dyn NameServer>,
@@ -15,7 +15,12 @@ pub struct CachedNameServer {
 impl CachedNameServer {
     pub fn new(server: Arc<dyn NameServer>, ttl: Duration) -> Self {
         Self {
-            cache: CacheController::new(format!("cache-{}", server.name()), false, true, Duration::from_secs(3600)),
+            cache: CacheController::new(
+                format!("cache-{}", server.name()),
+                false,
+                true,
+                Duration::from_secs(3600),
+            ),
             server,
             ttl,
         }

@@ -14,8 +14,8 @@ pub mod tcp_test;
 pub mod udp_test;
 
 pub use finalmask::{
-    unwrap_tcp_mask, HeaderManager, HeaderMask, TcpMask, TcpMaskConn, TcpmaskManager, UdpMask,
-    UdpmaskManager, FINALMASK_VERSION, UDP_SIZE,
+    FINALMASK_VERSION, HeaderManager, HeaderMask, TcpMask, TcpMaskConn, TcpmaskManager, UDP_SIZE,
+    UdpMask, UdpmaskManager, unwrap_tcp_mask,
 };
 pub use fragment::{FragmentConfig, Fragmenter};
 pub use noise::{NoiseConfig, NoiseGenerator};

@@ -3,23 +3,26 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::time::Duration;
+    use super::super::condition::{DomainMatcher, Rule};
+    use super::super::router::Router;
     use crate::app::observatory::Observatory;
-    use crate::app::router::balancing::{Balancer, BalancingStrategy, LeastPingStrategy, RandomStrategy, RoundRobinStrategy};
+    use crate::app::router::balancing::{
+        Balancer, BalancingStrategy, LeastPingStrategy, RandomStrategy, RoundRobinStrategy,
+    };
     use crate::app::router::balancing_override::BalancingOverride;
     use crate::app::router::config::RouterConfig;
     use crate::app::router::geosite_compact::GeoSiteCompactList;
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::SessionContext;
     use crate::features::routing::RouterFeature;
-    use super::super::condition::{DomainMatcher, Rule};
-    use super::super::router::Router;
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[test]
     fn test_router_dispatch_rule_matching() {
         let mut rule = Rule::new("direct_out");
-        rule.domain_matchers.push(DomainMatcher::Suffix("local-host.net".into()));
+        rule.domain_matchers
+            .push(DomainMatcher::Suffix("local-host.net".into()));
 
         let router = Router::new(vec![rule], Some("default_out".into()));
 
@@ -36,7 +39,11 @@ mod tests {
 
     #[test]
     fn test_router_balancer_and_strategies() {
-        let obs = Arc::new(Observatory::new("http://example.com", Duration::from_secs(10), vec![]));
+        let obs = Arc::new(Observatory::new(
+            "http://example.com",
+            Duration::from_secs(10),
+            vec![],
+        ));
         obs.record_status("out-1", true, 30, None);
         obs.record_status("out-2", true, 10, None);
 
@@ -52,7 +59,10 @@ mod tests {
         let pick2 = rr.pick_outbound(&tags);
         assert_ne!(pick1, pick2);
 
-        let rand_strat = Arc::new(RandomStrategy::with_fallback(Some("fallback".into()), Some(obs)));
+        let rand_strat = Arc::new(RandomStrategy::with_fallback(
+            Some("fallback".into()),
+            Some(obs),
+        ));
         assert_eq!(rand_strat.name(), "random");
         let rand_pick = rand_strat.pick_outbound(&tags);
         assert!(rand_pick.is_some());

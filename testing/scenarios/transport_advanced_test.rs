@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::net::IpAddr;
     use crate::transport::internet::finalmask::SalamanderObfuscator;
     use crate::transport::internet::happy_eyeballs::sort_ips;
     use crate::transport::internet::tls::pin::generate_cert_hash_hex;
+    use std::net::IpAddr;
 
     #[test]
     fn test_happy_eyeballs_ip_sorting_and_interleave() {

@@ -1,7 +1,6 @@
 // Module: main\commands\all\api\api.rs
 // 1:1 Rust implementation corresponding to Go main\commands\all\api\api.go
 
-use crate::main::commands::base::command::Command;
 use super::balancer_info::cmd_balancer_info;
 use super::balancer_override::cmd_balancer_override;
 use super::inbound_user::cmd_inbound_user;
@@ -25,32 +24,37 @@ use super::stats_online::cmd_stats_online;
 use super::stats_online_ip_list::cmd_stats_online_ip_list;
 use super::stats_query::cmd_stats_query;
 use super::stats_sys::cmd_stats_sys;
+use crate::main::commands::base::command::Command;
 
 pub fn cmd_api() -> Command {
-    Command::new("api", "xray api <subcommand>", "Call an API in an Xray process")
-        .with_subcommands(vec![
-            cmd_balancer_info(),
-            cmd_balancer_override(),
-            cmd_inbound_user(),
-            cmd_inbound_user_add(),
-            cmd_inbound_user_count(),
-            cmd_inbound_user_remove(),
-            cmd_inbounds_add(),
-            cmd_inbounds_list(),
-            cmd_inbounds_remove(),
-            cmd_logger_restart(),
-            cmd_outbounds_add(),
-            cmd_outbounds_list(),
-            cmd_outbounds_remove(),
-            cmd_rules_add(),
-            cmd_rules_list(),
-            cmd_rules_remove(),
-            cmd_source_ip_block(),
-            cmd_stats_get(),
-            cmd_stats_get_all_online_users(),
-            cmd_stats_online(),
-            cmd_stats_online_ip_list(),
-            cmd_stats_query(),
-            cmd_stats_sys(),
-        ])
+    Command::new(
+        "api",
+        "xray api <subcommand>",
+        "Call an API in an Xray process",
+    )
+    .with_subcommands(vec![
+        cmd_balancer_info(),
+        cmd_balancer_override(),
+        cmd_inbound_user(),
+        cmd_inbound_user_add(),
+        cmd_inbound_user_count(),
+        cmd_inbound_user_remove(),
+        cmd_inbounds_add(),
+        cmd_inbounds_list(),
+        cmd_inbounds_remove(),
+        cmd_logger_restart(),
+        cmd_outbounds_add(),
+        cmd_outbounds_list(),
+        cmd_outbounds_remove(),
+        cmd_rules_add(),
+        cmd_rules_list(),
+        cmd_rules_remove(),
+        cmd_source_ip_block(),
+        cmd_stats_get(),
+        cmd_stats_get_all_online_users(),
+        cmd_stats_online(),
+        cmd_stats_online_ip_list(),
+        cmd_stats_query(),
+        cmd_stats_sys(),
+    ])
 }

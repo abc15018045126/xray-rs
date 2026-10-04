@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::sockopt::{is_tcp_socket, is_udp_socket, SocketOptions};
+    use super::super::sockopt::{SocketOptions, is_tcp_socket, is_udp_socket};
 
     #[test]
     fn test_socket_options_builder_and_tfo() {

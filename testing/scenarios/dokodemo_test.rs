@@ -1,13 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::infra::conf::Config;
-    use crate::testing::scenarios::common::{pick_port, TestEnvironment};
-    use crate::testing::servers::tcp::{echo_processor, Server as TcpServer};
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port};
+    use crate::testing::servers::tcp::{Server as TcpServer, echo_processor};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_dokodemo_port_forward() {
-        let tcp_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -27,11 +29,14 @@ mod tests {
                 }
             }],
             "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(cfg).await.unwrap();
 
         // Direct connect to dokodemo port (transparent forward)
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", dokodemo_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", dokodemo_port))
+            .await
+            .unwrap();
 
         let msg = b"Testing Dokodemo Transparent Port Forwarding";
         client.write_all(msg).await.unwrap();

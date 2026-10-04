@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::app::reverse::{Bridge, Portal, ReverseManager};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_reverse_portal_dispatch_and_pull() {
@@ -13,7 +13,9 @@ mod tests {
         let mut pulled = portal.pull_stream().await.unwrap();
 
         // Write from s2 side, read from pulled stream
-        s2.write_all(b"Reverse Tunnel Stream Message").await.unwrap();
+        s2.write_all(b"Reverse Tunnel Stream Message")
+            .await
+            .unwrap();
 
         let mut recv = [0u8; 29];
         pulled.read_exact(&mut recv).await.unwrap();

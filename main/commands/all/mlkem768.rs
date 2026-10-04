@@ -1,11 +1,11 @@
 // Module: main\commands\all\mlkem768.rs
 // 1:1 Rust implementation corresponding to Go main\commands\all\mlkem768.go
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use crate::main::commands::base::command::Command;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use crate::main::commands::base::command::Command;
 
 pub fn gen_mlkem768(input_seed: Option<&[u8]>) -> ([u8; 64], Vec<u8>, [u8; 32]) {
     let mut seed = [0u8; 64];
@@ -19,7 +19,7 @@ pub fn gen_mlkem768(input_seed: Option<&[u8]>) -> ([u8; 64], Vec<u8>, [u8; 32]) 
 
     let mut hasher = Sha256::new();
     hasher.update(b"ML-KEM-768-CLIENT-KEY-DERIVATION");
-    hasher.update(&seed);
+    hasher.update(seed);
     let client = hasher.finalize().to_vec();
 
     let mut hash_hasher = Sha256::new();
@@ -50,9 +50,9 @@ pub fn cmd_mlkem768() -> Command {
         let (seed, client, hash32) = gen_mlkem768(input_seed.as_deref());
         Ok(format!(
             "Seed: {}\nClient: {}\nHash32: {}",
-            URL_SAFE_NO_PAD.encode(&seed),
+            URL_SAFE_NO_PAD.encode(seed),
             URL_SAFE_NO_PAD.encode(&client),
-            URL_SAFE_NO_PAD.encode(&hash32)
+            URL_SAFE_NO_PAD.encode(hash32)
         ))
     })
 }

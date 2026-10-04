@@ -1,6 +1,6 @@
+use crate::app::dns::fakedns::FakeDnsHolder;
 use std::net::IpAddr;
 use std::sync::Arc;
-use crate::app::dns::fakedns::FakeDnsHolder;
 
 pub struct FakeDnsSniffer {
     holder: Arc<FakeDnsHolder>,

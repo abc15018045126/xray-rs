@@ -3,11 +3,11 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use super::super::periodic::Periodic;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
     use tokio::time::sleep;
-    use super::super::periodic::Periodic;
 
     #[tokio::test]
     async fn test_periodic_task_run_and_close() {

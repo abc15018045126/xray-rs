@@ -1,12 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::time::Duration;
     use crate::app::dns::nameserver::{LocalNameServer, NameServer};
     use crate::app::dns::{CachedNameServer, DohNameServer};
-    use crate::app::observatory::explain_errors::{explain_error, ErrorCategory};
-    use crate::app::proxyman::outbound::uot::{is_uot_destination, UotPacket, UotVersion, UOT_MAGIC_ADDRESS};
+    use crate::app::observatory::explain_errors::{ErrorCategory, explain_error};
+    use crate::app::proxyman::outbound::uot::{
+        UOT_MAGIC_ADDRESS, UotPacket, UotVersion, is_uot_destination,
+    };
     use crate::common::net::{Address, Destination};
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[test]
     fn test_uot_packet_encode_decode() {

@@ -4,12 +4,12 @@
 use std::fs::OpenOptions;
 use std::io::Write as IoWrite;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use super::log::{register_handler, Handler, LogLevel, Message};
+use super::log::{Handler, LogLevel, Message, register_handler};
 use super::log_pb::Severity;
 use crate::common::platform;
 
@@ -70,10 +70,7 @@ pub fn create_stderr_log_writer() -> WriterCreator {
 /// CreateFileLogWriter returns a WriterCreator that creates LogWriter for the given file path.
 pub fn create_file_log_writer(path: &str) -> std::io::Result<WriterCreator> {
     // Test open / create with append permissions
-    let _ = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)?;
+    let _ = OpenOptions::new().create(true).append(true).open(path)?;
 
     let path_buf = path.to_string();
     Ok(Arc::new(move || {
@@ -140,10 +137,10 @@ impl GeneralLogger {
 
     pub fn close(&self) {
         self.done.store(true, Ordering::SeqCst);
-        if let Ok(mut guard) = self.worker.lock() {
-            if let Some(handle) = guard.take() {
-                let _ = handle.join();
-            }
+        if let Ok(mut guard) = self.worker.lock()
+            && let Some(handle) = guard.take()
+        {
+            let _ = handle.join();
         }
     }
 }

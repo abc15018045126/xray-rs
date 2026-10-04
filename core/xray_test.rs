@@ -4,10 +4,10 @@
 #[cfg(test)]
 mod tests {
     use crate::core::annotations::{Annotation, ApiStability};
-    use crate::core::config::{get_extension, get_format, get_format_by_extension, ConfigSource};
+    use crate::core::config::{ConfigSource, get_extension, get_format, get_format_by_extension};
     use crate::core::config_pb::{Config as PbConfig, InboundHandlerConfig, OutboundHandlerConfig};
-    use crate::core::core::{version, version_statement, VERSION_X, VERSION_Y, VERSION_Z};
-    use crate::core::xray::{server_type, Instance};
+    use crate::core::core::{VERSION_X, VERSION_Y, VERSION_Z, version, version_statement};
+    use crate::core::xray::{Instance, server_type};
     use crate::infra::conf::Config;
 
     #[test]
@@ -24,14 +24,17 @@ mod tests {
 
     #[test]
     fn test_xray_instance_lifecycle() {
-        let config: Config = serde_json::from_str(r#"{
+        let config: Config = serde_json::from_str(
+            r#"{
             "inbounds": [],
             "outbounds": [
                 {
                     "protocol": "freedom"
                 }
             ]
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         let instance = Instance::new(config).unwrap();
         assert_eq!(instance.type_name(), server_type());

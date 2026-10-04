@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::aes::{new_aes_gcm, AesGcmCipher};
+    use super::super::aes::{AesGcmCipher, new_aes_gcm};
 
     #[test]
     fn test_aes_gcm_128_roundtrip() {

@@ -2,15 +2,15 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::salamander::{SalamanderObfuscator, SM_SALT_LEN};
-    use super::super::conn::SalamanderPacketConn;
     use super::super::config::SalamanderConfig;
+    use super::super::conn::SalamanderPacketConn;
+    use super::super::salamander::{SM_SALT_LEN, SalamanderObfuscator};
 
     #[test]
     fn test_salamander_obfuscator_roundtrip() {
         let obf = SalamanderObfuscator::new(b"average_password".to_vec()).unwrap();
         let payload = b"Hello Salamander 1:1 XOR obfuscation with BLAKE2b!";
-        
+
         let mut out = vec![0u8; payload.len() + SM_SALT_LEN];
         let n_enc = obf.obfuscate_slice(payload, &mut out);
         assert_eq!(n_enc, payload.len() + SM_SALT_LEN);

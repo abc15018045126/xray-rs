@@ -35,10 +35,7 @@ mod macos {
         }
     }
 
-    async fn new_tcp_stream(
-        addr: SocketAddr,
-        iface: &str,
-    ) -> std::io::Result<TcpStream> {
+    async fn new_tcp_stream(addr: SocketAddr, iface: &str) -> std::io::Result<TcpStream> {
         let socket = socket2::Socket::new(
             if addr.is_ipv4() {
                 socket2::Domain::IPV4
@@ -68,10 +65,9 @@ mod macos {
 
     async fn handle_inbound_stream(mut stream: netstack_smoltcp::TcpStream) {
         let start = std::time::Instant::now();
-        let mut remote_stream =
-            new_tcp_stream(*stream.remote_addr(), OUTBOUND_INTERFACE)
-                .await
-                .expect("Failed to connect to remote stream");
+        let mut remote_stream = new_tcp_stream(*stream.remote_addr(), OUTBOUND_INTERFACE)
+            .await
+            .expect("Failed to connect to remote stream");
 
         trace!(
             "Connected to remote {} in {} ms",
@@ -200,24 +196,21 @@ mod macos {
 
         add_test_routes(tun_name);
 
-        let (stack, runner, _udp_socket, tcp_listener) =
-            netstack_smoltcp::StackBuilder::default()
-                .stack_buffer_size(512)
-                .tcp_buffer_size(4096)
-                .enable_udp(true)
-                .enable_tcp(true)
-                .enable_icmp(true)
-                .build()
-                .unwrap();
+        let (stack, runner, _udp_socket, tcp_listener) = netstack_smoltcp::StackBuilder::default()
+            .stack_buffer_size(512)
+            .tcp_buffer_size(4096)
+            .enable_udp(true)
+            .enable_tcp(true)
+            .enable_icmp(true)
+            .build()
+            .unwrap();
         let mut _udp_socket = _udp_socket.unwrap(); // udp enabled
         let mut tcp_listener = tcp_listener.unwrap(); // tcp/icmp enabled
         if let Some(runner) = runner {
             tokio::spawn(runner);
         }
-        let framed = tun_rs::async_framed::DeviceFramed::new(
-            dev,
-            tun_rs::async_framed::BytesCodec::new(),
-        );
+        let framed =
+            tun_rs::async_framed::DeviceFramed::new(dev, tun_rs::async_framed::BytesCodec::new());
 
         let (mut tun_sink, mut tun_stream) = framed.split::<bytes::Bytes>();
         let (mut stack_sink, mut stack_stream) = stack.split();

@@ -1,11 +1,11 @@
 // Module: transport\internet\splithttp\client.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\client.go
 
+use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use async_trait::async_trait;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 use super::common::*;
@@ -24,7 +24,11 @@ pub trait DialerClient: Send + Sync {
         session_id: &str,
         body: Option<Pin<Box<dyn AsyncRead + Send + Sync>>>,
         upload_only: bool,
-    ) -> Result<(Pin<Box<dyn AsyncRead + Send + Sync>>, Option<SocketAddr>, Option<SocketAddr>)>;
+    ) -> Result<(
+        Pin<Box<dyn AsyncRead + Send + Sync>>,
+        Option<SocketAddr>,
+        Option<SocketAddr>,
+    )>;
 
     async fn post_packet(
         &self,
@@ -43,7 +47,11 @@ pub struct DefaultDialerClient {
 }
 
 impl DefaultDialerClient {
-    pub fn new(transport_config: SplitHttpConfig, dest: Destination, http_version: impl Into<String>) -> Self {
+    pub fn new(
+        transport_config: SplitHttpConfig,
+        dest: Destination,
+        http_version: impl Into<String>,
+    ) -> Self {
         Self {
             transport_config,
             dest,
@@ -65,7 +73,11 @@ impl DialerClient for DefaultDialerClient {
         session_id: &str,
         _body: Option<Pin<Box<dyn AsyncRead + Send + Sync>>>,
         upload_only: bool,
-    ) -> Result<(Pin<Box<dyn AsyncRead + Send + Sync>>, Option<SocketAddr>, Option<SocketAddr>)> {
+    ) -> Result<(
+        Pin<Box<dyn AsyncRead + Send + Sync>>,
+        Option<SocketAddr>,
+        Option<SocketAddr>,
+    )> {
         let mut stream = SystemDialer::dial_tcp(&self.dest).await?;
         let local_addr = stream.local_addr().ok();
         let remote_addr = stream.peer_addr().ok();
@@ -77,7 +89,9 @@ impl DialerClient for DefaultDialerClient {
         };
 
         let norm_path = self.transport_config.get_normalized_path();
-        let target_path = if !session_id.is_empty() && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH {
+        let target_path = if !session_id.is_empty()
+            && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH
+        {
             SplitHttpConfig::append_to_path(&norm_path, session_id)
         } else {
             norm_path
@@ -89,9 +103,18 @@ impl DialerClient for DefaultDialerClient {
             url
         };
 
-        let mut req = format!("{} {} HTTP/1.1\r\nHost: {}\r\nAccept-Encoding: identity\r\n", method, target_path, host);
-        if !session_id.is_empty() && self.transport_config.get_normalized_session_placement() == PLACEMENT_HEADER {
-            req.push_str(&format!("{}: {}\r\n", self.transport_config.get_normalized_session_key(), session_id));
+        let mut req = format!(
+            "{} {} HTTP/1.1\r\nHost: {}\r\nAccept-Encoding: identity\r\n",
+            method, target_path, host
+        );
+        if !session_id.is_empty()
+            && self.transport_config.get_normalized_session_placement() == PLACEMENT_HEADER
+        {
+            req.push_str(&format!(
+                "{}: {}\r\n",
+                self.transport_config.get_normalized_session_key(),
+                session_id
+            ));
         }
 
         for (k, v) in &self.transport_config.headers {
@@ -115,14 +138,21 @@ impl DialerClient for DefaultDialerClient {
                 let header_str = String::from_utf8_lossy(&buf[..pos]);
                 let status_line = header_str.lines().next().unwrap_or("");
                 if !status_line.contains("200") {
-                    return Err(Error::Protocol(format!("unexpected HTTP status: {}", status_line)));
+                    return Err(Error::Protocol(format!(
+                        "unexpected HTTP status: {}",
+                        status_line
+                    )));
                 }
                 let remainder = buf[pos + 4..n_read].to_vec();
-                let combined_reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if !remainder.is_empty() {
-                    Box::pin(tokio::io::AsyncReadExt::chain(std::io::Cursor::new(remainder), stream))
-                } else {
-                    Box::pin(stream)
-                };
+                let combined_reader: Pin<Box<dyn AsyncRead + Send + Sync>> =
+                    if !remainder.is_empty() {
+                        Box::pin(tokio::io::AsyncReadExt::chain(
+                            std::io::Cursor::new(remainder),
+                            stream,
+                        ))
+                    } else {
+                        Box::pin(stream)
+                    };
                 return Ok((combined_reader, local_addr, remote_addr));
             }
             if n_read >= buf.len() {
@@ -140,9 +170,13 @@ impl DialerClient for DefaultDialerClient {
     ) -> Result<()> {
         let mut stream = SystemDialer::dial_tcp(&self.dest).await?;
         let norm_path = self.transport_config.get_normalized_path();
-        let target_path = if !session_id.is_empty() && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH {
+        let target_path = if !session_id.is_empty()
+            && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH
+        {
             let p1 = SplitHttpConfig::append_to_path(&norm_path, session_id);
-            if !seq_str.is_empty() && self.transport_config.get_normalized_seq_placement() == PLACEMENT_PATH {
+            if !seq_str.is_empty()
+                && self.transport_config.get_normalized_seq_placement() == PLACEMENT_PATH
+            {
                 SplitHttpConfig::append_to_path(&p1, seq_str)
             } else {
                 p1
@@ -160,14 +194,29 @@ impl DialerClient for DefaultDialerClient {
 
         let mut req = format!(
             "{} {} HTTP/1.1\r\nHost: {}\r\nContent-Length: {}\r\n",
-            method, target_path, host, payload.len()
+            method,
+            target_path,
+            host,
+            payload.len()
         );
 
-        if !session_id.is_empty() && self.transport_config.get_normalized_session_placement() == PLACEMENT_HEADER {
-            req.push_str(&format!("{}: {}\r\n", self.transport_config.get_normalized_session_key(), session_id));
+        if !session_id.is_empty()
+            && self.transport_config.get_normalized_session_placement() == PLACEMENT_HEADER
+        {
+            req.push_str(&format!(
+                "{}: {}\r\n",
+                self.transport_config.get_normalized_session_key(),
+                session_id
+            ));
         }
-        if !seq_str.is_empty() && self.transport_config.get_normalized_seq_placement() == PLACEMENT_HEADER {
-            req.push_str(&format!("{}: {}\r\n", self.transport_config.get_normalized_seq_key(), seq_str));
+        if !seq_str.is_empty()
+            && self.transport_config.get_normalized_seq_placement() == PLACEMENT_HEADER
+        {
+            req.push_str(&format!(
+                "{}: {}\r\n",
+                self.transport_config.get_normalized_seq_key(),
+                seq_str
+            ));
         }
 
         for (k, v) in &self.transport_config.headers {
@@ -189,7 +238,10 @@ impl DialerClient for DefaultDialerClient {
         }
         let resp = String::from_utf8_lossy(&buf[..n]);
         if !resp.starts_with("HTTP/1.1 200") && !resp.starts_with("HTTP/1.0 200") {
-            return Err(Error::Protocol(format!("post packet failed with response: {}", resp.lines().next().unwrap_or(""))));
+            return Err(Error::Protocol(format!(
+                "post packet failed with response: {}",
+                resp.lines().next().unwrap_or("")
+            )));
         }
         Ok(())
     }

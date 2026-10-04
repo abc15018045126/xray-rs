@@ -1,8 +1,8 @@
 // Module: proxy\vmess\outbound\outbound.rs
 // 1:1 Rust implementation corresponding to Go proxy\vmess\outbound\outbound.go
 
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::errors::Result;
@@ -48,10 +48,13 @@ impl OutboundHandler for Client {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
 
         let mut stream = if let Some(tls) = &self.tls_client {
-            let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
-                crate::common::net::Address::Domain(d) => d.as_str(),
-                _ => "localhost",
-            });
+            let sni = self
+                .tls_sni
+                .as_deref()
+                .unwrap_or_else(|| match &self.server_addr.address {
+                    crate::common::net::Address::Domain(d) => d.as_str(),
+                    _ => "localhost",
+                });
             tls.connect(sni, tcp_stream).await?
         } else {
             tcp_stream

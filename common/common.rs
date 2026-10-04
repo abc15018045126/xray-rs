@@ -34,11 +34,7 @@ pub fn error2<T, E>(result: std::result::Result<T, E>) -> Option<E> {
 }
 
 pub fn close_if_exists<T: Closable>(obj: Option<&T>) -> Result<()> {
-    if let Some(o) = obj {
-        o.close()
-    } else {
-        Ok(())
-    }
+    if let Some(o) = obj { o.close() } else { Ok(()) }
 }
 
 #[cfg(test)]

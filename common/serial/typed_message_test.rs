@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::typed_message::{get_instance, to_typed_message, TypedMessage};
+    use super::super::typed_message::{TypedMessage, get_instance, to_typed_message};
 
     #[test]
     fn test_get_instance() {

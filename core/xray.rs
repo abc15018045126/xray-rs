@@ -1,8 +1,8 @@
 // Module: core\xray.rs
 // 1:1 Rust implementation corresponding to Go core\xray.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::task::JoinHandle;
 
 use crate::app::dispatcher::DefaultDispatcher;
@@ -36,7 +36,10 @@ impl Instance {
 
     pub fn from_config(config: Config) -> Result<Self> {
         let built = config.build()?;
-        let dispatcher = Arc::new(DefaultDispatcher::new(built.outbounds, Arc::new(built.router)));
+        let dispatcher = Arc::new(DefaultDispatcher::new(
+            built.outbounds,
+            Arc::new(built.router),
+        ));
         let inbound_manager = InboundManager::new(built.inbounds);
         let tun_devices = built.tun_devices;
         let stats_manager = Arc::new(StatsManager::new());
@@ -84,4 +87,3 @@ impl Drop for Instance {
         let _ = self.close();
     }
 }
-

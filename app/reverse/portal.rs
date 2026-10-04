@@ -1,10 +1,10 @@
 // Module: app\reverse\portal.rs
 // 1:1 Rust implementation corresponding to Go app\reverse\portal.go
 
-use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
+use std::sync::Arc;
+use tokio::sync::{Mutex, mpsc};
 
 pub struct StaticMuxPicker {
     workers: std::sync::Mutex<Vec<String>>,

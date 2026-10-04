@@ -1,12 +1,14 @@
 // Module: transport\internet\finalmask\tcp_test.rs
 #[cfg(test)]
 mod tests {
-    use super::super::finalmask::{unwrap_tcp_mask, TcpMaskConn, TcpmaskManager, FINALMASK_VERSION};
+    use super::super::finalmask::{
+        FINALMASK_VERSION, TcpMaskConn, TcpmaskManager, unwrap_tcp_mask,
+    };
     use super::super::header::custom::config::{TCPConfig, TCPItem, TCPSequence};
     use super::super::header::custom::tcp::{
-        client_handshake, read_sequence, server_handshake, write_sequence, TcpCustomConn,
+        TcpCustomConn, client_handshake, read_sequence, server_handshake, write_sequence,
     };
-    use tokio::io::{duplex, AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, duplex};
 
     #[test]
     fn test_finalmask_version() {

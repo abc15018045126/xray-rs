@@ -22,12 +22,21 @@ mod tests {
 
         // Send payload through client
         let msg = b"Testing XTLS-Vision Flow Data Transmission!";
-        client_stream.write_all(msg).await.expect("Client write should succeed");
-        client_stream.flush().await.expect("Client flush should succeed");
+        client_stream
+            .write_all(msg)
+            .await
+            .expect("Client write should succeed");
+        client_stream
+            .flush()
+            .await
+            .expect("Client flush should succeed");
 
         // Read through server stream - should automatically unpad
         let mut received = vec![0u8; msg.len()];
-        server_stream.read_exact(&mut received).await.expect("Server read should succeed");
+        server_stream
+            .read_exact(&mut received)
+            .await
+            .expect("Server read should succeed");
 
         assert_eq!(&received, msg);
     }
@@ -36,7 +45,7 @@ mod tests {
     fn test_vision_filter_inspect_tls_record_length() {
         let mut record = vec![0x16, 0x03, 0x03];
         record.extend_from_slice(&(42u16).to_be_bytes()); // length 42
-        record.extend_from_slice(&vec![0u8; 42]);
+        record.extend_from_slice(&[0u8; 42]);
 
         let len = VisionFilter::inspect_tls_record_length(&record);
         assert_eq!(len, Some(47)); // 5 + 42

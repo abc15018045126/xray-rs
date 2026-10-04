@@ -3,16 +3,22 @@ pub mod retry;
 #[cfg(test)]
 pub mod retry_test;
 
+use crate::common::errors::{Error, Result};
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::sleep;
-use crate::common::errors::{Error, Result};
 
-pub use retry::{exponential_backoff, timed, Retryer, Strategy, ERR_RETRY_FAILED};
+pub use retry::{ERR_RETRY_FAILED, Retryer, Strategy, exponential_backoff, timed};
 
 pub enum RetryStrategy {
-    Timed { attempts: usize, delay: Duration },
-    ExponentialBackoff { attempts: usize, base_delay: Duration },
+    Timed {
+        attempts: usize,
+        delay: Duration,
+    },
+    ExponentialBackoff {
+        attempts: usize,
+        base_delay: Duration,
+    },
 }
 
 impl RetryStrategy {
@@ -47,16 +53,15 @@ impl RetryStrategy {
                 Err(e) => {
                     last_err = e;
                     if attempt + 1 < attempts {
-                        let delay = if is_exp {
-                            base * (1 << attempt)
-                        } else {
-                            base
-                        };
+                        let delay = if is_exp { base * (1 << attempt) } else { base };
                         sleep(delay).await;
                     }
                 }
             }
         }
-        Err(Error::Other(format!("All {} retry attempts failed: {}", attempts, last_err)))
+        Err(Error::Other(format!(
+            "All {} retry attempts failed: {}",
+            attempts, last_err
+        )))
     }
 }

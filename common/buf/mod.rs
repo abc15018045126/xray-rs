@@ -21,9 +21,9 @@ pub mod copy_test;
 #[cfg(test)]
 pub mod io_test;
 #[cfg(test)]
-pub mod override_test;
-#[cfg(test)]
 pub mod multi_buffer_test;
+#[cfg(test)]
+pub mod override_test;
 #[cfg(test)]
 pub mod reader_test;
 #[cfg(test)]
@@ -32,11 +32,11 @@ pub mod readv_test;
 pub mod writer_test;
 
 pub use buffer::Buffer;
-pub use copy::{copy, copy_once_timeout, copy_stream, CopyOptions};
-pub use io::{write_all_bytes, Reader, TimeoutReader, Writer};
+pub use copy::{CopyOptions, copy, copy_once_timeout, copy_stream};
+pub use io::{Reader, TimeoutReader, Writer, write_all_bytes};
 pub use multi_buffer::MultiBuffer;
 pub use override_::{EndpointOverrideReader, EndpointOverrideWriter};
-pub use reader::{read_buffer, BufferedReader, PacketReader, SingleReader};
+pub use reader::{BufferedReader, PacketReader, SingleReader, read_buffer};
 pub use readv::VectorReader;
 pub use readv_reader::{AllocStrategy, ReadVReader};
 pub use writer::{BufferedWriter, Discard, SequentialWriter};

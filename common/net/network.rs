@@ -1,24 +1,19 @@
 // Module: common\net\network.rs
 // 1:1 Rust implementation corresponding to Go common\net\network.go
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
 
 use crate::common::errors::{Error, Result};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum Network {
     #[serde(rename = "tcp", alias = "TCP")]
+    #[default]
     Tcp,
     #[serde(rename = "udp", alias = "UDP")]
     Udp,
-}
-
-impl Default for Network {
-    fn default() -> Self {
-        Network::Tcp
-    }
 }
 
 impl Network {

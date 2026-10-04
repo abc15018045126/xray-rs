@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use std::net::Ipv4Addr;
     use super::super::address::AddressParser;
     use crate::common::net::Address;
+    use std::io::Cursor;
+    use std::net::Ipv4Addr;
 
     #[tokio::test]
     async fn test_address_parser_ipv4() {
@@ -15,7 +15,10 @@ mod tests {
         let addr = Address::Ipv4(Ipv4Addr::new(192, 168, 1, 100));
         let port = 8080u16;
 
-        parser.write_address_port(&mut buf, &addr, port).await.unwrap();
+        parser
+            .write_address_port(&mut buf, &addr, port)
+            .await
+            .unwrap();
 
         let mut reader = Cursor::new(buf);
         let (decoded_addr, decoded_port) = parser.read_address_port(&mut reader).await.unwrap();
@@ -30,7 +33,10 @@ mod tests {
         let addr = Address::Domain("www.example.org".into());
         let port = 443u16;
 
-        parser.write_address_port(&mut buf, &addr, port).await.unwrap();
+        parser
+            .write_address_port(&mut buf, &addr, port)
+            .await
+            .unwrap();
 
         let mut reader = Cursor::new(buf);
         let (decoded_addr, decoded_port) = parser.read_address_port(&mut reader).await.unwrap();

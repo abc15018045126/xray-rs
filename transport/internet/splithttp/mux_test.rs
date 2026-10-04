@@ -13,7 +13,10 @@ mod tests {
         {
             let guard = client1.lock().await;
             assert!(guard.acquire());
-            assert_eq!(guard.open_usage.load(std::sync::atomic::Ordering::SeqCst), 1);
+            assert_eq!(
+                guard.open_usage.load(std::sync::atomic::Ordering::SeqCst),
+                1
+            );
             guard.release();
         }
 

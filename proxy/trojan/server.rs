@@ -1,10 +1,10 @@
 // Module: proxy\trojan\server.rs
 // 1:1 Rust implementation corresponding to Go proxy\trojan\server.go
 
-use std::net::SocketAddr;
-use std::sync::Arc;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination, Network};
@@ -69,7 +69,11 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let req_res = RequestHeader::decode(&mut stream).await;
 
         let req = match req_res {

@@ -12,8 +12,8 @@ pub use dial::GrpcDialer;
 pub use grpc::{DEFAULT_SERVICE_NAME, PROTOCOL_NAME};
 pub use hub::GrpcListener;
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub struct GrpcStream;
 

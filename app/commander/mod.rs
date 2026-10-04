@@ -7,10 +7,10 @@ pub mod service;
 #[cfg(test)]
 pub mod commander_test;
 
+use crate::common::errors::{Error, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::common::errors::{Error, Result};
 
 pub use config_pb::{Config as CommanderConfig, ReflectionConfig};
 pub use outbound::CommanderOutbound;

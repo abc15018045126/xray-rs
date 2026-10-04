@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use async_trait::async_trait;
+use super::balancing::Balancer;
+use super::condition::Rule;
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::SessionContext;
 use crate::features::feature::{Feature, TYPE_ROUTER};
-use crate::features::routing::{Router as CoreRouterTrait, RouterFeature};
 use crate::features::routing::context::RoutingContext;
-use super::balancing::Balancer;
-use super::condition::Rule;
+use crate::features::routing::{Router as CoreRouterTrait, RouterFeature};
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DomainStrategy {
@@ -66,19 +66,18 @@ impl RouterFeature for Router {
     fn pick_outbound(&self, session: &SessionContext) -> Option<&str> {
         for rule in &self.rules {
             if rule.matches(session) {
-                if let Some(btag) = &rule.balancer_tag {
-                    if let Some(balancer) = self.balancers.get(btag) {
-                        if let Some(picked) = balancer.pick() {
-                            for candidate in &balancer.candidates {
-                                if candidate == &picked {
-                                    return Some(candidate.as_str());
-                                }
-                            }
-                            for selector in &balancer.selectors {
-                                if selector == &picked {
-                                    return Some(selector.as_str());
-                                }
-                            }
+                if let Some(btag) = &rule.balancer_tag
+                    && let Some(balancer) = self.balancers.get(btag)
+                    && let Some(picked) = balancer.pick()
+                {
+                    for candidate in &balancer.candidates {
+                        if candidate == &picked {
+                            return Some(candidate.as_str());
+                        }
+                    }
+                    for selector in &balancer.selectors {
+                        if selector == &picked {
+                            return Some(selector.as_str());
                         }
                     }
                 }
@@ -112,10 +111,8 @@ impl CoreRouterTrait for Router {
 
         for rule in &self.rules {
             // Check process
-            if !rule.process.is_empty() {
-                if !rule.matches_process(src_addr, is_tcp) {
-                    continue;
-                }
+            if !rule.process.is_empty() && !rule.matches_process(src_addr, is_tcp) {
+                continue;
             }
 
             // Check inbound
@@ -124,16 +121,19 @@ impl CoreRouterTrait for Router {
             }
 
             // Check network
-            if let Some(r_net) = rule.network {
-                if r_net != net {
-                    continue;
-                }
+            if let Some(r_net) = rule.network
+                && r_net != net
+            {
+                continue;
             }
 
             // Check ports
             if !rule.ports.is_empty() || !rule.port_ranges.is_empty() {
                 let port_match = rule.ports.contains(&target_port)
-                    || rule.port_ranges.iter().any(|&(s, e)| target_port >= s && target_port <= e);
+                    || rule
+                        .port_ranges
+                        .iter()
+                        .any(|&(s, e)| target_port >= s && target_port <= e);
                 if !port_match {
                     continue;
                 }
@@ -146,7 +146,9 @@ impl CoreRouterTrait for Router {
 
             // Check source IPs
             if !rule.source_ip_matchers.is_empty() {
-                let matched = src_ips.iter().any(|ip| rule.source_ip_matchers.iter().any(|m| m.matches(ip)));
+                let matched = src_ips
+                    .iter()
+                    .any(|ip| rule.source_ip_matchers.iter().any(|m| m.matches(ip)));
                 if !matched {
                     continue;
                 }
@@ -181,13 +183,11 @@ impl CoreRouterTrait for Router {
             if has_domain_rules || has_ip_rules {
                 let mut matched = false;
 
-                if has_domain_rules {
-                    if let Some(domain) = target_domain {
-                        for matcher in &rule.domain_matchers {
-                            if matcher.matches(domain) {
-                                matched = true;
-                                break;
-                            }
+                if has_domain_rules && let Some(domain) = target_domain {
+                    for matcher in &rule.domain_matchers {
+                        if matcher.matches(domain) {
+                            matched = true;
+                            break;
                         }
                     }
                 }
@@ -207,12 +207,11 @@ impl CoreRouterTrait for Router {
             }
 
             // Rule matched!
-            if let Some(btag) = &rule.balancer_tag {
-                if let Some(balancer) = self.balancers.get(btag) {
-                    if let Some(picked) = balancer.pick() {
-                        return Ok(picked);
-                    }
-                }
+            if let Some(btag) = &rule.balancer_tag
+                && let Some(balancer) = self.balancers.get(btag)
+                && let Some(picked) = balancer.pick()
+            {
+                return Ok(picked);
             }
 
             if !rule.tag.is_empty() {
@@ -225,4 +224,3 @@ impl CoreRouterTrait for Router {
             .ok_or_else(|| Error::NotFound("No matching route found".into()))
     }
 }
-

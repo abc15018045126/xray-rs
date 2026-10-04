@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use crate::common::task::{Periodic, parallel_run_boxed};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
-    use crate::common::task::{parallel_run_boxed, Periodic};
 
     #[tokio::test]
     async fn test_periodic_task_execution_and_cancellation() {
@@ -30,9 +30,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parallel_run_success() {
+        use crate::common::errors::Result;
         use std::future::Future;
         use std::pin::Pin;
-        use crate::common::errors::Result;
 
         let task1: Pin<Box<dyn Future<Output = Result<()>> + Send>> = Box::pin(async { Ok(()) });
         let task2: Pin<Box<dyn Future<Output = Result<()>> + Send>> = Box::pin(async { Ok(()) });

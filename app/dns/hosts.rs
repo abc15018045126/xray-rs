@@ -39,10 +39,10 @@ impl StaticHosts {
         let domain_lower = domain.to_lowercase();
 
         // 1. Exact match
-        if let Ok(guard) = self.exact.read() {
-            if let Some(ips) = guard.get(&domain_lower) {
-                return Some(ips.clone());
-            }
+        if let Ok(guard) = self.exact.read()
+            && let Some(ips) = guard.get(&domain_lower)
+        {
+            return Some(ips.clone());
         }
 
         // 2. Domain suffix match (e.g. "google.com" matches "mail.google.com" or "google.com")
@@ -64,5 +64,11 @@ impl StaticHosts {
         }
 
         None
+    }
+}
+
+impl Default for StaticHosts {
+    fn default() -> Self {
+        Self::new()
     }
 }

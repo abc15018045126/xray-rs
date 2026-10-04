@@ -1,13 +1,13 @@
 // Module: testing\servers\tcp\tcp.rs
 // TCP test echo server with customizable message processors
 
+use crate::common::errors::Result;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::watch;
-use crate::common::errors::Result;
 
 pub type MsgProcessor = Arc<dyn Fn(&[u8]) -> Vec<u8> + Send + Sync>;
 
@@ -32,7 +32,9 @@ impl Server {
         processor: Option<MsgProcessor>,
         send_first: Option<Vec<u8>>,
     ) -> Result<Self> {
-        let addr = listen_addr.into().unwrap_or_else(|| "127.0.0.1:0".parse().unwrap());
+        let addr = listen_addr
+            .into()
+            .unwrap_or_else(|| "127.0.0.1:0".parse().unwrap());
         let listener = TcpListener::bind(addr).await?;
         let local_addr = listener.local_addr()?;
 
@@ -58,11 +60,10 @@ impl Server {
                                 let bytes_recv = bytes_recv_clone.clone();
 
                                 tokio::spawn(async move {
-                                    if let Some(banner) = send_first.as_ref() {
-                                        if stream.write_all(banner).await.is_err() {
+                                    if let Some(banner) = send_first.as_ref()
+                                        && stream.write_all(banner).await.is_err() {
                                             return;
                                         }
-                                    }
 
                                     let mut buf = [0u8; 4096];
                                     loop {

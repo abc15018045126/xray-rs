@@ -1,11 +1,11 @@
 // Module: transport\internet\httpupgrade\dialer.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\dialer.go
 
+use super::config::HttpUpgradeConfig;
+use super::httpupgrade::HttpUpgradeStream;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::transport::internet::tcp::TcpDialer;
-use super::config::HttpUpgradeConfig;
-use super::httpupgrade::HttpUpgradeStream;
 
 pub struct HttpUpgradeDialer;
 

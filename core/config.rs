@@ -1,11 +1,13 @@
 // Module: core\config.rs
 // 1:1 Rust implementation corresponding to Go core\config.go
 
-use std::collections::HashMap;
-use std::sync::RwLock;
+use super::format::{
+    CONFIG_FORMAT_JSON, CONFIG_FORMAT_PROTOBUF, CONFIG_FORMAT_TOML, CONFIG_FORMAT_YAML,
+};
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
-use super::format::{CONFIG_FORMAT_JSON, CONFIG_FORMAT_PROTOBUF, CONFIG_FORMAT_TOML, CONFIG_FORMAT_YAML};
+use std::collections::HashMap;
+use std::sync::RwLock;
 
 pub type ConfigLoader = fn(&[u8]) -> Result<Config>;
 
@@ -72,17 +74,27 @@ fn json_loader(data: &[u8]) -> Result<Config> {
 
 pub fn register_config_loader(format: ConfigFormat) -> Result<()> {
     let name = format.name.to_lowercase();
-    let mut names = LOADERS_BY_NAME.write().map_err(|_| Error::Config("Loader lock poisoned".into()))?;
+    let mut names = LOADERS_BY_NAME
+        .write()
+        .map_err(|_| Error::Config("Loader lock poisoned".into()))?;
     if names.contains_key(&name) {
-        return Err(Error::Config(format!("{} already registered.", format.name)));
+        return Err(Error::Config(format!(
+            "{} already registered.",
+            format.name
+        )));
     }
     names.insert(name.clone(), format.loader);
 
-    let mut exts = LOADERS_BY_EXT.write().map_err(|_| Error::Config("Loader lock poisoned".into()))?;
+    let mut exts = LOADERS_BY_EXT
+        .write()
+        .map_err(|_| Error::Config("Loader lock poisoned".into()))?;
     for ext in format.extensions {
         let lext = ext.to_lowercase();
         if let Some(existing) = exts.get(&lext) {
-            return Err(Error::Config(format!("{} already registered to {}", ext, existing)));
+            return Err(Error::Config(format!(
+                "{} already registered to {}",
+                ext, existing
+            )));
         }
         exts.insert(lext, name.clone());
     }
@@ -118,7 +130,9 @@ pub fn load_config(format_name: &str, data: &[u8]) -> Result<Config> {
         format_name
     };
 
-    let guard = LOADERS_BY_NAME.read().map_err(|_| Error::Config("Config loader lock poisoned".into()))?;
+    let guard = LOADERS_BY_NAME
+        .read()
+        .map_err(|_| Error::Config("Config loader lock poisoned".into()))?;
     let loader = guard
         .get(&fmt.to_lowercase())
         .ok_or_else(|| Error::Config(format!("Unsupported config format: {}", format_name)))?;
@@ -131,30 +145,35 @@ pub fn get_merged_config(files: &[ConfigSource]) -> Result<String> {
     let mut all_outbounds = Vec::new();
 
     for src in files {
-        if let Ok(content) = std::fs::read_to_string(&src.name) {
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(obj) = val.as_object() {
-                    if let Some(inbounds) = obj.get("inbounds").and_then(|v| v.as_array()) {
-                        all_inbounds.extend(inbounds.clone());
-                    }
-                    if let Some(outbounds) = obj.get("outbounds").and_then(|v| v.as_array()) {
-                        all_outbounds.extend(outbounds.clone());
-                    }
-                    for (k, v) in obj {
-                        if k != "inbounds" && k != "outbounds" {
-                            merged.insert(k.clone(), v.clone());
-                        }
-                    }
+        if let Ok(content) = std::fs::read_to_string(&src.name)
+            && let Ok(val) = serde_json::from_str::<serde_json::Value>(&content)
+            && let Some(obj) = val.as_object()
+        {
+            if let Some(inbounds) = obj.get("inbounds").and_then(|v| v.as_array()) {
+                all_inbounds.extend(inbounds.clone());
+            }
+            if let Some(outbounds) = obj.get("outbounds").and_then(|v| v.as_array()) {
+                all_outbounds.extend(outbounds.clone());
+            }
+            for (k, v) in obj {
+                if k != "inbounds" && k != "outbounds" {
+                    merged.insert(k.clone(), v.clone());
                 }
             }
         }
     }
 
     if !all_inbounds.is_empty() {
-        merged.insert("inbounds".to_string(), serde_json::Value::Array(all_inbounds));
+        merged.insert(
+            "inbounds".to_string(),
+            serde_json::Value::Array(all_inbounds),
+        );
     }
     if !all_outbounds.is_empty() {
-        merged.insert("outbounds".to_string(), serde_json::Value::Array(all_outbounds));
+        merged.insert(
+            "outbounds".to_string(),
+            serde_json::Value::Array(all_outbounds),
+        );
     }
 
     serde_json::to_string(&serde_json::Value::Object(merged))

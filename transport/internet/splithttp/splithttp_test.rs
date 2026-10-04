@@ -9,12 +9,12 @@ mod tests {
 
     use crate::common::net::{Address, Destination};
     use crate::transport::internet::dialer::Dialer;
+    use crate::transport::internet::splithttp::UploadQueue;
     use crate::transport::internet::splithttp::common::*;
     use crate::transport::internet::splithttp::config::SplitHttpConfig;
     use crate::transport::internet::splithttp::dialer::SplitHttpDialer;
     use crate::transport::internet::splithttp::h1_conn::H1Conn;
     use crate::transport::internet::splithttp::hub::SplitHttpHub;
-    use crate::transport::internet::splithttp::UploadQueue;
 
     #[tokio::test]
     async fn test_splithttp_pipeline() {
@@ -31,7 +31,9 @@ mod tests {
         let mut h1 = H1Conn::new(Box::pin(server));
 
         tokio::spawn(async move {
-            let _ = client.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").await;
+            let _ = client
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await;
         });
 
         h1.inc_unread();
@@ -64,7 +66,8 @@ mod tests {
     async fn test_splithttp_end_to_end() {
         let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
         let mut cfg = SplitHttpConfig::new("/splithttp-test/", "127.0.0.1");
-        cfg.sc_max_each_post_bytes = Some(crate::transport::internet::splithttp::config::RangeConfig::new(1024, 1024));
+        cfg.sc_max_each_post_bytes =
+            Some(crate::transport::internet::splithttp::config::RangeConfig::new(1024, 1024));
 
         let hub = SplitHttpHub::listen(addr, cfg.clone()).await.unwrap();
         let local_addr = hub.local_addr().unwrap();

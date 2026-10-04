@@ -3,18 +3,22 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::time::Duration;
-    use crate::app::observatory::Observatory;
     use super::super::balancing::BalancingStrategy;
     use super::super::strategy_leastload::{
-        leastload_sort, select_least_load, LeastLoadNode, LeastLoadStrategy,
-        StrategyLeastLoadConfig,
+        LeastLoadNode, LeastLoadStrategy, StrategyLeastLoadConfig, leastload_sort,
+        select_least_load,
     };
+    use crate::app::observatory::Observatory;
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[test]
     fn test_least_load_selection() {
-        let obs = Arc::new(Observatory::new("http://example.com", Duration::from_secs(10), vec![]));
+        let obs = Arc::new(Observatory::new(
+            "http://example.com",
+            Duration::from_secs(10),
+            vec![],
+        ));
         obs.record_status("node-1", true, 100, None);
         obs.record_status("node-2", true, 20, None);
         let strat = LeastLoadStrategy::new(obs, Some("fallback-node".into()));

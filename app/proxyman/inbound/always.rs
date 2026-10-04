@@ -1,17 +1,17 @@
 // Module: app\proxyman\inbound\always.rs
 // 1:1 Rust implementation corresponding to Go app\proxyman\inbound\always.go
 
+use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use crate::app::stats::{inbound_downlink_name, inbound_uplink_name, Counter, StatsManager};
+use super::worker::InboundWorker;
+use crate::app::stats::{Counter, StatsManager, inbound_downlink_name, inbound_uplink_name};
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
-use super::worker::InboundWorker;
 
 pub const ALWAYS_ON: bool = true;
 

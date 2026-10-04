@@ -14,7 +14,15 @@ mod tests {
         assert_eq!(mac.len(), 32);
 
         assert!(Authentication::verify_hmac_sha256(key, data, &mac));
-        assert!(!Authentication::verify_hmac_sha256(b"wrong-key", data, &mac));
-        assert!(!Authentication::verify_hmac_sha256(key, b"corrupted data", &mac));
+        assert!(!Authentication::verify_hmac_sha256(
+            b"wrong-key",
+            data,
+            &mac
+        ));
+        assert!(!Authentication::verify_hmac_sha256(
+            key,
+            b"corrupted data",
+            &mac
+        ));
     }
 }

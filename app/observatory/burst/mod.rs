@@ -120,13 +120,12 @@ impl BurstObserver {
         let mut best_rtt = Duration::MAX;
 
         for tag in candidates {
-            if let Some(res) = guard.get(tag) {
-                if let Some(avg) = res.average_rtt() {
-                    if avg < best_rtt {
-                        best_rtt = avg;
-                        best_tag = Some(tag.clone());
-                    }
-                }
+            if let Some(res) = guard.get(tag)
+                && let Some(avg) = res.average_rtt()
+                && avg < best_rtt
+            {
+                best_rtt = avg;
+                best_tag = Some(tag.clone());
             }
         }
 

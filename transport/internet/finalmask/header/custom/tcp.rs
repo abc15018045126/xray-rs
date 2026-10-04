@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\header\custom\tcp.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\custom\tcp.go
 
+use rand::Rng;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use rand::Rng;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use super::config::{TCPConfig, TCPSequence};
@@ -21,7 +21,7 @@ pub async fn read_sequence<R: AsyncRead + Unpin>(
             continue;
         }
         let mut buf = vec![0u8; length];
-        reader.read_exact(&mut buf).await.map_err(|e| Error::Io(e))?;
+        reader.read_exact(&mut buf).await.map_err(Error::Io)?;
 
         if !item.packet.is_empty() && buf != item.packet {
             return Err(Error::Protocol("TCP sequence mismatch".into()));
@@ -34,7 +34,11 @@ fn generate_rand_bytes(count: usize, r_min: u8, r_max: u8) -> Vec<u8> {
     let mut rng = rand::thread_rng();
     let mut out = Vec::with_capacity(count);
     for _ in 0..count {
-        let b = if r_min == r_max { r_min } else { rng.gen_range(r_min..=r_max) };
+        let b = if r_min == r_max {
+            r_min
+        } else {
+            rng.gen_range(r_min..=r_max)
+        };
         out.push(b);
     }
     out

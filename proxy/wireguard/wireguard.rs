@@ -1,10 +1,10 @@
 // Module: proxy\wireguard\wireguard.rs
 // 1:1 Rust implementation corresponding to Go proxy\wireguard\wireguard.go
 
+use super::config::WireGuardConfig;
+use crate::common::errors::{Error, Result};
 use std::net::IpAddr;
 use std::str::FromStr;
-use crate::common::errors::{Error, Result};
-use super::config::WireGuardConfig;
 
 pub const PROTOCOL_NAME: &str = "wireguard";
 pub const DEFAULT_MTU: u32 = 1420;
@@ -17,8 +17,11 @@ pub fn parse_endpoints(endpoints: &[String]) -> Result<(Vec<IpAddr>, bool, bool)
 
     for s in endpoints {
         let addr = if let Some((ip_str, prefix_str)) = s.split_once('/') {
-            let ip = IpAddr::from_str(ip_str).map_err(|e| Error::Config(format!("invalid IP: {}", e)))?;
-            let prefix: u8 = prefix_str.parse().map_err(|_| Error::Config("invalid subnet prefix".into()))?;
+            let ip = IpAddr::from_str(ip_str)
+                .map_err(|e| Error::Config(format!("invalid IP: {}", e)))?;
+            let prefix: u8 = prefix_str
+                .parse()
+                .map_err(|_| Error::Config("invalid subnet prefix".into()))?;
             match ip {
                 IpAddr::V4(_) => {
                     if prefix != 32 {
@@ -86,8 +89,8 @@ pub fn create_ipc_request(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::config::WireGuardPeer;
+    use super::*;
 
     #[test]
     fn test_parse_endpoints() {

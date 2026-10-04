@@ -1,20 +1,26 @@
-pub mod version;
 #[path = "config.pb.rs"]
 pub mod config_pb;
+pub mod version;
 
 use crate::common::errors::{Error, Result};
 pub use config_pb::Config as VersionConfig;
-pub use version::{Version, VERSION};
+pub use version::{VERSION, Version};
 
 pub fn compare_versions(v1: &str, v2: &str) -> Result<i32> {
     let mut parts1: Vec<u32> = v1
         .split('.')
-        .map(|s| s.parse::<u32>().map_err(|_| Error::Config(format!("Invalid version segment: {}", s))))
+        .map(|s| {
+            s.parse::<u32>()
+                .map_err(|_| Error::Config(format!("Invalid version segment: {}", s)))
+        })
         .collect::<Result<Vec<_>>>()?;
 
     let mut parts2: Vec<u32> = v2
         .split('.')
-        .map(|s| s.parse::<u32>().map_err(|_| Error::Config(format!("Invalid version segment: {}", s))))
+        .map(|s| {
+            s.parse::<u32>()
+                .map_err(|_| Error::Config(format!("Invalid version segment: {}", s)))
+        })
         .collect::<Result<Vec<_>>>()?;
 
     while parts1.len() < parts2.len() {

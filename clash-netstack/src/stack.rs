@@ -23,16 +23,13 @@ struct ReceiverStream(mpsc::Receiver<Packet>);
 impl Stream for ReceiverStream {
     type Item = Packet;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.0.poll_recv(cx)
     }
 }
 
 pub(crate) enum IfaceEvent<'a> {
-    Icmp, // ICMP packet received
+    Icmp,                                                                     // ICMP packet received
     TcpStream(Box<(smoltcp::socket::tcp::Socket<'a>, Arc<TcpStreamHandle>)>), /* new TCP stream created */
     TcpSocketReady, // at least one TCP socket is ready to read/write
     TcpSocketClosed, /* TCP socket closed by the application, e.g. the TcpStream
@@ -108,14 +105,12 @@ impl NetStack {
         // can drain them.
         let (udp_packet_sender, udp_packet_receiver) = mpsc::channel::<Packet>(4096);
 
-        let (udp_inbound_app, udp_outbound_stack) =
-            mpsc::unbounded_channel::<Packet>();
+        let (udp_inbound_app, udp_outbound_stack) = mpsc::unbounded_channel::<Packet>();
 
         // this UdpSocket is essentially an Iface for UDP but much simpler as it
         // only does packets forwarding
         let udp_socket = UdpSocket::new(udp_outbound_stack, udp_packet_sender);
-        let (tcp_inbound_app, tcp_outbound_stack) =
-            mpsc::unbounded_channel::<Packet>();
+        let (tcp_inbound_app, tcp_outbound_stack) = mpsc::unbounded_channel::<Packet>();
         let tcp_listener = TcpListener::new(tcp_outbound_stack, tcp_packet_sender);
 
         let stack = NetStack {
@@ -168,10 +163,7 @@ impl futures::Sink<Packet> for StackSplitSink {
         }
     }
 
-    fn start_send(
-        mut self: std::pin::Pin<&mut Self>,
-        item: Packet,
-    ) -> Result<(), Self::Error> {
+    fn start_send(mut self: std::pin::Pin<&mut Self>, item: Packet) -> Result<(), Self::Error> {
         if item.data().is_empty() {
             return Ok(());
         }
@@ -184,10 +176,7 @@ impl futures::Sink<Packet> for StackSplitSink {
         let protocol = packet.protocol();
         if matches!(
             protocol,
-            IpProtocol::Tcp
-                | IpProtocol::Udp
-                | IpProtocol::Icmp
-                | IpProtocol::Icmpv6
+            IpProtocol::Tcp | IpProtocol::Udp | IpProtocol::Icmp | IpProtocol::Icmpv6
         ) {
             self.packet_container.replace((item, protocol));
         } else {
@@ -239,10 +228,7 @@ pub struct StackSplitStream {
     inner: futures::stream::Select<ReceiverStream, ReceiverStream>,
 }
 impl StackSplitStream {
-    pub fn new(
-        tcp_outbound: mpsc::Receiver<Packet>,
-        udp_outbound: mpsc::Receiver<Packet>,
-    ) -> Self {
+    pub fn new(tcp_outbound: mpsc::Receiver<Packet>, udp_outbound: mpsc::Receiver<Packet>) -> Self {
         Self {
             inner: futures::stream::select(
                 ReceiverStream(tcp_outbound),

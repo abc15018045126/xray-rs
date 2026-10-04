@@ -4,7 +4,7 @@ mod tests {
     use super::super::config_pb::Config;
     use super::super::conn::FragmentConn;
     use crate::transport::internet::finalmask::finalmask::TcpMaskConn;
-    use tokio::io::{duplex, AsyncReadExt};
+    use tokio::io::{AsyncReadExt, duplex};
 
     #[test]
     fn test_fragment_config_defaults() {

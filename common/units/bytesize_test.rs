@@ -34,7 +34,11 @@ mod tests {
     fn assert_size_value(size_str: &str, expected: ByteSize) {
         let mut actual = ByteSize(0);
         actual.parse(size_str).expect("parse failed");
-        assert_eq!(actual, expected, "expect {:?}, but got {:?}", expected, actual);
+        assert_eq!(
+            actual, expected,
+            "expect {:?}, but got {:?}",
+            expected, actual
+        );
     }
 
     fn assert_size_string(size: ByteSize, expected: &str) -> &'static str {

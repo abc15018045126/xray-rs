@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, SocketAddr};
-    use std::str::FromStr;
     use super::super::destination::{parse_destination, tcp_destination, udp_destination};
     use super::super::{Address, Destination, Network};
+    use std::net::{Ipv4Addr, SocketAddr};
+    use std::str::FromStr;
 
     #[test]
     fn test_destination_construction() {

@@ -5,12 +5,12 @@ pub mod encoding;
 #[cfg(test)]
 pub mod encoding_test;
 
-use md5::{Digest, Md5};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use uuid::Uuid;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination};
 use crate::common::protocol::RequestCommand;
+use md5::{Digest, Md5};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use uuid::Uuid;
 
 pub const VMESS_VERSION: u8 = 1;
 
@@ -31,7 +31,7 @@ pub fn generate_chacha20_key(seed16: &[u8; 16]) -> [u8; 32] {
     key[0..16].copy_from_slice(&hash1);
 
     let mut hasher2 = Md5::new();
-    hasher2.update(&hash1);
+    hasher2.update(hash1);
     let hash2 = hasher2.finalize();
     key[16..32].copy_from_slice(&hash2);
     key
@@ -118,7 +118,10 @@ impl RequestHeader {
 
         let version = reader.read_u8().await?;
         if version != VMESS_VERSION {
-            return Err(Error::Protocol(format!("Unsupported VMess version: {}", version)));
+            return Err(Error::Protocol(format!(
+                "Unsupported VMess version: {}",
+                version
+            )));
         }
 
         let mut request_body_iv = [0u8; 16];
@@ -152,8 +155,9 @@ impl RequestHeader {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom)
-                    .map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in VMess header: {}", e)))?;
+                let s = String::from_utf8(dom).map_err(|e| {
+                    Error::Protocol(format!("Invalid UTF-8 domain in VMess header: {}", e))
+                })?;
                 Address::Domain(s)
             }
             3 => {
@@ -161,7 +165,12 @@ impl RequestHeader {
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => return Err(Error::Protocol(format!("Invalid VMess address type: {}", other))),
+            other => {
+                return Err(Error::Protocol(format!(
+                    "Invalid VMess address type: {}",
+                    other
+                )));
+            }
         };
 
         let _checksum = reader.read_u32().await?;

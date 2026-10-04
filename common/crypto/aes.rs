@@ -1,6 +1,6 @@
+use crate::common::errors::{Error, Result};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Aes256Gcm, Nonce};
-use crate::common::errors::{Error, Result};
 
 pub struct AesGcmCipher;
 
@@ -12,10 +12,10 @@ impl AesGcmCipher {
         if nonce.len() != 12 {
             return Err(Error::Crypto("AES-GCM nonce must be 12 bytes".into()));
         }
-        let cipher = Aes128Gcm::new_from_slice(key)
-            .map_err(|e| Error::Crypto(e.to_string()))?;
+        let cipher = Aes128Gcm::new_from_slice(key).map_err(|e| Error::Crypto(e.to_string()))?;
         let nonce = Nonce::from_slice(nonce);
-        cipher.encrypt(nonce, plaintext)
+        cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| Error::Crypto(e.to_string()))
     }
 
@@ -26,10 +26,10 @@ impl AesGcmCipher {
         if nonce.len() != 12 {
             return Err(Error::Crypto("AES-GCM nonce must be 12 bytes".into()));
         }
-        let cipher = Aes128Gcm::new_from_slice(key)
-            .map_err(|e| Error::Crypto(e.to_string()))?;
+        let cipher = Aes128Gcm::new_from_slice(key).map_err(|e| Error::Crypto(e.to_string()))?;
         let nonce = Nonce::from_slice(nonce);
-        cipher.decrypt(nonce, ciphertext)
+        cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|e| Error::Crypto(e.to_string()))
     }
 
@@ -40,10 +40,10 @@ impl AesGcmCipher {
         if nonce.len() != 12 {
             return Err(Error::Crypto("AES-GCM nonce must be 12 bytes".into()));
         }
-        let cipher = Aes256Gcm::new_from_slice(key)
-            .map_err(|e| Error::Crypto(e.to_string()))?;
+        let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| Error::Crypto(e.to_string()))?;
         let nonce = Nonce::from_slice(nonce);
-        cipher.encrypt(nonce, plaintext)
+        cipher
+            .encrypt(nonce, plaintext)
             .map_err(|e| Error::Crypto(e.to_string()))
     }
 
@@ -54,10 +54,10 @@ impl AesGcmCipher {
         if nonce.len() != 12 {
             return Err(Error::Crypto("AES-GCM nonce must be 12 bytes".into()));
         }
-        let cipher = Aes256Gcm::new_from_slice(key)
-            .map_err(|e| Error::Crypto(e.to_string()))?;
+        let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| Error::Crypto(e.to_string()))?;
         let nonce = Nonce::from_slice(nonce);
-        cipher.decrypt(nonce, ciphertext)
+        cipher
+            .decrypt(nonce, ciphertext)
             .map_err(|e| Error::Crypto(e.to_string()))
     }
 }

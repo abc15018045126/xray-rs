@@ -2,8 +2,8 @@
 // 1:1 Rust implementation corresponding to Go transport\internet\happy_eyeballs.go
 
 use std::net::{IpAddr, SocketAddr};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
@@ -53,7 +53,11 @@ impl IntoInterleave for bool {
 }
 
 /// Sorts IPs according to RFC 8305.
-pub fn sort_ips(ips: &[IpAddr], prioritize_ipv6: bool, interleave: impl IntoInterleave) -> Vec<IpAddr> {
+pub fn sort_ips(
+    ips: &[IpAddr],
+    prioritize_ipv6: bool,
+    interleave: impl IntoInterleave,
+) -> Vec<IpAddr> {
     if ips.is_empty() {
         return Vec::new();
     }

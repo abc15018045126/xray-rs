@@ -1,12 +1,12 @@
 // Module: features\routing\dns\context.rs
 // 1:1 Rust implementation corresponding to Go features\routing\dns\context.go
 
-use std::collections::HashMap;
-use std::net::IpAddr;
-use std::sync::Arc;
 use crate::common::net::Network;
 use crate::features::dns::client::DnsClient;
 use crate::features::routing::context::RoutingContext;
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::sync::Arc;
 
 pub struct ResolvableContext {
     inner: Box<dyn RoutingContext>,

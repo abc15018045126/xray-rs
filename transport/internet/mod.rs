@@ -38,7 +38,9 @@ pub mod sockopt_test;
 #[cfg(test)]
 pub mod system_listener_test;
 
-pub use finalmask::{FragmentConfig, Fragmenter, NoiseConfig, NoiseGenerator, SalamanderObfuscator};
+pub use finalmask::{
+    FragmentConfig, Fragmenter, NoiseConfig, NoiseGenerator, SalamanderObfuscator,
+};
 pub use grpc::GrpcStream;
 pub use happy_eyeballs::{HappyEyeballsConfig, sort_ips};
 pub use httpupgrade::HttpUpgradeStream;
@@ -50,7 +52,7 @@ pub use splithttp::{SplitHttpClient, SplitHttpConfig};
 pub use stat::StatStream;
 pub use tagged::TaggedDialer;
 pub use tcp::{TcpDialer, TcpHub};
-pub use tls::{generate_cert_hash, generate_cert_hash_hex, TlsClient, TlsServer};
+pub use tls::{TlsClient, TlsServer, generate_cert_hash, generate_cert_hash_hex};
 pub use udp::{UdpHub, UdpPacket};
 pub use websocket::WebSocketStream;
 

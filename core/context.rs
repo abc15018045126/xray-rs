@@ -1,9 +1,9 @@
 // Module: core\context.rs
 // 1:1 Rust implementation corresponding to Go core\context.go
 
-use std::sync::Arc;
-use crate::common::errors::{Error, Result};
 use super::xray::Instance;
+use crate::common::errors::{Error, Result};
+use std::sync::Arc;
 
 pub const XRAY_KEY: &str = "xray_instance";
 

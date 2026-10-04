@@ -1,9 +1,9 @@
 // Module: common\mux\frame.rs
 // 1:1 Rust implementation corresponding to Go common\mux\frame.go
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination, Network};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -62,28 +62,28 @@ impl FrameMetadata {
         buf.push(self.session_status as u8);
         buf.push(self.option);
 
-        if self.session_status == SessionStatus::New {
-            if let Some(target) = &self.target {
-                let net_byte = match target.network {
-                    Network::Tcp => TARGET_NETWORK_TCP,
-                    Network::Udp => TARGET_NETWORK_UDP,
-                };
-                buf.push(net_byte);
-                buf.extend_from_slice(&target.port.to_be_bytes());
-                match &target.address {
-                    Address::Ipv4(v4) => {
-                        buf.push(1); // IPv4
-                        buf.extend_from_slice(&v4.octets());
-                    }
-                    Address::Ipv6(v6) => {
-                        buf.push(2); // IPv6
-                        buf.extend_from_slice(&v6.octets());
-                    }
-                    Address::Domain(domain) => {
-                        buf.push(3); // Domain
-                        buf.push(domain.len() as u8);
-                        buf.extend_from_slice(domain.as_bytes());
-                    }
+        if self.session_status == SessionStatus::New
+            && let Some(target) = &self.target
+        {
+            let net_byte = match target.network {
+                Network::Tcp => TARGET_NETWORK_TCP,
+                Network::Udp => TARGET_NETWORK_UDP,
+            };
+            buf.push(net_byte);
+            buf.extend_from_slice(&target.port.to_be_bytes());
+            match &target.address {
+                Address::Ipv4(v4) => {
+                    buf.push(1); // IPv4
+                    buf.extend_from_slice(&v4.octets());
+                }
+                Address::Ipv6(v6) => {
+                    buf.push(2); // IPv6
+                    buf.extend_from_slice(&v6.octets());
+                }
+                Address::Domain(domain) => {
+                    buf.push(3); // Domain
+                    buf.push(domain.len() as u8);
+                    buf.extend_from_slice(domain.as_bytes());
                 }
             }
         }
@@ -95,7 +95,9 @@ impl FrameMetadata {
 
     pub fn unmarshal(&mut self, bytes: &[u8]) -> Result<usize> {
         if bytes.len() < 2 {
-            return Err(Error::Protocol("Insufficient buffer for meta length".into()));
+            return Err(Error::Protocol(
+                "Insufficient buffer for meta length".into(),
+            ));
         }
         let meta_len = u16::from_be_bytes([bytes[0], bytes[1]]) as usize;
         if bytes.len() < 2 + meta_len {
@@ -223,28 +225,28 @@ impl Frame {
         header_buf.push(self.status as u8);
         header_buf.push(self.option);
 
-        if self.status == SessionStatus::New {
-            if let Some(target) = &self.target {
-                let net_byte = match target.network {
-                    Network::Tcp => TARGET_NETWORK_TCP,
-                    Network::Udp => TARGET_NETWORK_UDP,
-                };
-                header_buf.push(net_byte);
-                header_buf.extend_from_slice(&target.port.to_be_bytes());
-                match &target.address {
-                    Address::Ipv4(v4) => {
-                        header_buf.push(1);
-                        header_buf.extend_from_slice(&v4.octets());
-                    }
-                    Address::Ipv6(v6) => {
-                        header_buf.push(2);
-                        header_buf.extend_from_slice(&v6.octets());
-                    }
-                    Address::Domain(domain) => {
-                        header_buf.push(3);
-                        header_buf.push(domain.len() as u8);
-                        header_buf.extend_from_slice(domain.as_bytes());
-                    }
+        if self.status == SessionStatus::New
+            && let Some(target) = &self.target
+        {
+            let net_byte = match target.network {
+                Network::Tcp => TARGET_NETWORK_TCP,
+                Network::Udp => TARGET_NETWORK_UDP,
+            };
+            header_buf.push(net_byte);
+            header_buf.extend_from_slice(&target.port.to_be_bytes());
+            match &target.address {
+                Address::Ipv4(v4) => {
+                    header_buf.push(1);
+                    header_buf.extend_from_slice(&v4.octets());
+                }
+                Address::Ipv6(v6) => {
+                    header_buf.push(2);
+                    header_buf.extend_from_slice(&v6.octets());
+                }
+                Address::Domain(domain) => {
+                    header_buf.push(3);
+                    header_buf.push(domain.len() as u8);
+                    header_buf.extend_from_slice(domain.as_bytes());
                 }
             }
         }
@@ -320,7 +322,10 @@ impl Frame {
                     Address::Domain(s)
                 }
                 other => {
-                    return Err(Error::Protocol(format!("Invalid Mux address type: {}", other)))
+                    return Err(Error::Protocol(format!(
+                        "Invalid Mux address type: {}",
+                        other
+                    )));
                 }
             };
             target = Some(if network == Network::Udp {

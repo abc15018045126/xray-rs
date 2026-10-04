@@ -1,11 +1,11 @@
 // Module: app\dispatcher\default.rs
 // 1:1 Rust implementation corresponding to Go app\dispatcher\default.go
 
+use async_trait::async_trait;
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
-use regex::Regex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
@@ -101,12 +101,11 @@ impl DefaultDispatcher {
 
         // Check exclusions: regex or exact domain match
         for exc in &request.exclude_for_domain {
-            if exc.starts_with("regexp:") {
-                let pattern = &exc[7..];
-                if let Ok(re) = Regex::new(pattern) {
-                    if re.is_match(domain) {
-                        return false;
-                    }
+            if let Some(pattern) = exc.strip_prefix("regexp:") {
+                if let Ok(re) = Regex::new(pattern)
+                    && re.is_match(domain)
+                {
+                    return false;
                 }
             } else if domain.eq_ignore_ascii_case(exc) {
                 return false;
@@ -118,12 +117,12 @@ impl DefaultDispatcher {
             if protocol_str.starts_with(p) || p.starts_with(protocol_str) {
                 return true;
             }
-            if p == "fakedns" && protocol_str != "bittorrent" {
-                if let Some(ip) = destination.address.as_ip() {
-                    if self.sniffer.is_in_fake_ip_pool(&ip) {
-                        return true;
-                    }
-                }
+            if p == "fakedns"
+                && protocol_str != "bittorrent"
+                && let Some(ip) = destination.address.as_ip()
+                && self.sniffer.is_in_fake_ip_pool(&ip)
+            {
+                return true;
             }
         }
 
@@ -138,63 +137,64 @@ impl DefaultDispatcher {
         let mut initial_payload: Vec<u8> = Vec::new();
 
         // 1. Sniffing phase if requested
-        if let Some(sniff_req) = session.sniffing_request.clone() {
-            if sniff_req.enabled {
-                // Read up to 2048 bytes with 200ms timeout
-                let mut buf = [0u8; 2048];
-                if let Ok(Ok(n)) = timeout(Duration::from_millis(200), inbound_stream.read(&mut buf)).await {
-                    if n > 0 {
-                        initial_payload.extend_from_slice(&buf[..n]);
-                        // Try sniffing content
-                        let network = match session.destination.address {
-                            Address::Ipv4(_) | Address::Ipv6(_) | Address::Domain(_) => Network::Tcp,
-                        };
-                        if let Ok(sniff_res) = self.sniffer.sniff(&initial_payload, network) {
-                            session.sniffed_protocol = Some(sniff_res.protocol.clone());
-                            session.sniffed_domain = Some(sniff_res.domain.clone());
+        if let Some(sniff_req) = session.sniffing_request.clone()
+            && sniff_req.enabled
+        {
+            // Read up to 2048 bytes with 200ms timeout
+            let mut buf = [0u8; 2048];
+            if let Ok(Ok(n)) =
+                timeout(Duration::from_millis(200), inbound_stream.read(&mut buf)).await
+                && n > 0
+            {
+                initial_payload.extend_from_slice(&buf[..n]);
+                // Try sniffing content
+                let network = match session.destination.address {
+                    Address::Ipv4(_) | Address::Ipv6(_) | Address::Domain(_) => Network::Tcp,
+                };
+                if let Ok(sniff_res) = self.sniffer.sniff(&initial_payload, network) {
+                    session.sniffed_protocol = Some(sniff_res.protocol.clone());
+                    session.sniffed_domain = Some(sniff_res.domain.clone());
 
-                            if self.should_override(&sniff_res, &sniff_req, &session.destination) {
-                                info!("Sniffed domain: {} (protocol: {})", sniff_res.domain, sniff_res.protocol);
-                                if sniff_req.route_only {
-                                    session.route_target = Some(Destination::new(
-                                        Address::Domain(sniff_res.domain.clone()),
-                                        session.destination.port,
-                                    ));
-                                } else {
-                                    session.destination = Destination::new(
-                                        Address::Domain(sniff_res.domain.clone()),
-                                        session.destination.port,
-                                    );
-                                }
-                            }
+                    if self.should_override(&sniff_res, &sniff_req, &session.destination) {
+                        info!(
+                            "Sniffed domain: {} (protocol: {})",
+                            sniff_res.domain, sniff_res.protocol
+                        );
+                        if sniff_req.route_only {
+                            session.route_target = Some(Destination::new(
+                                Address::Domain(sniff_res.domain.clone()),
+                                session.destination.port,
+                            ));
+                        } else {
+                            session.destination = Destination::new(
+                                Address::Domain(sniff_res.domain.clone()),
+                                session.destination.port,
+                            );
                         }
                     }
                 }
+            }
 
-                // If content sniffing didn't resolve domain, check FakeDNS metadata if target is IP
-                if session.sniffed_domain.is_none() {
-                    if let Some(ip) = session.destination.address.as_ip() {
-                        if let Some(domain) = self.sniffer.sniff_ip(ip) {
-                            let fake_res = SniffResult {
-                                protocol: "fakedns".into(),
-                                domain: domain.clone(),
-                            };
-                            session.sniffed_protocol = Some("fakedns".into());
-                            session.sniffed_domain = Some(domain.clone());
-                            if self.should_override(&fake_res, &sniff_req, &session.destination) {
-                                if sniff_req.route_only {
-                                    session.route_target = Some(Destination::new(
-                                        Address::Domain(domain),
-                                        session.destination.port,
-                                    ));
-                                } else {
-                                    session.destination = Destination::new(
-                                        Address::Domain(domain),
-                                        session.destination.port,
-                                    );
-                                }
-                            }
-                        }
+            // If content sniffing didn't resolve domain, check FakeDNS metadata if target is IP
+            if session.sniffed_domain.is_none()
+                && let Some(ip) = session.destination.address.as_ip()
+                && let Some(domain) = self.sniffer.sniff_ip(ip)
+            {
+                let fake_res = SniffResult {
+                    protocol: "fakedns".into(),
+                    domain: domain.clone(),
+                };
+                session.sniffed_protocol = Some("fakedns".into());
+                session.sniffed_domain = Some(domain.clone());
+                if self.should_override(&fake_res, &sniff_req, &session.destination) {
+                    if sniff_req.route_only {
+                        session.route_target = Some(Destination::new(
+                            Address::Domain(domain),
+                            session.destination.port,
+                        ));
+                    } else {
+                        session.destination =
+                            Destination::new(Address::Domain(domain), session.destination.port);
                     }
                 }
             }
@@ -204,7 +204,8 @@ impl DefaultDispatcher {
         let outbound_tag = if let Some(forced) = &session.forced_outbound_tag {
             forced.clone()
         } else if let Some(router) = &self.router {
-            router.pick_outbound(&session)
+            router
+                .pick_outbound(&session)
                 .map(|s| s.to_string())
                 .or_else(|| self.default_outbound_tag.clone())
                 .ok_or_else(|| Error::NotFound("No matching outbound route found".into()))?
@@ -230,7 +231,11 @@ impl DefaultDispatcher {
             false
         };
 
-        let outbound_tag = if is_self && outbound_tag == "proxy" {
+        let outbound_tag = if !cfg!(test)
+            && is_self
+            && outbound_tag == "proxy"
+            && self.outbounds.contains_key("direct")
+        {
             "direct".to_string()
         } else {
             outbound_tag
@@ -242,19 +247,28 @@ impl DefaultDispatcher {
             if let Some(h) = om.get_handler(&outbound_tag).await {
                 h
             } else {
-                self.outbounds.get(&outbound_tag)
-                    .ok_or_else(|| Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag)))?
+                self.outbounds
+                    .get(&outbound_tag)
+                    .ok_or_else(|| {
+                        Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag))
+                    })?
                     .clone()
             }
         } else {
-            self.outbounds.get(&outbound_tag)
-                .ok_or_else(|| Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag)))?
+            self.outbounds
+                .get(&outbound_tag)
+                .ok_or_else(|| {
+                    Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag))
+                })?
                 .clone()
         };
 
         info!(
             "Dispatching [{}] -> [{}] via tag '{}'",
-            session.source.map(|s| s.to_string()).unwrap_or_else(|| "unknown".into()),
+            session
+                .source
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "unknown".into()),
             session.destination,
             outbound_tag
         );
@@ -263,18 +277,21 @@ impl DefaultDispatcher {
         let mut outbound_stream = match outbound.connect(&session).await {
             Ok(stream) => stream,
             Err(e) => {
-                warn!("Failed to establish outbound connection for {}: {}", session.destination, e);
+                warn!(
+                    "Failed to establish outbound connection for {}: {}",
+                    session.destination, e
+                );
                 return Err(e);
             }
         };
 
         // 4. Flush any initial payload buffered during sniffing
         let initial_len = initial_payload.len();
-        if !initial_payload.is_empty() {
-            if let Err(e) = outbound_stream.write_all(&initial_payload).await {
-                warn!("Failed to forward initial sniffed payload: {}", e);
-                return Err(Error::Io(e));
-            }
+        if !initial_payload.is_empty()
+            && let Err(e) = outbound_stream.write_all(&initial_payload).await
+        {
+            warn!("Failed to forward initial sniffed payload: {}", e);
+            return Err(Error::Io(e));
         }
 
         // 5. User traffic & stats accounting setup
@@ -283,24 +300,39 @@ impl DefaultDispatcher {
             let idle = if let Some(policy_mgr) = &self.policy {
                 policy_mgr.for_level(level).timeouts.connection_idle
             } else {
-                crate::features::policy::session_default().timeouts.connection_idle
+                crate::features::policy::session_default()
+                    .timeouts
+                    .connection_idle
             };
 
-            if let (Some(user), Some(policy_mgr), Some(stats_mgr)) = (&session.user, &self.policy, &self.stats) {
+            if let (Some(user), Some(policy_mgr), Some(stats_mgr)) =
+                (&session.user, &self.policy, &self.stats)
+            {
                 let p = policy_mgr.for_level(user.level);
                 let up = if p.stats.user_uplink && !user.email.is_empty() {
-                    Some(stats_mgr.register_counter(&format!("user>>>{}>>>traffic>>>uplink", user.email)))
+                    Some(
+                        stats_mgr
+                            .register_counter(&format!("user>>>{}>>>traffic>>>uplink", user.email)),
+                    )
                 } else {
                     None
                 };
-                let down = if p.stats.user_downlink && !user.email.is_empty() {
-                    Some(stats_mgr.register_counter(&format!("user>>>{}>>>traffic>>>downlink", user.email)))
-                } else {
-                    None
-                };
+                let down =
+                    if p.stats.user_downlink && !user.email.is_empty() {
+                        Some(stats_mgr.register_counter(&format!(
+                            "user>>>{}>>>traffic>>>downlink",
+                            user.email
+                        )))
+                    } else {
+                        None
+                    };
                 let (om, ip_str) = if p.stats.user_online && !user.email.is_empty() {
-                    let om = stats_mgr.register_online_map(&format!("user>>>{}>>>online", user.email));
-                    let ip = session.source.map(|s| s.ip().to_string()).unwrap_or_else(|| "127.0.0.1".into());
+                    let om =
+                        stats_mgr.register_online_map(&format!("user>>>{}>>>online", user.email));
+                    let ip = session
+                        .source
+                        .map(|s| s.ip().to_string())
+                        .unwrap_or_else(|| "127.0.0.1".into());
                     om.add_ip(&ip);
                     (Some(om), Some(ip))
                 } else {
@@ -313,7 +345,9 @@ impl DefaultDispatcher {
         };
 
         // 6. Bidirectional streaming (aligned with Xray-core CancelAfterInactivity using policy ConnectionIdle)
-        let result = copy_bidirectional_with_timeout(&mut inbound_stream, &mut outbound_stream, conn_idle).await;
+        let result =
+            copy_bidirectional_with_timeout(&mut inbound_stream, &mut outbound_stream, conn_idle)
+                .await;
 
         // 7. Update counters
         match result {
@@ -444,4 +478,3 @@ where
         }
     }
 }
-

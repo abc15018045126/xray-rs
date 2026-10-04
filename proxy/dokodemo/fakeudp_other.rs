@@ -1,11 +1,13 @@
 // Module: proxy\dokodemo\fakeudp_other.rs
 // 1:1 Rust implementation corresponding to Go proxy\dokodemo\fakeudp_other.go
 
-use std::net::SocketAddr;
 use crate::common::errors::{Error, Result};
+use std::net::SocketAddr;
 
 pub fn fake_udp_other(_addr: SocketAddr, _mark: u32) -> Result<tokio::net::UdpSocket> {
-    Err(Error::Unsupported("fake UDP is only supported on Linux".into()))
+    Err(Error::Unsupported(
+        "fake UDP is only supported on Linux".into(),
+    ))
 }
 
 #[cfg(test)]

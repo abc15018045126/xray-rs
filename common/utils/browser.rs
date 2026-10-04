@@ -3,31 +3,58 @@
 
 use std::collections::HashMap;
 
-pub const DEFAULT_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36";
+pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36";
 pub const FIREFOX_UA: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0";
 
 pub fn is_browser_user_agent(ua: &str) -> bool {
-    ua.contains("Mozilla") || ua.contains("Chrome") || ua.contains("Safari") || ua.contains("Firefox")
+    ua.contains("Mozilla")
+        || ua.contains("Chrome")
+        || ua.contains("Safari")
+        || ua.contains("Firefox")
 }
 
 pub fn chrome_version() -> u32 {
     // Starting version: Chrome 144
-    let version = 144u32;
-    version
+
+    144u32
 }
 
 const CLIENT_HINT_GREASE_NA: &[&str] = &[" ", "(", ":", "-", ".", "/", ")", ";", "=", "?", "_"];
 const CLIENT_HINT_VERSION_NA: &[&str] = &["8", "99", "24"];
 const CLIENT_HINT_SHUFFLE_3: &[[usize; 3]] = &[
-    [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
 ];
 const CLIENT_HINT_SHUFFLE_4: &[[usize; 4]] = &[
-    [0, 1, 2, 3], [0, 1, 3, 2], [0, 2, 1, 3], [0, 2, 3, 1], [0, 3, 1, 2], [0, 3, 2, 1],
-    [1, 0, 2, 3], [1, 0, 3, 2], [1, 2, 0, 3], [1, 2, 3, 0], [1, 3, 0, 2], [1, 3, 2, 0],
-    [2, 0, 1, 3], [2, 0, 3, 1], [2, 1, 0, 3], [2, 1, 3, 0], [2, 3, 0, 1], [2, 3, 1, 0],
-    [3, 0, 1, 2], [3, 0, 2, 1], [3, 1, 0, 2], [3, 1, 2, 0], [3, 2, 0, 1], [3, 2, 1, 0],
+    [0, 1, 2, 3],
+    [0, 1, 3, 2],
+    [0, 2, 1, 3],
+    [0, 2, 3, 1],
+    [0, 3, 1, 2],
+    [0, 3, 2, 1],
+    [1, 0, 2, 3],
+    [1, 0, 3, 2],
+    [1, 2, 0, 3],
+    [1, 2, 3, 0],
+    [1, 3, 0, 2],
+    [1, 3, 2, 0],
+    [2, 0, 1, 3],
+    [2, 0, 3, 1],
+    [2, 1, 0, 3],
+    [2, 1, 3, 0],
+    [2, 3, 0, 1],
+    [2, 3, 1, 0],
+    [3, 0, 1, 2],
+    [3, 0, 2, 1],
+    [3, 1, 0, 2],
+    [3, 1, 2, 0],
+    [3, 2, 0, 1],
+    [3, 2, 1, 0],
 ];
 
 pub fn get_greased_ch_invalid_brand(seed: usize) -> String {
@@ -130,10 +157,9 @@ pub fn apply_masqueraded_headers(
 
     match variant {
         "nav" => {
-            if !headers.contains_key("Cache-Control") {
-                if browser == "chrome" || browser == "edge" {
-                    headers.insert("Cache-Control".into(), "max-age=0".into());
-                }
+            if !headers.contains_key("Cache-Control") && (browser == "chrome" || browser == "edge")
+            {
+                headers.insert("Cache-Control".into(), "max-age=0".into());
             }
             headers.insert("Upgrade-Insecure-Requests".into(), "1".into());
             if !headers.contains_key("Accept") {
@@ -147,7 +173,8 @@ pub fn apply_masqueraded_headers(
                     "firefox" => {
                         headers.insert(
                             "Accept".into(),
-                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".into(),
+                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+                                .into(),
                         );
                     }
                     _ => {}
@@ -163,9 +190,15 @@ pub fn apply_masqueraded_headers(
             headers.insert("Sec-Fetch-Mode".into(), "websocket".into());
             headers.insert("Sec-Fetch-Dest".into(), "empty".into());
             headers.insert("Sec-Fetch-Site".into(), "same-origin".into());
-            headers.entry("Cache-Control".into()).or_insert_with(|| "no-cache".into());
-            headers.entry("Pragma".into()).or_insert_with(|| "no-cache".into());
-            headers.entry("Accept".into()).or_insert_with(|| "*/*".into());
+            headers
+                .entry("Cache-Control".into())
+                .or_insert_with(|| "no-cache".into());
+            headers
+                .entry("Pragma".into())
+                .or_insert_with(|| "no-cache".into());
+            headers
+                .entry("Accept".into())
+                .or_insert_with(|| "*/*".into());
         }
         "fetch" => {
             headers.insert("Sec-Fetch-Mode".into(), "cors".into());
@@ -182,9 +215,15 @@ pub fn apply_masqueraded_headers(
                     _ => {}
                 }
             }
-            headers.entry("Cache-Control".into()).or_insert_with(|| "no-cache".into());
-            headers.entry("Pragma".into()).or_insert_with(|| "no-cache".into());
-            headers.entry("Accept".into()).or_insert_with(|| "*/*".into());
+            headers
+                .entry("Cache-Control".into())
+                .or_insert_with(|| "no-cache".into());
+            headers
+                .entry("Pragma".into())
+                .or_insert_with(|| "no-cache".into());
+            headers
+                .entry("Accept".into())
+                .or_insert_with(|| "*/*".into());
         }
         _ => {}
     }
@@ -234,6 +273,9 @@ mod tests {
         let mut ws_headers = HashMap::new();
         headers.insert("User-Agent".into(), "firefox".into());
         try_default_headers_with(&mut ws_headers, "ws");
-        assert_eq!(ws_headers.get("Sec-Fetch-Mode"), Some(&"websocket".to_string()));
+        assert_eq!(
+            ws_headers.get("Sec-Fetch-Mode"),
+            Some(&"websocket".to_string())
+        );
     }
 }

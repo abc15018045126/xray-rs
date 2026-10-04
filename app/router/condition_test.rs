@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
     use super::super::condition::{DomainMatcher, IpMatcher};
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_domain_matcher_rules() {

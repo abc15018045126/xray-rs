@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv4Addr};
     use crate::app::router::condition::{DomainMatcher, IpMatcher};
+    use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
     fn test_geosite_and_geoip_matching() {

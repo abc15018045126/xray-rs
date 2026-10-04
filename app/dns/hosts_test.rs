@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv4Addr};
     use super::super::hosts::StaticHosts;
+    use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
     fn test_static_hosts_exact_and_domain() {

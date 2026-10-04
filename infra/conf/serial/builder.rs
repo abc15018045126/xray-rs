@@ -1,9 +1,9 @@
 // Module: infra\conf\serial\builder.rs
 // 1:1 Rust implementation corresponding to Go infra\conf\serial\builder.go
 
-use serde_json::Value;
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
+use serde_json::Value;
 
 pub fn build_json_config(raw_json: &str) -> Result<Value> {
     serde_json::from_str(raw_json).map_err(|e| Error::Config(e.to_string()))

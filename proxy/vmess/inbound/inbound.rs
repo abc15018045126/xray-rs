@@ -1,9 +1,9 @@
 // Module: proxy\vmess\inbound\inbound.rs
 // 1:1 Rust implementation corresponding to Go proxy\vmess\inbound\inbound.go
 
+use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::common::errors::{Error, Result};
@@ -44,11 +44,18 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let req = RequestHeader::decode(&mut stream).await?;
 
         if self.validator.count() > 0 && self.validator.get(&req.user_id).is_none() {
-            return Err(Error::AuthFailed(format!("Unauthorized VMess user UUID: {}", req.user_id)));
+            return Err(Error::AuthFailed(format!(
+                "Unauthorized VMess user UUID: {}",
+                req.user_id
+            )));
         }
 
         let mut session = SessionContext::new(&self.tag, req.destination);

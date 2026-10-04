@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::common::net::{Address, Destination};
     use crate::infra::conf::Config;
-    use crate::proxy::shadowsocks::protocol::{derive_subkey, ShadowsocksUdpPacket};
-    use crate::testing::scenarios::common::{pick_port, TestEnvironment};
-    use crate::testing::servers::tcp::{echo_processor, Server as TcpServer};
+    use crate::proxy::shadowsocks::protocol::{ShadowsocksUdpPacket, derive_subkey};
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port};
+    use crate::testing::servers::tcp::{Server as TcpServer, echo_processor};
+    use std::io::Cursor;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn test_shadowsocks_hkdf_subkey_derivation() {
@@ -42,7 +42,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_shadowsocks_tcp_relay() {
-        let tcp_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -64,7 +66,8 @@ mod tests {
                 }
             }],
             "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(server_cfg).await.unwrap();
 
         let client_port = pick_port().await;
@@ -85,7 +88,9 @@ mod tests {
         })).unwrap();
         env.start_node(client_cfg).await.unwrap();
 
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_port))
+            .await
+            .unwrap();
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];
         client.read_exact(&mut auth_resp).await.unwrap();

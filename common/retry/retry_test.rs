@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
     use super::super::retry::*;
     use crate::common::errors::{Error, Result};
+    use std::time::Instant;
 
     fn error_test_only() -> Error {
         Error::Other("this is a fake error".into())
@@ -63,16 +63,18 @@ mod tests {
     async fn test_exponential_backoff_async() {
         let start = Instant::now();
         let mut called = 0;
-        let res: Result<i32> = exponential_backoff(3, 2).on_async(|| {
-            called += 1;
-            async move {
-                if called < 3 {
-                    Err(error_test_only())
-                } else {
-                    Ok(100)
+        let res: Result<i32> = exponential_backoff(3, 2)
+            .on_async(|| {
+                called += 1;
+                async move {
+                    if called < 3 {
+                        Err(error_test_only())
+                    } else {
+                        Ok(100)
+                    }
                 }
-            }
-        }).await;
+            })
+            .await;
         assert_eq!(res.unwrap(), 100);
         assert!(start.elapsed().as_millis() >= 2);
     }

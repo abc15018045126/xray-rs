@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use tokio::sync::mpsc;
     use crate::common::mux::client::MuxClient;
     use crate::common::net::{Address, Destination};
+    use tokio::sync::mpsc;
 
     #[tokio::test]
     async fn test_mux_client_status_and_lifecycle() {

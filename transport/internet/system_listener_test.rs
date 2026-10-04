@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     use crate::common::net::{Address, Destination};
@@ -13,30 +13,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_system_listener_bind() {
-        let listener = SystemListener::bind("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        let listener = SystemListener::bind("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
         let addr = listener.local_addr().unwrap();
         assert_ne!(addr.port(), 0);
     }
 
     #[tokio::test]
     async fn test_system_listener_listen_packet() {
-        let socket = SystemListener::listen_packet("127.0.0.1:0".parse().unwrap(), None).await.unwrap();
+        let socket = SystemListener::listen_packet("127.0.0.1:0".parse().unwrap(), None)
+            .await
+            .unwrap();
         let addr = socket.local_addr().unwrap();
         assert_ne!(addr.port(), 0);
     }
 
     #[tokio::test]
     async fn test_system_listener_controller() {
-        let listener = SystemListener::bind("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        let listener = SystemListener::bind("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
         let addr = listener.local_addr().unwrap();
 
         let called = Arc::new(AtomicBool::new(false));
         let called_clone = Arc::clone(&called);
 
-        listener.add_controller(Arc::new(move |_net, _addr| {
-            called_clone.store(true, Ordering::SeqCst);
-            Ok(())
-        })).await;
+        listener
+            .add_controller(Arc::new(move |_net, _addr| {
+                called_clone.store(true, Ordering::SeqCst);
+                Ok(())
+            }))
+            .await;
 
         tokio::spawn(async move {
             let _ = listener.accept().await;
@@ -52,7 +60,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_system_dialer_duplex() {
-        let listener = SystemListener::bind("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        let listener = SystemListener::bind("127.0.0.1:0".parse().unwrap())
+            .await
+            .unwrap();
         let addr = listener.local_addr().unwrap();
 
         tokio::spawn(async move {

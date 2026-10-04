@@ -1,17 +1,17 @@
 // Module: transport\internet\splithttp\hub.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\hub.go
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex};
 use super::config::SplitHttpConfig;
 use super::connection::SplitConn;
 use super::upload_queue::UploadQueue;
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::{Mutex, mpsc};
 
 pub struct HttpSession {
     pub upload_queue: UploadQueue,
@@ -58,7 +58,14 @@ impl SplitHttpHub {
                 let tx_inner = conn_tx.clone();
 
                 tokio::spawn(async move {
-                    let _ = Self::handle_connection(stream, remote_addr, config_inner, sessions_inner, tx_inner).await;
+                    let _ = Self::handle_connection(
+                        stream,
+                        remote_addr,
+                        config_inner,
+                        sessions_inner,
+                        tx_inner,
+                    )
+                    .await;
                 });
             }
         });
@@ -103,11 +110,16 @@ impl SplitHttpHub {
                 return Ok(());
             }
             n_read += n;
-            if let Some(pos) = header_buf[..n_read].windows(4).position(|w| w == b"\r\n\r\n") {
+            if let Some(pos) = header_buf[..n_read]
+                .windows(4)
+                .position(|w| w == b"\r\n\r\n")
+            {
                 break pos + 4;
             }
             if n_read >= header_buf.len() {
-                let _ = stream.write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n").await;
+                let _ = stream
+                    .write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n")
+                    .await;
                 return Ok(());
             }
         };
@@ -133,13 +145,12 @@ impl SplitHttpHub {
         }
 
         // Host validation
-        if !config.host.is_empty() {
-            if let Some(host_val) = headers.get("host") {
-                if !host_val.eq_ignore_ascii_case(&config.host) {
-                    let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await;
-                    return Ok(());
-                }
-            }
+        if !config.host.is_empty()
+            && let Some(host_val) = headers.get("host")
+            && !host_val.eq_ignore_ascii_case(&config.host)
+        {
+            let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await;
+            return Ok(());
         }
 
         // Path validation
@@ -152,7 +163,11 @@ impl SplitHttpHub {
         // Extract session ID and sequence
         let uri_parts: Vec<&str> = req_uri.splitn(2, '?').collect();
         let pure_path = uri_parts[0];
-        let query_str = if uri_parts.len() > 1 { uri_parts[1] } else { "" };
+        let query_str = if uri_parts.len() > 1 {
+            uri_parts[1]
+        } else {
+            ""
+        };
 
         let mut query_map = HashMap::new();
         for pair in query_str.split('&').filter(|s| !s.is_empty()) {
@@ -178,15 +193,15 @@ impl SplitHttpHub {
             &cookie_map,
         );
 
-        if session_id.is_empty() {
-            if let Some(sid) = headers.get("x-session-id") {
-                session_id = sid.clone();
-            }
+        if session_id.is_empty()
+            && let Some(sid) = headers.get("x-session-id")
+        {
+            session_id = sid.clone();
         }
-        if seq_str.is_empty() {
-            if let Some(sq) = headers.get("x-seq-id") {
-                seq_str = sq.clone();
-            }
+        if seq_str.is_empty()
+            && let Some(sq) = headers.get("x-seq-id")
+        {
+            seq_str = sq.clone();
         }
 
         if method == "POST" || !seq_str.is_empty() {
@@ -215,7 +230,11 @@ impl SplitHttpHub {
             let session = {
                 let mut map = sessions.lock().await;
                 map.entry(session_id.clone())
-                    .or_insert_with(|| Arc::new(HttpSession::new(config.get_normalized_sc_max_buffered_posts())))
+                    .or_insert_with(|| {
+                        Arc::new(HttpSession::new(
+                            config.get_normalized_sc_max_buffered_posts(),
+                        ))
+                    })
                     .clone()
             };
 
@@ -233,7 +252,11 @@ impl SplitHttpHub {
             let session = {
                 let mut map = sessions.lock().await;
                 map.entry(session_id.clone())
-                    .or_insert_with(|| Arc::new(HttpSession::new(config.get_normalized_sc_max_buffered_posts())))
+                    .or_insert_with(|| {
+                        Arc::new(HttpSession::new(
+                            config.get_normalized_sc_max_buffered_posts(),
+                        ))
+                    })
                     .clone()
             };
 

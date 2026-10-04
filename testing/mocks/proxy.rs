@@ -1,14 +1,14 @@
 // Module: testing\mocks\proxy.rs
 // Mock proxy inbound and outbound handlers
 
-use std::net::{Ipv4Addr, SocketAddr};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::{Address, BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
+use async_trait::async_trait;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub use super::outbound::MockOutboundHandler;
 pub use super::outbound::MockOutboundHandler as MockProxyHandler;
@@ -41,7 +41,11 @@ impl InboundHandler for MockInboundHandler {
         &self.tag
     }
 
-    async fn handle_connection(&self, stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         self.invocations.fetch_add(1, Ordering::Relaxed);
         let dest = Destination::tcp(Address::Ipv4(Ipv4Addr::new(127, 0, 0, 1)), 80);
         let mut session = SessionContext::new(&self.tag, dest);

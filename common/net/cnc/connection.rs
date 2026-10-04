@@ -11,7 +11,12 @@ pub struct CncConnection<R, W> {
 }
 
 impl<R, W> CncConnection<R, W> {
-    pub fn new(reader: R, writer: W, local_addr: Option<SocketAddr>, remote_addr: Option<SocketAddr>) -> Self {
+    pub fn new(
+        reader: R,
+        writer: W,
+        local_addr: Option<SocketAddr>,
+        remote_addr: Option<SocketAddr>,
+    ) -> Self {
         Self {
             reader,
             writer,

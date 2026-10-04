@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use super::super::crypto::{rand_between, rand_bytes_between, StreamCipher};
+    use super::super::crypto::{StreamCipher, rand_between, rand_bytes_between};
     use super::super::internal::chacha::ChaChaCore;
-    use super::super::io::{xor_buffers, CryptionReader, CryptionWriter};
+    use super::super::io::{CryptionReader, CryptionWriter, xor_buffers};
+    use std::io::Cursor;
 
     #[test]
     fn test_rand_between_and_bytes() {

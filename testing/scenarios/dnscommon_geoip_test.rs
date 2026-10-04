@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use crate::app::dns::{IPRecord, QuicNameServer, fqdn};
+    use crate::app::router::condition_geoip::{Cidr, GeoIpMatcher, HeuristicGeoIpMatcher};
     use std::net::{IpAddr, Ipv4Addr};
     use std::time::Duration;
-    use crate::app::dns::{fqdn, IPRecord, QuicNameServer};
-    use crate::app::router::condition_geoip::{Cidr, GeoIpMatcher, HeuristicGeoIpMatcher};
 
     #[test]
     fn test_dnscommon_fqdn_and_ip_record() {

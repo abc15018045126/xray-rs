@@ -9,10 +9,10 @@ mod tests {
 
     use crate::infra::conf::Config;
     use crate::testing::scenarios::common::{
-        http_connect_tunnel, http_get_proxy, pick_port, random_payload, xor, TestEnvironment,
+        TestEnvironment, http_connect_tunnel, http_get_proxy, pick_port, random_payload, xor,
     };
     use crate::testing::servers::http::Server as HttpServer;
-    use crate::testing::servers::tcp::{xor_processor, Server as TcpServer};
+    use crate::testing::servers::tcp::{Server as TcpServer, xor_processor};
 
     #[tokio::test]
     async fn test_http_conformance() {
@@ -35,7 +35,8 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(node_cfg).await.unwrap();
 
         // 3. Issue HTTP GET through proxy
@@ -50,7 +51,9 @@ mod tests {
     async fn test_http_connect_method() {
         // 1. Start TCP server with XOR processing
         let xor_key = b'k';
-        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         // 2. Start Xray node with HTTP inbound and Freedom outbound
@@ -68,11 +71,14 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(node_cfg).await.unwrap();
 
         // 3. Establish HTTP CONNECT tunnel through proxy
-        let mut tunnel = http_connect_tunnel(proxy_port, "127.0.0.1", target_port).await.unwrap();
+        let mut tunnel = http_connect_tunnel(proxy_port, "127.0.0.1", target_port)
+            .await
+            .unwrap();
 
         // 4. Send binary payload through the tunnel
         let payload = random_payload(4096);
@@ -100,7 +106,9 @@ mod tests {
             }) as _,
         );
 
-        let http_server = HttpServer::start_with_handlers(None, handlers).await.unwrap();
+        let http_server = HttpServer::start_with_handlers(None, handlers)
+            .await
+            .unwrap();
         let http_port = http_server.port();
 
         // 2. Start Xray node
@@ -118,11 +126,14 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(node_cfg).await.unwrap();
 
         // 3. Connect to proxy and send raw HTTP POST request
-        let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", proxy_port)).await.unwrap();
+        let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", proxy_port))
+            .await
+            .unwrap();
         let post_body = b"Xray-Rust HTTP POST Test Payload";
         let req = format!(
             "POST http://127.0.0.1:{}/testpost HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",

@@ -5,7 +5,6 @@ pub mod cfgcommon;
 pub mod common;
 pub mod conf;
 pub mod dns;
-pub mod json;
 pub mod dns_proxy;
 pub mod dokodemo;
 pub mod fakedns;
@@ -14,6 +13,7 @@ pub mod grpc;
 pub mod http;
 pub mod hysteria;
 pub mod init;
+pub mod json;
 pub mod lint;
 pub mod loader;
 pub mod log;
@@ -44,10 +44,6 @@ pub mod blackhole_test;
 #[cfg(test)]
 pub mod common_test;
 #[cfg(test)]
-pub mod loopback_test;
-#[cfg(test)]
-pub mod metrics_test;
-#[cfg(test)]
 pub mod dns_proxy_test;
 #[cfg(test)]
 pub mod dns_test;
@@ -59,6 +55,10 @@ pub mod freedom_test;
 pub mod general_test;
 #[cfg(test)]
 pub mod http_test;
+#[cfg(test)]
+pub mod loopback_test;
+#[cfg(test)]
+pub mod metrics_test;
 #[cfg(test)]
 pub mod policy_test;
 #[cfg(test)]
@@ -84,19 +84,19 @@ pub mod xray_test;
 
 use std::collections::HashMap;
 
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::app::router::{DomainMatcher, IpMatcher, Router, Rule};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Destination, Network};
 use crate::features::inbound::InboundHandler;
 use crate::features::outbound::OutboundHandler;
 use crate::proxy as p;
-use crate::transport::internet::reality::RealityConfig;
 use crate::transport::internet::TlsClient;
+use crate::transport::internet::reality::RealityConfig;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::sync::Arc;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
@@ -281,7 +281,9 @@ pub struct MultiServerSettings {
     pub network: Option<String>,
 }
 
-fn parse_fragment_config(fm: &FinalmaskConfigJson) -> Option<crate::transport::internet::finalmask::fragment::Config> {
+fn parse_fragment_config(
+    fm: &FinalmaskConfigJson,
+) -> Option<crate::transport::internet::finalmask::fragment::Config> {
     let tcp_layers = fm.tcp.as_ref()?;
     for layer in tcp_layers {
         if layer.mask_type.eq_ignore_ascii_case("fragment") {
@@ -356,7 +358,9 @@ impl Config {
             let handler: Arc<dyn OutboundHandler> = match out_cfg.protocol.to_lowercase().as_str() {
                 "freedom" | "direct" => Arc::new(p::freedom::Handler::new(&tag)),
                 "blackhole" | "block" => {
-                    let resp_type = out_cfg.settings.as_ref()
+                    let resp_type = out_cfg
+                        .settings
+                        .as_ref()
                         .and_then(|s| s.get("response"))
                         .and_then(|r| r.get("type"))
                         .and_then(|t| t.as_str())
@@ -369,11 +373,17 @@ impl Config {
                     Arc::new(p::blackhole::Handler::with_response(&tag, resp_type))
                 }
                 "vless" => {
-                    let settings: MultiServerSettings = serde_json::from_value(out_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid VLESS outbound settings: {}", e)))?;
-                    let server = settings.vnext.first()
+                    let settings: MultiServerSettings =
+                        serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
+                            |e| Error::Config(format!("Invalid VLESS outbound settings: {}", e)),
+                        )?;
+                    let server = settings
+                        .vnext
+                        .first()
                         .ok_or_else(|| Error::Config("VLESS vnext is empty".into()))?;
-                    let user = server.users.first()
+                    let user = server
+                        .users
+                        .first()
                         .ok_or_else(|| Error::Config("VLESS users is empty".into()))?;
                     let user_uuid = Uuid::from_str(&user.id)
                         .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
@@ -393,26 +403,31 @@ impl Config {
                             fragment_cfg = parse_fragment_config(fm);
                         }
 
-                        let is_ws = stream_settings.network.as_deref() == Some("ws") || stream_settings.ws_settings.is_some();
+                        let is_ws = stream_settings.network.as_deref() == Some("ws")
+                            || stream_settings.ws_settings.is_some();
                         if is_ws {
                             let ws_cfg = stream_settings.ws_settings.as_ref();
                             let raw_path = ws_cfg.and_then(|w| w.path.as_deref()).unwrap_or("/");
-                            let clean_path = if raw_path.trim().is_empty() { "/" } else { raw_path.trim() };
+                            let clean_path = if raw_path.trim().is_empty() {
+                                "/"
+                            } else {
+                                raw_path.trim()
+                            };
                             ws_path = Some(clean_path.to_string());
 
                             if let Some(w) = ws_cfg {
-                                if let Some(h) = &w.host {
-                                    if !h.trim().is_empty() {
-                                        ws_host = Some(h.trim().to_string());
-                                    }
+                                if let Some(h) = &w.host
+                                    && !h.trim().is_empty()
+                                {
+                                    ws_host = Some(h.trim().to_string());
                                 }
-                                if ws_host.is_none() {
-                                    if let Some(headers) = &w.headers {
-                                        for (k, v) in headers {
-                                            if k.eq_ignore_ascii_case("host") && !v.trim().is_empty() {
-                                                ws_host = Some(v.trim().to_string());
-                                                break;
-                                            }
+                                if ws_host.is_none()
+                                    && let Some(headers) = &w.headers
+                                {
+                                    for (k, v) in headers {
+                                        if k.eq_ignore_ascii_case("host") && !v.trim().is_empty() {
+                                            ws_host = Some(v.trim().to_string());
+                                            break;
                                         }
                                     }
                                 }
@@ -421,13 +436,19 @@ impl Config {
 
                         if stream_settings.security.as_deref() == Some("tls") {
                             let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
-                            let clean_server_name = tls_cfg.server_name.filter(|s| !s.trim().is_empty());
+                            let clean_server_name =
+                                tls_cfg.server_name.filter(|s| !s.trim().is_empty());
                             let clean_ws_host = ws_host.clone().filter(|s| !s.trim().is_empty());
                             let sni = clean_server_name
                                 .or(clean_ws_host)
                                 .unwrap_or_else(|| addr_str.to_string());
                             let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                            let alpn = tls_cfg.alpn.unwrap_or_default().into_iter().map(|s| s.into_bytes()).collect();
+                            let alpn = tls_cfg
+                                .alpn
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|s| s.into_bytes())
+                                .collect();
                             tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
                             tls_sni = Some(sni.clone());
 
@@ -441,16 +462,22 @@ impl Config {
                         }
                     }
 
-                    let mut client = p::vless::OutboundClient::new(&tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host);
+                    let mut client = p::vless::OutboundClient::new(
+                        &tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
+                    );
                     if let Some(f_cfg) = fragment_cfg {
                         client = client.with_fragment(f_cfg);
                     }
                     Arc::new(client)
                 }
                 "trojan" => {
-                    let settings: MultiServerSettings = serde_json::from_value(out_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid Trojan outbound settings: {}", e)))?;
-                    let server = settings.servers.first()
+                    let settings: MultiServerSettings =
+                        serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
+                            |e| Error::Config(format!("Invalid Trojan outbound settings: {}", e)),
+                        )?;
+                    let server = settings
+                        .servers
+                        .first()
                         .ok_or_else(|| Error::Config("Trojan servers list is empty".into()))?;
                     let password = server.password.clone().unwrap_or_default();
                     let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
@@ -460,38 +487,65 @@ impl Config {
                     let mut tls_client = None;
                     let mut tls_sni = None;
 
-                    if let Some(stream_settings) = out_cfg.stream_settings {
-                        if stream_settings.security.as_deref() == Some("tls") {
-                            let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
-                            let sni = tls_cfg.server_name.clone().unwrap_or_else(|| addr_str.to_string());
-                            let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                            let alpn = tls_cfg.alpn.unwrap_or_default().into_iter().map(|s| s.into_bytes()).collect();
-                            tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
-                            tls_sni = Some(sni);
-                        }
+                    if let Some(stream_settings) = out_cfg.stream_settings
+                        && stream_settings.security.as_deref() == Some("tls")
+                    {
+                        let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
+                        let sni = tls_cfg
+                            .server_name
+                            .clone()
+                            .unwrap_or_else(|| addr_str.to_string());
+                        let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
+                        let alpn = tls_cfg
+                            .alpn
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|s| s.into_bytes())
+                            .collect();
+                        tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
+                        tls_sni = Some(sni);
                     }
 
-                    Arc::new(p::trojan::OutboundClient::new(&tag, dest, password, tls_client, tls_sni))
+                    Arc::new(p::trojan::OutboundClient::new(
+                        &tag, dest, password, tls_client, tls_sni,
+                    ))
                 }
                 "shadowsocks" => {
-                    let settings: MultiServerSettings = serde_json::from_value(out_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid Shadowsocks outbound settings: {}", e)))?;
-                    let server = settings.servers.first()
+                    let settings: MultiServerSettings = serde_json::from_value(
+                        out_cfg.settings.unwrap_or_default(),
+                    )
+                    .map_err(|e| {
+                        Error::Config(format!("Invalid Shadowsocks outbound settings: {}", e))
+                    })?;
+                    let server = settings
+                        .servers
+                        .first()
                         .ok_or_else(|| Error::Config("Shadowsocks servers list is empty".into()))?;
                     let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
                     let port_val = server.port.unwrap_or(8388);
                     let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
                     let password = server.password.clone().unwrap_or_default();
-                    let method = server.method.clone().unwrap_or_else(|| "aes-256-gcm".into());
+                    let method = server
+                        .method
+                        .clone()
+                        .unwrap_or_else(|| "aes-256-gcm".into());
 
-                    Arc::new(p::shadowsocks::OutboundClient::new(&tag, dest, method, password))
+                    Arc::new(p::shadowsocks::OutboundClient::new(
+                        &tag, dest, method, password,
+                    ))
                 }
                 "vmess" => {
-                    let settings: MultiServerSettings = serde_json::from_value(out_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid VMess outbound settings: {}", e)))?;
-                    let server = settings.vnext.first()
+                    let settings: MultiServerSettings =
+                        serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
+                            |e| Error::Config(format!("Invalid VMess outbound settings: {}", e)),
+                        )?;
+                    let server = settings
+                        .vnext
+                        .first()
                         .ok_or_else(|| Error::Config("VMess vnext is empty".into()))?;
-                    let user = server.users.first()
+                    let user = server
+                        .users
+                        .first()
                         .ok_or_else(|| Error::Config("VMess users is empty".into()))?;
                     let user_uuid = Uuid::from_str(&user.id)
                         .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
@@ -502,23 +556,37 @@ impl Config {
                     let mut tls_client = None;
                     let mut tls_sni = None;
 
-                    if let Some(stream_settings) = out_cfg.stream_settings {
-                        if stream_settings.security.as_deref() == Some("tls") {
-                            let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
-                            let sni = tls_cfg.server_name.clone().unwrap_or_else(|| addr_str.to_string());
-                            let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                            let alpn = tls_cfg.alpn.unwrap_or_default().into_iter().map(|s| s.into_bytes()).collect();
-                            tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
-                            tls_sni = Some(sni);
-                        }
+                    if let Some(stream_settings) = out_cfg.stream_settings
+                        && stream_settings.security.as_deref() == Some("tls")
+                    {
+                        let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
+                        let sni = tls_cfg
+                            .server_name
+                            .clone()
+                            .unwrap_or_else(|| addr_str.to_string());
+                        let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
+                        let alpn = tls_cfg
+                            .alpn
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|s| s.into_bytes())
+                            .collect();
+                        tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
+                        tls_sni = Some(sni);
                     }
 
-                    Arc::new(p::vmess::OutboundClient::new(&tag, dest, user_uuid, tls_client, tls_sni))
+                    Arc::new(p::vmess::OutboundClient::new(
+                        &tag, dest, user_uuid, tls_client, tls_sni,
+                    ))
                 }
                 "socks" => {
-                    let settings: MultiServerSettings = serde_json::from_value(out_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid SOCKS outbound settings: {}", e)))?;
-                    let server = settings.servers.first()
+                    let settings: MultiServerSettings =
+                        serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
+                            |e| Error::Config(format!("Invalid SOCKS outbound settings: {}", e)),
+                        )?;
+                    let server = settings
+                        .servers
+                        .first()
                         .ok_or_else(|| Error::Config("SOCKS servers list is empty".into()))?;
                     let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
                     let port_val = server.port.unwrap_or(1080);
@@ -526,11 +594,12 @@ impl Config {
 
                     Arc::new(p::socks::Client::new(&tag, dest))
                 }
-                "dns" => {
-                    Arc::new(p::DnsOutbound::new(tag.clone(), dns_client.clone()))
-                }
+                "dns" => Arc::new(p::DnsOutbound::new(tag.clone(), dns_client.clone())),
                 other => {
-                    return Err(Error::Unsupported(format!("Outbound protocol '{}' is not supported", other)));
+                    return Err(Error::Unsupported(format!(
+                        "Outbound protocol '{}' is not supported",
+                        other
+                    )));
                 }
             };
 
@@ -542,17 +611,29 @@ impl Config {
             let tag = in_cfg.tag.unwrap_or_else(|| format!("inbound-{}", i));
             let proto = in_cfg.protocol.to_lowercase();
             if proto == "tun" {
-                let tun_name = in_cfg.settings.as_ref()
+                let tun_name = in_cfg
+                    .settings
+                    .as_ref()
                     .and_then(|s| s.get("name").and_then(|v| v.as_str()))
                     .unwrap_or("xray_tun");
-                let mtu = in_cfg.settings.as_ref()
-                    .and_then(|s| s.get("mtu").or_else(|| s.get("MTU")).and_then(|v| v.as_u64()))
+                let mtu = in_cfg
+                    .settings
+                    .as_ref()
+                    .and_then(|s| {
+                        s.get("mtu")
+                            .or_else(|| s.get("MTU"))
+                            .and_then(|v| v.as_u64())
+                    })
                     .unwrap_or(1500) as usize;
 
                 let mut gateway_v4: ipnet::Ipv4Net = "172.18.0.1/30".parse().unwrap();
                 let mut gateway_v6: Option<ipnet::Ipv6Net> = None;
 
-                if let Some(gateways) = in_cfg.settings.as_ref().and_then(|s| s.get("gateway").and_then(|v| v.as_array())) {
+                if let Some(gateways) = in_cfg
+                    .settings
+                    .as_ref()
+                    .and_then(|s| s.get("gateway").and_then(|v| v.as_array()))
+                {
                     for gw in gateways {
                         if let Some(gw_str) = gw.as_str() {
                             if let Ok(net) = gw_str.parse::<ipnet::Ipv4Net>() {
@@ -566,7 +647,11 @@ impl Config {
 
                 let mut route_all = false;
                 let mut routes = Vec::new();
-                if let Some(rt_val) = in_cfg.settings.as_ref().and_then(|s| s.get("autoSystemRoutingTable")) {
+                if let Some(rt_val) = in_cfg
+                    .settings
+                    .as_ref()
+                    .and_then(|s| s.get("autoSystemRoutingTable"))
+                {
                     if let Some(arr) = rt_val.as_array() {
                         for item in arr {
                             if let Some(s) = item.as_str() {
@@ -582,9 +667,12 @@ impl Config {
                     }
                 }
 
-                let sniffing_req = in_cfg.sniffing.and_then(|s| {
+                let sniffing_req = in_cfg.sniffing.map(|s| {
                     let enabled = s.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
-                    let route_only = s.get("routeOnly").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let route_only = s
+                        .get("routeOnly")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
                     let mut dest_override = Vec::new();
                     if let Some(arr) = s.get("destOverride").and_then(|v| v.as_array()) {
                         for item in arr {
@@ -593,12 +681,12 @@ impl Config {
                             }
                         }
                     }
-                    Some(crate::common::session::SniffingRequest {
+                    crate::common::session::SniffingRequest {
                         enabled,
                         override_destination_for_protocol: dest_override,
                         route_only,
                         ..Default::default()
-                    })
+                    }
                 });
 
                 let tun_cfg = p::tun::TunConfig {
@@ -624,22 +712,29 @@ impl Config {
 
             let listen_ip = in_cfg.listen.as_deref().unwrap_or("0.0.0.0");
             let port_val = in_cfg.port.unwrap_or(0);
-            
+
             // Skip TCP binding for port 0
             if port_val == 0 {
                 continue;
             }
 
-            let bind_addr: SocketAddr = format!("{}:{}", listen_ip, port_val).parse()
-                .map_err(|e| Error::Config(format!("Invalid listen address '{}:{}': {}", listen_ip, port_val, e)))?;
+            let bind_addr: SocketAddr =
+                format!("{}:{}", listen_ip, port_val).parse().map_err(|e| {
+                    Error::Config(format!(
+                        "Invalid listen address '{}:{}': {}",
+                        listen_ip, port_val, e
+                    ))
+                })?;
 
             let handler: Arc<dyn InboundHandler> = match proto.as_str() {
                 "socks" | "socks5" => Arc::new(p::socks::Server::new(&tag)),
                 "http" => Arc::new(p::http::Server::new(&tag)),
                 "mixed" => Arc::new(p::mixed::Server::new(&tag)),
                 "vless" => {
-                    let settings: MultiServerSettings = serde_json::from_value(in_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid VLESS inbound settings: {}", e)))?;
+                    let settings: MultiServerSettings = serde_json::from_value(
+                        in_cfg.settings.unwrap_or_default(),
+                    )
+                    .map_err(|e| Error::Config(format!("Invalid VLESS inbound settings: {}", e)))?;
                     let mut user_uuids = Vec::new();
                     for client in settings.clients {
                         let u = Uuid::from_str(&client.id)
@@ -649,8 +744,10 @@ impl Config {
                     Arc::new(p::vless::InboundServer::new(&tag, user_uuids))
                 }
                 "trojan" => {
-                    let settings: MultiServerSettings = serde_json::from_value(in_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid Trojan inbound settings: {}", e)))?;
+                    let settings: MultiServerSettings =
+                        serde_json::from_value(in_cfg.settings.unwrap_or_default()).map_err(
+                            |e| Error::Config(format!("Invalid Trojan inbound settings: {}", e)),
+                        )?;
                     let mut passwords = Vec::new();
                     for client in settings.clients {
                         if let Some(pwd) = client.password {
@@ -660,15 +757,29 @@ impl Config {
                     Arc::new(p::trojan::InboundServer::new(&tag, passwords))
                 }
                 "shadowsocks" => {
-                    let settings: MultiServerSettings = serde_json::from_value(in_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid Shadowsocks inbound settings: {}", e)))?;
-                    let password = settings.servers.first().and_then(|s| s.password.clone()).unwrap_or_default();
-                    let method = settings.servers.first().and_then(|s| s.method.clone()).unwrap_or_else(|| "aes-256-gcm".into());
+                    let settings: MultiServerSettings = serde_json::from_value(
+                        in_cfg.settings.unwrap_or_default(),
+                    )
+                    .map_err(|e| {
+                        Error::Config(format!("Invalid Shadowsocks inbound settings: {}", e))
+                    })?;
+                    let password = settings
+                        .servers
+                        .first()
+                        .and_then(|s| s.password.clone())
+                        .unwrap_or_default();
+                    let method = settings
+                        .servers
+                        .first()
+                        .and_then(|s| s.method.clone())
+                        .unwrap_or_else(|| "aes-256-gcm".into());
                     Arc::new(p::shadowsocks::InboundServer::new(&tag, method, password))
                 }
                 "dokodemo-door" | "dokodemo" => {
-                    let settings: MultiServerSettings = serde_json::from_value(in_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid Dokodemo inbound settings: {}", e)))?;
+                    let settings: MultiServerSettings =
+                        serde_json::from_value(in_cfg.settings.unwrap_or_default()).map_err(
+                            |e| Error::Config(format!("Invalid Dokodemo inbound settings: {}", e)),
+                        )?;
                     let target_addr = settings.address.unwrap_or_else(|| "127.0.0.1".into());
                     let target_port = settings.port.unwrap_or(80);
                     let dest = Destination::from_str(&format!("{}:{}", target_addr, target_port))?;
@@ -679,8 +790,10 @@ impl Config {
                     Arc::new(p::dokodemo::Server::new(&tag, dest, network))
                 }
                 "vmess" => {
-                    let settings: MultiServerSettings = serde_json::from_value(in_cfg.settings.unwrap_or_default())
-                        .map_err(|e| Error::Config(format!("Invalid VMess inbound settings: {}", e)))?;
+                    let settings: MultiServerSettings = serde_json::from_value(
+                        in_cfg.settings.unwrap_or_default(),
+                    )
+                    .map_err(|e| Error::Config(format!("Invalid VMess inbound settings: {}", e)))?;
                     let mut user_uuids = Vec::new();
                     for client in settings.clients {
                         let u = Uuid::from_str(&client.id)
@@ -690,7 +803,10 @@ impl Config {
                     Arc::new(p::vmess::InboundServer::new(&tag, user_uuids))
                 }
                 other => {
-                    return Err(Error::Unsupported(format!("Inbound protocol '{}' is not supported", other)));
+                    return Err(Error::Unsupported(format!(
+                        "Inbound protocol '{}' is not supported",
+                        other
+                    )));
                 }
             };
 
@@ -699,59 +815,62 @@ impl Config {
 
         // 3. Build Router
         let mut rules = Vec::new();
-        if let Some(routing) = self.routing {
-            if let Some(rule_configs) = routing.rules {
-                for r_cfg in rule_configs {
-                    let mut rule = Rule::new(&r_cfg.outbound_tag);
-                    if let Some(in_tags) = r_cfg.inbound_tag {
-                        rule.inbound_tags = in_tags;
-                    }
-                    if let Some(domains) = r_cfg.domain {
-                        for d in domains {
-                            rule.domain_matchers.push(DomainMatcher::parse(&d));
-                        }
-                    }
-                    if let Some(ips) = r_cfg.ip {
-                        for ip_str in ips {
-                            if let Some(ip_matcher) = IpMatcher::parse(&ip_str) {
-                                rule.ip_matchers.push(ip_matcher);
-                            }
-                        }
-                    }
-                    if let Some(port_val) = r_cfg.port {
-                        let ports_str = match port_val {
-                            serde_json::Value::Number(n) => n.to_string(),
-                            serde_json::Value::String(s) => s,
-                            _ => String::new(),
-                        };
-                        for part in ports_str.split(',') {
-                            let trimmed = part.trim();
-                            if trimmed.contains('-') {
-                                let range_parts: Vec<&str> = trimmed.split('-').collect();
-                                if range_parts.len() == 2 {
-                                    if let (Ok(start), Ok(end)) = (range_parts[0].trim().parse::<u16>(), range_parts[1].trim().parse::<u16>()) {
-                                        for p in start..=end {
-                                            rule.ports.push(p);
-                                        }
-                                    }
-                                }
-                            } else if let Ok(p) = trimmed.parse::<u16>() {
-                                rule.ports.push(p);
-                            }
-                        }
-                    }
-                    if let Some(net_str) = r_cfg.network {
-                        rule.network = match net_str.to_lowercase().as_str() {
-                            "tcp" => Some(Network::Tcp),
-                            "udp" => Some(Network::Udp),
-                            _ => None,
-                        };
-                    }
-                    if let Some(proc_list) = r_cfg.process {
-                        rule.process = proc_list;
-                    }
-                    rules.push(rule);
+        if let Some(routing) = self.routing
+            && let Some(rule_configs) = routing.rules
+        {
+            for r_cfg in rule_configs {
+                let mut rule = Rule::new(&r_cfg.outbound_tag);
+                if let Some(in_tags) = r_cfg.inbound_tag {
+                    rule.inbound_tags = in_tags;
                 }
+                if let Some(domains) = r_cfg.domain {
+                    for d in domains {
+                        rule.domain_matchers.push(DomainMatcher::parse(&d));
+                    }
+                }
+                if let Some(ips) = r_cfg.ip {
+                    for ip_str in ips {
+                        if let Some(ip_matcher) = IpMatcher::parse(&ip_str) {
+                            rule.ip_matchers.push(ip_matcher);
+                        }
+                    }
+                }
+                if let Some(port_val) = r_cfg.port {
+                    let ports_str = match port_val {
+                        serde_json::Value::Number(n) => n.to_string(),
+                        serde_json::Value::String(s) => s,
+                        _ => String::new(),
+                    };
+                    for part in ports_str.split(',') {
+                        let trimmed = part.trim();
+                        if trimmed.contains('-') {
+                            let range_parts: Vec<&str> = trimmed.split('-').collect();
+                            if range_parts.len() == 2
+                                && let (Ok(start), Ok(end)) = (
+                                    range_parts[0].trim().parse::<u16>(),
+                                    range_parts[1].trim().parse::<u16>(),
+                                )
+                            {
+                                for p in start..=end {
+                                    rule.ports.push(p);
+                                }
+                            }
+                        } else if let Ok(p) = trimmed.parse::<u16>() {
+                            rule.ports.push(p);
+                        }
+                    }
+                }
+                if let Some(net_str) = r_cfg.network {
+                    rule.network = match net_str.to_lowercase().as_str() {
+                        "tcp" => Some(Network::Tcp),
+                        "udp" => Some(Network::Udp),
+                        _ => None,
+                    };
+                }
+                if let Some(proc_list) = r_cfg.process {
+                    rule.process = proc_list;
+                }
+                rules.push(rule);
             }
         }
 
@@ -779,10 +898,10 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
                     }
                 } else if let Some(arr) = ip_val.as_array() {
                     for item in arr {
-                        if let Some(s) = item.as_str() {
-                            if let Ok(ip) = s.parse::<std::net::IpAddr>() {
-                                ips.push(ip);
-                            }
+                        if let Some(s) = item.as_str()
+                            && let Ok(ip) = s.parse::<std::net::IpAddr>()
+                        {
+                            ips.push(ip);
                         }
                     }
                 }
@@ -797,7 +916,9 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
                 let addr_str = if let Some(addr) = s.as_str() {
                     Some(addr.to_string())
                 } else if let Some(obj) = s.as_object() {
-                    obj.get("address").and_then(|v| v.as_str()).map(|v| v.to_string())
+                    obj.get("address")
+                        .and_then(|v| v.as_str())
+                        .map(|v| v.to_string())
                 } else {
                     None
                 };
@@ -814,4 +935,3 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
     }
     client
 }
-

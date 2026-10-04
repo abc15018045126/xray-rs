@@ -1,9 +1,9 @@
 // Module: transport\internet\splithttp\dialer.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\dialer.go
 
-use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use tokio::io::AsyncReadExt;
 
 use super::client::{DefaultDialerClient, DialerClient};
@@ -59,7 +59,11 @@ impl SplitHttpDialer {
         let (upload_tx, mut upload_rx) = tokio::io::duplex(64 * 1024);
 
         let max_post_bytes = self.config.get_normalized_sc_max_each_post_bytes().rand() as usize;
-        let max_chunk = if max_post_bytes > 0 { max_post_bytes } else { 1024 * 1024 };
+        let max_chunk = if max_post_bytes > 0 {
+            max_post_bytes
+        } else {
+            1024 * 1024
+        };
 
         let client_clone = Arc::clone(&client);
         let session_id_clone = session_id.clone();
@@ -75,7 +79,12 @@ impl SplitHttpDialer {
                         let cur_seq = seq.fetch_add(1, Ordering::SeqCst);
                         let payload = buf[..n].to_vec();
                         if let Err(_) = client_clone
-                            .post_packet(&url_clone, &session_id_clone, &cur_seq.to_string(), payload)
+                            .post_packet(
+                                &url_clone,
+                                &session_id_clone,
+                                &cur_seq.to_string(),
+                                payload,
+                            )
                             .await
                         {
                             break;

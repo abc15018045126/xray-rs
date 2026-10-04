@@ -10,11 +10,11 @@ mod tests {
     use crate::common::net::{Address, Destination, Network};
     use crate::common::protocol::{SessionContext, User};
     use crate::features::dns::{
-        client_type, fake_dns_type, DnsClient, FakeDnsEngine, FakeDnsFeature, IPOption,
-        LocalDnsClient, RCodeError, DEFAULT_TTL, FAKE_IPV4_POOL, FAKE_IPV6_POOL,
+        DEFAULT_TTL, DnsClient, FAKE_IPV4_POOL, FAKE_IPV6_POOL, FakeDnsEngine, FakeDnsFeature,
+        IPOption, LocalDnsClient, RCodeError, client_type, fake_dns_type,
     };
     use crate::features::extension::{
-        observatory_type, ContextReceiver, Observation, ObservatoryFeature,
+        ContextReceiver, Observation, ObservatoryFeature, observatory_type,
     };
     use crate::features::feature::{
         Feature, TYPE_DISPATCHER, TYPE_DNS_CLIENT, TYPE_FAKE_DNS, TYPE_INBOUND_MANAGER,
@@ -22,17 +22,16 @@ mod tests {
         TYPE_STATS_MANAGER,
     };
     use crate::features::policy::{
-        default_buffer_policy, default_policy, manager_type as policy_manager_type,
-        session_default, DefaultPolicyManager, PolicyManager, Timeout,
+        DefaultPolicyManager, PolicyManager, Timeout, default_buffer_policy, default_policy,
+        manager_type as policy_manager_type, session_default,
     };
     use crate::features::routing::{
-        dispatcher_type, router_type, DefaultRoute, DefaultRouter, ResolvableContext, Route,
-        RouteContext, RouterFeature, RoutingContext, SessionRouteContext,
+        DefaultRoute, DefaultRouter, ResolvableContext, Route, RouteContext, RouterFeature,
+        RoutingContext, SessionRouteContext, dispatcher_type, router_type,
     };
     use crate::features::stats::{
-        get_or_register_counter, get_or_register_online_map,
-        manager_type as stats_manager_type, Counter, DefaultOnlineMap, DefaultStatsManager,
-        NoopStatsManager, OnlineMap,
+        Counter, DefaultOnlineMap, DefaultStatsManager, NoopStatsManager, OnlineMap,
+        get_or_register_counter, get_or_register_online_map, manager_type as stats_manager_type,
     };
 
     #[test]
@@ -259,28 +258,27 @@ mod tests {
         let sess_route_ctx = SessionRouteContext::new(sess);
         assert_eq!(sess_route_ctx.get_inbound_tag(), "dokodemo-in");
         assert_eq!(sess_route_ctx.get_source_port(), 12345);
-        assert_eq!(
-            sess_route_ctx.get_user(),
-            Some("sess_user@test.com")
-        );
+        assert_eq!(sess_route_ctx.get_user(), Some("sess_user@test.com"));
 
-        let resolvable = ResolvableContext::new(
-            Box::new(route_ctx),
-            Arc::new(LocalDnsClient::new()),
-        );
+        let resolvable =
+            ResolvableContext::new(Box::new(route_ctx), Arc::new(LocalDnsClient::new()));
         assert_eq!(resolvable.get_inbound_tag(), "socks-in");
         assert_eq!(resolvable.get_target_domain(), Some("example.com"));
 
         let default_router = DefaultRouter;
         assert_eq!(default_router.feature_type(), TYPE_ROUTER);
-        assert!(default_router.pick_outbound(&SessionContext::new(
-            "in",
-            Destination {
-                network: Network::Tcp,
-                address: Address::ip(IpAddr::V4(Ipv4Addr::LOCALHOST)),
-                port: 80,
-            }
-        )).is_none());
+        assert!(
+            default_router
+                .pick_outbound(&SessionContext::new(
+                    "in",
+                    Destination {
+                        network: Network::Tcp,
+                        address: Address::ip(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+                        port: 80,
+                    }
+                ))
+                .is_none()
+        );
 
         let def_route = DefaultRoute {
             tag: "out-proxy".into(),
@@ -330,7 +328,10 @@ mod tests {
         let m1_again = get_or_register_online_map(&mgr, "user_online");
         assert_eq!(m1_again.count(), 1);
 
-        assert!(mgr.get_all_online_users().contains(&"user_online".to_string()));
+        assert!(
+            mgr.get_all_online_users()
+                .contains(&"user_online".to_string())
+        );
 
         let ch = mgr.register_channel("traffic_channel");
         ch.publish(2048);

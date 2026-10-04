@@ -1,17 +1,17 @@
 // Module: proxy\wireguard\client.rs
 // 1:1 Rust implementation corresponding to Go proxy\wireguard\client.go
 
+use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UdpSocket;
 
+use super::config::WireGuardConfig;
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
-use super::config::WireGuardConfig;
 
 pub struct Client {
     tag: String,
@@ -38,11 +38,18 @@ impl OutboundHandler for Client {
     }
 
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
-        let peer = self.config.peers.first()
+        let peer = self
+            .config
+            .peers
+            .first()
             .ok_or_else(|| Error::Config("No WireGuard peers defined".into()))?;
-        
-        let endpoint_addr: SocketAddr = peer.endpoint.parse()
-            .map_err(|e| Error::AddressParse(format!("Invalid WireGuard peer endpoint {}: {}", peer.endpoint, e)))?;
+
+        let endpoint_addr: SocketAddr = peer.endpoint.parse().map_err(|e| {
+            Error::AddressParse(format!(
+                "Invalid WireGuard peer endpoint {}: {}",
+                peer.endpoint, e
+            ))
+        })?;
 
         let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
         socket.connect(endpoint_addr).await?;

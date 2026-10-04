@@ -13,8 +13,7 @@ pub struct TcpStream {
     pub(crate) remote_addr: SocketAddr,
 
     pub(crate) handle: Arc<TcpStreamHandle>,
-    pub(crate) stack_notifier:
-        tokio::sync::mpsc::UnboundedSender<IfaceEvent<'static>>,
+    pub(crate) stack_notifier: tokio::sync::mpsc::UnboundedSender<IfaceEvent<'static>>,
 }
 
 impl Drop for TcpStream {
@@ -98,18 +97,14 @@ impl tokio::io::AsyncRead for TcpStream {
                     trace!("TcpStream::poll_read: socket closed, returning EOF");
                     return std::task::Poll::Ready(Ok(()));
                 }
-                trace!(
-                    "TcpStream::poll_read: recv buffer is empty, waiting for data"
-                );
+                trace!("TcpStream::poll_read: recv buffer is empty, waiting for data");
                 return std::task::Poll::Pending;
             }
         }
 
         buf.initialize_unfilled();
         let recv_buf = unsafe {
-            std::mem::transmute::<&mut [std::mem::MaybeUninit<u8>], &mut [u8]>(
-                buf.unfilled_mut(),
-            )
+            std::mem::transmute::<&mut [std::mem::MaybeUninit<u8>], &mut [u8]>(buf.unfilled_mut())
         };
         let n = read_buf.dequeue_slice(recv_buf);
         buf.advance(n);
@@ -146,9 +141,7 @@ impl tokio::io::AsyncWrite for TcpStream {
             // falls through to enqueue data.
             self.handle.send_waker.register(cx.waker());
             if send_buf.is_full() {
-                trace!(
-                    "TcpStream::poll_write: send buffer is full, waiting for space"
-                );
+                trace!("TcpStream::poll_write: send buffer is full, waiting for space");
                 self.notify_tcp_socket_ready();
                 return std::task::Poll::Pending;
             }
@@ -162,18 +155,12 @@ impl tokio::io::AsyncWrite for TcpStream {
         Poll::Ready(Ok(n))
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         self.notify_tcp_socket_ready();
         Poll::Ready(Ok(()))
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         ready!(self.as_mut().poll_flush(cx))?;
         trace!("TcpStream::poll_shutdown called, client side closing");
         self.handle.write_shutdown.store(true, Ordering::Release);
@@ -244,9 +231,7 @@ mod tests {
 
         let result = Pin::new(&mut stream).poll_write(&mut cx, b"hello");
 
-        assert!(
-            matches!(result, Poll::Ready(Err(err)) if err.kind() == ErrorKind::BrokenPipe)
-        );
+        assert!(matches!(result, Poll::Ready(Err(err)) if err.kind() == ErrorKind::BrokenPipe));
     }
 
     #[test]

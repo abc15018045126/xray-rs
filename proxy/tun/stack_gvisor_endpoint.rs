@@ -14,3 +14,9 @@ impl GVisorEndpoint {
         self.channel_id
     }
 }
+
+impl Default for GVisorEndpoint {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -16,8 +16,10 @@ mod tests {
 
     #[test]
     fn test_certificate_filtering_by_usage() {
-        let enc_cert = Certificate::new(vec![1, 2, 3], vec![4, 5, 6], CertificateUsage::Encipherment);
-        let verify_cert = Certificate::new(vec![7, 8], vec![9, 10], CertificateUsage::AuthorityVerify);
+        let enc_cert =
+            Certificate::new(vec![1, 2, 3], vec![4, 5, 6], CertificateUsage::Encipherment);
+        let verify_cert =
+            Certificate::new(vec![7, 8], vec![9, 10], CertificateUsage::AuthorityVerify);
         let issue_cert = Certificate::new(vec![11], vec![12], CertificateUsage::AuthorityIssue);
 
         let cfg = TlsConfig {
@@ -36,19 +38,27 @@ mod tests {
 
     #[test]
     fn test_certificate_issuing_for_sni() {
-        let ca_cert = Certificate::new(b"dummy ca".to_vec(), b"dummy ca key".to_vec(), CertificateUsage::AuthorityIssue);
+        let ca_cert = Certificate::new(
+            b"dummy ca".to_vec(),
+            b"dummy ca key".to_vec(),
+            CertificateUsage::AuthorityIssue,
+        );
         let mut cfg = TlsConfig {
             certificate: vec![ca_cert],
             ..Default::default()
         };
 
-        let issued = cfg.get_certificate_for_sni("www.example.com").expect("should issue certificate");
+        let issued = cfg
+            .get_certificate_for_sni("www.example.com")
+            .expect("should issue certificate");
         assert_eq!(issued.usage, CertificateUsage::Encipherment);
         assert!(!issued.certificate.is_empty());
         assert!(!issued.key.is_empty());
 
         // Check cached cert
-        let cached = cfg.get_certificate_for_sni("www.example.com").expect("should retrieve cached certificate");
+        let cached = cfg
+            .get_certificate_for_sni("www.example.com")
+            .expect("should retrieve cached certificate");
         assert_eq!(issued.certificate, cached.certificate);
     }
 }

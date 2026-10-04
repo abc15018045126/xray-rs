@@ -1,11 +1,11 @@
 // Module: features\routing\router.rs
 // 1:1 Rust implementation corresponding to Go features\routing\router.go
 
-use async_trait::async_trait;
+use super::context::RoutingContext;
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::SessionContext;
 use crate::features::feature::{Feature, TYPE_ROUTER};
-use super::context::RoutingContext;
+use async_trait::async_trait;
 
 pub trait Route: Send + Sync {
     fn outbound_tag(&self) -> &str;

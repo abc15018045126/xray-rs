@@ -10,8 +10,8 @@ mod tests {
     use crate::app::dns::{DnsClient, StaticHosts};
     use crate::features::dns::{DnsClient as FeatureDnsClient, LocalDnsClient};
     use crate::infra::conf::Config;
-    use crate::testing::scenarios::common::{pick_port, socks5_connect, TestEnvironment};
-    use crate::testing::servers::tcp::{echo_processor, Server as TcpServer};
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port, socks5_connect};
+    use crate::testing::servers::tcp::{Server as TcpServer, echo_processor};
 
     #[tokio::test]
     async fn test_scenario_localdns_lookup() {
@@ -24,7 +24,10 @@ mod tests {
     async fn test_dns_static_hosts_resolution() {
         let mut hosts_map = HashMap::new();
         hosts_map.insert("google.com".to_string(), vec!["127.0.0.1".parse().unwrap()]);
-        hosts_map.insert("dns.internal".to_string(), vec!["10.0.0.53".parse().unwrap()]);
+        hosts_map.insert(
+            "dns.internal".to_string(),
+            vec!["10.0.0.53".parse().unwrap()],
+        );
 
         let dns = DnsClient::with_hosts(hosts_map);
 
@@ -54,7 +57,9 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_ip_static_hosts_end_to_end() {
         // Start TCP echo server
-        let tcp_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         // Node with SOCKS5 inbound and Freedom outbound
@@ -72,11 +77,14 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(cfg).await.unwrap();
 
         // Connect through SOCKS5 to 127.0.0.1
-        let mut client = socks5_connect(socks_port, "127.0.0.1", target_port).await.unwrap();
+        let mut client = socks5_connect(socks_port, "127.0.0.1", target_port)
+            .await
+            .unwrap();
 
         let msg = b"Testing DNS & SOCKS5 direct IP echo";
         client.write_all(msg).await.unwrap();

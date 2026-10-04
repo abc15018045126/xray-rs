@@ -3,12 +3,12 @@
 
 #[cfg(test)]
 mod tests {
+    use super::super::address::{
+        Address, AddressFamily, any_ip, any_ipv6, ip_address_from_bytes, local_host_domain,
+        local_host_ip, local_host_ipv6, parse_address,
+    };
     use std::net::{Ipv4Addr, Ipv6Addr};
     use std::str::FromStr;
-    use super::super::address::{
-        any_ip, any_ipv6, ip_address_from_bytes, local_host_domain, local_host_ip,
-        local_host_ipv6, parse_address, Address, AddressFamily,
-    };
 
     #[test]
     fn test_address_properties() {
@@ -55,9 +55,8 @@ mod tests {
         assert_eq!(a4.family(), AddressFamily::IPv4);
         assert_eq!(a4.to_string(), "123.151.71.143");
 
-        let a5 = ip_address_from_bytes(&[
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 1, 2, 3, 4,
-        ]).unwrap();
+        let a5 =
+            ip_address_from_bytes(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 1, 2, 3, 4]).unwrap();
         assert_eq!(a5.family(), AddressFamily::IPv4);
         assert_eq!(a5.to_string(), "1.2.3.4");
 

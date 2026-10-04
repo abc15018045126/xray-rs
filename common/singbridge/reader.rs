@@ -1,8 +1,8 @@
 // Module: common\singbridge\reader.rs
 // 1:1 Rust implementation corresponding to Go common\singbridge\reader.go
 
-use std::time::Duration;
 use async_trait::async_trait;
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 
@@ -82,6 +82,6 @@ impl<R: AsyncRead + Unpin> SingReader<R> {
     }
 
     pub async fn read_bytes(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Ok(self.inner.read(buf).await.map_err(Error::Io)?)
+        self.inner.read(buf).await.map_err(Error::Io)
     }
 }

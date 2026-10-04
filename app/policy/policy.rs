@@ -37,6 +37,7 @@ pub struct SystemPolicy {
     pub stats_outbound_downlink: bool,
 }
 
+#[derive(Default)]
 pub struct PolicyManager {
     levels: HashMap<u32, SessionPolicy>,
     system: SystemPolicy,
@@ -57,14 +58,5 @@ impl PolicyManager {
 
     pub fn set_level(&mut self, level: u32, policy: SessionPolicy) {
         self.levels.insert(level, policy);
-    }
-}
-
-impl Default for PolicyManager {
-    fn default() -> Self {
-        Self {
-            levels: HashMap::new(),
-            system: SystemPolicy::default(),
-        }
     }
 }

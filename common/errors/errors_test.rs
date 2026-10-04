@@ -4,13 +4,14 @@
 #[cfg(test)]
 mod tests {
     use super::super::errors::{
-        cause, get_severity, log_debug, log_info, log_warning, new as new_error, new_error as make_error,
+        cause, get_severity, log_debug, log_info, log_warning, new as new_error,
+        new_error as make_error,
     };
     use super::super::feature_errors::{
         missing_feature, print_deprecated_feature_warning,
         print_non_removal_deprecated_feature_warning, print_removed_feature_error,
     };
-    use super::super::multi_error::{all_equal, combine, MultiError};
+    use super::super::multi_error::{MultiError, all_equal, combine};
     use crate::common::errors::Error;
     use crate::common::log::Severity;
 
@@ -22,10 +23,14 @@ mod tests {
         let err2 = new_error("TestError2").base(new_error("io.EOF"));
         assert_eq!(get_severity(&err2), Severity::Info);
 
-        let err3 = new_error("TestError3").base(new_error("io.EOF")).at_warning();
+        let err3 = new_error("TestError3")
+            .base(new_error("io.EOF"))
+            .at_warning();
         assert_eq!(get_severity(&err3), Severity::Warning);
 
-        let err4 = new_error("TestError4").base(new_error("io.EOF")).at_warning();
+        let err4 = new_error("TestError4")
+            .base(new_error("io.EOF"))
+            .at_warning();
         let err5 = new_error("TestError5").base(err4);
         assert_eq!(get_severity(&err5), Severity::Warning);
         assert!(err5.to_string().contains("io.EOF"));
@@ -91,7 +96,10 @@ mod tests {
         print_deprecated_feature_warning("feature_z", "");
 
         let err1 = print_removed_feature_error("legacy_kcp", "modern_kcp");
-        assert!(err1.to_string().contains("removed and migrated to modern_kcp"));
+        assert!(
+            err1.to_string()
+                .contains("removed and migrated to modern_kcp")
+        );
 
         let err2 = print_removed_feature_error("obsolete_crypto", "");
         assert!(err2.to_string().contains("has been removed"));

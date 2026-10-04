@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
@@ -14,17 +14,52 @@ pub struct CacheController {
     pub disable_cache: bool,
     pub serve_stale: bool,
     pub serve_expired_ttl: Duration,
-    records: RwLock<HashMap<String, DnsRecord>>,
+    records: Arc<RwLock<HashMap<String, DnsRecord>>>,
 }
 
 impl CacheController {
-    pub fn new(name: String, disable_cache: bool, serve_stale: bool, serve_expired_ttl: Duration) -> Self {
+    pub fn new(
+        name: String,
+        disable_cache: bool,
+        serve_stale: bool,
+        serve_expired_ttl: Duration,
+    ) -> Self {
+        let records = Arc::new(RwLock::new(HashMap::<String, DnsRecord>::new()));
+
+        // Aligned with official Go Xray-core app/dns/cache_controller.go:
+        // Periodic 300s task to clear expired items and shrink map to reclaim memory.
+        if !disable_cache {
+            let cleaner = Arc::clone(&records);
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(300));
+                    loop {
+                        interval.tick().await;
+                        let now = Instant::now();
+                        if let Ok(mut guard) = cleaner.write() {
+                            let len_before = guard.len();
+                            guard.retain(|_, r| {
+                                if serve_stale {
+                                    now <= r.expire_at + serve_expired_ttl
+                                } else {
+                                    now <= r.expire_at
+                                }
+                            });
+                            if guard.len() < len_before {
+                                guard.shrink_to_fit();
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
         Self {
             name,
             disable_cache,
             serve_stale,
             serve_expired_ttl,
-            records: RwLock::new(HashMap::new()),
+            records,
         }
     }
 
@@ -67,6 +102,7 @@ impl CacheController {
     pub fn cleanup_expired(&self) {
         let now = Instant::now();
         if let Ok(mut guard) = self.records.write() {
+            let len_before = guard.len();
             guard.retain(|_, r| {
                 if self.serve_stale {
                     now <= r.expire_at + self.serve_expired_ttl
@@ -74,6 +110,9 @@ impl CacheController {
                     now <= r.expire_at
                 }
             });
+            if guard.len() < len_before {
+                guard.shrink_to_fit();
+            }
         }
     }
 

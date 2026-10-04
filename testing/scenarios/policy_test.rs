@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::app::policy::{PolicyManager, SessionPolicy, SystemPolicy};
     use std::collections::HashMap;
     use std::time::Duration;
-    use crate::app::policy::{PolicyManager, SessionPolicy, SystemPolicy};
 
     #[test]
     fn test_scenario_policy_manager_levels() {

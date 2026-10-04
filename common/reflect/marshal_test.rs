@@ -3,10 +3,8 @@
 
 #[cfg(test)]
 mod tests {
+    use super::super::marshal::{from_json, json_marshal_without_escape, marshal_to_json, to_json};
     use serde::{Deserialize, Serialize};
-    use super::super::marshal::{
-        from_json, json_marshal_without_escape, marshal_to_json, to_json,
-    };
 
     #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
     struct UserInfo {

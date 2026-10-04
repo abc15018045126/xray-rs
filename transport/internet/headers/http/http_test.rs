@@ -5,8 +5,10 @@
 mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    use super::super::config_pb::{Config, Header, Method, RequestConfig, ResponseConfig, Status, Version};
-    use super::super::http::{new_authenticator, HeaderReader, HeaderWriter, ENDING};
+    use super::super::config_pb::{
+        Config, Header, Method, RequestConfig, ResponseConfig, Status, Version,
+    };
+    use super::super::http::{ENDING, HeaderReader, HeaderWriter, new_authenticator};
     use super::super::resp::{resp400, resp404};
 
     #[tokio::test]
@@ -34,8 +36,12 @@ mod tests {
     async fn test_request_header() {
         let auth = new_authenticator(Config {
             request: Some(RequestConfig {
-                version: Some(Version { value: "1.1".into() }),
-                method: Some(Method { value: "GET".into() }),
+                version: Some(Version {
+                    value: "1.1".into(),
+                }),
+                method: Some(Method {
+                    value: "GET".into(),
+                }),
                 uri: vec!["/".into()],
                 header: vec![Header {
                     name: "Test".into(),
@@ -68,8 +74,12 @@ mod tests {
     async fn test_connection_duplex() {
         let config = Config {
             request: Some(RequestConfig {
-                version: Some(Version { value: "1.1".into() }),
-                method: Some(Method { value: "POST".into() }),
+                version: Some(Version {
+                    value: "1.1".into(),
+                }),
+                method: Some(Method {
+                    value: "POST".into(),
+                }),
                 uri: vec!["/testpath".into()],
                 header: vec![Header {
                     name: "Host".into(),
@@ -77,7 +87,9 @@ mod tests {
                 }],
             }),
             response: Some(ResponseConfig {
-                version: Some(Version { value: "1.1".into() }),
+                version: Some(Version {
+                    value: "1.1".into(),
+                }),
                 status: Some(Status {
                     code: "200".into(),
                     reason: "OK".into(),
@@ -97,7 +109,10 @@ mod tests {
 
         // Client writes payload; should automatically prepend HTTP POST request header
         let client_task = tokio::spawn(async move {
-            client_stream.write_all(b"payload from client").await.unwrap();
+            client_stream
+                .write_all(b"payload from client")
+                .await
+                .unwrap();
             let mut buf = vec![0u8; 100];
             let n = client_stream.read(&mut buf).await.unwrap();
             assert_eq!(&buf[..n], b"response from server");
@@ -109,7 +124,10 @@ mod tests {
             let n = server_stream.read(&mut buf).await.unwrap();
             assert_eq!(&buf[..n], b"payload from client");
             // Server writes response; should automatically prepend HTTP 200 response header
-            server_stream.write_all(b"response from server").await.unwrap();
+            server_stream
+                .write_all(b"response from server")
+                .await
+                .unwrap();
         });
 
         let (res1, res2) = tokio::join!(client_task, server_task);

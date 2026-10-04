@@ -1,10 +1,10 @@
+#[path = "config.pb.rs"]
+pub mod config_pb;
 pub mod default;
 pub mod dispatcher;
 pub mod fakednssniffer;
 pub mod sniffer;
 pub mod stats;
-#[path = "config.pb.rs"]
-pub mod config_pb;
 
 #[cfg(test)]
 pub mod stats_test;

@@ -3,7 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::segment::{read_segment, AckSegment, CmdOnlySegment, DataSegment, Segment, COMMAND_TERMINATE};
+    use super::super::segment::{
+        AckSegment, COMMAND_TERMINATE, CmdOnlySegment, DataSegment, Segment, read_segment,
+    };
 
     #[test]
     fn test_kcp_segment_encode_decode() {

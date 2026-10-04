@@ -53,10 +53,10 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
     }
 
     pub async fn read_at_most(&mut self, max_size: usize) -> Result<MultiBuffer> {
-        if self.cached.is_empty() {
-            if let Some(b) = self.read_buffer().await? {
-                self.cached.push(b);
-            }
+        if self.cached.is_empty()
+            && let Some(b) = self.read_buffer().await?
+        {
+            self.cached.push(b);
         }
 
         let mut out = MultiBuffer::new();

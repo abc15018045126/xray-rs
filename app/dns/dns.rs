@@ -1,11 +1,11 @@
 // Module: app\dns\dns.rs
 // 1:1 Rust implementation corresponding to Go app\dns\dns.go
 
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
 
 use crate::app::dns::cache_controller::CacheController;
 use crate::app::dns::config::QueryStrategy;
@@ -45,7 +45,12 @@ impl DnsClient {
     pub fn new() -> Self {
         Self {
             hosts: Arc::new(StaticHosts::new()),
-            cache: Arc::new(CacheController::new("default".into(), false, true, Duration::from_secs(3600))),
+            cache: Arc::new(CacheController::new(
+                "default".into(),
+                false,
+                true,
+                Duration::from_secs(3600),
+            )),
             servers: Vec::new(),
             nameservers: Vec::new(),
             query_strategy: QueryStrategy::UseIP,
@@ -60,7 +65,12 @@ impl DnsClient {
 
         Self {
             hosts: Arc::new(hosts),
-            cache: Arc::new(CacheController::new("default".into(), false, true, Duration::from_secs(3600))),
+            cache: Arc::new(CacheController::new(
+                "default".into(),
+                false,
+                true,
+                Duration::from_secs(3600),
+            )),
             servers: Vec::new(),
             nameservers: Vec::new(),
             query_strategy: QueryStrategy::UseIP,
@@ -93,18 +103,21 @@ impl DnsClient {
             if let Ok(sa) = stripped.parse::<SocketAddr>() {
                 self.nameservers.push(Arc::new(TcpNameServer::new(sa)));
             } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                self.nameservers.push(Arc::new(TcpNameServer::new(SocketAddr::new(ip, 53))));
+                self.nameservers
+                    .push(Arc::new(TcpNameServer::new(SocketAddr::new(ip, 53))));
             }
         } else if let Some(stripped) = addr.strip_prefix("udp://") {
             if let Ok(sa) = stripped.parse::<SocketAddr>() {
                 self.nameservers.push(Arc::new(UdpNameServer::new(sa)));
             } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                self.nameservers.push(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))));
+                self.nameservers
+                    .push(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))));
             }
         } else if let Ok(sa) = addr.parse::<SocketAddr>() {
             self.nameservers.push(Arc::new(UdpNameServer::new(sa)));
         } else if let Ok(ip) = addr.parse::<IpAddr>() {
-            self.nameservers.push(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))));
+            self.nameservers
+                .push(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))));
         }
 
         self.servers.push(server);
@@ -157,20 +170,9 @@ impl DnsClient {
 
         // 3. Upstream NameServers
         for ns in &self.nameservers {
-            if let Ok(ips) = ns.query_ip(clean).await {
-                if !ips.is_empty() {
-                    self.cache.set(clean, ips.clone(), Duration::from_secs(300));
-                    let filtered = self.filter_ips(&ips, &option);
-                    if !filtered.is_empty() {
-                        return Ok((filtered, 300));
-                    }
-                }
-            }
-        }
-
-        // 4. Local resolution fallback
-        if let Ok(ips) = LocalNameServer::new().query_ip(clean).await {
-            if !ips.is_empty() {
+            if let Ok(ips) = ns.query_ip(clean).await
+                && !ips.is_empty()
+            {
                 self.cache.set(clean, ips.clone(), Duration::from_secs(300));
                 let filtered = self.filter_ips(&ips, &option);
                 if !filtered.is_empty() {
@@ -179,7 +181,21 @@ impl DnsClient {
             }
         }
 
-        Err(Error::NotFound(format!("No IP found for domain: {}", domain)))
+        // 4. Local resolution fallback
+        if let Ok(ips) = LocalNameServer::new().query_ip(clean).await
+            && !ips.is_empty()
+        {
+            self.cache.set(clean, ips.clone(), Duration::from_secs(300));
+            let filtered = self.filter_ips(&ips, &option);
+            if !filtered.is_empty() {
+                return Ok((filtered, 300));
+            }
+        }
+
+        Err(Error::NotFound(format!(
+            "No IP found for domain: {}",
+            domain
+        )))
     }
 }
 

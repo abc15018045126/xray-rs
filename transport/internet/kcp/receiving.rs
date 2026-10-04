@@ -1,8 +1,8 @@
 // Module: transport\internet\kcp\receiving.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\kcp\receiving.go
 
+use super::segment::{ACK_NUMBER_LIMIT, AckSegment, DataSegment};
 use std::collections::BTreeMap;
-use super::segment::{AckSegment, DataSegment, ACK_NUMBER_LIMIT};
 
 pub struct ReceivingWindow {
     pub cache: BTreeMap<u32, DataSegment>,
@@ -47,6 +47,12 @@ impl ReceivingWindow {
             self.next_number = self.next_number.wrapping_add(1);
         }
         total
+    }
+}
+
+impl Default for ReceivingWindow {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -112,5 +118,11 @@ impl AckList {
 
         self.dirty = false;
         Some(seg)
+    }
+}
+
+impl Default for AckList {
+    fn default() -> Self {
+        Self::new()
     }
 }

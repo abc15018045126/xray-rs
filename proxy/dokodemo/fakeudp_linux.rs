@@ -1,14 +1,18 @@
 // Module: proxy\dokodemo\fakeudp_linux.rs
 // 1:1 Rust implementation corresponding to Go proxy\dokodemo\fakeudp_linux.go
 
-use std::net::SocketAddr;
 use crate::common::errors::{Error, Result};
+use std::net::SocketAddr;
 
 pub fn fake_udp_linux(addr: SocketAddr, _mark: u32) -> Result<tokio::net::UdpSocket> {
     #[cfg(target_os = "linux")]
     {
         use socket2::{Domain, Protocol, Socket, Type};
-        let domain = if addr.is_ipv4() { Domain::IPV4 } else { Domain::IPV6 };
+        let domain = if addr.is_ipv4() {
+            Domain::IPV4
+        } else {
+            Domain::IPV6
+        };
         let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
         socket.set_reuse_address(true)?;
         #[cfg(target_os = "linux")]
@@ -25,7 +29,9 @@ pub fn fake_udp_linux(addr: SocketAddr, _mark: u32) -> Result<tokio::net::UdpSoc
     #[cfg(not(target_os = "linux"))]
     {
         let _ = addr;
-        Err(Error::Unsupported("fake UDP is only supported on Linux".into()))
+        Err(Error::Unsupported(
+            "fake UDP is only supported on Linux".into(),
+        ))
     }
 }
 

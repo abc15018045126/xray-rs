@@ -1,13 +1,13 @@
 // Module: app\policy\config.rs
 // 1:1 Rust implementation corresponding to Go app\policy\config.go
 
-use std::time::Duration;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use super::config_pb::{Policy, PolicyBuffer, PolicyTimeout, Second, SystemPolicy};
 use crate::features::policy::{
-    session_default, Buffer as CoreBuffer, SessionPolicy as CoreSessionPolicy,
-    SystemPolicy as CoreSystemPolicy, SystemStats as CoreSystemStats,
+    Buffer as CoreBuffer, SessionPolicy as CoreSessionPolicy, SystemPolicy as CoreSystemPolicy,
+    SystemStats as CoreSystemStats, session_default,
 };
 
 impl Second {
@@ -52,7 +52,9 @@ impl PolicyTimeout {
             self.uplink_only = Some(Second { value: uo.value });
         }
         if let Some(do_only) = &another.downlink_only {
-            self.downlink_only = Some(Second { value: do_only.value });
+            self.downlink_only = Some(Second {
+                value: do_only.value,
+            });
         }
     }
 }

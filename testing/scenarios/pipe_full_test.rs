@@ -6,7 +6,7 @@ mod tests {
     use crate::common::buf::{Buffer, MultiBuffer};
     use crate::common::errors::Error;
     use crate::transport::pipe::{
-        discard_overflow, new_pipe, new_with_options, with_size_limit, PipeOption,
+        PipeOption, discard_overflow, new_pipe, new_with_options, with_size_limit,
     };
 
     #[tokio::test]
@@ -79,7 +79,9 @@ mod tests {
     async fn test_pipe_error_injection_and_recovery() {
         let (reader, _) = new_pipe(PipeOption::new());
 
-        reader.return_an_error(Error::Protocol("custom injection".into())).await;
+        reader
+            .return_an_error(Error::Protocol("custom injection".into()))
+            .await;
 
         let recovered = reader.recover().await;
         assert!(recovered.is_some());

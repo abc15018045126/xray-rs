@@ -1,10 +1,10 @@
 // Module: transport\internet\udp\dispatcher.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\udp\dispatcher.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use async_trait::async_trait;
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::{Mutex, RwLock, mpsc, oneshot};
 
 use crate::common::buf::Buffer;
 use crate::common::errors::{Error, Result};
@@ -38,10 +38,10 @@ pub struct ConnEntry {
 impl ConnEntry {
     pub fn close(&self) {
         if !self.closed.swap(true, Ordering::SeqCst) {
-            if let Ok(mut guard) = self.cancel_tx.try_lock() {
-                if let Some(tx) = guard.take() {
-                    let _ = tx.send(());
-                }
+            if let Ok(mut guard) = self.cancel_tx.try_lock()
+                && let Some(tx) = guard.take()
+            {
+                let _ = tx.send(());
             }
             let link = self.link.clone();
             tokio::spawn(async move {
@@ -93,10 +93,10 @@ impl Dispatcher {
 
         {
             let guard = self.conn.read().await;
-            if let Some(entry) = &*guard {
-                if !entry.closed.load(Ordering::SeqCst) {
-                    return Ok(entry.clone());
-                }
+            if let Some(entry) = &*guard
+                && !entry.closed.load(Ordering::SeqCst)
+            {
+                return Ok(entry.clone());
             }
         }
 
@@ -104,10 +104,10 @@ impl Dispatcher {
         if self.closed.load(Ordering::SeqCst) {
             return Err(Error::Other("dispatcher is closed".into()));
         }
-        if let Some(entry) = &*guard {
-            if !entry.closed.load(Ordering::SeqCst) {
-                return Ok(entry.clone());
-            }
+        if let Some(entry) = &*guard
+            && !entry.closed.load(Ordering::SeqCst)
+        {
+            return Ok(entry.clone());
         }
 
         let link = self.dispatcher.dispatch(dest.clone()).await?;

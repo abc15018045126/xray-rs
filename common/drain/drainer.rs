@@ -4,8 +4,8 @@
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-use super::drain::{drain_read_n, Drainer};
-use crate::common::dice::{roll, DeterministicDice};
+use super::drain::{Drainer, drain_read_n};
+use crate::common::dice::{DeterministicDice, roll};
 use crate::common::errors::{Error, Result};
 
 pub struct BehaviorSeedLimitedDrainer {
@@ -72,6 +72,12 @@ impl NopDrainer {
 
     pub async fn drain<R: AsyncRead + Unpin>(&self, _reader: &mut R) -> Result<()> {
         Ok(())
+    }
+}
+
+impl Default for NopDrainer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

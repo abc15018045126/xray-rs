@@ -1,9 +1,9 @@
 // Module: features\policy\default.rs
 // 1:1 Rust implementation corresponding to Go features\policy\default.go
 
-use std::time::Duration;
+use super::policy::{PolicyManager, SessionPolicy, SystemPolicy, session_default};
 use crate::features::feature::{Feature, TYPE_POLICY_MANAGER};
-use super::policy::{session_default, PolicyManager, SessionPolicy, SystemPolicy};
+use std::time::Duration;
 
 #[derive(Default, Clone, Debug)]
 pub struct DefaultManager;

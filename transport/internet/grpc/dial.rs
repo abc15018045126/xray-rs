@@ -1,12 +1,12 @@
 // Module: transport\internet\grpc\dial.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\grpc\dial.go
 
-use async_trait::async_trait;
+use super::config::GrpcConfig;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::transport::internet::dialer::Dialer;
 use crate::transport::internet::system_dialer::SystemDialer;
-use super::config::GrpcConfig;
+use async_trait::async_trait;
 
 pub struct GrpcDialer {
     pub config: GrpcConfig,

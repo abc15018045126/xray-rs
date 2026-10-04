@@ -1,11 +1,11 @@
 // Module: common\signal\pubsub\pubsub.rs
 // 1:1 Rust implementation corresponding to Go common\signal\pubsub\pubsub.go
 
+use crate::common::errors::{Error, Result};
+use crate::common::signal::done::Instance as DoneInstance;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::broadcast;
-use crate::common::errors::{Error, Result};
-use crate::common::signal::done::Instance as DoneInstance;
 
 pub struct Subscriber {
     rx: broadcast::Receiver<String>,
@@ -36,7 +36,7 @@ impl Subscriber {
     }
 
     pub fn close(&self) -> Result<()> {
-        let _ = self.done.close();
+        self.done.close();
         Ok(())
     }
 
@@ -75,7 +75,9 @@ impl Service {
     pub fn publish(&self, topic: &str, message: impl Into<String>) -> Result<usize> {
         let topics = self.topics.read().unwrap();
         if let Some(sender) = topics.get(topic) {
-            sender.send(message.into()).map_err(|e| Error::Protocol(e.to_string()))
+            sender
+                .send(message.into())
+                .map_err(|e| Error::Protocol(e.to_string()))
         } else {
             Ok(0)
         }

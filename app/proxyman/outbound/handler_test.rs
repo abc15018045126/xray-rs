@@ -3,13 +3,13 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-    use crate::common::net::{Address, Destination};
     use super::super::{
-        is_uot_destination, DefaultOutboundHandler, UotPacket, UotVersion, UOT_LEGACY_MAGIC_ADDRESS,
-        UOT_MAGIC_ADDRESS,
+        DefaultOutboundHandler, UOT_LEGACY_MAGIC_ADDRESS, UOT_MAGIC_ADDRESS, UotPacket, UotVersion,
+        is_uot_destination,
     };
+    use crate::common::net::{Address, Destination};
     use crate::features::outbound::OutboundHandler;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_outbound_handler_tag() {
@@ -36,11 +36,15 @@ mod tests {
         let packet = UotPacket::new(dest, payload.clone());
 
         let encoded = packet.encode(UotVersion::Standard);
-        let (decoded, consumed) = UotPacket::decode(&encoded, UotVersion::Standard).expect("decode UoT packet");
+        let (decoded, consumed) =
+            UotPacket::decode(&encoded, UotVersion::Standard).expect("decode UoT packet");
 
         assert_eq!(consumed, encoded.len());
         assert_eq!(decoded.destination.port, 53);
-        assert_eq!(decoded.destination.address, Address::Ipv4(Ipv4Addr::new(1, 1, 1, 1)));
+        assert_eq!(
+            decoded.destination.address,
+            Address::Ipv4(Ipv4Addr::new(1, 1, 1, 1))
+        );
         assert_eq!(decoded.payload, payload);
     }
 
@@ -51,11 +55,15 @@ mod tests {
         let packet = UotPacket::new(dest, payload.clone());
 
         let encoded = packet.encode(UotVersion::Standard);
-        let (decoded, consumed) = UotPacket::decode(&encoded, UotVersion::Standard).expect("decode domain UoT");
+        let (decoded, consumed) =
+            UotPacket::decode(&encoded, UotVersion::Standard).expect("decode domain UoT");
 
         assert_eq!(consumed, encoded.len());
         assert_eq!(decoded.destination.port, 53);
-        assert_eq!(decoded.destination.address, Address::Domain("dns.google".into()));
+        assert_eq!(
+            decoded.destination.address,
+            Address::Domain("dns.google".into())
+        );
         assert_eq!(decoded.payload, payload);
     }
 }

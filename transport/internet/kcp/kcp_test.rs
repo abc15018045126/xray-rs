@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::sending::SendingWindow;
     use super::super::receiving::ReceivingWindow;
     use super::super::segment::DataSegment;
+    use super::super::sending::SendingWindow;
 
     #[test]
     fn test_kcp_windows_sliding() {
@@ -13,7 +13,7 @@ mod tests {
         send_win.push(DataSegment::new(1, 0, b"a".to_vec()));
         send_win.push(DataSegment::new(1, 1, b"b".to_vec()));
         assert_eq!(send_win.len(), 2);
-        
+
         let rtt = send_win.acknowledge(0, 100);
         assert!(rtt.is_some());
         assert_eq!(send_win.len(), 1);
@@ -41,4 +41,3 @@ mod tests {
         assert!(cfg.receiving_in_flight_size() > cfg.sending_in_flight_size());
     }
 }
-

@@ -1,8 +1,8 @@
-use sha2::{Digest, Sha224};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination};
 use crate::common::protocol::RequestCommand;
+use sha2::{Digest, Sha224};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const CRLF: &[u8; 2] = b"\r\n";
 
@@ -78,14 +78,21 @@ impl TrojanRequestHeader {
         let mut crlf1 = [0u8; 2];
         reader.read_exact(&mut crlf1).await?;
         if &crlf1 != CRLF {
-            return Err(Error::Protocol("Invalid Trojan CRLF after password hash".into()));
+            return Err(Error::Protocol(
+                "Invalid Trojan CRLF after password hash".into(),
+            ));
         }
 
         let cmd_byte = reader.read_u8().await?;
         let command = match cmd_byte {
             1 => RequestCommand::Tcp,
             3 => RequestCommand::Udp,
-            other => return Err(Error::Protocol(format!("Invalid Trojan command: {}", other))),
+            other => {
+                return Err(Error::Protocol(format!(
+                    "Invalid Trojan command: {}",
+                    other
+                )));
+            }
         };
 
         let addr_type = reader.read_u8().await?;
@@ -99,8 +106,9 @@ impl TrojanRequestHeader {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom)
-                    .map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in Trojan header: {}", e)))?;
+                let s = String::from_utf8(dom).map_err(|e| {
+                    Error::Protocol(format!("Invalid UTF-8 domain in Trojan header: {}", e))
+                })?;
                 Address::Domain(s)
             }
             4 => {
@@ -108,7 +116,12 @@ impl TrojanRequestHeader {
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => return Err(Error::Protocol(format!("Invalid Trojan address type: {}", other))),
+            other => {
+                return Err(Error::Protocol(format!(
+                    "Invalid Trojan address type: {}",
+                    other
+                )));
+            }
         };
 
         let port = reader.read_u16().await?;
@@ -116,7 +129,9 @@ impl TrojanRequestHeader {
         let mut crlf2 = [0u8; 2];
         reader.read_exact(&mut crlf2).await?;
         if &crlf2 != CRLF {
-            return Err(Error::Protocol("Invalid Trojan CRLF after destination".into()));
+            return Err(Error::Protocol(
+                "Invalid Trojan CRLF after destination".into(),
+            ));
         }
 
         let destination = if command == RequestCommand::Udp {
@@ -186,8 +201,9 @@ impl TrojanUdpPacket {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom)
-                    .map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in Trojan UDP packet: {}", e)))?;
+                let s = String::from_utf8(dom).map_err(|e| {
+                    Error::Protocol(format!("Invalid UTF-8 domain in Trojan UDP packet: {}", e))
+                })?;
                 Address::Domain(s)
             }
             4 => {
@@ -195,7 +211,12 @@ impl TrojanUdpPacket {
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => return Err(Error::Protocol(format!("Invalid Trojan UDP address type: {}", other))),
+            other => {
+                return Err(Error::Protocol(format!(
+                    "Invalid Trojan UDP address type: {}",
+                    other
+                )));
+            }
         };
 
         let port = reader.read_u16().await?;

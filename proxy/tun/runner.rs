@@ -1,15 +1,15 @@
-use std::sync::Arc;
 use futures::{SinkExt, StreamExt};
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
-use crate::app::dispatcher::DefaultDispatcher;
-use crate::common::errors::{Error, Result};
 use super::config::TunConfig;
 use super::datagram::handle_inbound_datagram;
 use super::routes;
 use super::stream::handle_inbound_stream;
+use crate::app::dispatcher::DefaultDispatcher;
+use crate::common::errors::{Error, Result};
 
 const TUN_VISIBILITY_MAX_ATTEMPTS: u32 = 40;
 const TUN_VISIBILITY_POLL_INTERVAL_MS: u64 = 50;
@@ -44,12 +44,16 @@ impl TunRunner {
 
         #[cfg(target_os = "windows")]
         {
-            return self.start_windows(dispatcher, cfg, cancellation_token).await;
+            return self
+                .start_windows(dispatcher, cfg, cancellation_token)
+                .await;
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            return self.start_non_windows(dispatcher, cfg, cancellation_token).await;
+            return self
+                .start_non_windows(dispatcher, cfg, cancellation_token)
+                .await;
         }
     }
 
@@ -73,13 +77,18 @@ impl TunRunner {
         let adapter = Arc::new(
             wintun::Adapter::create(&tun_name, "Xray", Some(guid))
                 .or_else(|_| wintun::Adapter::open(&tun_name))
-                .map_err(|e| Error::Other(format!("failed to create wintun adapter {}: {}", tun_name, e)))?
+                .map_err(|e| {
+                    Error::Other(format!(
+                        "failed to create wintun adapter {}: {}",
+                        tun_name, e
+                    ))
+                })?,
         );
 
         let session = Arc::new(
             adapter
                 .start_session(0x400000)
-                .map_err(|e| Error::Other(format!("failed to start wintun session: {}", e)))?
+                .map_err(|e| Error::Other(format!("failed to start wintun session: {}", e)))?,
         );
 
         let mut tun_iface_opt = None;
@@ -88,7 +97,10 @@ impl TunRunner {
                 tun_iface_opt = Some(iface);
                 break;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(TUN_VISIBILITY_POLL_INTERVAL_MS)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(
+                TUN_VISIBILITY_POLL_INTERVAL_MS,
+            ))
+            .await;
         }
 
         let tun_iface = tun_iface_opt.ok_or_else(|| {
@@ -218,10 +230,8 @@ impl TunRunner {
     ) -> Result<JoinHandle<()>> {
         let (dev, stack, mut tcp_listener, udp_socket) = Self::new_internal(&cfg).await?;
 
-        let framed = tun_rs::async_framed::DeviceFramed::new(
-            dev,
-            tun_rs::async_framed::BytesCodec::new(),
-        );
+        let framed =
+            tun_rs::async_framed::DeviceFramed::new(dev, tun_rs::async_framed::BytesCodec::new());
         let (mut tun_sink, mut tun_stream) = framed.split::<bytes::Bytes>();
         let (mut stack_sink, mut stack_stream) = stack.split();
 
@@ -252,7 +262,8 @@ impl TunRunner {
                 while let Some(pkt) = tun_stream.next().await {
                     match pkt {
                         Ok(pkt) => {
-                            if let Err(e) = stack_sink.send(watfaq_netstack::Packet::new(pkt)).await {
+                            if let Err(e) = stack_sink.send(watfaq_netstack::Packet::new(pkt)).await
+                            {
                                 error!("failed to send pkt to stack: {}", e);
                                 break;
                             }
@@ -330,28 +341,24 @@ impl TunRunner {
         }
 
         let mut tun_builder = tun_rs::DeviceBuilder::new();
-        let mtu = if cfg.mtu > 0 {
-            cfg.mtu as u16
-        } else {
-            1500u16
-        };
+        let mtu = if cfg.mtu > 0 { cfg.mtu as u16 } else { 1500u16 };
         tun_builder = tun_builder.name(&tun_name).mtu(mtu);
 
         if !tun_exist {
             debug!("setting tun ipv4 addr: {:?}", cfg.gateway);
-            tun_builder = tun_builder.ipv4(
-                cfg.gateway.addr(),
-                cfg.gateway.netmask(),
-                None,
-            );
+            tun_builder = tun_builder.ipv4(cfg.gateway.addr(), cfg.gateway.netmask(), None);
             if let Some(gateway_v6) = cfg.gateway_v6 {
                 debug!("setting tun ipv6 addr: {:?}", cfg.gateway_v6);
                 tun_builder = tun_builder.ipv6(gateway_v6.addr(), gateway_v6.netmask());
             }
         }
 
-        let dev = tun_builder.build_async()
-            .map_err(|e| Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+        let dev = tun_builder.build_async().map_err(|e| {
+            Error::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
+        })?;
 
         if !tun_exist {
             let mut tun_visible = false;
@@ -376,8 +383,7 @@ impl TunRunner {
             }
 
             info!("setting up routes for tun {}", &tun_name);
-            routes::maybe_add_routes(cfg, &tun_name)
-                .map_err(Error::Io)?;
+            routes::maybe_add_routes(cfg, &tun_name).map_err(Error::Io)?;
         }
 
         let (stack, tcp_listener, udp_socket) = watfaq_netstack::NetStack::new();

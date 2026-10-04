@@ -3,14 +3,14 @@ pub mod config;
 pub mod inbound;
 pub mod outbound;
 
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::task::JoinHandle;
-use tracing::{info, warn};
 use crate::app::dispatcher::DefaultDispatcher;
 use crate::common::errors::Result;
 use crate::features::inbound::InboundHandler;
 use crate::transport::internet::TcpHub;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::task::JoinHandle;
+use tracing::{info, warn};
 
 pub use config::{InboundHandlerConfig, KnownProtocols, OutboundHandlerConfig, SniffingConfig};
 pub use inbound::DefaultInboundManager;
@@ -32,7 +32,12 @@ impl InboundManager {
             let listener = match TcpHub::listen(*addr).await {
                 Ok(l) => l,
                 Err(e) => {
-                    warn!("Inbound [{}] could not bind to {} ({}). Continuing other inbounds...", handler.tag(), addr, e);
+                    warn!(
+                        "Inbound [{}] could not bind to {} ({}). Continuing other inbounds...",
+                        handler.tag(),
+                        addr,
+                        e
+                    );
                     continue;
                 }
             };
@@ -52,12 +57,19 @@ impl InboundManager {
                             tokio::spawn(async move {
                                 match handler.handle_connection(stream, remote_addr).await {
                                     Ok(res) => {
-                                        if let Err(e) = dispatcher.dispatch(res.stream, res.session).await {
+                                        if let Err(e) =
+                                            dispatcher.dispatch(res.stream, res.session).await
+                                        {
                                             warn!("Dispatch error: {}", e);
                                         }
                                     }
                                     Err(e) => {
-                                        warn!("[{}] Handshake failed from {}: {}", handler.tag(), remote_addr, e);
+                                        warn!(
+                                            "[{}] Handshake failed from {}: {}",
+                                            handler.tag(),
+                                            remote_addr,
+                                            e
+                                        );
                                     }
                                 }
                             });

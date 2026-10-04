@@ -1,12 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::AtomicI64;
+    use crate::app::stats::Counter;
+    use crate::common::buf::{
+        BufferedReader, BufferedWriter, CopyOptions, VectorReader, copy_stream,
+    };
+    use crate::common::signal::ActivityTimer;
     use std::sync::Arc;
+    use std::sync::atomic::AtomicI64;
     use std::time::Duration;
     use tokio::io::AsyncReadExt;
-    use crate::app::stats::Counter;
-    use crate::common::buf::{copy_stream, BufferedReader, BufferedWriter, CopyOptions, VectorReader};
-    use crate::common::signal::ActivityTimer;
 
     #[tokio::test]
     async fn test_copy_stream_with_timer_and_counter() {
@@ -25,13 +27,18 @@ mod tests {
         };
 
         tokio::spawn(async move {
-            tokio::io::AsyncWriteExt::write_all(&mut client, payload).await.unwrap();
+            tokio::io::AsyncWriteExt::write_all(&mut client, payload)
+                .await
+                .unwrap();
         });
 
         let copied = copy_stream(server, client_w, 64, options).await.unwrap();
         assert_eq!(copied, payload.len() as u64);
         assert_eq!(counter.value(), payload.len() as i64);
-        assert_eq!(size_counter.load(std::sync::atomic::Ordering::Relaxed), payload.len() as i64);
+        assert_eq!(
+            size_counter.load(std::sync::atomic::Ordering::Relaxed),
+            payload.len() as i64
+        );
 
         let mut read_buf = vec![0u8; payload.len()];
         let mut server_r_pinned = server_r;
@@ -48,7 +55,9 @@ mod tests {
         let mut writer = BufferedWriter::new(server_w);
 
         tokio::spawn(async move {
-            tokio::io::AsyncWriteExt::write_all(&mut client_w, b"buffer-test-payload").await.unwrap();
+            tokio::io::AsyncWriteExt::write_all(&mut client_w, b"buffer-test-payload")
+                .await
+                .unwrap();
         });
 
         let buf = reader.read_buffer().await.unwrap().unwrap();
@@ -68,7 +77,9 @@ mod tests {
         let mut vec_reader = VectorReader::new(server_r, 16);
 
         tokio::spawn(async move {
-            tokio::io::AsyncWriteExt::write_all(&mut client_w, b"vector-chunking-test").await.unwrap();
+            tokio::io::AsyncWriteExt::write_all(&mut client_w, b"vector-chunking-test")
+                .await
+                .unwrap();
         });
 
         let mb = vec_reader.read_multi_buffer(4).await.unwrap().unwrap();

@@ -1,9 +1,9 @@
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
 use crate::proxy::socks::protocol::SocksProtocol;
+use async_trait::async_trait;
 
 pub struct Client {
     tag: String,

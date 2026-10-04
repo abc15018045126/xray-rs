@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use super::super::nameserver::NameServer;
     use super::super::nameserver_tcp::TcpNameServer;
+    use std::net::SocketAddr;
 
     #[tokio::test]
     async fn test_tcp_nameserver_creation() {

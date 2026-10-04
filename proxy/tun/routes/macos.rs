@@ -1,7 +1,7 @@
-use ipnet::IpNet;
-use tracing::warn;
 use super::super::config::TunConfig;
 use super::super::net::OutboundInterface;
+use ipnet::IpNet;
+use tracing::warn;
 
 pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> std::io::Result<()> {
     let mut cmd = std::process::Command::new("route");
@@ -19,12 +19,18 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> std::io::Result<()> {
                 .arg(dest.to_string())
                 .arg("-interface")
                 .arg(&via.name);
-            warn!("executing: route add -inet6 {} -interface {}", dest, via.name);
+            warn!(
+                "executing: route add -inet6 {} -interface {}",
+                dest, via.name
+            );
         }
     }
     let output = cmd.output()?;
     if !output.status.success() {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "add route failed"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "add route failed",
+        ))
     } else {
         Ok(())
     }

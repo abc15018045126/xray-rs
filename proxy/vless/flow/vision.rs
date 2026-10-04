@@ -9,8 +9,8 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use crate::common::errors::Result;
 use crate::proxy::proxy::{
-    xtls_filter_tls, xtls_padding, xtls_unpadding, TrafficState,
-    COMMAND_PADDING_CONTINUE, COMMAND_PADDING_DIRECT, COMMAND_PADDING_END,
+    COMMAND_PADDING_CONTINUE, COMMAND_PADDING_DIRECT, COMMAND_PADDING_END, TrafficState,
+    xtls_filter_tls, xtls_padding, xtls_unpadding,
 };
 
 pub const FLOW_VISION: &str = "xtls-rprx-vision";

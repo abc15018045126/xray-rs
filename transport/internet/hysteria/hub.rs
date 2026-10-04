@@ -25,3 +25,9 @@ impl HysteriaHub {
         guard.remove(&id);
     }
 }
+
+impl Default for HysteriaHub {
+    fn default() -> Self {
+        Self::new()
+    }
+}

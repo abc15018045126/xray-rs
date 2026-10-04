@@ -8,7 +8,7 @@ use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
 use crate::proxy::shadowsocks_2022::config::Shadowsocks2022Config;
-use crate::proxy::shadowsocks_2022::protocol::{SessionHeader, HEADER_TYPE_SERVER};
+use crate::proxy::shadowsocks_2022::protocol::{HEADER_TYPE_SERVER, SessionHeader};
 use crate::transport::internet::TcpDialer;
 
 pub struct Client {
@@ -18,7 +18,11 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(tag: impl Into<String>, server_addr: Destination, config: Shadowsocks2022Config) -> Self {
+    pub fn new(
+        tag: impl Into<String>,
+        server_addr: Destination,
+        config: Shadowsocks2022Config,
+    ) -> Self {
         Self {
             tag: tag.into(),
             server_addr,

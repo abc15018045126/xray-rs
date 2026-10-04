@@ -1,10 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use uuid::Uuid;
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::RequestCommand;
-    use crate::proxy::vmess::encoding::{fnv1a_32, generate_chacha20_key, RequestHeader, ResponseHeader};
+    use crate::proxy::vmess::encoding::{
+        RequestHeader, ResponseHeader, fnv1a_32, generate_chacha20_key,
+    };
+    use std::io::Cursor;
+    use uuid::Uuid;
 
     #[test]
     fn test_vmess_fnv1a_and_key_generation() {

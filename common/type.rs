@@ -1,10 +1,10 @@
 // Module: common\type.rs
 // 1:1 Rust implementation corresponding to Go common\type.go
 
+use crate::common::errors::{Error, Result};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::RwLock;
-use crate::common::errors::{Error, Result};
 
 pub type ConfigCreator = Box<dyn Fn(Box<dyn Any>) -> Result<Box<dyn Any>> + Send + Sync>;
 

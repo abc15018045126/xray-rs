@@ -1,8 +1,8 @@
 // Module: features\policy\policy.rs
 // 1:1 Rust implementation corresponding to Go features\policy\policy.go
 
-use std::time::Duration;
 use crate::features::feature::{Feature, TYPE_POLICY_MANAGER};
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Timeout {

@@ -1,17 +1,17 @@
 // Module: main\commands\all\commands.rs
 // 1:1 Rust implementation corresponding to Go main\commands\all\commands.go
 
-use crate::main::commands::base::command::Command;
-use super::uuid::cmd_uuid;
-use super::x25519::cmd_x25519;
-use super::wg::cmd_wg;
+use super::api::api::cmd_api;
+use super::buildmphcache::cmd_build_mph_cache;
+use super::convert::convert::cmd_convert;
 use super::mldsa65::cmd_mldsa65;
 use super::mlkem768::cmd_mlkem768;
-use super::vlessenc::cmd_vlessenc;
-use super::buildmphcache::cmd_build_mph_cache;
-use super::api::api::cmd_api;
-use super::convert::convert::cmd_convert;
 use super::tls::cmd_tls;
+use super::uuid::cmd_uuid;
+use super::vlessenc::cmd_vlessenc;
+use super::wg::cmd_wg;
+use super::x25519::cmd_x25519;
+use crate::main::commands::base::command::Command;
 
 pub fn all_commands() -> Vec<Command> {
     vec![

@@ -1,10 +1,10 @@
 // Module: common\task\task.rs
 // 1:1 Rust implementation corresponding to Go common\task\task.go
 
+use crate::common::errors::{Error, Result};
 use futures::future::join_all;
 use std::future::Future;
 use std::pin::Pin;
-use crate::common::errors::{Error, Result};
 
 /// OnSuccess executes g() after f() returns Ok(()).
 pub fn on_success<F, G>(mut f: F, mut g: G) -> impl FnMut() -> Result<()>
@@ -27,10 +27,7 @@ pub async fn parallel_run_boxed(
             Ok(Ok(())) => continue,
             Ok(Err(e)) => return Err(e),
             Err(e) => {
-                return Err(Error::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                )))
+                return Err(Error::Io(std::io::Error::other(e.to_string())));
             }
         }
     }

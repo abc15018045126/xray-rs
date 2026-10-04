@@ -1,13 +1,13 @@
 // Module: transport\internet\finalmask\sudoku\conn_tcp.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\conn_tcp.go
 
-use std::sync::Arc;
-use crate::common::errors::Result;
-use crate::transport::internet::finalmask::TcpMaskConn;
-use super::codec::{decode_bytes, SudokuCodec};
+use super::codec::{SudokuCodec, decode_bytes};
 use super::config::SudokuConfig;
 use super::conn_tcp_packed::{PackedEncoder, PackedStreamDecoder};
-use super::table::{get_tables, SudokuTable};
+use super::table::{SudokuTable, get_tables};
+use crate::common::errors::Result;
+use crate::transport::internet::finalmask::TcpMaskConn;
+use std::sync::Arc;
 
 pub struct HintStreamDecoder {
     pub tables: Vec<Arc<SudokuTable>>,
@@ -25,7 +25,13 @@ impl HintStreamDecoder {
     }
 
     pub fn decode_chunk(&mut self, input: &[u8], pending: &mut Vec<u8>) -> Result<()> {
-        decode_bytes(&self.tables, &mut self.table_index, input, &mut self.hint_buf, pending)
+        decode_bytes(
+            &self.tables,
+            &mut self.table_index,
+            input,
+            &mut self.hint_buf,
+            pending,
+        )
     }
 
     pub fn reset(&mut self) {

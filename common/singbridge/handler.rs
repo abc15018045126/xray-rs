@@ -1,13 +1,13 @@
 // Module: common\singbridge\handler.rs
 // 1:1 Rust implementation corresponding to Go common\singbridge\handler.go
 
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 
-use super::destination::{to_destination, Socksaddr};
+use super::destination::{Socksaddr, to_destination};
 use crate::common::ctx::Context;
 use crate::common::errors::Result;
-use crate::common::log::{record, GeneralMessage, Severity};
+use crate::common::log::{GeneralMessage, Severity, record};
 use crate::common::net::{BoxStream, Network};
 use crate::common::protocol::SessionContext;
 use crate::features::routing::Dispatcher as RoutingDispatcher;
@@ -22,7 +22,10 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn new(source: Socksaddr, destination: Socksaddr) -> Self {
-        Self { source, destination }
+        Self {
+            source,
+            destination,
+        }
     }
 }
 
@@ -30,14 +33,24 @@ impl Metadata {
 /// 1:1 corresponding to sagernet/sing/common/network.TCPConnectionHandler.
 #[async_trait]
 pub trait TcpConnectionHandler: Send + Sync {
-    async fn new_connection(&self, ctx: &Context, conn: BoxStream, metadata: Metadata) -> Result<()>;
+    async fn new_connection(
+        &self,
+        ctx: &Context,
+        conn: BoxStream,
+        metadata: Metadata,
+    ) -> Result<()>;
 }
 
 /// UDPConnectionHandler handles inbound UDP packet connections.
 /// 1:1 corresponding to sagernet/sing/common/network.UDPConnectionHandler.
 #[async_trait]
 pub trait UdpConnectionHandler: Send + Sync {
-    async fn new_packet_connection(&self, ctx: &Context, conn: BoxStream, metadata: Metadata) -> Result<()>;
+    async fn new_packet_connection(
+        &self,
+        ctx: &Context,
+        conn: BoxStream,
+        metadata: Metadata,
+    ) -> Result<()>;
 }
 
 /// Dispatcher routes singbridge TCP and UDP connections through an Xray routing dispatcher.
@@ -61,7 +74,12 @@ impl Dispatcher {
 
 #[async_trait]
 impl TcpConnectionHandler for Dispatcher {
-    async fn new_connection(&self, _ctx: &Context, conn: BoxStream, metadata: Metadata) -> Result<()> {
+    async fn new_connection(
+        &self,
+        _ctx: &Context,
+        conn: BoxStream,
+        metadata: Metadata,
+    ) -> Result<()> {
         let dest = to_destination(&metadata.destination, Network::Tcp);
         let session = SessionContext::new("singbridge-tcp", dest);
         self.upstream.dispatch(session, conn).await
@@ -70,7 +88,12 @@ impl TcpConnectionHandler for Dispatcher {
 
 #[async_trait]
 impl UdpConnectionHandler for Dispatcher {
-    async fn new_packet_connection(&self, _ctx: &Context, conn: BoxStream, metadata: Metadata) -> Result<()> {
+    async fn new_packet_connection(
+        &self,
+        _ctx: &Context,
+        conn: BoxStream,
+        metadata: Metadata,
+    ) -> Result<()> {
         let dest = to_destination(&metadata.destination, Network::Udp);
         let session = SessionContext::new("singbridge-udp", dest);
         self.upstream.dispatch(session, conn).await

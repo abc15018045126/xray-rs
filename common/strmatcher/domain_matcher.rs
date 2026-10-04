@@ -1,8 +1,8 @@
 // Module: common\strmatcher\domain_matcher.rs
 // 1:1 Rust implementation corresponding to Go common\strmatcher\domain_matcher.go
 
-use std::collections::HashMap;
 use super::strmatcher::{Matcher, MatcherType};
+use std::collections::HashMap;
 
 pub struct DomainMatcher {
     pattern: String,

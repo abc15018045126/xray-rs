@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::lru::{new_lru, Lru, LruCache};
+    use super::super::lru::{Lru, LruCache, new_lru};
 
     #[test]
     fn test_lru_trait() {

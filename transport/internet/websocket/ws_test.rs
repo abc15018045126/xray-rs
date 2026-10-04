@@ -3,17 +3,19 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use crate::common::net::{Address, Destination};
     use super::super::config::WebSocketConfig;
     use super::super::dialer::WebSocketDialer;
     use super::super::hub::WebSocketHub;
+    use crate::common::net::{Address, Destination};
+    use std::net::SocketAddr;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_listen_ws_and_dial_roundtrip() {
         let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
-        let hub = WebSocketHub::listen(addr).await.expect("Listen on local port");
+        let hub = WebSocketHub::listen(addr)
+            .await
+            .expect("Listen on local port");
         let local_addr = hub.local_addr();
 
         let server_task = tokio::spawn(async move {
@@ -33,12 +35,20 @@ mod tests {
         };
         let dest = Destination::tcp(Address::ip(local_addr.ip()), local_addr.port());
 
-        let mut client_stream = WebSocketDialer::dial(&dest, &config).await.expect("Dial WS server");
-        client_stream.write_all(b"Test connection 1").await.expect("Write request");
+        let mut client_stream = WebSocketDialer::dial(&dest, &config)
+            .await
+            .expect("Dial WS server");
+        client_stream
+            .write_all(b"Test connection 1")
+            .await
+            .expect("Write request");
         client_stream.flush().await.expect("Flush request");
 
         let mut resp_buf = vec![0u8; 128];
-        let n = client_stream.read(&mut resp_buf).await.expect("Read response");
+        let n = client_stream
+            .read(&mut resp_buf)
+            .await
+            .expect("Read response");
         assert_eq!(&resp_buf[..n], b"Response");
 
         server_task.await.expect("Server task should complete");

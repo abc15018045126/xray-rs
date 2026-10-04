@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::sync::Arc;
 use crate::app::dispatcher::DefaultDispatcher;
 use crate::app::dns::fakedns::FakeDnsHolder;
 use crate::features::outbound::{OutboundHandler, OutboundManager};
 use crate::features::policy::PolicyManager;
 use crate::features::routing::RouterFeature;
 use crate::features::stats::StatsManagerTrait;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct DispatcherBuilder {
     router: Option<Arc<dyn RouterFeature>>,
@@ -41,7 +41,11 @@ impl DispatcherBuilder {
         self
     }
 
-    pub fn add_outbound(mut self, tag: impl Into<String>, outbound: Arc<dyn OutboundHandler>) -> Self {
+    pub fn add_outbound(
+        mut self,
+        tag: impl Into<String>,
+        outbound: Arc<dyn OutboundHandler>,
+    ) -> Self {
         self.outbounds.insert(tag.into(), outbound);
         self
     }

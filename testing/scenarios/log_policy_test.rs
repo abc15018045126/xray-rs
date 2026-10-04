@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use crate::app::log::{LogLevel, LogManager};
+    use crate::app::policy::{PolicyManager, SessionPolicy, SystemPolicy};
     use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr};
     use std::time::Duration;
-    use crate::app::log::{LogLevel, LogManager};
-    use crate::app::policy::{PolicyManager, SessionPolicy, SystemPolicy};
 
     #[test]
     fn test_log_manager_level_and_ip_masking() {
@@ -18,7 +18,8 @@ mod tests {
         let masked = manager.mask_ip(&ip);
         assert_eq!(masked, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 0)));
 
-        let log_line = manager.format_access_log(Some(&ip), "google.com:443", "accepted", "proxy-out");
+        let log_line =
+            manager.format_access_log(Some(&ip), "google.com:443", "accepted", "proxy-out");
         assert!(log_line.contains("192.168.1.0"));
         assert!(log_line.contains("google.com:443"));
         assert!(log_line.contains("[proxy-out]"));

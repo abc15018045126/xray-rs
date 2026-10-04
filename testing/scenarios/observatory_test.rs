@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use crate::app::observatory::Observatory;
+    use std::time::Duration;
 
     #[test]
     fn test_observatory_latency_recording_and_best_selection() {
@@ -14,7 +14,12 @@ mod tests {
         observatory.record_result("node-hk", Duration::from_millis(150), true, None);
         observatory.record_result("node-jp", Duration::from_millis(80), true, None);
         observatory.record_result("node-us", Duration::from_millis(220), true, None);
-        observatory.record_result("node-dead", Duration::from_millis(0), false, Some("timeout".into()));
+        observatory.record_result(
+            "node-dead",
+            Duration::from_millis(0),
+            false,
+            Some("timeout".into()),
+        );
 
         let hk = observatory.get_status("node-hk").unwrap();
         assert!(hk.alive);

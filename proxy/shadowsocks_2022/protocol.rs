@@ -1,11 +1,11 @@
 // Module: proxy\shadowsocks_2022\protocol.rs
 // 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\protocol.go
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use std::time::{SystemTime, UNIX_EPOCH};
-use rand::Rng;
 use crate::common::errors::{Error, Result};
 use crate::common::net::Destination;
+use rand::Rng;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const HEADER_TYPE_CLIENT: u8 = 0;
 pub const HEADER_TYPE_SERVER: u8 = 1;
@@ -20,7 +20,10 @@ pub struct SessionHeader {
 
 impl SessionHeader {
     pub fn new_client(destination: Destination) -> Self {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let session_id = rand::thread_rng().r#gen();
         Self {
             header_type: HEADER_TYPE_CLIENT,
@@ -31,7 +34,10 @@ impl SessionHeader {
     }
 
     pub fn new_server(session_id: u64) -> Self {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         Self {
             header_type: HEADER_TYPE_SERVER,
             timestamp: now,
@@ -69,7 +75,7 @@ impl SessionHeader {
                 let mut buf = vec![0u8; len];
                 reader.read_exact(&mut buf).await?;
                 let s = String::from_utf8(buf).map_err(|e| Error::Protocol(e.to_string()))?;
-use std::str::FromStr;
+                use std::str::FromStr;
 
                 Some(Destination::from_str(&s)?)
             } else {

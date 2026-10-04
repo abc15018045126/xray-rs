@@ -1,11 +1,11 @@
 // Module: common\platform\filesystem\file.rs
 // 1:1 Rust implementation corresponding to Go common\platform\filesystem\file.go
 
+use crate::common::errors::{Error, Result};
+use crate::common::platform::platform::{get_asset_location, get_cert_location};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use crate::common::errors::{Error, Result};
-use crate::common::platform::platform::{get_asset_location, get_cert_location};
 
 pub fn file_exists(path: impl AsRef<Path>) -> bool {
     path.as_ref().exists()
@@ -40,10 +40,10 @@ pub fn copy_file(dst: impl AsRef<Path>, src: impl AsRef<Path>) -> Result<u64> {
 }
 
 pub fn write_file(path: impl AsRef<Path>, data: &[u8]) -> Result<()> {
-    if let Some(parent) = path.as_ref().parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent).map_err(Error::Io)?;
-        }
+    if let Some(parent) = path.as_ref().parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent).map_err(Error::Io)?;
     }
     fs::write(path.as_ref(), data).map_err(Error::Io)
 }

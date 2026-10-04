@@ -1,16 +1,16 @@
 // Module: transport\internet\kcp\connection.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\kcp\connection.go
 
+use super::receiving::{AckList, ReceivingWindow};
+use super::segment::{COMMAND_TERMINATE, CmdOnlySegment, DataSegment, Segment, read_segment};
+use super::sending::SendingWindow;
+use crate::common::errors::{Error, Result};
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::net::UdpSocket;
 use tokio::sync::Mutex;
-use crate::common::errors::{Error, Result};
-use super::receiving::{AckList, ReceivingWindow};
-use super::segment::{read_segment, CmdOnlySegment, DataSegment, Segment, COMMAND_TERMINATE};
-use super::sending::SendingWindow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -58,11 +58,7 @@ impl RoundTripInfo {
             self.srtt = rtt;
             self.variation = rtt / 2;
         } else {
-            let delta = if rtt > self.srtt {
-                rtt - self.srtt
-            } else {
-                self.srtt - rtt
-            };
+            let delta = rtt.abs_diff(self.srtt);
             self.variation = (3 * self.variation + delta) / 4;
             self.srtt = (7 * self.srtt + rtt) / 8;
             if self.srtt < self.min_rtt {
@@ -81,6 +77,12 @@ impl RoundTripInfo {
         }
         self.rto = (rto * 5 / 4).max(self.min_rtt);
         self.updated_timestamp = current;
+    }
+}
+
+impl Default for RoundTripInfo {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -105,7 +107,11 @@ impl KcpConnection {
         Self::with_remote_addr(conv, socket, remote_addr)
     }
 
-    pub fn with_remote_addr(conv: u16, socket: Arc<UdpSocket>, remote_addr: Option<SocketAddr>) -> Self {
+    pub fn with_remote_addr(
+        conv: u16,
+        socket: Arc<UdpSocket>,
+        remote_addr: Option<SocketAddr>,
+    ) -> Self {
         Self {
             conv,
             socket,
@@ -131,7 +137,9 @@ impl KcpConnection {
         } else if let Some(addr) = self.remote_addr {
             Ok(self.socket.send_to(buf, addr).await?)
         } else {
-            Err(Error::Protocol("missing destination address for kcp packet".into()))
+            Err(Error::Protocol(
+                "missing destination address for kcp packet".into(),
+            ))
         }
     }
 

@@ -1,11 +1,11 @@
 // Module: features\routing\dispatcher.rs
 // 1:1 Rust implementation corresponding to Go features\routing\dispatcher.go
 
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::feature::{Feature, TYPE_DISPATCHER};
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait Dispatcher: Feature {

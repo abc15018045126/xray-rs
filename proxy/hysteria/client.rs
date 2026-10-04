@@ -4,13 +4,13 @@
 use async_trait::async_trait;
 use tokio::io::AsyncWriteExt;
 
+use super::config::HysteriaConfig;
+use super::protocol::TcpRequest;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
 use crate::transport::internet::system_dialer::SystemDialer;
-use super::config::HysteriaConfig;
-use super::protocol::TcpRequest;
 
 pub struct HysteriaClient {
     pub tag: String,

@@ -3,12 +3,16 @@
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use super::super::Observatory;
+    use std::time::Duration;
 
     #[test]
     fn test_observatory_records() {
-        let obs = Observatory::new("https://www.google.com/gen_204", Duration::from_secs(10), vec![]);
+        let obs = Observatory::new(
+            "https://www.google.com/gen_204",
+            Duration::from_secs(10),
+            vec![],
+        );
         assert_eq!(obs.probe_url(), "https://www.google.com/gen_204");
         obs.record_status("tag-1", true, 50, None);
         let statuses = obs.all_statuses();

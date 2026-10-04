@@ -4,10 +4,10 @@ pub mod session;
 #[cfg(test)]
 pub mod session_test;
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, Ordering};
 use crate::common::net::Destination;
 use crate::common::protocol::MemoryUser;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 static SESSION_ID_COUNTER: AtomicU32 = AtomicU32::new(1000);
 

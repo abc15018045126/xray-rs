@@ -1,12 +1,12 @@
-use std::net::SocketAddr;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use crate::features::inbound::{InboundHandler, InboundResult};
 use crate::proxy::{http, socks};
+use async_trait::async_trait;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 
 pub struct Server {
     tag: String,
@@ -31,18 +31,29 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let first_byte = stream.read_u8().await?;
         let prepended_stream: BoxStream = Box::pin(PrefixedStream::new(vec![first_byte], stream));
 
         if first_byte == 0x04 || first_byte == 0x05 {
             // SOCKS4 or SOCKS5
-            self.socks_server.handle_connection(prepended_stream, remote_addr).await
+            self.socks_server
+                .handle_connection(prepended_stream, remote_addr)
+                .await
         } else if first_byte.is_ascii_alphabetic() || first_byte == b'/' {
             // HTTP Request (CONNECT, GET, POST, HEAD, etc.)
-            self.http_server.handle_connection(prepended_stream, remote_addr).await
+            self.http_server
+                .handle_connection(prepended_stream, remote_addr)
+                .await
         } else {
-            Err(Error::Protocol(format!("Unsupported protocol byte on mixed port: {}", first_byte)))
+            Err(Error::Protocol(format!(
+                "Unsupported protocol byte on mixed port: {}",
+                first_byte
+            )))
         }
     }
 }
@@ -92,17 +103,11 @@ impl AsyncWrite for PrefixedStream {
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 }

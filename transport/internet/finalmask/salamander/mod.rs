@@ -7,4 +7,4 @@ pub mod salamander_test;
 
 pub use config::SalamanderConfig;
 pub use conn::SalamanderPacketConn;
-pub use salamander::{SalamanderObfuscator, SM_KEY_LEN, SM_SALT_LEN};
+pub use salamander::{SM_KEY_LEN, SM_SALT_LEN, SalamanderObfuscator};

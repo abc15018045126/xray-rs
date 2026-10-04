@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::super::io::write_all_bytes;
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_write_all_bytes() {

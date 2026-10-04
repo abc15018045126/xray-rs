@@ -1,8 +1,8 @@
 // Module: common\drain\drain.rs
 // 1:1 Rust implementation corresponding to Go common\drain\drain.go
 
-use tokio::io::{AsyncRead, AsyncReadExt};
 use crate::common::errors::Result;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// Drainer defines an interface for tracking and draining unconsumed connection bytes.
 pub trait Drainer: Send + Sync {

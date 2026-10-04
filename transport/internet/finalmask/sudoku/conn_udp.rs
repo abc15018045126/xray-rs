@@ -1,11 +1,11 @@
 // Module: transport\internet\finalmask\sudoku\conn_udp.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\conn_udp.go
 
-use std::sync::Arc;
-use crate::common::errors::{Error, Result};
-use super::codec::{decode_bytes, SudokuCodec};
+use super::codec::{SudokuCodec, decode_bytes};
 use super::config::SudokuConfig;
-use super::table::{get_tables, SudokuTable};
+use super::table::{SudokuTable, get_tables};
+use crate::common::errors::{Error, Result};
+use std::sync::Arc;
 
 pub struct SudokuUdpConn {
     pub tables: Vec<Arc<SudokuTable>>,
@@ -37,7 +37,13 @@ impl SudokuUdpConn {
         let mut hints = Vec::with_capacity(4);
         let mut table_index = 0;
 
-        decode_bytes(&self.tables, &mut table_index, packet, &mut hints, &mut decoded)?;
+        decode_bytes(
+            &self.tables,
+            &mut table_index,
+            packet,
+            &mut hints,
+            &mut decoded,
+        )?;
 
         if !hints.is_empty() {
             return Err(Error::Protocol("unexpected eof in sudoku datagram".into()));

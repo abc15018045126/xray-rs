@@ -33,7 +33,10 @@ impl<W: AsyncWrite + Unpin> BufferedWriter<W> {
 
     pub async fn write_buffer(&mut self, buffer: &Buffer) -> Result<()> {
         if !self.buffered {
-            self.inner.write_all(buffer.as_slice()).await.map_err(Error::Io)?;
+            self.inner
+                .write_all(buffer.as_slice())
+                .await
+                .map_err(Error::Io)?;
             return Ok(());
         }
 
@@ -70,7 +73,10 @@ impl<W: AsyncWrite + Unpin> BufferedWriter<W> {
 
     pub async fn flush(&mut self) -> Result<()> {
         if !self.buffer.is_empty() {
-            self.inner.write_all(self.buffer.as_slice()).await.map_err(Error::Io)?;
+            self.inner
+                .write_all(self.buffer.as_slice())
+                .await
+                .map_err(Error::Io)?;
             self.buffer.clear();
         }
         self.inner.flush().await.map_err(Error::Io)
@@ -101,7 +107,10 @@ impl<W: AsyncWrite + Unpin> SequentialWriter<W> {
 impl<W: AsyncWrite + Send + Sync + Unpin> Writer for SequentialWriter<W> {
     async fn write_multi_buffer(&mut self, mb: MultiBuffer) -> Result<()> {
         for buf in mb.buffers() {
-            self.inner.write_all(buf.as_slice()).await.map_err(Error::Io)?;
+            self.inner
+                .write_all(buf.as_slice())
+                .await
+                .map_err(Error::Io)?;
         }
         self.inner.flush().await.map_err(Error::Io)?;
         Ok(())

@@ -1,13 +1,13 @@
 // Module: transport\internet\kcp\listener.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\kcp\listener.go
 
+use super::connection::KcpConnection;
+use crate::common::errors::Result;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
-use crate::common::errors::Result;
-use super::connection::KcpConnection;
 
 pub struct KcpListener {
     _socket: Arc<UdpSocket>,

@@ -29,7 +29,8 @@ impl BlackholeConfig {
     }
 
     pub fn response_type(&self) -> Option<&str> {
-        self.response.as_ref()
+        self.response
+            .as_ref()
             .and_then(|v| v.get("type"))
             .and_then(|t| t.as_str())
     }

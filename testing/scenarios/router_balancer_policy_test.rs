@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::time::Duration;
     use crate::app::metrics::MetricsOutbound;
     use crate::app::policy::{PolicyManager, SessionPolicy};
     use crate::app::reverse::ReverseConfig;
     use crate::app::router::balancing::{Balancer, RandomStrategy, RoundRobinStrategy};
     use crate::app::stats::Counter;
     use crate::common::errors::Result;
-    use crate::common::net::{Address, Destination, BoxStream};
+    use crate::common::net::{Address, BoxStream, Destination};
     use crate::common::protocol::SessionContext;
     use crate::features::outbound::OutboundHandler;
     use async_trait::async_trait;
+    use std::sync::Arc;
+    use std::time::Duration;
 
     struct DummyOutbound {
         tag: String,
@@ -26,8 +26,12 @@ mod tests {
             let (client, _) = tokio::io::duplex(64);
             Ok(Box::pin(client))
         }
-        async fn start(&self) -> Result<()> { Ok(()) }
-        async fn close(&self) -> Result<()> { Ok(()) }
+        async fn start(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn close(&self) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -90,7 +94,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_outbound_stream_wrapper() {
-        let inner = Arc::new(DummyOutbound { tag: "dummy-out".into() });
+        let inner = Arc::new(DummyOutbound {
+            tag: "dummy-out".into(),
+        });
         let r_counter = Arc::new(Counter::new());
         let w_counter = Arc::new(Counter::new());
         let metrics_out = MetricsOutbound::new(inner, r_counter.clone(), w_counter.clone());

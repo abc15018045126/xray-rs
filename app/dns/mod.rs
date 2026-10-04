@@ -29,9 +29,9 @@ pub mod nameserver_quic_test;
 pub mod nameserver_tcp_test;
 
 pub use cache_controller::{CacheController, DnsRecord};
-pub use config::{is_local_tld_or_dotless, DnsConfig, QueryStrategy};
+pub use config::{DnsConfig, QueryStrategy, is_local_tld_or_dotless};
 pub use dns::{DnsClient, DnsServerConfig};
-pub use dnscommon::{fqdn, IPRecord};
+pub use dnscommon::{IPRecord, fqdn};
 pub use fakedns::FakeDnsHolder;
 pub use hosts::StaticHosts;
 pub use nameserver::NameServer;

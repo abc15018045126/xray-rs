@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::proxy::hysteria::{QuicVarint, TcpRequest};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_quic_varint_roundtrip() {

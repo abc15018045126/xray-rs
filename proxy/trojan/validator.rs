@@ -1,6 +1,6 @@
+use super::protocol::hash_password;
 use std::collections::HashSet;
 use std::sync::RwLock;
-use super::protocol::hash_password;
 
 pub struct PasswordValidator {
     hashes: RwLock<HashSet<[u8; 56]>>,

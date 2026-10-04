@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::common::log::logger::{Logger, create_file_log_writer, new_logger};
+    use crate::common::log::{GeneralMessage, Handler, LogLevel, Severity};
     use std::thread;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
-    use crate::common::log::logger::{create_file_log_writer, new_logger, Logger};
-    use crate::common::log::{GeneralMessage, Handler, LogLevel, Severity};
 
     #[test]
     fn test_logger_level_filtering() {

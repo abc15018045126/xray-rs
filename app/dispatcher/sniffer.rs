@@ -1,8 +1,8 @@
-use std::net::IpAddr;
-use std::sync::Arc;
 use crate::app::dns::fakedns::FakeDnsHolder;
 use crate::common::errors::{Error, Result};
 use crate::common::net::Network;
+use std::net::IpAddr;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SniffResult {
@@ -40,33 +40,38 @@ impl Sniffer {
 
     pub fn sniff(&self, payload: &[u8], network: Network) -> Result<SniffResult> {
         // 1. Try TLS ClientHello SNI sniffing (for TCP)
-        if network == Network::Tcp && payload.len() >= 5 && payload[0] == 0x16 && payload[1] == 0x03 {
-            if let Some(domain) = Self::sniff_tls_sni(payload) {
-                return Ok(SniffResult {
-                    protocol: "tls".into(),
-                    domain,
-                });
-            }
+        if network == Network::Tcp
+            && payload.len() >= 5
+            && payload[0] == 0x16
+            && payload[1] == 0x03
+            && let Some(domain) = Self::sniff_tls_sni(payload)
+        {
+            return Ok(SniffResult {
+                protocol: "tls".into(),
+                domain,
+            });
         }
 
         // 2. Try HTTP Host sniffing (for TCP)
-        if network == Network::Tcp && payload.len() >= 10 {
-            if let Some(domain) = Self::sniff_http_host(payload) {
-                return Ok(SniffResult {
-                    protocol: "http".into(),
-                    domain,
-                });
-            }
+        if network == Network::Tcp
+            && payload.len() >= 10
+            && let Some(domain) = Self::sniff_http_host(payload)
+        {
+            return Ok(SniffResult {
+                protocol: "http".into(),
+                domain,
+            });
         }
 
         // 3. Try QUIC SNI sniffing (for UDP)
-        if network == Network::Udp && payload.len() >= 12 {
-            if let Some(domain) = Self::sniff_quic_sni(payload) {
-                return Ok(SniffResult {
-                    protocol: "quic".into(),
-                    domain,
-                });
-            }
+        if network == Network::Udp
+            && payload.len() >= 12
+            && let Some(domain) = Self::sniff_quic_sni(payload)
+        {
+            return Ok(SniffResult {
+                protocol: "quic".into(),
+                domain,
+            });
         }
 
         // 4. Try BitTorrent / uTP sniffing
@@ -126,11 +131,13 @@ impl Sniffer {
             if ext_type == 0x0000 {
                 // Server Name Indication
                 if pos + 5 <= end_ext {
-                    let _server_name_list_len = u16::from_be_bytes([payload[pos], payload[pos + 1]]);
+                    let _server_name_list_len =
+                        u16::from_be_bytes([payload[pos], payload[pos + 1]]);
                     let name_type = payload[pos + 2];
                     if name_type == 0 {
                         // HostName
-                        let name_len = u16::from_be_bytes([payload[pos + 3], payload[pos + 4]]) as usize;
+                        let name_len =
+                            u16::from_be_bytes([payload[pos + 3], payload[pos + 4]]) as usize;
                         let start = pos + 5;
                         if start + name_len <= end_ext {
                             return std::str::from_utf8(&payload[start..start + name_len])

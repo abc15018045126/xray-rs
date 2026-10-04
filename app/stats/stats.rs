@@ -1,9 +1,9 @@
 // Module: app\stats\stats.rs
 // 1:1 Rust implementation corresponding to Go app\stats\stats.go
 
-use std::sync::Arc;
-use super::counter::Counter;
 use super::StatsManager;
+use super::counter::Counter;
+use std::sync::Arc;
 
 pub const STATS_INBOUND_UPLINK: &str = "inbound>>>uplink";
 pub const STATS_INBOUND_DOWNLINK: &str = "inbound>>>downlink";

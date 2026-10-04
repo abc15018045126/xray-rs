@@ -1,8 +1,8 @@
 // Module: common\singbridge\destination.rs
 // 1:1 Rust implementation corresponding to Go common\singbridge\destination.go
 
-use std::net::{IpAddr, SocketAddr};
 use crate::common::net::{Destination, Network};
+use std::net::{IpAddr, SocketAddr};
 
 /// Socksaddr represents an address that can be an IP address or an FQDN, with a port.
 /// 1:1 corresponding to sagernet/sing/common/metadata.Socksaddr.
@@ -31,7 +31,7 @@ impl Socksaddr {
     }
 
     pub fn is_fqdn(&self) -> bool {
-        self.fqdn.as_ref().map_or(false, |s| !s.is_empty())
+        self.fqdn.as_ref().is_some_and(|s| !s.is_empty())
     }
 
     pub fn is_ip(&self) -> bool {

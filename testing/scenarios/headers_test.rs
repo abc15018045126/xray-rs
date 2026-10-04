@@ -79,7 +79,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_header_obfuscator() {
-        use crate::transport::internet::headers::http::{HttpHeaderObfuscator, RequestConfig, ResponseConfig};
+        use crate::transport::internet::headers::http::{
+            HttpHeaderObfuscator, RequestConfig, ResponseConfig,
+        };
         use std::io::Cursor;
 
         let req_cfg = RequestConfig::new();
@@ -95,7 +97,9 @@ mod tests {
         stream_data.extend_from_slice(b"payload-data-after-http-header");
 
         let mut cursor = Cursor::new(stream_data);
-        let (header, trailing) = HttpHeaderObfuscator::server_read_request(&mut cursor).await.unwrap();
+        let (header, trailing) = HttpHeaderObfuscator::server_read_request(&mut cursor)
+            .await
+            .unwrap();
         assert!(header.contains("Host: my-site.com"));
         assert_eq!(trailing, b"payload-data-after-http-header");
     }

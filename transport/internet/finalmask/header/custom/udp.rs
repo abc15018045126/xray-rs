@@ -45,7 +45,11 @@ impl UdpCustomClient {
                 let r_min = (item.rand_min as u8).min(item.rand_max as u8);
                 let r_max = (item.rand_max as u8).max(r_min);
                 for _ in 0..item.rand {
-                    out[idx] = if r_min == r_max { r_min } else { rng.gen_range(r_min..=r_max) };
+                    out[idx] = if r_min == r_max {
+                        r_min
+                    } else {
+                        rng.gen_range(r_min..=r_max)
+                    };
                     idx += 1;
                 }
             } else {
@@ -130,7 +134,11 @@ impl UdpCustomServer {
                 let r_min = (item.rand_min as u8).min(item.rand_max as u8);
                 let r_max = (item.rand_max as u8).max(r_min);
                 for _ in 0..item.rand {
-                    out[idx] = if r_min == r_max { r_min } else { rng.gen_range(r_min..=r_max) };
+                    out[idx] = if r_min == r_max {
+                        r_min
+                    } else {
+                        rng.gen_range(r_min..=r_max)
+                    };
                     idx += 1;
                 }
             } else {

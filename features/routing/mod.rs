@@ -7,13 +7,9 @@ pub mod dns;
 pub mod router;
 pub mod session;
 
-pub use balancer::{
-    Balancer, BalancerFeature, BalancerOverrider, BalancerPrincipleTarget,
-};
+pub use balancer::{Balancer, BalancerFeature, BalancerOverrider, BalancerPrincipleTarget};
 pub use context::{RouteContext, RoutingContext};
-pub use dispatcher::{dispatcher_type, Dispatcher, DispatcherFeature};
+pub use dispatcher::{Dispatcher, DispatcherFeature, dispatcher_type};
 pub use dns::ResolvableContext;
-pub use router::{
-    router_type, DefaultRoute, DefaultRouter, Route, Router, RouterFeature,
-};
+pub use router::{DefaultRoute, DefaultRouter, Route, Router, RouterFeature, router_type};
 pub use session::SessionRouteContext;

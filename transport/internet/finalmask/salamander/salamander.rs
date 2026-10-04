@@ -1,16 +1,22 @@
 // Module: transport\internet\finalmask\salamander\salamander.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\salamander\salamander.go
 
-use rand::Rng;
 use crate::common::errors::{Error, Result};
+use rand::Rng;
 
 pub const SM_PSK_MIN_LEN: usize = 4;
 pub const SM_SALT_LEN: usize = 8;
 pub const SM_KEY_LEN: usize = 32;
 
 const IV: [u64; 8] = [
-    0x6a09e667f3bcc908, 0xbb67ae8584caa73b, 0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
-    0x510e527fade682d1, 0x9b05688c2b3e6c1f, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
+    0x6a09e667f3bcc908,
+    0xbb67ae8584caa73b,
+    0x3c6ef372fe94f82b,
+    0xa54ff53a5f1d36f1,
+    0x510e527fade682d1,
+    0x9b05688c2b3e6c1f,
+    0x1f83d9abfb41bd6b,
+    0x5be0cd19137e2179,
 ];
 
 const SIGMA: [[usize; 16]; 10] = [
@@ -115,7 +121,10 @@ pub struct SalamanderObfuscator {
 impl SalamanderObfuscator {
     pub fn new(psk: Vec<u8>) -> Result<Self> {
         if psk.len() < SM_PSK_MIN_LEN {
-            return Err(Error::Config(format!("Salamander PSK must be at least {} bytes", SM_PSK_MIN_LEN)));
+            return Err(Error::Config(format!(
+                "Salamander PSK must be at least {} bytes",
+                SM_PSK_MIN_LEN
+            )));
         }
         Ok(Self { psk })
     }

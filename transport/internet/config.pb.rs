@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum DomainStrategy {
+    #[default]
     AsIs = 0,
     UseIp = 1,
     UseIp4 = 2,
@@ -18,15 +20,11 @@ pub enum DomainStrategy {
     ForceIp64 = 10,
 }
 
-impl Default for DomainStrategy {
-    fn default() -> Self {
-        DomainStrategy::AsIs
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum AddressPortStrategy {
+    #[default]
     None = 0,
     SrvPortOnly = 1,
     SrvAddressOnly = 2,
@@ -34,12 +32,6 @@ pub enum AddressPortStrategy {
     TxtPortOnly = 4,
     TxtAddressOnly = 5,
     TxtPortAndAddress = 6,
-}
-
-impl Default for AddressPortStrategy {
-    fn default() -> Self {
-        AddressPortStrategy::None
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

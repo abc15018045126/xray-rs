@@ -1,14 +1,14 @@
 // Module: transport\internet\finalmask\mkcp\aes128gcm\conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\mkcp\aes128gcm\conn.go
 
+use super::config::Aes128GcmConfig;
+use crate::common::errors::{Error, Result};
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes128Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use crate::common::errors::{Error, Result};
-use super::config::Aes128GcmConfig;
 
 pub const GCM_NONCE_SIZE: usize = 12;
 pub const GCM_TAG_SIZE: usize = 16;
@@ -27,7 +27,8 @@ impl Aes128GcmPacketConn {
 
     pub fn from_config(config: &Aes128GcmConfig) -> Self {
         if !config.key.is_empty() && config.key.len() >= 16 {
-            let cipher = Aes128Gcm::new_from_slice(&config.key[..16]).expect("16-byte key is valid");
+            let cipher =
+                Aes128Gcm::new_from_slice(&config.key[..16]).expect("16-byte key is valid");
             Self { cipher }
         } else {
             Self::new(&config.password)

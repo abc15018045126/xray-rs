@@ -17,9 +17,17 @@ mod tests {
 
         b.clear(Byte(1));
         assert!(b.has(2), "expected {:?} to contain 2, but actually not", b);
-        assert!(!b.has(1), "expected {:?} to not contain 1, but actually did", b);
+        assert!(
+            !b.has(1),
+            "expected {:?} to not contain 1, but actually did",
+            b
+        );
 
         b.toggle(Byte(2));
-        assert!(!b.has(2), "expected {:?} to not contain 2, but actually did", b);
+        assert!(
+            !b.has(2),
+            "expected {:?} to not contain 2, but actually did",
+            b
+        );
     }
 }

@@ -2,8 +2,8 @@
 #[cfg(test)]
 mod tests {
     use crate::transport::internet::finalmask::xdns::client::XDnsClient;
-    use crate::transport::internet::finalmask::xdns::server::XDnsServer;
     use crate::transport::internet::finalmask::xdns::config::XDnsConfig;
+    use crate::transport::internet::finalmask::xdns::server::XDnsServer;
 
     #[test]
     fn test_finalmask_xdns_flow() {
@@ -21,7 +21,9 @@ mod tests {
         assert_eq!(query_info.packets.len(), 1);
         assert_eq!(query_info.packets[0], payload);
 
-        let resp_wire = server.encode_response(&mut resp_msg, &[b"scenario reply"]).expect("Encode reply");
+        let resp_wire = server
+            .encode_response(&mut resp_msg, &[b"scenario reply"])
+            .expect("Encode reply");
         let client_packets = client.decode_packet(&resp_wire).expect("Decode reply");
         assert_eq!(client_packets.len(), 1);
         assert_eq!(client_packets[0], b"scenario reply");

@@ -35,8 +35,13 @@ impl Cidr {
                     return false;
                 }
                 let shift = 32 - self.prefix;
-                let mask = if shift >= 32 { 0 } else { !((1u32 << shift) - 1) };
-                (u32::from_be_bytes(net.octets()) & mask) == (u32::from_be_bytes(tgt.octets()) & mask)
+                let mask = if shift >= 32 {
+                    0
+                } else {
+                    !((1u32 << shift) - 1)
+                };
+                (u32::from_be_bytes(net.octets()) & mask)
+                    == (u32::from_be_bytes(tgt.octets()) & mask)
             }
             (IpAddr::V6(net), IpAddr::V6(tgt)) => {
                 if self.prefix == 0 {
@@ -46,8 +51,13 @@ impl Cidr {
                     return false;
                 }
                 let shift = 128 - self.prefix;
-                let mask = if shift >= 128 { 0 } else { !((1u128 << shift) - 1) };
-                (u128::from_be_bytes(net.octets()) & mask) == (u128::from_be_bytes(tgt.octets()) & mask)
+                let mask = if shift >= 128 {
+                    0
+                } else {
+                    !((1u128 << shift) - 1)
+                };
+                (u128::from_be_bytes(net.octets()) & mask)
+                    == (u128::from_be_bytes(tgt.octets()) & mask)
             }
             _ => false,
         }

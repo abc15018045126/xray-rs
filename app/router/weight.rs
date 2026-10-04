@@ -1,9 +1,9 @@
 // Module: app\router\weight.rs
 // 1:1 Rust implementation corresponding to Go app\router\weight.go
 
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::RwLock;
-use regex::Regex;
 
 pub type WeightScaler = fn(value: f64, weight: f64) -> f64;
 
@@ -54,10 +54,10 @@ impl WeightManager {
     }
 
     pub fn get(&self, tag: &str) -> f64 {
-        if let Ok(guard) = self.cache.read() {
-            if let Some(&w) = guard.get(tag) {
-                return w;
-            }
+        if let Ok(guard) = self.cache.read()
+            && let Some(&w) = guard.get(tag)
+        {
+            return w;
         }
 
         let w = self.find_value(tag);
@@ -81,10 +81,10 @@ impl WeightManager {
                 return w.value;
             }
             // Auto weight from matched numbers in tag
-            if let Some(mat) = NUMBER_FINDER.find(&matched) {
-                if let Ok(val) = mat.as_str().parse::<f64>() {
-                    return val;
-                }
+            if let Some(mat) = NUMBER_FINDER.find(&matched)
+                && let Ok(val) = mat.as_str().parse::<f64>()
+            {
+                return val;
             }
             return self.default_weight;
         }
@@ -99,7 +99,9 @@ impl WeightManager {
                 String::new()
             }
         } else if let Ok(re) = Regex::new(find) {
-            re.find(tag).map(|m| m.as_str().to_string()).unwrap_or_default()
+            re.find(tag)
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default()
         } else {
             String::new()
         }

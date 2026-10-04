@@ -1,6 +1,6 @@
 [package]
 name = "xray-rs"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 description = "High-performance Rust implementation of Xray-core with XTLS Vision, Reality, and TUN support."
@@ -74,3 +74,11 @@ windows = { version = "0.62", features = [
     "Win32_System_Threading",
     "Win32_System_ProcessStatus"
 ] }
+
+[lints.rust]
+warnings = "warn"
+
+[lints.clippy]
+all = "warn"
+module_inception = "allow"
+type_complexity = "allow"

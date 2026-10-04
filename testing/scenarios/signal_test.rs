@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use crate::common::signal::{ActivityTimer, Done, Notifier, Semaphore};
     use std::time::Duration;
     use tokio::time::sleep;
-    use crate::common::signal::{ActivityTimer, Done, Notifier, Semaphore};
 
     #[tokio::test]
     async fn test_done_signal_wait_and_close() {

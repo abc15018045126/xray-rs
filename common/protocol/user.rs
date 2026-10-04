@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use crate::common::protocol::id::Id;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SecurityType {

@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv4Addr};
-    use std::sync::Arc;
-    use std::time::Duration;
     use crate::app::dispatcher::FakeDnsSniffer;
     use crate::app::dns::fakedns::FakeDnsHolder;
     use crate::app::observatory::Observatory;
     use crate::app::router::balancing::{BalancingStrategy, LeastLoadStrategy, LeastPingStrategy};
+    use std::net::{IpAddr, Ipv4Addr};
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[test]
     fn test_fakednssniffer_domain_lookup_and_pool_check() {

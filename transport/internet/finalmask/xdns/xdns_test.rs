@@ -4,8 +4,8 @@
 #[cfg(test)]
 mod tests {
     use super::super::client::XDnsClient;
-    use super::super::server::XDnsServer;
     use super::super::dns::*;
+    use super::super::server::XDnsServer;
 
     #[test]
     fn test_xdns_client_encode_and_server_decode_payload() {
@@ -15,9 +15,13 @@ mod tests {
         let server = XDnsServer::new(domain).unwrap();
 
         let payload = b"ping data from client to server";
-        let query_wire = client.encode_packet(Some(payload)).expect("client encode should succeed");
+        let query_wire = client
+            .encode_packet(Some(payload))
+            .expect("client encode should succeed");
 
-        let (query_info, resp_skeleton) = server.decode_query(&query_wire).expect("server decode should succeed");
+        let (query_info, resp_skeleton) = server
+            .decode_query(&query_wire)
+            .expect("server decode should succeed");
         assert_eq!(query_info.client_id, client_id);
         assert_eq!(query_info.rcode, RCODE_NO_ERROR);
         assert_eq!(query_info.packets.len(), 1);
@@ -33,9 +37,13 @@ mod tests {
         let server = XDnsServer::new(domain).unwrap();
 
         // Encode poll query (no payload)
-        let poll_wire = client.encode_packet(None).expect("client poll encode should succeed");
+        let poll_wire = client
+            .encode_packet(None)
+            .expect("client poll encode should succeed");
 
-        let (query_info, _) = server.decode_query(&poll_wire).expect("server decode poll should succeed");
+        let (query_info, _) = server
+            .decode_query(&poll_wire)
+            .expect("server decode poll should succeed");
         assert_eq!(query_info.client_id, client_id);
         assert_eq!(query_info.rcode, RCODE_NO_ERROR);
         assert_eq!(query_info.packets.len(), 0); // No data packets in a poll
@@ -58,7 +66,9 @@ mod tests {
             .encode_response(&mut resp_msg, &[reply_pkt1, reply_pkt2])
             .expect("server encode response should succeed");
 
-        let decoded_packets = client.decode_packet(&resp_wire).expect("client decode response should succeed");
+        let decoded_packets = client
+            .decode_packet(&resp_wire)
+            .expect("client decode response should succeed");
         assert_eq!(decoded_packets.len(), 2);
         assert_eq!(decoded_packets[0], reply_pkt1);
         assert_eq!(decoded_packets[1], reply_pkt2);

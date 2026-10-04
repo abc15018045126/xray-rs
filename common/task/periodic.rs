@@ -1,13 +1,13 @@
 // Module: common\task\periodic.rs
 // 1:1 Rust implementation corresponding to Go common\task\periodic.go
 
+use crate::common::errors::Result;
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
-use crate::common::errors::Result;
 
 pub struct Periodic {
     pub interval: Duration,
@@ -78,7 +78,7 @@ impl Periodic {
                         if !running.load(Ordering::Relaxed) {
                             break;
                         }
-                        if let Err(_) = execute() {
+                        if execute().is_err() {
                             running.store(false, Ordering::Relaxed);
                             break;
                         }

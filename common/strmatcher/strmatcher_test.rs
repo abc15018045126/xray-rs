@@ -44,13 +44,43 @@ mod tests {
     #[test]
     fn test_ac_automaton() {
         let cases1 = vec![
-            ("xtls.github.io", MatcherType::Domain, "www.xtls.github.io", true),
-            ("xtls.github.io", MatcherType::Domain, "xtls.github.io", true),
-            ("xtls.github.io", MatcherType::Domain, "www.xtis.github.io", false),
-            ("xtls.github.io", MatcherType::Domain, "tls.github.io", false),
-            ("xtls.github.io", MatcherType::Domain, "xxtls.github.io", false),
+            (
+                "xtls.github.io",
+                MatcherType::Domain,
+                "www.xtls.github.io",
+                true,
+            ),
+            (
+                "xtls.github.io",
+                MatcherType::Domain,
+                "xtls.github.io",
+                true,
+            ),
+            (
+                "xtls.github.io",
+                MatcherType::Domain,
+                "www.xtis.github.io",
+                false,
+            ),
+            (
+                "xtls.github.io",
+                MatcherType::Domain,
+                "tls.github.io",
+                false,
+            ),
+            (
+                "xtls.github.io",
+                MatcherType::Domain,
+                "xxtls.github.io",
+                false,
+            ),
             ("xtls.github.io", MatcherType::Full, "xtls.github.io", true),
-            ("xtls.github.io", MatcherType::Full, "xxtls.github.io", false),
+            (
+                "xtls.github.io",
+                MatcherType::Full,
+                "xxtls.github.io",
+                false,
+            ),
         ];
 
         for (pattern, m_type, input, expected) in cases1 {

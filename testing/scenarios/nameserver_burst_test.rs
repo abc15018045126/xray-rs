@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::net::IpAddr;
-    use std::time::Duration;
     use crate::app::dns::nameserver::{LocalNameServer, NameServer};
     use crate::app::observatory::burst::{BurstObserver, HealthPingResult, HealthPingSettings};
+    use std::net::IpAddr;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_local_nameserver_resolution() {
@@ -13,7 +13,10 @@ mod tests {
         let ips = ns.query_ip("localhost").await;
         assert!(ips.is_ok());
         let list = ips.unwrap();
-        assert!(list.contains(&"127.0.0.1".parse::<IpAddr>().unwrap()) || list.contains(&"::1".parse::<IpAddr>().unwrap()));
+        assert!(
+            list.contains(&"127.0.0.1".parse::<IpAddr>().unwrap())
+                || list.contains(&"::1".parse::<IpAddr>().unwrap())
+        );
     }
 
     #[test]

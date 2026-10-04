@@ -1,12 +1,12 @@
 // Module: common\mux\client.rs
 // 1:1 Rust implementation corresponding to Go common\mux\client.go
 
-use std::sync::Arc;
-use tokio::sync::mpsc;
-use crate::common::errors::Result;
-use crate::common::net::Destination;
 use super::frame::Frame;
 use super::session::{Session, SessionManager};
+use crate::common::errors::Result;
+use crate::common::net::Destination;
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 pub struct MuxClient {
     session_manager: Arc<SessionManager>,
@@ -28,7 +28,10 @@ impl MuxClient {
         target: Destination,
         sender: mpsc::Sender<Vec<u8>>,
     ) -> Result<(Session, Frame)> {
-        let session = self.session_manager.allocate_channel(target.clone(), sender).await?;
+        let session = self
+            .session_manager
+            .allocate_channel(target.clone(), sender)
+            .await?;
         let frame = Frame::new_session(session.id, target, Vec::new());
         Ok((session, frame))
     }

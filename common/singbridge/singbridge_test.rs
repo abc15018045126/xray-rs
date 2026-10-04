@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
     use std::sync::Arc;
     use std::time::Duration;
-    use async_trait::async_trait;
 
     use crate::common::buf::{Buffer, MultiBuffer, TimeoutReader, Writer};
     use crate::common::ctx::Context;
@@ -14,9 +14,9 @@ mod tests {
     use crate::features::feature::Feature;
     use crate::features::outbound::OutboundHandler;
     use crate::features::routing::Dispatcher as RoutingDispatcher;
-    use crate::transport::internet::dialer::Dialer as InternetDialer;
-    use crate::transport::pipe::{new_pipe, PipeOption};
     use crate::transport::Link;
+    use crate::transport::internet::dialer::Dialer as InternetDialer;
+    use crate::transport::pipe::{PipeOption, new_pipe};
 
     #[test]
     fn test_destination_and_socksaddr_conversion() {

@@ -3,8 +3,8 @@ pub mod bytesize;
 #[cfg(test)]
 pub mod bytesize_test;
 
-pub use bytesize::{format_bytes, ByteSize, EB, GB, KB, MB, PB, TB};
 pub use crate::common::errors::{Error, Result};
+pub use bytesize::{ByteSize, EB, GB, KB, MB, PB, TB, format_bytes};
 
 pub fn parse_bytesize(s: &str) -> Result<u64> {
     let mut bs = ByteSize::default();

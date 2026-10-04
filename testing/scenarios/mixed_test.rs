@@ -1,13 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::infra::conf::Config;
-    use crate::testing::scenarios::common::{pick_port, TestEnvironment};
-    use crate::testing::servers::tcp::{echo_processor, Server as TcpServer};
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port};
+    use crate::testing::servers::tcp::{Server as TcpServer, echo_processor};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_mixed_inbound_socks_and_http_dual_mode() {
-        let tcp_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -21,11 +23,14 @@ mod tests {
                 "protocol": "mixed"
             }],
             "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(cfg).await.unwrap();
 
         // 1. Test SOCKS5 mode on mixed port
-        let mut socks_client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", mixed_port)).await.unwrap();
+        let mut socks_client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", mixed_port))
+            .await
+            .unwrap();
         socks_client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];
         socks_client.read_exact(&mut auth_resp).await.unwrap();
@@ -46,8 +51,13 @@ mod tests {
         assert_eq!(&recv1, msg1);
 
         // 2. Test HTTP CONNECT mode on the exact same mixed port
-        let mut http_client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", mixed_port)).await.unwrap();
-        let connect_req = format!("CONNECT 127.0.0.1:{} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n\r\n", target_port, target_port);
+        let mut http_client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", mixed_port))
+            .await
+            .unwrap();
+        let connect_req = format!(
+            "CONNECT 127.0.0.1:{} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n\r\n",
+            target_port, target_port
+        );
         http_client.write_all(connect_req.as_bytes()).await.unwrap();
 
         let mut http_resp_buf = [0u8; 1024];

@@ -1,7 +1,7 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use crate::app::stats::Counter;
 use crate::common::errors::Result;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct InboundWorker {
     pub tag: String,

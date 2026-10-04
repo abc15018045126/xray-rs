@@ -1,8 +1,8 @@
 // Module: core\config.pb.rs
 // 1:1 Rust protobuf message definitions corresponding to Go core\config.pb.go
 
-use serde::{Deserialize, Serialize};
 use crate::common::serial::TypedMessage;
+use serde::{Deserialize, Serialize};
 
 /// InboundHandlerConfig is the configuration for inbound handler.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

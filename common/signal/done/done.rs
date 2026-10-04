@@ -1,8 +1,8 @@
 // Module: common\signal\done\done.rs
 // 1:1 Rust implementation corresponding to Go common\signal\done\done.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::Notify;
 
 #[derive(Clone)]

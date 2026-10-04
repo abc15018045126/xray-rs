@@ -1,8 +1,8 @@
 // Module: proxy\shadowsocks\server.rs
 // 1:1 Rust implementation corresponding to Go proxy\shadowsocks\server.go
 
-use std::net::SocketAddr;
 use async_trait::async_trait;
+use std::net::SocketAddr;
 
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Network};
@@ -17,7 +17,11 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(tag: impl Into<String>, method: impl Into<String>, password: impl Into<String>) -> Self {
+    pub fn new(
+        tag: impl Into<String>,
+        method: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
         Self {
             tag: tag.into(),
             method: method.into(),
@@ -40,7 +44,11 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let dest = read_target_address(&mut stream).await?;
 
         let mut session = SessionContext::new(&self.tag, dest);

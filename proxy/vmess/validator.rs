@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::sync::RwLock;
-use uuid::Uuid;
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::User;
 use crate::common::uuid::process_uuid;
+use std::collections::HashMap;
+use std::sync::RwLock;
+use uuid::Uuid;
 
 pub struct MemoryValidator {
     users: RwLock<HashMap<[u8; 16], User>>,
@@ -18,7 +18,9 @@ impl MemoryValidator {
 
     pub fn add(&self, user: User) -> Result<()> {
         let normalized = process_uuid(*user.id.as_bytes());
-        let mut guard = self.users.write()
+        let mut guard = self
+            .users
+            .write()
             .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
         guard.insert(normalized, user);
         Ok(())

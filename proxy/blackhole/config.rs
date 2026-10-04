@@ -3,17 +3,12 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ResponseType {
+    #[default]
     None,
     Http403,
     Http500,
-}
-
-impl Default for ResponseType {
-    fn default() -> Self {
-        ResponseType::None
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

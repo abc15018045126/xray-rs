@@ -1,9 +1,9 @@
+use crate::app::dns::cache_controller::CacheController;
+use crate::app::dns::nameserver::{NameServer, build_dns_query};
+use crate::common::errors::{Error, Result};
+use async_trait::async_trait;
 use std::net::IpAddr;
 use std::time::Duration;
-use async_trait::async_trait;
-use crate::app::dns::cache_controller::CacheController;
-use crate::app::dns::nameserver::{build_dns_query, NameServer};
-use crate::common::errors::{Error, Result};
 
 pub const NEXT_PROTO_DOQ: &str = "doq";
 
@@ -44,9 +44,13 @@ impl NameServer for QuicNameServer {
         let addrs = tokio::net::lookup_host(addr_str).await.map_err(Error::Io)?;
         let ips: Vec<IpAddr> = addrs.map(|s| s.ip()).collect();
         if ips.is_empty() {
-            Err(Error::NotFound(format!("DoQ DNS could not resolve {}", domain)))
+            Err(Error::NotFound(format!(
+                "DoQ DNS could not resolve {}",
+                domain
+            )))
         } else {
-            self.cache.set(domain, ips.clone(), Duration::from_secs(300));
+            self.cache
+                .set(domain, ips.clone(), Duration::from_secs(300));
             Ok(ips)
         }
     }

@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::{always::ALWAYS_ON, AlwaysOnInboundHandler, InboundWorker};
+    use super::super::{AlwaysOnInboundHandler, InboundWorker, always::ALWAYS_ON};
     use crate::app::stats::StatsManager;
     use crate::features::inbound::InboundHandler;
 

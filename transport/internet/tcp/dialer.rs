@@ -18,19 +18,21 @@ impl TcpDialer {
             match &dest.address {
                 crate::common::net::Address::Ipv4(ip) => {
                     let addr = SocketAddr::new(std::net::IpAddr::V4(*ip), dest.port);
-                    let stream = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
-                        .await
-                        .map_err(Error::Io)?;
+                    let stream =
+                        crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
+                            .await
+                            .map_err(Error::Io)?;
                     let _ = stream.set_nodelay(true);
-                    return Ok(Box::pin(stream));
+                    Ok(Box::pin(stream))
                 }
                 crate::common::net::Address::Ipv6(ip) => {
                     let addr = SocketAddr::new(std::net::IpAddr::V6(*ip), dest.port);
-                    let stream = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
-                        .await
-                        .map_err(Error::Io)?;
+                    let stream =
+                        crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
+                            .await
+                            .map_err(Error::Io)?;
                     let _ = stream.set_nodelay(true);
-                    return Ok(Box::pin(stream));
+                    Ok(Box::pin(stream))
                 }
                 crate::common::net::Address::Domain(domain) => {
                     let addr_str = format!("{}:{}", domain, dest.port);
@@ -39,7 +41,12 @@ impl TcpDialer {
                         .map_err(Error::Io)?;
                     let mut last_err = None;
                     for addr in addrs {
-                        match crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await {
+                        match crate::proxy::tun::socket_helpers::new_tcp_stream(
+                            addr,
+                            iface.as_ref(),
+                        )
+                        .await
+                        {
                             Ok(stream) => {
                                 let _ = stream.set_nodelay(true);
                                 return Ok(Box::pin(stream));
@@ -49,12 +56,12 @@ impl TcpDialer {
                             }
                         }
                     }
-                    return Err(Error::Io(last_err.unwrap_or_else(|| {
+                    Err(Error::Io(last_err.unwrap_or_else(|| {
                         std::io::Error::new(
                             std::io::ErrorKind::NotFound,
                             format!("Failed to resolve or connect to {}", addr_str),
                         )
-                    })));
+                    })))
                 }
             }
         }
@@ -72,8 +79,12 @@ impl TcpDialer {
                 }
                 crate::common::net::Address::Domain(domain) => {
                     let addr_str = format!("{}:{}", domain, dest.port);
-                    TokioTcpStream::connect(&addr_str).await
-                        .map_err(|e| Error::Io(std::io::Error::new(e.kind(), format!("Failed to connect to {}: {}", addr_str, e))))?
+                    TokioTcpStream::connect(&addr_str).await.map_err(|e| {
+                        Error::Io(std::io::Error::new(
+                            e.kind(),
+                            format!("Failed to connect to {}: {}", addr_str, e),
+                        ))
+                    })?
                 }
             };
 

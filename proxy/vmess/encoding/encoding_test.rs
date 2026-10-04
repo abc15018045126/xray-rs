@@ -3,13 +3,13 @@
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-    use super::super::auth::{authenticate, generate_chacha20poly1305_key, ShakeSizeParser};
-    use super::super::commands::{
-        marshal_command, unmarshal_command, CommandSwitchAccount, CMD_SWITCH_ACCOUNT, CMD_TCP,
-        CMD_UDP,
-    };
     use super::super::VMESS_VERSION;
+    use super::super::auth::{ShakeSizeParser, authenticate, generate_chacha20poly1305_key};
+    use super::super::commands::{
+        CMD_SWITCH_ACCOUNT, CMD_TCP, CMD_UDP, CommandSwitchAccount, marshal_command,
+        unmarshal_command,
+    };
+    use uuid::Uuid;
 
     #[test]
     fn test_vmess_constants() {

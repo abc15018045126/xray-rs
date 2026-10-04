@@ -1,8 +1,8 @@
 // Module: common\crypto\crypto.rs
 // 1:1 Rust implementation corresponding to Go common\crypto\crypto.go
 
-use rand::Rng;
 use crate::common::errors::Result;
+use rand::Rng;
 
 pub trait StreamCipher: Send + Sync {
     fn encrypt(&mut self, buffer: &mut [u8]) -> Result<()>;

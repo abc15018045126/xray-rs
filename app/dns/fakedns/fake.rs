@@ -1,10 +1,10 @@
 // Module: app\dns\fakedns\fake.rs
 // 1:1 Rust implementation corresponding to Go app\dns\fakedns\fake.go
 
+use crate::common::errors::{Error, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Mutex;
-use crate::common::errors::{Error, Result};
 
 pub struct FakeDnsHolder {
     pool_start: u32,
@@ -20,9 +20,11 @@ impl FakeDnsHolder {
         if parts.len() != 2 {
             return Err(Error::Config("Invalid FakeDNS CIDR format".into()));
         }
-        let base_ip: Ipv4Addr = parts[0].parse()
+        let base_ip: Ipv4Addr = parts[0]
+            .parse()
             .map_err(|e| Error::Config(format!("Invalid FakeDNS IP: {}", e)))?;
-        let prefix_len: u32 = parts[1].parse()
+        let prefix_len: u32 = parts[1]
+            .parse()
             .map_err(|e| Error::Config(format!("Invalid FakeDNS prefix len: {}", e)))?;
 
         if prefix_len > 32 {
@@ -30,7 +32,11 @@ impl FakeDnsHolder {
         }
 
         let base_u32 = u32::from(base_ip);
-        let mask = if prefix_len == 0 { 0 } else { !((1u32 << (32 - prefix_len)) - 1) };
+        let mask = if prefix_len == 0 {
+            0
+        } else {
+            !((1u32 << (32 - prefix_len)) - 1)
+        };
         let pool_start = (base_u32 & mask) + 1;
         let pool_end = (base_u32 | !mask).saturating_sub(1);
 

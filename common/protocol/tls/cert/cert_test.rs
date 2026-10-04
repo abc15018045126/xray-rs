@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::cert::{parse_certificate, Certificate};
+    use super::super::cert::{Certificate, parse_certificate};
 
     #[test]
     fn test_certificate_fingerprint_and_pem_roundtrip() {

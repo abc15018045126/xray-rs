@@ -1,8 +1,8 @@
 // Module: main\commands\base\command.rs
 // 1:1 Rust implementation corresponding to Go main\commands\base\command.go
 
-use std::sync::Arc;
 use crate::common::errors::Result;
+use std::sync::Arc;
 
 pub type CommandFn = Arc<dyn Fn(&[&str]) -> Result<String> + Send + Sync>;
 
@@ -17,7 +17,11 @@ pub struct Command {
 }
 
 impl Command {
-    pub fn new(name: impl Into<String>, usage: impl Into<String>, short: impl Into<String>) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        usage: impl Into<String>,
+        short: impl Into<String>,
+    ) -> Self {
         Self {
             name: name.into(),
             usage: usage.into(),

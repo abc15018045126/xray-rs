@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::app::proxyman::DefaultOutboundManager;
     use crate::features::outbound::OutboundManager;
     use crate::proxy::freedom::Handler as FreedomHandler;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_proxyman_outbound_lifecycle() {

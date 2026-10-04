@@ -5,7 +5,8 @@ mod tests {
     #[test]
     fn test_splithttp_request_formatting() {
         let mut cfg = SplitHttpConfig::new("/xhttp-stream", "custom.domain.com");
-        cfg.headers.insert("User-Agent".into(), "Mozilla/5.0".into());
+        cfg.headers
+            .insert("User-Agent".into(), "Mozilla/5.0".into());
 
         let client = SplitHttpClient::new(cfg, "session-uuid-12345");
 

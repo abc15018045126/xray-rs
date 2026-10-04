@@ -1,21 +1,21 @@
 // Module: app\observatory\command\mod.rs
 
-#[path = "command.pb.rs"]
-pub mod command_pb;
+pub mod command;
 #[path = "command_grpc.pb.rs"]
 pub mod command_grpc_pb;
-pub mod command;
+#[path = "command.pb.rs"]
+pub mod command_pb;
 
 #[cfg(test)]
 pub mod command_test;
 
-use std::sync::Arc;
 use crate::app::commander::Service;
 use crate::app::observatory::{Observatory, OutboundStatus};
+use std::sync::Arc;
 
-pub use command_pb::*;
-pub use command_grpc_pb::ObservatoryService as IObservatoryService;
 pub use command::ObservatoryCommandServer;
+pub use command_grpc_pb::ObservatoryService as IObservatoryService;
+pub use command_pb::*;
 
 pub struct ObservatoryService {
     observatory: Arc<Observatory>,

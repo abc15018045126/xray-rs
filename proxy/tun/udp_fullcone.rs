@@ -38,11 +38,11 @@ impl UdpNatTable {
 
     pub fn lookup(&self, src: &SocketAddr) -> Option<SocketAddr> {
         let mut guard = self.entries.lock().unwrap();
-        if let Some(entry) = guard.get_mut(src) {
-            if entry.last_seen.elapsed() <= self.ttl {
-                entry.last_seen = Instant::now();
-                return Some(entry.target);
-            }
+        if let Some(entry) = guard.get_mut(src)
+            && entry.last_seen.elapsed() <= self.ttl
+        {
+            entry.last_seen = Instant::now();
+            return Some(entry.target);
         }
         None
     }
@@ -75,4 +75,3 @@ mod tests {
         assert_eq!(table.lookup(&src), Some(target));
     }
 }
-

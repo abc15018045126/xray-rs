@@ -1,11 +1,11 @@
 // Module: proxy\vless\inbound\inbound.rs
 // 1:1 Rust implementation corresponding to Go proxy\vless\inbound\inbound.go
 
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::common::errors::{Error, Result};
@@ -105,7 +105,11 @@ impl Handler {
         let alpn_lower = alpn.to_lowercase();
 
         // 1. Try exact name match
-        if let Some(by_name) = self.fallback_map.get(&name_lower).or_else(|| self.fallback_map.get("")) {
+        if let Some(by_name) = self
+            .fallback_map
+            .get(&name_lower)
+            .or_else(|| self.fallback_map.get(""))
+        {
             // 2. Try ALPN match
             if let Some(by_alpn) = by_name.get(&alpn_lower).or_else(|| by_name.get("")) {
                 // 3. Try path match
@@ -124,7 +128,11 @@ impl InboundHandler for Handler {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         // 1. Decode VLESS request header
         let req_result = RequestHeader::decode(&mut stream).await;
 
@@ -153,7 +161,10 @@ impl InboundHandler for Handler {
                         session.source = Some(remote_addr);
                         return Ok(InboundResult { stream, session });
                     }
-                    return Err(Error::AuthFailed(format!("Unauthorized VLESS user UUID: {}", req.user_id)));
+                    return Err(Error::AuthFailed(format!(
+                        "Unauthorized VLESS user UUID: {}",
+                        req.user_id
+                    )));
                 }
             }
         } else {

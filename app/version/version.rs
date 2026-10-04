@@ -1,9 +1,9 @@
 // Module: app\version\version.rs
 // 1:1 Rust implementation corresponding to Go app\version\version.go
 
-use crate::common::errors::{Error, Result};
-use super::config_pb::Config;
 use super::compare_versions;
+use super::config_pb::Config;
+use crate::common::errors::{Error, Result};
 
 pub const VERSION: &str = "26.3.27";
 

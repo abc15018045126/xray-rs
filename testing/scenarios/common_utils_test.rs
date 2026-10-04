@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
-    use std::time::Duration;
     use crate::common::bytespool::{alloc, free};
     use crate::common::errors::{Error, Result};
     use crate::common::retry::RetryStrategy;
-    use crate::common::units::{format_bytesize, parse_bytesize, GB, KB, MB};
+    use crate::common::units::{GB, KB, MB, format_bytesize, parse_bytesize};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
 
     #[test]
     fn test_bytespool_alloc_and_free() {

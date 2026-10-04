@@ -1,14 +1,14 @@
 // Module: testing\servers\http\http.rs
 // HTTP test server with customizable path routing and request handlers
 
+use crate::common::errors::Result;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::watch;
-use crate::common::errors::Result;
 
 pub type HttpHandler = Arc<dyn Fn(&str, &str, &[u8]) -> (u16, Vec<u8>) + Send + Sync>;
 
@@ -27,7 +27,9 @@ impl Server {
         listen_addr: impl Into<Option<SocketAddr>>,
         handlers: HashMap<String, HttpHandler>,
     ) -> Result<Self> {
-        let addr = listen_addr.into().unwrap_or_else(|| "127.0.0.1:0".parse().unwrap());
+        let addr = listen_addr
+            .into()
+            .unwrap_or_else(|| "127.0.0.1:0".parse().unwrap());
         let listener = TcpListener::bind(addr).await?;
         let local_addr = listener.local_addr()?;
 

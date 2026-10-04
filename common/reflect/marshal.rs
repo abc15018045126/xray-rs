@@ -1,33 +1,32 @@
 // Module: common\reflect\marshal.rs
 // 1:1 Rust implementation corresponding to Go common\reflect\marshal.go
 
-use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
 use crate::common::errors::{Error, Result};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::Value;
 
 pub fn json_marshal_without_escape<T: Serialize>(t: &T) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
     let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-    t.serialize(&mut ser).map_err(|e| Error::Config(e.to_string()))?;
+    t.serialize(&mut ser)
+        .map_err(|e| Error::Config(e.to_string()))?;
     buf.push(b'\n');
     Ok(buf)
 }
 
 pub fn marshal_to_json<T: Serialize>(v: &T, insert_type_info: bool) -> (String, bool) {
     if let Ok(mut val) = serde_json::to_value(v) {
-        if insert_type_info {
-            if let Value::Object(ref mut map) = val {
-                map.insert(
-                    "_TypedMessage_".to_string(),
-                    Value::String(std::any::type_name::<T>().to_string()),
-                );
-            }
+        if insert_type_info && let Value::Object(ref mut map) = val {
+            map.insert(
+                "_TypedMessage_".to_string(),
+                Value::String(std::any::type_name::<T>().to_string()),
+            );
         }
-        if let Ok(bytes) = json_marshal_without_escape(&val) {
-            if let Ok(s) = String::from_utf8(bytes) {
-                return (s, true);
-            }
+        if let Ok(bytes) = json_marshal_without_escape(&val)
+            && let Ok(s) = String::from_utf8(bytes)
+        {
+            return (s, true);
         }
     }
     (String::new(), false)

@@ -1,12 +1,12 @@
+use crate::app::dns::fakedns::FakeDnsHolder;
+use crate::common::errors::{Error, Result};
+use async_trait::async_trait;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[allow(unused_imports)]
 use tokio::net::{TcpStream, UdpSocket};
-use crate::app::dns::fakedns::FakeDnsHolder;
-use crate::common::errors::{Error, Result};
 
 #[async_trait]
 pub trait NameServer: Send + Sync {
@@ -48,9 +48,13 @@ impl NameServer for UdpNameServer {
         #[cfg(target_os = "windows")]
         let socket = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let sock = crate::proxy::tun::socket_helpers::new_udp_socket(None, iface.as_ref(), Some(self.server_addr))
-                .await
-                .map_err(Error::Io)?;
+            let sock = crate::proxy::tun::socket_helpers::new_udp_socket(
+                None,
+                iface.as_ref(),
+                Some(self.server_addr),
+            )
+            .await
+            .map_err(Error::Io)?;
             sock.connect(self.server_addr).await?;
             sock
         };
@@ -169,6 +173,12 @@ impl LocalNameServer {
     }
 }
 
+impl Default for LocalNameServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl NameServer for LocalNameServer {
     fn name(&self) -> &str {
@@ -180,7 +190,10 @@ impl NameServer for LocalNameServer {
         let addrs = tokio::net::lookup_host(addr_str).await.map_err(Error::Io)?;
         let ips: Vec<IpAddr> = addrs.map(|s| s.ip()).collect();
         if ips.is_empty() {
-            Err(Error::NotFound(format!("Local DNS could not resolve {}", domain)))
+            Err(Error::NotFound(format!(
+                "Local DNS could not resolve {}",
+                domain
+            )))
         } else {
             Ok(ips)
         }
@@ -222,12 +235,17 @@ pub fn parse_dns_response(resp: &[u8], domain: &str) -> Result<Vec<IpAddr>> {
 pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpAddr>, u32)> {
     let n = resp.len();
     if n < 12 {
-        return Err(Error::Protocol("DNS response too short (< 12 bytes)".into()));
+        return Err(Error::Protocol(
+            "DNS response too short (< 12 bytes)".into(),
+        ));
     }
 
     let rcode = resp[3] & 0x0F;
     if rcode != 0 {
-        return Err(Error::NotFound(format!("DNS server returned error code {} for domain {}", rcode, domain)));
+        return Err(Error::NotFound(format!(
+            "DNS server returned error code {} for domain {}",
+            rcode, domain
+        )));
     }
 
     let qdcount = u16::from_be_bytes([resp[4], resp[5]]) as usize;
@@ -314,7 +332,11 @@ pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpA
     if ips.is_empty() {
         Err(Error::NotFound(format!("No IP resolved for {}", domain)))
     } else {
-        let final_ttl = if min_ttl == u32::MAX || min_ttl == 0 { 300 } else { min_ttl };
+        let final_ttl = if min_ttl == u32::MAX || min_ttl == 0 {
+            300
+        } else {
+            min_ttl
+        };
         Ok((ips, final_ttl))
     }
 }

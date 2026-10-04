@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::super::io::Reader;
-    use super::super::reader::{read_buffer, BufferedReader, PacketReader, SingleReader};
+    use super::super::reader::{BufferedReader, PacketReader, SingleReader, read_buffer};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_buffered_reader() {

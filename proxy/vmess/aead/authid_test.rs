@@ -7,10 +7,10 @@ mod tests {
 
     #[test]
     fn test_auth_id_generation_and_matching() {
-        let gen = AuthIdGenerator::new(b"secret_key_12345");
+        let generator = AuthIdGenerator::new(b"secret_key_12345");
         let now = 1700000000;
-        let id = gen.create_auth_id(now);
-        assert!(gen.matches(&id, now + 10, 30));
-        assert!(!gen.matches(&id, now + 100, 30));
+        let id = generator.create_auth_id(now);
+        assert!(generator.matches(&id, now + 10, 30));
+        assert!(!generator.matches(&id, now + 100, 30));
     }
 }

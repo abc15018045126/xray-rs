@@ -4,13 +4,13 @@
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use std::sync::atomic::{AtomicI64, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicI64, Ordering};
     use std::time::Duration;
     use tokio::io::AsyncWriteExt;
 
     use super::super::buffer::Buffer;
-    use super::super::copy::{copy, copy_once_timeout, copy_stream, CopyOptions};
+    use super::super::copy::{CopyOptions, copy, copy_once_timeout, copy_stream};
     use super::super::multi_buffer::MultiBuffer;
     use super::super::reader::SingleReader;
     use super::super::writer::SequentialWriter;
@@ -26,11 +26,15 @@ mod tests {
         });
 
         tokio::spawn(async move {
-            copy_stream(&mut client_r, &mut server_w, 2048, CopyOptions::default()).await.unwrap();
+            copy_stream(&mut client_r, &mut server_w, 2048, CopyOptions::default())
+                .await
+                .unwrap();
         });
 
         let mut buf = [0u8; 4];
-        tokio::io::AsyncReadExt::read_exact(&mut server_r, &mut buf).await.unwrap();
+        tokio::io::AsyncReadExt::read_exact(&mut server_r, &mut buf)
+            .await
+            .unwrap();
         assert_eq!(&buf, b"ping");
     }
 

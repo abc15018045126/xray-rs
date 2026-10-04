@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::sync::Arc;
-    use crate::common::errors::Error;
     use super::super::task::{on_success, parallel_run, parallel_run_boxed};
+    use crate::common::errors::Error;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     async fn make_task(val: i32) -> i32 {
         val

@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests {
+    use crate::app::stats::Counter;
+    use crate::common::utils::{TypedSyncMap, h2_base62_pad};
+    use crate::transport::internet::stat::StatStream;
     use std::sync::Arc;
     use tokio::io::duplex;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use crate::app::stats::Counter;
-    use crate::common::utils::{h2_base62_pad, TypedSyncMap};
-    use crate::transport::internet::stat::StatStream;
 
     #[test]
     fn test_h2_base62_padding_generation() {

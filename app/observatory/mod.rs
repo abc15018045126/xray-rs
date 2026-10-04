@@ -14,8 +14,8 @@ use std::sync::RwLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub use burst::{BurstObserver, HealthPingResult, HealthPingSettings};
-pub use explain_errors::{explain_error, ErrorCategory, ErrorCollector};
 pub use config_pb::{ObservationResult, ProbeResult};
+pub use explain_errors::{ErrorCategory, ErrorCollector, explain_error};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutboundStatus {
@@ -73,18 +73,32 @@ impl Observatory {
         &self.subject_selectors
     }
 
-    pub fn record_result(&self, tag: &str, delay: Duration, alive: bool, error_reason: Option<String>) {
+    pub fn record_result(
+        &self,
+        tag: &str,
+        delay: Duration,
+        alive: bool,
+        error_reason: Option<String>,
+    ) {
         self.record_status(tag, alive, delay.as_millis() as u64, error_reason);
     }
 
-    pub fn record_status(&self, tag: &str, alive: bool, delay_ms: u64, error_reason: Option<String>) {
+    pub fn record_status(
+        &self,
+        tag: &str,
+        alive: bool,
+        delay_ms: u64,
+        error_reason: Option<String>,
+    ) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
         if let Ok(mut guard) = self.statuses.write() {
-            let entry = guard.entry(tag.to_string()).or_insert_with(|| OutboundStatus::new(tag));
+            let entry = guard
+                .entry(tag.to_string())
+                .or_insert_with(|| OutboundStatus::new(tag));
             entry.alive = alive;
             entry.delay_ms = delay_ms;
             entry.last_try_time = now;
@@ -112,11 +126,12 @@ impl Observatory {
         let mut min_delay = u64::MAX;
 
         for tag in candidates {
-            if let Some(status) = guard.get(tag) {
-                if status.alive && status.delay_ms < min_delay {
-                    min_delay = status.delay_ms;
-                    best_tag = Some(tag.clone());
-                }
+            if let Some(status) = guard.get(tag)
+                && status.alive
+                && status.delay_ms < min_delay
+            {
+                min_delay = status.delay_ms;
+                best_tag = Some(tag.clone());
             }
         }
 

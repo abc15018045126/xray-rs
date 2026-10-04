@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::super::serial::*;
+    use std::io::Cursor;
 
     #[test]
     fn test_uint16_serial() {
@@ -24,10 +24,7 @@ mod tests {
 
     #[test]
     fn test_read_uint16() {
-        let test_cases = vec![
-            (vec![0u8, 1], 1u16),
-            (vec![0x12, 0x34], 0x1234u16),
-        ];
+        let test_cases = vec![(vec![0u8, 1], 1u16), (vec![0x12, 0x34], 0x1234u16)];
 
         for (input, expected) in test_cases {
             let mut reader = Cursor::new(input);

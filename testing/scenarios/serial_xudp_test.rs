@@ -1,10 +1,12 @@
 #[cfg(test)]
 mod tests {
+    use crate::common::net::{Address, Destination};
+    use crate::common::serial::{
+        concat_strings, read_u16, read_u32, read_u64, write_u16, write_u32, write_u64,
+    };
+    use crate::common::xudp::{XudpPacket, generate_global_id};
     use std::io::Cursor;
     use std::net::SocketAddr;
-    use crate::common::net::{Address, Destination};
-    use crate::common::serial::{concat_strings, read_u16, read_u32, read_u64, write_u16, write_u32, write_u64};
-    use crate::common::xudp::{generate_global_id, XudpPacket};
 
     #[tokio::test]
     async fn test_serial_integer_and_string_operations() {

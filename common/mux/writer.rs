@@ -1,10 +1,10 @@
 // Module: common\mux\writer.rs
 // 1:1 Rust implementation corresponding to Go common\mux\writer.go
 
-use tokio::io::{AsyncWrite, AsyncWriteExt};
 use crate::common::errors::Result;
-use crate::common::mux::frame::{Frame, FrameMetadata, SessionStatus, OPTION_DATA};
+use crate::common::mux::frame::{Frame, FrameMetadata, OPTION_DATA, SessionStatus};
 use crate::common::net::Destination;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 pub struct Writer<W> {
     dest: Option<Destination>,

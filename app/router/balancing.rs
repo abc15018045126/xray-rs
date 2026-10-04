@@ -1,6 +1,6 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 use crate::app::observatory::Observatory;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub trait BalancingStrategy: Send + Sync {
     fn name(&self) -> &str;
@@ -20,7 +20,10 @@ impl RandomStrategy {
         }
     }
 
-    pub fn with_fallback(fallback_tag: Option<String>, observatory: Option<Arc<Observatory>>) -> Self {
+    pub fn with_fallback(
+        fallback_tag: Option<String>,
+        observatory: Option<Arc<Observatory>>,
+    ) -> Self {
         Self {
             fallback_tag,
             observatory,
@@ -201,14 +204,19 @@ impl Balancer {
     pub fn pick_outbound(&self, candidates: &[String]) -> Option<String> {
         let matched: Vec<String> = candidates
             .iter()
-            .filter(|c| self.selectors.is_empty() || self.selectors.iter().any(|s| c.starts_with(s) || s == "*"))
+            .filter(|c| {
+                self.selectors.is_empty()
+                    || self.selectors.iter().any(|s| c.starts_with(s) || s == "*")
+            })
             .cloned()
             .collect();
 
         if matched.is_empty() {
             self.fallback_tag.clone()
         } else {
-            self.strategy.pick_outbound(&matched).or_else(|| self.fallback_tag.clone())
+            self.strategy
+                .pick_outbound(&matched)
+                .or_else(|| self.fallback_tag.clone())
         }
     }
 }

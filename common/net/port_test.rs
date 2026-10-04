@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use super::super::{Port, PortList, PortRange};
+    use std::str::FromStr;
 
     #[test]
     fn test_port_parse() {

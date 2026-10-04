@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use async_trait::async_trait;
 use crate::app::commander::Commander;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
+use async_trait::async_trait;
+use std::sync::Arc;
 
 pub struct CommanderOutbound {
     tag: String,

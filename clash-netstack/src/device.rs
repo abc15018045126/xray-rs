@@ -44,10 +44,7 @@ impl Device for NetstackDevice {
     type RxToken<'a> = RxTokenImpl;
     type TxToken<'a> = TxTokenImpl<'a>;
 
-    fn receive(
-        &mut self,
-        _timestamp: Instant,
-    ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
+    fn receive(&mut self, _timestamp: Instant) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
         // Reserve a tx slot FIRST before touching rx_queue.
         // If we checked rx_queue first, a successful try_recv() would consume
         // the inbound packet even when try_reserve() subsequently fails,

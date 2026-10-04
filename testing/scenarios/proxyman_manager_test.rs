@@ -1,9 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-    use std::sync::Arc;
-    use async_trait::async_trait;
-    use tokio::io::duplex;
     use crate::app::proxyman::inbound::DefaultInboundManager;
     use crate::app::proxyman::outbound::DefaultOutboundManager;
     use crate::common::errors::Result;
@@ -11,6 +7,10 @@ mod tests {
     use crate::common::protocol::SessionContext;
     use crate::features::inbound::{InboundHandler, InboundManager, InboundResult};
     use crate::features::outbound::{HandlerSelector, OutboundHandler, OutboundManager};
+    use async_trait::async_trait;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use tokio::io::duplex;
 
     struct MockInboundHandler {
         tag: String,
@@ -27,10 +27,13 @@ mod tests {
             stream: BoxStream,
             _remote_addr: SocketAddr,
         ) -> Result<InboundResult> {
-            let session = SessionContext::new(self.tag.clone(), crate::common::net::Destination::tcp(
-                crate::common::net::Address::Domain("example.com".into()),
-                80,
-            ));
+            let session = SessionContext::new(
+                self.tag.clone(),
+                crate::common::net::Destination::tcp(
+                    crate::common::net::Address::Domain("example.com".into()),
+                    80,
+                ),
+            );
             Ok(InboundResult { stream, session })
         }
     }
@@ -68,8 +71,12 @@ mod tests {
     async fn test_inbound_manager_lifecycle_and_lookup() {
         let manager = DefaultInboundManager::new();
 
-        let h1 = Arc::new(MockInboundHandler { tag: "in-http".into() });
-        let h2 = Arc::new(MockInboundHandler { tag: "in-socks".into() });
+        let h1 = Arc::new(MockInboundHandler {
+            tag: "in-http".into(),
+        });
+        let h2 = Arc::new(MockInboundHandler {
+            tag: "in-socks".into(),
+        });
 
         manager.add_handler(h1).await.unwrap();
         manager.add_handler(h2).await.unwrap();
@@ -88,9 +95,15 @@ mod tests {
     async fn test_outbound_manager_default_and_selector() {
         let manager = DefaultOutboundManager::new();
 
-        let h1 = Arc::new(MockOutboundHandler { tag: "proxy-us".into() });
-        let h2 = Arc::new(MockOutboundHandler { tag: "proxy-jp".into() });
-        let h3 = Arc::new(MockOutboundHandler { tag: "direct".into() });
+        let h1 = Arc::new(MockOutboundHandler {
+            tag: "proxy-us".into(),
+        });
+        let h2 = Arc::new(MockOutboundHandler {
+            tag: "proxy-jp".into(),
+        });
+        let h3 = Arc::new(MockOutboundHandler {
+            tag: "direct".into(),
+        });
 
         manager.add_handler(h1).await.unwrap();
         manager.add_handler(h2).await.unwrap();
@@ -99,7 +112,9 @@ mod tests {
         let default = manager.get_default_handler().await.unwrap();
         assert_eq!(default.tag(), "proxy-us");
 
-        let selector = TagPrefixSelector { prefix: "proxy-".into() };
+        let selector = TagPrefixSelector {
+            prefix: "proxy-".into(),
+        };
         let selected = manager.select_handlers(&selector).await;
         assert_eq!(selected.len(), 2);
     }

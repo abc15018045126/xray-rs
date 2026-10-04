@@ -1,19 +1,20 @@
 #[cfg(test)]
 mod tests {
-    use std::net::IpAddr;
-    use std::sync::Arc;
-    use std::time::Duration;
     use crate::app::dispatcher::sniffer::Sniffer;
     use crate::app::dispatcher::stats::SizeStatCounter;
     use crate::app::dns::cache_controller::CacheController;
     use crate::app::dns::hosts::StaticHosts;
     use crate::app::stats::Counter;
     use crate::common::net::Network;
+    use std::net::IpAddr;
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[test]
     fn test_sniffer_http_host_extraction() {
         let sniffer = Sniffer::new(None);
-        let http_payload = b"GET / HTTP/1.1\r\nHost: www.example.com:8080\r\nUser-Agent: curl/7.68.0\r\n\r\n";
+        let http_payload =
+            b"GET / HTTP/1.1\r\nHost: www.example.com:8080\r\nUser-Agent: curl/7.68.0\r\n\r\n";
         let res = sniffer.sniff(http_payload, Network::Tcp).unwrap();
         assert_eq!(res.protocol, "http");
         assert_eq!(res.domain, "www.example.com");
@@ -30,7 +31,7 @@ mod tests {
         payload.push(0x00); // Session ID Length: 0
         payload.extend_from_slice(&[0x00, 0x02, 0x13, 0x01]); // Cipher Suites
         payload.extend_from_slice(&[0x01, 0x00]); // Compression Methods
-        
+
         // SNI Extension Data:
         // Type 0 (HostName) + Name Len (2 bytes: 8) + "xray.com" (8 bytes) = 11 bytes
         // Server Name List Length (2 bytes): 11 bytes

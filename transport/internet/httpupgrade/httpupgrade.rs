@@ -1,11 +1,11 @@
 // Module: transport\internet\httpupgrade\httpupgrade.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\httpupgrade.go
 
+use crate::common::errors::{Error, Result};
+use crate::common::net::BoxStream;
 use std::collections::HashMap;
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use crate::common::errors::{Error, Result};
-use crate::common::net::BoxStream;
 
 pub const PROTOCOL_NAME: &str = "httpupgrade";
 
@@ -93,7 +93,9 @@ impl HttpUpgradeStream {
         loop {
             let n = stream.read(&mut temp).await?;
             if n == 0 {
-                return Err(Error::Protocol("Unexpected EOF reading HTTPUpgrade handshake response".into()));
+                return Err(Error::Protocol(
+                    "Unexpected EOF reading HTTPUpgrade handshake response".into(),
+                ));
             }
             buf.extend_from_slice(&temp[..n]);
             if let Some(pos) = find_header_end(&buf) {
@@ -101,7 +103,9 @@ impl HttpUpgradeStream {
                 break;
             }
             if buf.len() > 16 * 1024 {
-                return Err(Error::Protocol("HTTPUpgrade response header too large".into()));
+                return Err(Error::Protocol(
+                    "HTTPUpgrade response header too large".into(),
+                ));
             }
         }
 
@@ -113,8 +117,12 @@ impl HttpUpgradeStream {
                 header_str.lines().next().unwrap_or("")
             )));
         }
-        if !header_lower.contains("upgrade: websocket") || !header_lower.contains("connection: upgrade") {
-            return Err(Error::Protocol("HTTPUpgrade response missing valid Upgrade/Connection headers".into()));
+        if !header_lower.contains("upgrade: websocket")
+            || !header_lower.contains("connection: upgrade")
+        {
+            return Err(Error::Protocol(
+                "HTTPUpgrade response missing valid Upgrade/Connection headers".into(),
+            ));
         }
 
         let remaining = buf[header_end..].to_vec();
@@ -133,7 +141,9 @@ impl HttpUpgradeStream {
         loop {
             let n = stream.read(&mut temp).await?;
             if n == 0 {
-                return Err(Error::Protocol("Unexpected EOF reading HTTPUpgrade request".into()));
+                return Err(Error::Protocol(
+                    "Unexpected EOF reading HTTPUpgrade request".into(),
+                ));
             }
             buf.extend_from_slice(&temp[..n]);
             if let Some(pos) = find_header_end(&buf) {
@@ -141,7 +151,9 @@ impl HttpUpgradeStream {
                 break;
             }
             if buf.len() > 16 * 1024 {
-                return Err(Error::Protocol("HTTPUpgrade request header too large".into()));
+                return Err(Error::Protocol(
+                    "HTTPUpgrade request header too large".into(),
+                ));
             }
         }
 
@@ -156,25 +168,35 @@ impl HttpUpgradeStream {
         if method != "GET" {
             return Err(Error::Protocol(format!("Invalid HTTP method: {}", method)));
         }
-        if let Some(exp_path) = expected_path {
-            if !exp_path.is_empty() && path != exp_path {
-                return Err(Error::Protocol(format!(
-                    "Path mismatch: got '{}', expected '{}'",
-                    path, exp_path
-                )));
-            }
+        if let Some(exp_path) = expected_path
+            && !exp_path.is_empty()
+            && path != exp_path
+        {
+            return Err(Error::Protocol(format!(
+                "Path mismatch: got '{}', expected '{}'",
+                path, exp_path
+            )));
         }
-        if let Some(exp_host) = expected_host {
-            if !exp_host.is_empty() && !header_lower.contains(&format!("host: {}", exp_host.to_ascii_lowercase())) {
-                return Err(Error::Protocol(format!("Host mismatch: expected '{}'", exp_host)));
-            }
+        if let Some(exp_host) = expected_host
+            && !exp_host.is_empty()
+            && !header_lower.contains(&format!("host: {}", exp_host.to_ascii_lowercase()))
+        {
+            return Err(Error::Protocol(format!(
+                "Host mismatch: expected '{}'",
+                exp_host
+            )));
         }
 
-        if !header_lower.contains("upgrade: websocket") || !header_lower.contains("connection: upgrade") {
-            return Err(Error::Protocol("Invalid HTTPUpgrade request headers".into()));
+        if !header_lower.contains("upgrade: websocket")
+            || !header_lower.contains("connection: upgrade")
+        {
+            return Err(Error::Protocol(
+                "Invalid HTTPUpgrade request headers".into(),
+            ));
         }
 
-        let resp = "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n";
+        let resp =
+            "HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n";
         stream.write_all(resp.as_bytes()).await?;
         stream.flush().await?;
 

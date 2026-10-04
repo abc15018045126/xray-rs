@@ -1,8 +1,8 @@
 // Module: app\observatory\burst\healthping_result.rs
 // 1:1 Rust implementation corresponding to Go app\observatory\burst\healthping_result.go
 
-use std::time::{Duration, Instant};
 use super::burst::RTT_FAILED;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HealthPingStats {
@@ -91,7 +91,9 @@ impl HealthPingRTTS {
 
         for rtt in &self.rtts {
             match rtt.time {
-                Some(t) if now.duration_since(t) <= self.validity && rtt.value != Duration::ZERO => {
+                Some(t)
+                    if now.duration_since(t) <= self.validity && rtt.value != Duration::ZERO =>
+                {
                     if rtt.value == RTT_FAILED {
                         stats.fail += 1;
                     } else {
@@ -161,11 +163,11 @@ impl HealthPingRTTS {
 
     fn find_outdated(&self, now: Instant) -> bool {
         for i in (self.capacity - 1)..(2 * self.capacity) {
-            let idx = (i % self.capacity) as usize;
-            if let Some(t) = self.rtts[idx].time {
-                if now.duration_since(t) > self.validity {
-                    return true;
-                }
+            let idx = i % self.capacity;
+            if let Some(t) = self.rtts[idx].time
+                && now.duration_since(t) > self.validity
+            {
+                return true;
             }
         }
         false

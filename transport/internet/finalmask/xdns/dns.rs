@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\xdns\dns.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\dns.go
 
+use crate::common::errors::{Error, Result};
 use std::collections::HashMap;
 use std::fmt;
-use crate::common::errors::{Error, Result};
 
 pub const COMPRESSION_POINTER_LIMIT: usize = 10;
 
@@ -40,7 +40,9 @@ impl Name {
                 return Err(Error::Protocol("name contains a zero-length label".into()));
             }
             if label.len() > 63 {
-                return Err(Error::Protocol("name contains a label longer than 63 octets".into()));
+                return Err(Error::Protocol(
+                    "name contains a label longer than 63 octets".into(),
+                ));
             }
             total_len += 1 + label.len();
         }
@@ -86,7 +88,11 @@ impl fmt::Display for Name {
                 write!(f, ".")?;
             }
             for &b in label {
-                if b == b'-' || (b >= b'0' && b <= b'9') || (b >= b'A' && b <= b'Z') || (b >= b'a' && b <= b'z') {
+                if b == b'-'
+                    || b.is_ascii_digit()
+                    || b.is_ascii_uppercase()
+                    || b.is_ascii_lowercase()
+                {
                     write!(f, "{}", b as char)?;
                 } else {
                     write!(f, "\\x{:02x}", b)?;
@@ -175,7 +181,11 @@ impl Message {
             let qtype = u16::from_be_bytes([bytes[offset], bytes[offset + 1]]);
             let qclass = u16::from_be_bytes([bytes[offset + 2], bytes[offset + 3]]);
             offset += 4;
-            questions.push(Question { name, qtype, qclass });
+            questions.push(Question {
+                name,
+                qtype,
+                qclass,
+            });
         }
 
         let mut answers = Vec::with_capacity(ancount);
@@ -267,7 +277,12 @@ impl Message {
         }
         let rrtype = u16::from_be_bytes([bytes[off], bytes[off + 1]]);
         let class = u16::from_be_bytes([bytes[off + 2], bytes[off + 3]]);
-        let ttl = u32::from_be_bytes([bytes[off + 4], bytes[off + 5], bytes[off + 6], bytes[off + 7]]);
+        let ttl = u32::from_be_bytes([
+            bytes[off + 4],
+            bytes[off + 5],
+            bytes[off + 6],
+            bytes[off + 7],
+        ]);
         let rdlength = u16::from_be_bytes([bytes[off + 8], bytes[off + 9]]) as usize;
         off += 10;
 
@@ -313,12 +328,12 @@ impl MessageBuilder {
                 labels: name.labels[i..].to_vec(),
             };
             let key = suffix_name.to_string();
-            if let Some(&ptr) = self.name_cache.get(&key) {
-                if (ptr & 0x3fff) == ptr {
-                    let comp = 0xc000 | (ptr as u16);
-                    self.buf.extend_from_slice(&comp.to_be_bytes());
-                    return;
-                }
+            if let Some(&ptr) = self.name_cache.get(&key)
+                && (ptr & 0x3fff) == ptr
+            {
+                let comp = 0xc000 | (ptr as u16);
+                self.buf.extend_from_slice(&comp.to_be_bytes());
+                return;
             }
             self.name_cache.insert(key, self.buf.len());
             let label = &name.labels[i];
@@ -342,7 +357,8 @@ impl MessageBuilder {
         if rr.data.len() > 65535 {
             return Err(Error::Protocol("integer overflow".into()));
         }
-        self.buf.extend_from_slice(&(rr.data.len() as u16).to_be_bytes());
+        self.buf
+            .extend_from_slice(&(rr.data.len() as u16).to_be_bytes());
         self.buf.extend_from_slice(&rr.data);
         Ok(())
     }
@@ -374,6 +390,12 @@ impl MessageBuilder {
             self.write_rr(rr)?;
         }
         Ok(())
+    }
+}
+
+impl Default for MessageBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

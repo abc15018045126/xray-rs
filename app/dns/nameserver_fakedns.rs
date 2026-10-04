@@ -1,13 +1,13 @@
 // Module: app\dns\nameserver_fakedns.rs
 // 1:1 Rust implementation corresponding to Go app\dns\nameserver_fakedns.go
 
+use async_trait::async_trait;
 use std::net::IpAddr;
 use std::sync::Arc;
-use async_trait::async_trait;
 
-use crate::common::errors::Result;
 use super::fakedns::FakeDnsHolder;
 use super::nameserver::NameServer;
+use crate::common::errors::Result;
 
 pub struct FakeDnsNameServer {
     holder: Arc<FakeDnsHolder>,

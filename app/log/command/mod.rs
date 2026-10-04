@@ -3,10 +3,10 @@ pub mod command;
 #[cfg(test)]
 pub mod command_test;
 
-use std::sync::Arc;
 use crate::app::commander::Service;
 use crate::app::log::LogManager;
 use crate::common::errors::Result;
+use std::sync::Arc;
 
 pub use command::LoggerServer;
 

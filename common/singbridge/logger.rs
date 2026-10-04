@@ -2,7 +2,7 @@
 // 1:1 Rust implementation corresponding to Go common\singbridge\logger.go
 
 use crate::common::ctx::Context;
-use crate::common::log::{record, GeneralMessage, Severity};
+use crate::common::log::{GeneralMessage, Severity, record};
 
 /// ContextLogger trait 1:1 corresponding to sagernet/sing/common/logger.ContextLogger.
 pub trait ContextLogger: Send + Sync {

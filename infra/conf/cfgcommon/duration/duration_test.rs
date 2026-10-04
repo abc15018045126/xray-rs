@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use super::super::duration::parse_duration;
+    use std::time::Duration;
 
     #[test]
     fn test_parse_duration() {

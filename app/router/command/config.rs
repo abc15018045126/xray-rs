@@ -1,7 +1,7 @@
-use std::net::IpAddr;
-use uuid::Uuid;
 use crate::common::net::{Address, Destination, Network};
 use crate::common::protocol::{SessionContext, User};
+use std::net::IpAddr;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Default)]
 pub struct CommandRoutingContext {

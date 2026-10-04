@@ -1,11 +1,11 @@
 // Module: app\router\strategy_leastload.rs
 // 1:1 Rust implementation corresponding to Go app\router\strategy_leastload.go
 
+use super::balancing::BalancingStrategy;
+use crate::app::observatory::Observatory;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use serde::{Deserialize, Serialize};
-use crate::app::observatory::Observatory;
-use super::balancing::BalancingStrategy;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct StrategyLeastLoadConfig {
@@ -141,10 +141,10 @@ impl BalancingStrategy for LeastLoadStrategy {
             return self.fallback_tag.clone();
         }
 
-        if let Some(obs) = &self.observatory {
-            if let Some(best) = obs.select_best_outbound(tags) {
-                return Some(best);
-            }
+        if let Some(obs) = &self.observatory
+            && let Some(best) = obs.select_best_outbound(tags)
+        {
+            return Some(best);
         }
 
         // Generate synthetic nodes for candidate tags and sort by RTT
@@ -160,6 +160,9 @@ impl BalancingStrategy for LeastLoadStrategy {
         leastload_sort(&mut nodes);
         let selected = select_least_load(&nodes, &self.settings.baselines, self.settings.expected);
 
-        selected.first().map(|n| n.tag.clone()).or_else(|| self.fallback_tag.clone())
+        selected
+            .first()
+            .map(|n| n.tag.clone())
+            .or_else(|| self.fallback_tag.clone())
     }
 }

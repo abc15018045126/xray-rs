@@ -14,9 +14,6 @@ impl ApiClientConfig {
                 server = s.to_string();
             }
         }
-        Self {
-            server,
-            timeout: 5,
-        }
+        Self { server, timeout: 5 }
     }
 }

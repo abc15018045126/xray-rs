@@ -1,9 +1,9 @@
 // Module: common\log\log.rs
 // 1:1 Rust implementation corresponding to Go common\log\log.go
 
+use super::log_pb::Severity;
 use std::any::Any;
 use std::sync::{Arc, OnceLock, RwLock};
-use super::log_pb::Severity;
 
 pub type LogLevel = Severity;
 
@@ -64,10 +64,10 @@ impl SyncHandler {
     }
 
     pub fn handle(&self, msg: &dyn Message) {
-        if let Ok(guard) = self.handler.read() {
-            if let Some(ref h) = *guard {
-                h.handle(msg);
-            }
+        if let Ok(guard) = self.handler.read()
+            && let Some(ref h) = *guard
+        {
+            h.handle(msg);
         }
     }
 

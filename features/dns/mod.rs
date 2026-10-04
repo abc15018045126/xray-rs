@@ -4,6 +4,6 @@ pub mod client;
 pub mod fakedns;
 pub mod localdns;
 
-pub use client::{client_type, DnsClient, IPOption, RCodeError, DEFAULT_TTL};
-pub use fakedns::{fake_dns_type, FakeDnsEngine, FakeDnsFeature, FAKE_IPV4_POOL, FAKE_IPV6_POOL};
+pub use client::{DEFAULT_TTL, DnsClient, IPOption, RCodeError, client_type};
+pub use fakedns::{FAKE_IPV4_POOL, FAKE_IPV6_POOL, FakeDnsEngine, FakeDnsFeature, fake_dns_type};
 pub use localdns::LocalDnsClient;

@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::super::chunk::{AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, PlainChunk};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_plain_chunk_write_read() {

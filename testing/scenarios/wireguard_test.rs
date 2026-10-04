@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use tokio::net::UdpSocket;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::SessionContext;
     use crate::features::outbound::OutboundHandler;
     use crate::proxy::wireguard::{Client, WireGuardConfig, WireGuardPeer};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::UdpSocket;
 
     #[tokio::test]
     async fn test_wireguard_udp_relay() {
@@ -32,7 +32,10 @@ mod tests {
         };
 
         let client = Client::new("wg-out", config);
-        let session = SessionContext::new("socks", Destination::new(Address::Domain("example.com".into()), 80));
+        let session = SessionContext::new(
+            "socks",
+            Destination::new(Address::Domain("example.com".into()), 80),
+        );
         let mut stream = client.connect(&session).await.unwrap();
 
         let msg = b"WireGuard Tunnel Test Message";

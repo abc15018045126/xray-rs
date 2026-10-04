@@ -1,8 +1,8 @@
 // Module: app\observatory\command\command.pb.rs
 // 1:1 Rust protobuf message definitions corresponding to Go app\observatory\command\command.pb.go
 
-use serde::{Deserialize, Serialize};
 use crate::app::observatory::config_pb::ObservationResult;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetOutboundStatusRequest {}

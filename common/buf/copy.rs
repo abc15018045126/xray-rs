@@ -1,8 +1,8 @@
 // Module: common\buf\copy.rs
 // 1:1 Rust implementation corresponding to Go common\buf\copy.go
 
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -68,15 +68,13 @@ pub async fn copy<R: Reader, W: Writer>(
                     size.fetch_add(len as i64, Ordering::Relaxed);
                 }
 
-                if let Err(e) = writer.write_multi_buffer(mb).await {
-                    return Err(e);
-                }
+                writer.write_multi_buffer(mb).await?;
             }
             Err(e) => {
-                if let Error::Io(ref io_err) = e {
-                    if io_err.kind() == std::io::ErrorKind::UnexpectedEof {
-                        break;
-                    }
+                if let Error::Io(ref io_err) = e
+                    && io_err.kind() == std::io::ErrorKind::UnexpectedEof
+                {
+                    break;
                 }
                 return Err(e);
             }

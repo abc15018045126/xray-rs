@@ -1,18 +1,21 @@
 #[cfg(test)]
 mod tests {
+    use crate::app::dns::DnsClient;
+    use crate::common::net::{Address, Destination};
+    use crate::proxy::dns::DnsOutbound;
     use std::collections::HashMap;
     use std::net::IpAddr;
     use std::sync::Arc;
     use tokio::io::duplex;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use crate::app::dns::DnsClient;
-    use crate::common::net::{Address, Destination};
-    use crate::proxy::dns::DnsOutbound;
 
     #[tokio::test]
     async fn test_dns_proxy_outbound_response() {
         let mut hosts = HashMap::new();
-        hosts.insert("example.com".to_string(), vec!["93.184.216.34".parse::<IpAddr>().unwrap()]);
+        hosts.insert(
+            "example.com".to_string(),
+            vec!["93.184.216.34".parse::<IpAddr>().unwrap()],
+        );
         let client = Arc::new(DnsClient::with_hosts(hosts));
 
         let dns_outbound = DnsOutbound::new("dns_out".into(), client);
@@ -28,10 +31,8 @@ mod tests {
             0x00, 0x00, // Authority RRs: 0
             0x00, 0x00, // Additional RRs: 0
             // QNAME: 7example3com0
-            0x07, b'e', b'x', b'a', b'm', b'p', b'l', b'e',
-            0x03, b'c', b'o', b'm',
-            0x00,
-            0x00, 0x01, // Type A
+            0x07, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 0x03, b'c', b'o', b'm', 0x00, 0x00,
+            0x01, // Type A
             0x00, 0x01, // Class IN
         ];
 

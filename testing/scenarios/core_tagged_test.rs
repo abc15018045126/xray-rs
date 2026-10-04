@@ -1,16 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use async_trait::async_trait;
-    use tokio::io::duplex;
     use crate::app::proxyman::outbound::DefaultOutboundManager;
     use crate::common::errors::Result;
-    use crate::common::net::{Address, Destination, BoxStream};
+    use crate::common::net::{Address, BoxStream, Destination};
     use crate::common::protocol::SessionContext;
     use crate::core::Instance;
     use crate::features::outbound::{OutboundHandler, OutboundManager};
     use crate::infra::conf::Config;
     use crate::transport::internet::tagged::TaggedDialer;
+    use async_trait::async_trait;
+    use std::sync::Arc;
+    use tokio::io::duplex;
 
     struct DummyOutbound {
         tag: String,
@@ -31,7 +31,9 @@ mod tests {
     #[tokio::test]
     async fn test_tagged_dialer_connect() {
         let manager = Arc::new(DefaultOutboundManager::new());
-        let handler = Arc::new(DummyOutbound { tag: "direct-out".into() });
+        let handler = Arc::new(DummyOutbound {
+            tag: "direct-out".into(),
+        });
         manager.add_handler(handler).await.unwrap();
 
         let dialer = TaggedDialer::new(manager);

@@ -1,13 +1,13 @@
 // Module: testing\mocks\outbound.rs
 // Mock outbound handler implementing OutboundHandler
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
+use async_trait::async_trait;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct MockOutboundHandler {
     tag: String,

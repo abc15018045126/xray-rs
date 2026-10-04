@@ -1,8 +1,10 @@
 // Module: infra\conf\init.rs
 // 1:1 Rust implementation corresponding to Go infra\conf\init.go
 
-use super::lint::{register_configure_file_post_processing_stage, ConfigureFilePostProcessingStage};
 use super::Config;
+use super::lint::{
+    ConfigureFilePostProcessingStage, register_configure_file_post_processing_stage,
+};
 use crate::common::errors::Result;
 
 pub struct FakeDnsPostProcessingStage;
@@ -15,10 +17,7 @@ impl ConfigureFilePostProcessingStage for FakeDnsPostProcessingStage {
 }
 
 pub fn init_conf() {
-    register_configure_file_post_processing_stage(
-        "FakeDNS",
-        Box::new(FakeDnsPostProcessingStage),
-    );
+    register_configure_file_post_processing_stage("FakeDNS", Box::new(FakeDnsPostProcessingStage));
 }
 
 #[cfg(test)]

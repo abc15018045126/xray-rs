@@ -7,6 +7,6 @@ pub mod periodic_test;
 #[cfg(test)]
 pub mod task_test;
 
-pub use common::{close_task, DEFAULT_TASK_TIMEOUT_SECS};
+pub use common::{DEFAULT_TASK_TIMEOUT_SECS, close_task};
 pub use periodic::Periodic;
 pub use task::{on_success, parallel_run, parallel_run_boxed};

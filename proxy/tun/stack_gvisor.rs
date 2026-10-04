@@ -15,4 +15,10 @@ impl GVisorStack {
     }
 }
 
+impl Default for GVisorStack {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub type GVisorTunStack = GVisorStack;

@@ -1,8 +1,8 @@
 // Module: common\errors\multi_error.rs
 // 1:1 Rust implementation corresponding to Go common\errors\multi_error.go
 
-use std::fmt;
 use crate::common::errors::Error;
+use std::fmt;
 
 #[derive(Debug, Default)]
 pub struct MultiError {
@@ -58,16 +58,10 @@ impl std::error::Error for MultiError {}
 /// Combines multiple optional errors into a single MultiError or None.
 pub fn combine(maybe_error: Vec<Option<Error>>) -> Option<MultiError> {
     let mut errs = MultiError::new();
-    for err in maybe_error {
-        if let Some(e) = err {
-            errs.add(e);
-        }
+    for e in maybe_error.into_iter().flatten() {
+        errs.add(e);
     }
-    if errs.is_empty() {
-        None
-    } else {
-        Some(errs)
-    }
+    if errs.is_empty() { None } else { Some(errs) }
 }
 
 /// Checks if all errors in MultiError match the expected error string.

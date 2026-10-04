@@ -1,10 +1,10 @@
 // Module: common\xudp\xudp.rs
 // 1:1 Rust implementation corresponding to Go common\xudp\xudp.go
 
-use std::net::{Ipv4Addr, Ipv6Addr};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination};
+use std::net::{Ipv4Addr, Ipv6Addr};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const XUDP_MAGIC: u16 = 0x5855;
 pub const XUDP_MAX_PACKET_SIZE: usize = 65535;
@@ -63,7 +63,10 @@ pub fn read_address_port(data: &[u8]) -> Result<(Address, u16, usize)> {
             ip.copy_from_slice(&data[3..19]);
             Ok((Address::Ipv6(Ipv6Addr::from(ip)), port, 19))
         }
-        other => Err(Error::Protocol(format!("unknown address family: {}", other))),
+        other => Err(Error::Protocol(format!(
+            "unknown address family: {}",
+            other
+        ))),
     }
 }
 
@@ -135,7 +138,10 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
 
     pub async fn read_packet(&mut self) -> Result<(Destination, Vec<u8>)> {
         let mut len_buf = [0u8; 2];
-        self.reader.read_exact(&mut len_buf).await.map_err(Error::Io)?;
+        self.reader
+            .read_exact(&mut len_buf)
+            .await
+            .map_err(Error::Io)?;
         let meta_len = u16::from_be_bytes(len_buf) as usize;
         if meta_len < 4 {
             return Err(Error::Protocol("XUDP meta too short".into()));
@@ -151,10 +157,16 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
         }
 
         // Read payload length
-        self.reader.read_exact(&mut len_buf).await.map_err(Error::Io)?;
+        self.reader
+            .read_exact(&mut len_buf)
+            .await
+            .map_err(Error::Io)?;
         let payload_len = u16::from_be_bytes(len_buf) as usize;
         let mut payload = vec![0u8; payload_len];
-        self.reader.read_exact(&mut payload).await.map_err(Error::Io)?;
+        self.reader
+            .read_exact(&mut payload)
+            .await
+            .map_err(Error::Io)?;
 
         Ok((dest, payload))
     }

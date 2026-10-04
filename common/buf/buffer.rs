@@ -113,4 +113,3 @@ impl<const N: usize> PartialEq<&[u8; N]> for Buffer {
         self.as_slice() == &other[..]
     }
 }
-

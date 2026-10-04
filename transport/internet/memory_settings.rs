@@ -23,4 +23,3 @@ pub struct MemoryStreamConfig {
     pub protocol_name: String,
     pub socket_settings: Option<SocketOptions>,
 }
-

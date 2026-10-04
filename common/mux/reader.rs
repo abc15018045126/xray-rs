@@ -1,10 +1,10 @@
 // Module: common\mux\reader.rs
 // 1:1 Rust implementation corresponding to Go common\mux\reader.go
 
-use tokio::io::{AsyncRead, AsyncReadExt};
+use super::frame::Frame;
 use crate::common::errors::Result;
 use crate::common::net::Destination;
-use super::frame::Frame;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 /// PacketReader reads a chunk of Mux frames.
 pub struct PacketReader<R> {

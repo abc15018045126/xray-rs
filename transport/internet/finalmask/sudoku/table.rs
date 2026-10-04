@@ -1,12 +1,12 @@
 // Module: transport\internet\finalmask\sudoku\table.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\table.go
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
-use sha2::{Digest, Sha256};
-use crate::common::errors::{Error, Result};
 use super::config::SudokuConfig;
 use super::rng_cooked::RNG_COOKED;
+use crate::common::errors::{Error, Result};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 const RNG_LEN: usize = 607;
 const RNG_TAP: usize = 273;
@@ -39,7 +39,7 @@ impl GoRand {
         let tap = 0;
         let feed = RNG_LEN - RNG_TAP;
 
-        seed = seed % (INT32_MAX as i64);
+        seed %= INT32_MAX as i64;
         if seed < 0 {
             seed += INT32_MAX as i64;
         }
@@ -160,11 +160,7 @@ pub fn ascii_layout() -> ByteLayout {
     let padding: Vec<u8> = (0..32).map(|i| 0x20 + i).collect();
     let encode_group: EncodeGroupFn = Arc::new(|group: u8| {
         let b = 0x40 | (group & 0x3f);
-        if b == 0x7f {
-            b'\n'
-        } else {
-            b
-        }
+        if b == 0x7f { b'\n' } else { b }
     });
 
     let decode_group: DecodeGroupFn = Arc::new(|b: u8| {
@@ -282,7 +278,9 @@ pub fn custom_layout(pattern: &str) -> Result<ByteLayout> {
     }
     padding.sort();
     if padding.is_empty() {
-        return Err(Error::Config("customTable produced empty padding pool".to_string()));
+        return Err(Error::Config(
+            "customTable produced empty padding pool".to_string(),
+        ));
     }
 
     let p_bits_copy = p_bits.clone();
@@ -362,10 +360,7 @@ pub fn sort4(mut in_b: [u8; 4]) -> [u8; 4] {
 }
 
 pub fn pack_key(in_b: [u8; 4]) -> u32 {
-    ((in_b[0] as u32) << 24)
-        | ((in_b[1] as u32) << 16)
-        | ((in_b[2] as u32) << 8)
-        | (in_b[3] as u32)
+    ((in_b[0] as u32) << 24) | ((in_b[1] as u32) << 16) | ((in_b[2] as u32) << 8) | (in_b[3] as u32)
 }
 
 fn generate_all_grids() -> Vec<[u8; 16]> {
@@ -471,7 +466,10 @@ fn build_base_patterns() -> Result<Vec<Vec<[u8; 4]>>> {
 
     for (gi, list) in patterns.iter().enumerate() {
         if list.is_empty() {
-            return Err(Error::Config(format!("grid {} has no uniquely decodable clue set", gi)));
+            return Err(Error::Config(format!(
+                "grid {} has no uniquely decodable clue set",
+                gi
+            )));
         }
     }
 
@@ -481,9 +479,8 @@ fn build_base_patterns() -> Result<Vec<Vec<[u8; 4]>>> {
 static BASE_PATTERNS: OnceLock<Vec<Vec<[u8; 4]>>> = OnceLock::new();
 
 fn get_base_patterns() -> &'static [Vec<[u8; 4]>] {
-    BASE_PATTERNS.get_or_init(|| {
-        build_base_patterns().expect("failed to build sudoku base patterns")
-    })
+    BASE_PATTERNS
+        .get_or_init(|| build_base_patterns().expect("failed to build sudoku base patterns"))
 }
 
 #[derive(Clone)]
@@ -497,7 +494,10 @@ impl SudokuTable {
     pub fn build(password: &str, layout: Arc<ByteLayout>) -> Result<Self> {
         let patterns = get_base_patterns();
         if patterns.len() < 256 {
-            return Err(Error::Config(format!("not enough sudoku grids: {}", patterns.len())));
+            return Err(Error::Config(format!(
+                "not enough sudoku grids: {}",
+                patterns.len()
+            )));
         }
 
         let mut order: Vec<usize> = (0..patterns.len()).collect();
@@ -512,7 +512,10 @@ impl SudokuTable {
         for b in 0..256 {
             let pat_list = &patterns[order[b]];
             if pat_list.is_empty() {
-                return Err(Error::Config(format!("grid {} has no valid clue set", order[b])));
+                return Err(Error::Config(format!(
+                    "grid {} has no valid clue set",
+                    order[b]
+                )));
             }
 
             let mut enc = Vec::with_capacity(pat_list.len());
@@ -526,10 +529,13 @@ impl SudokuTable {
                 let sorted_hints = sort4(hints);
                 let key = pack_key(sorted_hints);
 
-                if let Some(&old) = decode.get(&key) {
-                    if old != b as u8 {
-                        return Err(Error::Config(format!("decode key collision for byte {} and {}", old, b)));
-                    }
+                if let Some(&old) = decode.get(&key)
+                    && old != b as u8
+                {
+                    return Err(Error::Config(format!(
+                        "decode key collision for byte {} and {}",
+                        old, b
+                    )));
                 }
                 decode.insert(key, b as u8);
                 enc.push(hints);

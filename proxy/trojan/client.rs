@@ -1,8 +1,8 @@
 // Module: proxy\trojan\client.rs
 // 1:1 Rust implementation corresponding to Go proxy\trojan\client.go
 
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination, Network};
@@ -56,10 +56,13 @@ impl OutboundHandler for Client {
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
 
-        let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
-            crate::common::net::Address::Domain(d) => d.as_str(),
-            _ => "localhost",
-        });
+        let sni = self
+            .tls_sni
+            .as_deref()
+            .unwrap_or_else(|| match &self.server_addr.address {
+                crate::common::net::Address::Domain(d) => d.as_str(),
+                _ => "localhost",
+            });
 
         // 1. Optional TLS Layer
         let stream = if let Some(tls) = &self.tls_client {
@@ -76,7 +79,11 @@ impl OutboundHandler for Client {
                 crate::common::net::Address::Ipv6(ip) => format!("[{}]", ip),
             };
             let host_hdr = self.ws_host.as_deref().unwrap_or(sni);
-            let scheme = if self.tls_client.is_some() { "wss" } else { "ws" };
+            let scheme = if self.tls_client.is_some() {
+                "wss"
+            } else {
+                "ws"
+            };
             let ws_url = format!("{}://{}{}", scheme, dest_host, path);
             WebSocketStream::client_handshake(&ws_url, Some(host_hdr), stream).await?
         } else {

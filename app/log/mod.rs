@@ -1,17 +1,17 @@
 pub mod command;
-pub mod log;
-pub mod log_creator;
 #[path = "config.pb.rs"]
 pub mod config_pb;
+pub mod log;
+pub mod log_creator;
 
 #[cfg(test)]
 pub mod log_test;
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::atomic::{AtomicU8, Ordering};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
-pub use log_creator::{create_logger, LogCreatorOptions, LogType};
+pub use log_creator::{LogCreatorOptions, LogType, create_logger};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
@@ -48,10 +48,10 @@ pub struct MultiWriter {
 impl MultiWriter {
     pub fn new(path: Option<&str>) -> Self {
         let file = path.and_then(|p| {
-            if let Some(parent) = std::path::Path::new(p).parent() {
-                if !parent.as_os_str().is_empty() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
+            if let Some(parent) = std::path::Path::new(p).parent()
+                && !parent.as_os_str().is_empty()
+            {
+                let _ = std::fs::create_dir_all(parent);
             }
             OpenOptions::new()
                 .create(true)
@@ -67,20 +67,20 @@ impl MultiWriter {
 impl Write for MultiWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let _ = std::io::stdout().write_all(buf);
-        if let Some(ref f) = self.file {
-            if let Ok(mut file) = f.lock() {
-                let _ = file.write_all(buf);
-            }
+        if let Some(ref f) = self.file
+            && let Ok(mut file) = f.lock()
+        {
+            let _ = file.write_all(buf);
         }
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         let _ = std::io::stdout().flush();
-        if let Some(ref f) = self.file {
-            if let Ok(mut file) = f.lock() {
-                let _ = file.flush();
-            }
+        if let Some(ref f) = self.file
+            && let Ok(mut file) = f.lock()
+        {
+            let _ = file.flush();
         }
         Ok(())
     }
@@ -91,8 +91,7 @@ pub fn init_logger(level_str: &str) {
 }
 
 pub fn init_logger_ext(level_str: &str, file_path: Option<&str>) {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(level_str));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level_str));
 
     if let Some(path) = file_path {
         let writer = MultiWriter::new(Some(path));
@@ -103,10 +102,7 @@ pub fn init_logger_ext(level_str: &str, file_path: Option<&str>) {
             .with_writer(move || writer.clone())
             .try_init();
     } else {
-        let _ = fmt()
-            .with_env_filter(filter)
-            .with_target(false)
-            .try_init();
+        let _ = fmt().with_env_filter(filter).with_target(false).try_init();
     }
 }
 

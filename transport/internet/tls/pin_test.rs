@@ -94,7 +94,9 @@ mod tests {
             hex_hash,
             "ae243d668ec9c7f74a0dcd1ad21c6676b4efe30c39728934b362093af886bf77"
         );
-        let expected_bytes = hex::decode("ae243d668ec9c7f74a0dcd1ad21c6676b4efe30c39728934b362093af886bf77").unwrap();
+        let expected_bytes =
+            hex::decode("ae243d668ec9c7f74a0dcd1ad21c6676b4efe30c39728934b362093af886bf77")
+                .unwrap();
         assert_eq!(hash.as_slice(), expected_bytes.as_slice());
     }
 

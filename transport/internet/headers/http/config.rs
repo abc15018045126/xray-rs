@@ -3,7 +3,9 @@
 
 use rand::Rng;
 
-pub use super::config_pb::{Config, Header, Method, RequestConfig, ResponseConfig, Status, Version};
+pub use super::config_pb::{
+    Config, Header, Method, RequestConfig, ResponseConfig, Status, Version,
+};
 
 fn pick_string(arr: &[String]) -> String {
     match arr.len() {
@@ -33,7 +35,12 @@ impl RequestConfig {
 
     pub fn format_request(&self, host: &str) -> String {
         let uri = self.pick_uri();
-        let mut out = format!("{} {} {}\r\n", self.get_method_value(), uri, self.get_full_version());
+        let mut out = format!(
+            "{} {} {}\r\n",
+            self.get_method_value(),
+            uri,
+            self.get_full_version()
+        );
         out.push_str(&format!("Host: {}\r\n", host));
         for h in self.pick_headers() {
             if !h.to_lowercase().starts_with("host:") {
@@ -47,11 +54,7 @@ impl RequestConfig {
 
     pub fn pick_uri(&self) -> String {
         let uri = pick_string(&self.uri);
-        if uri.is_empty() {
-            "/".into()
-        } else {
-            uri
-        }
+        if uri.is_empty() { "/".into() } else { uri }
     }
 
     pub fn pick_headers(&self) -> Vec<String> {
@@ -97,7 +100,12 @@ impl ResponseConfig {
     }
 
     pub fn format_response(&self) -> String {
-        let mut out = format!("{} {} {}\r\n", self.get_full_version(), self.get_status_code(), self.get_status_reason());
+        let mut out = format!(
+            "{} {} {}\r\n",
+            self.get_full_version(),
+            self.get_status_code(),
+            self.get_status_reason()
+        );
         for h in self.pick_headers() {
             out.push_str(&h);
             out.push_str("\r\n");

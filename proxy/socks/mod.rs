@@ -2,13 +2,13 @@ pub mod client;
 pub mod protocol;
 pub mod server;
 
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use async_trait::async_trait;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, BoxStream, Destination, Network};
 use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
+use async_trait::async_trait;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub use client::Client;
 pub use protocol::SocksProtocol;
@@ -29,10 +29,17 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let ver = stream.read_u8().await.map_err(Error::Io)?;
         if ver != 0x05 {
-            return Err(Error::Protocol(format!("Unsupported SOCKS version: {}", ver)));
+            return Err(Error::Protocol(format!(
+                "Unsupported SOCKS version: {}",
+                ver
+            )));
         }
 
         let nmethods = stream.read_u8().await.map_err(Error::Io)? as usize;
@@ -44,7 +51,10 @@ impl InboundHandler for Server {
 
         let ver = stream.read_u8().await.map_err(Error::Io)?;
         if ver != 0x05 {
-            return Err(Error::Protocol(format!("Invalid SOCKS5 version in request: {}", ver)));
+            return Err(Error::Protocol(format!(
+                "Invalid SOCKS5 version in request: {}",
+                ver
+            )));
         }
 
         let cmd = stream.read_u8().await.map_err(Error::Io)?;
@@ -60,7 +70,10 @@ impl InboundHandler for Server {
             0x03 => {
                 let len = stream.read_u8().await.map_err(Error::Io)? as usize;
                 let mut domain_bytes = vec![0u8; len];
-                stream.read_exact(&mut domain_bytes).await.map_err(Error::Io)?;
+                stream
+                    .read_exact(&mut domain_bytes)
+                    .await
+                    .map_err(Error::Io)?;
                 let domain = String::from_utf8(domain_bytes)
                     .map_err(|e| Error::Protocol(format!("Invalid domain string: {}", e)))?;
                 Address::Domain(domain)
@@ -70,7 +83,12 @@ impl InboundHandler for Server {
                 stream.read_exact(&mut ip_bytes).await.map_err(Error::Io)?;
                 Address::Ipv6(Ipv6Addr::from(ip_bytes))
             }
-            _ => return Err(Error::Protocol(format!("Unsupported SOCKS5 ATYP: {}", atyp))),
+            _ => {
+                return Err(Error::Protocol(format!(
+                    "Unsupported SOCKS5 ATYP: {}",
+                    atyp
+                )));
+            }
         };
 
         let port = stream.read_u16().await.map_err(Error::Io)?;
@@ -78,10 +96,18 @@ impl InboundHandler for Server {
         let network = match cmd {
             0x01 => Network::Tcp,
             0x03 => Network::Udp,
-            _ => return Err(Error::Protocol(format!("Unsupported SOCKS5 command: {}", cmd))),
+            _ => {
+                return Err(Error::Protocol(format!(
+                    "Unsupported SOCKS5 command: {}",
+                    cmd
+                )));
+            }
         };
 
-        stream.write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await.map_err(Error::Io)?;
+        stream
+            .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            .await
+            .map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
 
         let destination = Destination {

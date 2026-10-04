@@ -1,8 +1,8 @@
 // Module: features\dns\fakedns.rs
 // 1:1 Rust implementation corresponding to Go features\dns\fakedns.go
 
-use std::net::IpAddr;
 use crate::features::feature::{Feature, TYPE_FAKE_DNS};
+use std::net::IpAddr;
 
 pub const FAKE_IPV4_POOL: &str = "198.18.0.0/15";
 pub const FAKE_IPV6_POOL: &str = "fc00::/18";

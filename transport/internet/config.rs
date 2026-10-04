@@ -15,12 +15,20 @@ fn get_config_creator_registry() -> &'static RwLock<HashMap<String, ConfigCreato
     CONFIG_CREATOR_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
-pub fn register_protocol_config_creator(name: impl Into<String>, creator: ConfigCreator) -> Result<()> {
+pub fn register_protocol_config_creator(
+    name: impl Into<String>,
+    creator: ConfigCreator,
+) -> Result<()> {
     let registry = get_config_creator_registry();
-    let mut map = registry.write().map_err(|_| Error::Other("lock error".into()))?;
+    let mut map = registry
+        .write()
+        .map_err(|_| Error::Other("lock error".into()))?;
     let key = name.into();
     if map.contains_key(&key) {
-        return Err(Error::Config(format!("protocol {} already registered", key)));
+        return Err(Error::Config(format!(
+            "protocol {} already registered",
+            key
+        )));
     }
     map.insert(key, creator);
     Ok(())
@@ -28,10 +36,15 @@ pub fn register_protocol_config_creator(name: impl Into<String>, creator: Config
 
 pub fn create_transport_config(name: &str) -> Result<serde_json::Value> {
     let registry = get_config_creator_registry();
-    let map = registry.read().map_err(|_| Error::Other("lock error".into()))?;
+    let map = registry
+        .read()
+        .map_err(|_| Error::Other("lock error".into()))?;
     match map.get(name) {
         Some(creator) => Ok(creator()),
-        None => Err(Error::NotFound(format!("unknown transport protocol: {}", name))),
+        None => Err(Error::NotFound(format!(
+            "unknown transport protocol: {}",
+            name
+        ))),
     }
 }
 
@@ -155,7 +168,9 @@ impl StreamConfig {
 
     pub fn get_effective_transport_settings(&self) -> Option<&TransportConfig> {
         let proto = self.get_effective_protocol();
-        self.transport_settings.iter().find(|s| s.protocol_name == proto)
+        self.transport_settings
+            .iter()
+            .find(|s| s.protocol_name == proto)
     }
 
     pub fn has_security_settings(&self) -> bool {

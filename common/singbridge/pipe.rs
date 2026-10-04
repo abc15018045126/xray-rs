@@ -6,11 +6,11 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::timeout;
 
 use super::error::return_error;
-use crate::common::buf::{copy_stream, Buffer, CopyOptions, MultiBuffer};
+use crate::common::buf::{Buffer, CopyOptions, MultiBuffer, copy_stream};
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
-use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 use crate::transport::Link;
+use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 
 pub const READ_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -63,10 +63,7 @@ impl PipeConnWrapper {
 
 /// CopyConn copies data bidirectionally between link and a remote server stream.
 /// 1:1 corresponding to CopyConn() in pipe.go.
-pub async fn copy_conn(
-    link: Link,
-    server_stream: BoxStream,
-) -> Result<()> {
+pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
     let (reader, writer) = link.into_parts();
     let (mut server_read, mut server_write) = tokio::io::split(server_stream);
 
@@ -115,9 +112,7 @@ pub async fn copy_conn(
             let _ = b.write(&buf[..n]);
             mb.push(b);
 
-            if let Err(e) = writer.write_multi_buffer(mb).await {
-                return Err(e);
-            }
+            writer.write_multi_buffer(mb).await?;
         }
         let _ = writer.close().await;
         Ok::<(), Error>(())

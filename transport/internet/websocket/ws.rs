@@ -4,7 +4,7 @@
 use futures::{SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::{client_async, accept_async};
+use tokio_tungstenite::{accept_async, client_async};
 
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
@@ -12,19 +12,26 @@ use crate::common::net::BoxStream;
 pub struct WebSocketStream;
 
 impl WebSocketStream {
-    pub async fn client_handshake(url: &str, host_header: Option<&str>, stream: BoxStream) -> Result<BoxStream> {
-        let mut req = url.into_client_request()
+    pub async fn client_handshake(
+        url: &str,
+        host_header: Option<&str>,
+        stream: BoxStream,
+    ) -> Result<BoxStream> {
+        let mut req = url
+            .into_client_request()
             .map_err(|e| Error::Protocol(format!("Invalid WebSocket URL '{}': {}", url, e)))?;
 
-        if let Some(host) = host_header {
-            if let Ok(val) = host.parse() {
-                req.headers_mut().insert(tokio_tungstenite::tungstenite::http::header::HOST, val);
-            }
+        if let Some(host) = host_header
+            && let Ok(val) = host.parse()
+        {
+            req.headers_mut()
+                .insert(tokio_tungstenite::tungstenite::http::header::HOST, val);
         }
 
-        let (ws_stream, _) = client_async(req, stream).await
+        let (ws_stream, _) = client_async(req, stream)
+            .await
             .map_err(|e| Error::Protocol(format!("WebSocket client handshake failed: {}", e)))?;
-        
+
         let (mut ws_sink, mut ws_stream) = ws_stream.split();
         let (mut r_client, w_server) = tokio::io::duplex(64 * 1024);
         let (r_server, mut w_client) = tokio::io::duplex(64 * 1024);
@@ -36,7 +43,11 @@ impl WebSocketStream {
                 if n == 0 {
                     break;
                 }
-                if ws_sink.send(Message::Binary(buf[..n].to_vec())).await.is_err() {
+                if ws_sink
+                    .send(Message::Binary(buf[..n].to_vec()))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -65,7 +76,8 @@ impl WebSocketStream {
     }
 
     pub async fn server_handshake(stream: BoxStream) -> Result<BoxStream> {
-        let ws_stream = accept_async(stream).await
+        let ws_stream = accept_async(stream)
+            .await
             .map_err(|e| Error::Protocol(format!("WebSocket server accept failed: {}", e)))?;
 
         let (mut ws_sink, mut ws_stream) = ws_stream.split();
@@ -79,7 +91,11 @@ impl WebSocketStream {
                 if n == 0 {
                     break;
                 }
-                if ws_sink.send(Message::Binary(buf[..n].to_vec())).await.is_err() {
+                if ws_sink
+                    .send(Message::Binary(buf[..n].to_vec()))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }

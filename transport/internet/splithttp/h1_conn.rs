@@ -1,11 +1,11 @@
 // Module: transport\internet\splithttp\h1_conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\h1_conn.go
 
+use crate::common::net::BoxStream;
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
-use crate::common::net::BoxStream;
 
 pub struct H1Conn {
     pub unread_responses_count: usize,
@@ -44,24 +44,33 @@ impl H1Conn {
         loop {
             let n = self.stream.read(&mut byte).await?;
             if n == 0 {
-                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "EOF while reading HTTP status"));
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "EOF while reading HTTP status",
+                ));
             }
             line.push(byte[0] as char);
             if line.ends_with("\r\n") {
                 break;
             }
             if line.len() > 1024 {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "HTTP status line too long"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "HTTP status line too long",
+                ));
             }
         }
-        let parts: Vec<&str> = line.trim().split_whitespace().collect();
-        if parts.len() >= 2 {
-            if let Ok(code) = parts[1].parse::<u16>() {
-                self.dec_unread();
-                return Ok(code);
-            }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2
+            && let Ok(code) = parts[1].parse::<u16>()
+        {
+            self.dec_unread();
+            return Ok(code);
         }
-        Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP status line"))
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Invalid HTTP status line",
+        ))
     }
 }
 

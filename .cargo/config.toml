@@ -1,0 +1,13 @@
+[alias]
+# Cargo 官方别名系统 (Official Cargo Aliases)
+# 1. 运行完整代码风格检查
+fmt-check = "fmt --all -- --check"
+
+# 2. 全量检查所有 target (lib, bins, tests, benches)
+check-all = "check --all-targets"
+
+# 3. 运行 Clippy 深度检查
+lint = "clippy --all-targets"
+
+# 4. 严格模式 Clippy 检查 (警告视作错误)
+lint-strict = "clippy --all-targets -- -D warnings"

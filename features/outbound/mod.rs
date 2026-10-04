@@ -2,6 +2,4 @@
 
 pub mod outbound;
 
-pub use outbound::{
-    manager_type, HandlerSelector, OutboundHandler, OutboundManager,
-};
+pub use outbound::{HandlerSelector, OutboundHandler, OutboundManager, manager_type};

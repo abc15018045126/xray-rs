@@ -5,9 +5,8 @@ mod common;
 mod mock_tun;
 
 use common::{
-    build_tcp_ack, build_tcp_syn_packet, build_tcp_syn_packet_with_port,
-    build_udp_packet, init, is_rst, is_syn_ack, parse_server_isn, parse_tcp_data,
-    tcp_dst_port,
+    build_tcp_ack, build_tcp_syn_packet, build_tcp_syn_packet_with_port, build_udp_packet, init,
+    is_rst, is_syn_ack, parse_server_isn, parse_tcp_data, tcp_dst_port,
 };
 use mock_tun::MockTun;
 
@@ -120,14 +119,11 @@ async fn test_speedtest_bulk_download() {
         let mut bytes_since_check = 0usize;
 
         while received < TRANSFER_BYTES {
-            let pkt = tokio::time::timeout(
-                std::time::Duration::from_secs(5),
-                stack_stream.next(),
-            )
-            .await
-            .expect("STALL: no TCP segment received for 5 s")
-            .expect("stack_stream closed")
-            .expect("stack_stream error");
+            let pkt = tokio::time::timeout(std::time::Duration::from_secs(5), stack_stream.next())
+                .await
+                .expect("STALL: no TCP segment received for 5 s")
+                .expect("stack_stream closed")
+                .expect("stack_stream error");
 
             if let Some((seq, payload_len)) = parse_tcp_data(pkt.data()) {
                 if payload_len > 0 {
@@ -196,12 +192,11 @@ async fn test_speedtest_bulk_download() {
         written
     });
 
-    let (relay_res, client_res) =
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
-            tokio::join!(relay, client)
-        })
-        .await
-        .expect("Test timed out (30 s) — likely a stall in the netstack");
+    let (relay_res, client_res) = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        tokio::join!(relay, client)
+    })
+    .await
+    .expect("Test timed out (30 s) — likely a stall in the netstack");
 
     // tcp_listener is dropped here, AFTER relay and client both complete.
     // This ensures the netstack task outlives all data delivery.
@@ -291,11 +286,10 @@ async fn test_new_connection_during_active_transfer() {
         let mut ready_tx = Some(ready_tx);
 
         while received < CONN1_BYTES {
-            let pkt =
-                tokio::time::timeout(std::time::Duration::from_secs(5), rx1.recv())
-                    .await
-                    .expect("conn1 stalled for 5 s")
-                    .expect("rx1 closed");
+            let pkt = tokio::time::timeout(std::time::Duration::from_secs(5), rx1.recv())
+                .await
+                .expect("conn1 stalled for 5 s")
+                .expect("rx1 closed");
 
             if let Some((seq, payload_len)) = parse_tcp_data(pkt.data()) {
                 if payload_len > 0 {

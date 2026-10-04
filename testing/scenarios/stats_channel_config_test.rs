@@ -24,7 +24,10 @@ mod tests {
     fn test_proxyman_config_parsing() {
         assert_eq!(KnownProtocols::from_str("http"), Some(KnownProtocols::Http));
         assert_eq!(KnownProtocols::from_str("TLS"), Some(KnownProtocols::Tls));
-        assert_eq!(KnownProtocols::from_str("fakedns"), Some(KnownProtocols::Fakedns));
+        assert_eq!(
+            KnownProtocols::from_str("fakedns"),
+            Some(KnownProtocols::Fakedns)
+        );
         assert_eq!(KnownProtocols::from_str("unknown"), None);
 
         let sniffing = SniffingConfig {

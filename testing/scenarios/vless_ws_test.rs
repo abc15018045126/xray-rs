@@ -1,15 +1,17 @@
 #[cfg(test)]
 mod tests {
+    use crate::infra::conf::Config;
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port};
+    use crate::testing::servers::tcp::{Server as TcpServer, xor_processor};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use uuid::Uuid;
-    use crate::infra::conf::Config;
-    use crate::testing::scenarios::common::{pick_port, TestEnvironment};
-    use crate::testing::servers::tcp::{xor_processor, Server as TcpServer};
 
     #[tokio::test]
     async fn test_vless_ws_tls_full_e2e() {
         let xor_key = b'k';
-        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -35,7 +37,8 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(server_cfg).await.unwrap();
 
         // 2. Client node with VLESS + WS with default fallback path
@@ -58,11 +61,14 @@ mod tests {
                     }]
                 }
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(client_cfg).await.unwrap();
 
         // 3. Connect via SOCKS5 and test bidirectional transmission
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_socks_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_socks_port))
+            .await
+            .unwrap();
 
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];

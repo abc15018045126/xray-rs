@@ -6,19 +6,19 @@ use std::{
 };
 use tracing::{debug, error, info, warn};
 use windows::{
-    core::{GUID, PWSTR},
     Win32::{
         Foundation::ERROR_OBJECT_ALREADY_EXISTS,
         NetworkManagement::IpHelper::{
-            CreateIpForwardEntry2, CreateUnicastIpAddressEntry, DeleteIpForwardEntry2,
-            DNS_INTERFACE_SETTINGS, DNS_INTERFACE_SETTINGS_VERSION1, DNS_SETTING_IPV6,
-            DNS_SETTING_NAMESERVER, GetIfEntry2, InitializeIpForwardEntry, IP_ADDRESS_PREFIX,
+            CreateIpForwardEntry2, CreateUnicastIpAddressEntry, DNS_INTERFACE_SETTINGS,
+            DNS_INTERFACE_SETTINGS_VERSION1, DNS_SETTING_IPV6, DNS_SETTING_NAMESERVER,
+            DeleteIpForwardEntry2, GetIfEntry2, IP_ADDRESS_PREFIX, InitializeIpForwardEntry,
             MIB_IF_ROW2, MIB_IPFORWARD_ROW2, MIB_UNICASTIPADDRESS_ROW, SetInterfaceDnsSettings,
         },
         Networking::WinSock::{
             AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET,
         },
     },
+    core::{GUID, PWSTR},
 };
 
 use super::super::config::TunConfig;
@@ -70,9 +70,7 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
 
     let res = unsafe { CreateIpForwardEntry2(&row) }.to_hresult();
     if let Err(e) = res.ok() {
-        if e.code().0 == ERROR_OBJECT_ALREADY_EXISTS.0 as i32
-            || e.code().0 as u32 == 0x80071392
-        {
+        if e.code().0 == ERROR_OBJECT_ALREADY_EXISTS.0 as i32 || e.code().0 as u32 == 0x80071392 {
             warn!(
                 "route to destination {} via {} already exists",
                 dest, via.name
@@ -83,10 +81,13 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
             "failed to add route to destination {} via {}: {}",
             dest, via.name, e
         );
-        return Err(io::Error::new(io::ErrorKind::Other, e.to_string()));
+        return Err(io::Error::other(e.to_string()));
     }
 
-    info!("successfully added route to destination {} via {}", dest, via.name);
+    info!(
+        "successfully added route to destination {} via {}",
+        dest, via.name
+    );
     Ok(())
 }
 
@@ -132,7 +133,10 @@ pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
 
     let res = unsafe { DeleteIpForwardEntry2(&row) }.to_hresult();
     if let Err(e) = res.ok() {
-        debug!("delete route to destination {} via {}: {}", dest, via.name, e);
+        debug!(
+            "delete route to destination {} via {}: {}",
+            dest, via.name, e
+        );
     }
     Ok(())
 }
@@ -154,10 +158,7 @@ fn get_guid(iface: &OutboundInterface) -> Option<GUID> {
     }
 }
 
-pub fn set_dns_v4(
-    iface: &OutboundInterface,
-    name_servers: &[Ipv4Addr],
-) -> anyhow::Result<()> {
+pub fn set_dns_v4(iface: &OutboundInterface, name_servers: &[Ipv4Addr]) -> anyhow::Result<()> {
     let mut dns_wstr = name_servers
         .iter()
         .map(|x| x.to_string())
@@ -182,10 +183,7 @@ pub fn set_dns_v4(
         .map_err(|e| anyhow::anyhow!(e))
 }
 
-pub fn set_dns_v6(
-    iface: &OutboundInterface,
-    name_servers: &[Ipv6Addr],
-) -> anyhow::Result<()> {
+pub fn set_dns_v6(iface: &OutboundInterface, name_servers: &[Ipv6Addr]) -> anyhow::Result<()> {
     let mut dns_wstr = name_servers
         .iter()
         .map(|x| x.to_string())
@@ -211,18 +209,17 @@ pub fn set_dns_v6(
 }
 
 #[allow(dead_code)]
-pub fn add_address(
-    iface: &OutboundInterface,
-    addr_net: IpNet,
-) -> anyhow::Result<()> {
+pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> anyhow::Result<()> {
     let mut addr_inet = SOCKADDR_INET::default();
     match addr_net {
         IpNet::V4(ipv4_net) => {
-            addr_inet.Ipv4.sin_family = windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET.0);
+            addr_inet.Ipv4.sin_family =
+                windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET.0);
             addr_inet.Ipv4.sin_addr.S_un.S_addr = u32::from_le_bytes(ipv4_net.addr().octets());
         }
         IpNet::V6(ipv6_net) => {
-            addr_inet.Ipv6.sin6_family = windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET6.0);
+            addr_inet.Ipv6.sin6_family =
+                windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET6.0);
             addr_inet.Ipv6.sin6_addr.u.Byte = ipv6_net.addr().octets();
         }
     }
@@ -243,7 +240,10 @@ pub fn add_address(
     if res.is_ok() || res == ERROR_OBJECT_ALREADY_EXISTS.to_hresult() {
         Ok(())
     } else {
-        Err(anyhow::anyhow!("failed to add address to tun interface: {}", res.message()))
+        Err(anyhow::anyhow!(
+            "failed to add address to tun interface: {}",
+            res.message()
+        ))
     }
 }
 

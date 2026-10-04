@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::crypto::StreamCipher;
-use crate::common::buf::io::Writer as BufWriter;
 use crate::common::buf::MultiBuffer;
+use crate::common::buf::io::Writer as BufWriter;
 use crate::common::errors::{Error, Result};
 
 pub fn xor_buffers(dst: &mut [u8], src: &[u8], key: &[u8]) -> Result<usize> {
@@ -54,7 +54,9 @@ impl<W: AsyncWrite + Unpin, C: StreamCipher> CryptionWriter<W, C> {
 }
 
 #[async_trait]
-impl<W: AsyncWrite + Send + Sync + Unpin, C: StreamCipher + Send> BufWriter for CryptionWriter<W, C> {
+impl<W: AsyncWrite + Send + Sync + Unpin, C: StreamCipher + Send> BufWriter
+    for CryptionWriter<W, C>
+{
     async fn write_multi_buffer(&mut self, mut mb: MultiBuffer) -> Result<()> {
         for b in mb.buffers_mut() {
             let slice = b.as_mut_slice();

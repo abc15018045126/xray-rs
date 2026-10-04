@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-    use crate::common::protocol::User;
     use super::super::validator::MemoryValidator;
+    use crate::common::protocol::User;
+    use uuid::Uuid;
 
     #[test]
     fn test_vmess_validator_user_add_and_get() {

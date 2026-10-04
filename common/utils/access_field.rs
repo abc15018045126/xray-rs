@@ -60,7 +60,9 @@ impl DynamicFieldHolder {
     }
 
     pub fn try_access_field<T: 'static>(&self, field_name: &str) -> Option<&T> {
-        self.fields.get(field_name).and_then(|b| b.downcast_ref::<T>())
+        self.fields
+            .get(field_name)
+            .and_then(|b| b.downcast_ref::<T>())
     }
 }
 

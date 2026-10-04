@@ -15,11 +15,11 @@ static NEXT_PORT: AtomicU16 = AtomicU16::new(24500);
 
 pub async fn pick_port() -> u16 {
     // Try to get dynamic ephemeral port from OS
-    if let Ok(listener) = tokio::net::TcpListener::bind("127.0.0.1:0").await {
-        if let Ok(addr) = listener.local_addr() {
-            drop(listener);
-            return addr.port();
-        }
+    if let Ok(listener) = tokio::net::TcpListener::bind("127.0.0.1:0").await
+        && let Ok(addr) = listener.local_addr()
+    {
+        drop(listener);
+        return addr.port();
     }
     NEXT_PORT.fetch_add(1, Ordering::SeqCst)
 }
@@ -59,6 +59,12 @@ impl TestEnvironment {
     }
 }
 
+impl Default for TestEnvironment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for TestEnvironment {
     fn drop(&mut self) {
         self.close_all();
@@ -66,7 +72,11 @@ impl Drop for TestEnvironment {
 }
 
 /// SOCKS5 No-Auth Connect Helper
-pub async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16) -> Result<TcpStream> {
+pub async fn socks5_connect(
+    proxy_port: u16,
+    target_host: &str,
+    target_port: u16,
+) -> Result<TcpStream> {
     let mut stream = TcpStream::connect(("127.0.0.1", proxy_port)).await?;
     stream.set_nodelay(true)?;
 
@@ -75,7 +85,10 @@ pub async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16
     let mut resp = [0u8; 2];
     stream.read_exact(&mut resp).await?;
     if resp[0] != 0x05 || resp[1] != 0x00 {
-        return Err(Error::Protocol(format!("SOCKS5 greeting failed: {:?}", resp)));
+        return Err(Error::Protocol(format!(
+            "SOCKS5 greeting failed: {:?}",
+            resp
+        )));
     }
 
     // 2. CONNECT request
@@ -97,7 +110,10 @@ pub async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16
     let mut reply = [0u8; 4];
     stream.read_exact(&mut reply).await?;
     if reply[1] != 0x00 {
-        return Err(Error::Protocol(format!("SOCKS5 connect error code: {}", reply[1])));
+        return Err(Error::Protocol(format!(
+            "SOCKS5 connect error code: {}",
+            reply[1]
+        )));
     }
 
     // Skip bound address
@@ -116,7 +132,11 @@ pub async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16
             let mut domain = vec![0u8; len[0] as usize + 2];
             stream.read_exact(&mut domain).await?;
         }
-        _ => return Err(Error::Protocol("Unknown address type in SOCKS5 reply".into())),
+        _ => {
+            return Err(Error::Protocol(
+                "Unknown address type in SOCKS5 reply".into(),
+            ));
+        }
     }
 
     Ok(stream)
@@ -138,7 +158,10 @@ pub async fn socks5_connect_with_auth(
     let mut resp = [0u8; 2];
     stream.read_exact(&mut resp).await?;
     if resp[0] != 0x05 || resp[1] != 0x02 {
-        return Err(Error::Protocol(format!("SOCKS5 auth negotiation failed: {:?}", resp)));
+        return Err(Error::Protocol(format!(
+            "SOCKS5 auth negotiation failed: {:?}",
+            resp
+        )));
     }
 
     // 2. Send auth subnegotiation
@@ -153,7 +176,9 @@ pub async fn socks5_connect_with_auth(
     let mut auth_resp = [0u8; 2];
     stream.read_exact(&mut auth_resp).await?;
     if auth_resp[1] != 0x00 {
-        return Err(Error::AuthFailed("SOCKS5 user/pass authentication failed".into()));
+        return Err(Error::AuthFailed(
+            "SOCKS5 user/pass authentication failed".into(),
+        ));
     }
 
     // 3. CONNECT request
@@ -172,7 +197,10 @@ pub async fn socks5_connect_with_auth(
     let mut reply = [0u8; 4];
     stream.read_exact(&mut reply).await?;
     if reply[1] != 0x00 {
-        return Err(Error::Protocol(format!("SOCKS5 connect error code: {}", reply[1])));
+        return Err(Error::Protocol(format!(
+            "SOCKS5 connect error code: {}",
+            reply[1]
+        )));
     }
 
     match reply[3] {
@@ -190,18 +218,29 @@ pub async fn socks5_connect_with_auth(
             let mut domain = vec![0u8; len[0] as usize + 2];
             stream.read_exact(&mut domain).await?;
         }
-        _ => return Err(Error::Protocol("Unknown address type in SOCKS5 reply".into())),
+        _ => {
+            return Err(Error::Protocol(
+                "Unknown address type in SOCKS5 reply".into(),
+            ));
+        }
     }
 
     Ok(stream)
 }
 
 /// HTTP CONNECT Tunnel Helper
-pub async fn http_connect_tunnel(proxy_port: u16, target_host: &str, target_port: u16) -> Result<TcpStream> {
+pub async fn http_connect_tunnel(
+    proxy_port: u16,
+    target_host: &str,
+    target_port: u16,
+) -> Result<TcpStream> {
     let mut stream = TcpStream::connect(("127.0.0.1", proxy_port)).await?;
     stream.set_nodelay(true)?;
 
-    let req = format!("CONNECT {}:{} HTTP/1.1\r\nHost: {}:{}\r\n\r\n", target_host, target_port, target_host, target_port);
+    let req = format!(
+        "CONNECT {}:{} HTTP/1.1\r\nHost: {}:{}\r\n\r\n",
+        target_host, target_port, target_host, target_port
+    );
     stream.write_all(req.as_bytes()).await?;
 
     let mut buf = [0u8; 1024];
@@ -221,8 +260,15 @@ pub async fn http_get_proxy(proxy_port: u16, target_url: &str) -> Result<(u16, V
     let mut stream = TcpStream::connect(("127.0.0.1", proxy_port)).await?;
     stream.set_nodelay(true)?;
 
-    let host = target_url.trim_start_matches("http://").split('/').next().unwrap_or("localhost");
-    let req = format!("GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", target_url, host);
+    let host = target_url
+        .trim_start_matches("http://")
+        .split('/')
+        .next()
+        .unwrap_or("localhost");
+    let req = format!(
+        "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+        target_url, host
+    );
     stream.write_all(req.as_bytes()).await?;
 
     let mut resp = Vec::new();
@@ -236,7 +282,9 @@ pub async fn http_get_proxy(proxy_port: u16, target_url: &str) -> Result<(u16, V
             let body = resp[header_len..].to_vec();
             Ok((status, body))
         }
-        _ => Err(Error::Protocol("Incomplete HTTP response from proxy".into())),
+        _ => Err(Error::Protocol(
+            "Incomplete HTTP response from proxy".into(),
+        )),
     }
 }
 

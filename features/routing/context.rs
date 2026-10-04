@@ -1,9 +1,9 @@
 // Module: features\routing\context.rs
 // 1:1 Rust implementation corresponding to Go features\routing\context.go
 
+use crate::common::net::{Destination, Network};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
-use crate::common::net::{Destination, Network};
 
 pub trait RoutingContext: Send + Sync {
     fn get_inbound_tag(&self) -> &str;
@@ -69,7 +69,11 @@ impl RoutingContext for RouteContext {
     }
 
     fn get_target_ips(&self) -> Vec<IpAddr> {
-        self.destination.address.to_ip().map(|ip| vec![ip]).unwrap_or_default()
+        self.destination
+            .address
+            .to_ip()
+            .map(|ip| vec![ip])
+            .unwrap_or_default()
     }
 
     fn get_target_port(&self) -> u16 {

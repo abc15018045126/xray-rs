@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::app::commander::{Commander, CommanderOutbound, Service};
     use crate::features::outbound::OutboundHandler;
     use crate::main::version::version;
+    use std::sync::Arc;
 
     struct MockStatsService;
     impl Service for MockStatsService {
@@ -22,7 +22,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_commander_service_registration_and_lookup() {
-        let commander = Arc::new(Commander::new("commander-in".into(), "127.0.0.1:10085".into()));
+        let commander = Arc::new(Commander::new(
+            "commander-in".into(),
+            "127.0.0.1:10085".into(),
+        ));
         commander.register_service(Arc::new(MockStatsService)).await;
 
         let svc = commander.get_service("StatsService").await;

@@ -42,7 +42,12 @@ mod tests {
         assert!(Name::new(vec![label64]).is_err());
 
         // Name too long (> 255 octets)
-        let labels_huge = vec![vec![b'a'; 63], vec![b'b'; 63], vec![b'c'; 63], vec![b'd'; 63]];
+        let labels_huge = vec![
+            vec![b'a'; 63],
+            vec![b'b'; 63],
+            vec![b'c'; 63],
+            vec![b'd'; 63],
+        ];
         // 4 * (1 + 63) + 1 = 257 > 255
         assert!(Name::new(labels_huge).is_err());
 
@@ -62,7 +67,9 @@ mod tests {
 
         // Case insensitivity
         let upper_suffix = Name::parse("EXAMPLE.COM").unwrap();
-        let trimmed_upper = name.trim_suffix(&upper_suffix).expect("Should trim case-insensitively");
+        let trimmed_upper = name
+            .trim_suffix(&upper_suffix)
+            .expect("Should trim case-insensitively");
         assert_eq!(trimmed_upper.to_string(), "tunnel.client");
 
         let non_matching = Name::parse("other.org").unwrap();
@@ -158,14 +165,26 @@ mod tests {
         let wire = msg.pack().expect("pack should succeed");
         // Verify wire contains compression pointer 0xc0
         let has_compression = wire.windows(2).any(|w| (w[0] & 0xc0) == 0xc0);
-        assert!(has_compression, "Wire format should contain compression pointer");
+        assert!(
+            has_compression,
+            "Wire format should contain compression pointer"
+        );
 
         let unpacked = Message::unpack(&wire).expect("unpack should succeed");
         assert_eq!(unpacked.id, 0x4321);
         assert_eq!(unpacked.questions.len(), 1);
-        assert_eq!(unpacked.questions[0].name.to_string(), "client.data.tunnel.example.com");
+        assert_eq!(
+            unpacked.questions[0].name.to_string(),
+            "client.data.tunnel.example.com"
+        );
         assert_eq!(unpacked.answers.len(), 1);
-        assert_eq!(unpacked.answers[0].name.to_string(), "client.data.tunnel.example.com");
-        assert_eq!(decode_rdata_txt(&unpacked.answers[0].data).unwrap(), b"response-data");
+        assert_eq!(
+            unpacked.answers[0].name.to_string(),
+            "client.data.tunnel.example.com"
+        );
+        assert_eq!(
+            decode_rdata_txt(&unpacked.answers[0].data).unwrap(),
+            b"response-data"
+        );
     }
 }

@@ -3,10 +3,10 @@ pub mod browser;
 pub mod padding;
 pub mod typed_sync_map;
 
+use rand::Rng;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::RwLock;
-use rand::Rng;
 
 const BASE62_CHARS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const H2_PACK_CORRECTION_FACTOR: f64 = 1.2493702770780857;
@@ -61,6 +61,16 @@ where
     }
 }
 
+impl<K, V> Default for TypedSyncMap<K, V>
+where
+    K: Eq + Hash + Clone,
+    V: Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,4 +93,3 @@ mod tests {
         assert!(map.is_empty());
     }
 }
-

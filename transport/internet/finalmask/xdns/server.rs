@@ -1,14 +1,14 @@
 // Module: transport\internet\finalmask\xdns\server.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\server.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use crate::common::errors::{Error, Result};
 use super::dns::{
-    base32_decode, encode_rdata_txt, Message, Name, ResourceRecord, EXTENDED_RCODE_BAD_VERS,
-    RCODE_FORMAT_ERROR, RCODE_NAME_ERROR, RCODE_NOT_IMPLEMENTED, RCODE_NO_ERROR, RR_TYPE_OPT,
-    RR_TYPE_TXT,
+    EXTENDED_RCODE_BAD_VERS, Message, Name, RCODE_FORMAT_ERROR, RCODE_NAME_ERROR, RCODE_NO_ERROR,
+    RCODE_NOT_IMPLEMENTED, RR_TYPE_OPT, RR_TYPE_TXT, ResourceRecord, base32_decode,
+    encode_rdata_txt,
 };
+use crate::common::errors::{Error, Result};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const RESPONSE_TTL: u32 = 60;
 pub const MAX_UDP_PAYLOAD: usize = 1280 - 40 - 8; // 1232 bytes (IPv6 MTU 1280 - 40 byte IPv6 header - 8 byte UDP header)
@@ -54,7 +54,9 @@ impl XDnsServer {
         let query = Message::from_wire_format(wire)?;
 
         if (query.flags & 0x8000) != 0 {
-            return Err(Error::Protocol("incoming message is a DNS response, not a query".into()));
+            return Err(Error::Protocol(
+                "incoming message is a DNS response, not a query".into(),
+            ));
         }
 
         let mut resp = Message {
@@ -241,7 +243,11 @@ impl XDnsServer {
     }
 
     /// Encodes a response Message with outgoing packets into a wire-format DNS response.
-    pub fn encode_response(&self, resp: &mut Message, outgoing_packets: &[&[u8]]) -> Result<Vec<u8>> {
+    pub fn encode_response(
+        &self,
+        resp: &mut Message,
+        outgoing_packets: &[&[u8]],
+    ) -> Result<Vec<u8>> {
         if resp.rcode() == RCODE_NO_ERROR && resp.questions.len() == 1 {
             let mut payload = Vec::new();
             for pkt in outgoing_packets {

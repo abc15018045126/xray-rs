@@ -4,15 +4,17 @@ pub mod uot;
 #[cfg(test)]
 pub mod handler_test;
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use async_trait::async_trait;
-use tokio::sync::RwLock;
 use crate::common::errors::{Error, Result};
 use crate::features::outbound::{HandlerSelector, OutboundHandler, OutboundManager};
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub use handler::DefaultOutboundHandler;
-pub use uot::{is_uot_destination, UotPacket, UotVersion, UOT_LEGACY_MAGIC_ADDRESS, UOT_MAGIC_ADDRESS};
+pub use uot::{
+    UOT_LEGACY_MAGIC_ADDRESS, UOT_MAGIC_ADDRESS, UotPacket, UotVersion, is_uot_destination,
+};
 
 pub struct DefaultOutboundManager {
     tagged_handlers: RwLock<HashMap<String, Arc<dyn OutboundHandler>>>,
@@ -33,7 +35,10 @@ impl DefaultOutboundManager {
         }
     }
 
-    pub async fn select_handlers(&self, selector: &dyn HandlerSelector) -> Vec<Arc<dyn OutboundHandler>> {
+    pub async fn select_handlers(
+        &self,
+        selector: &dyn HandlerSelector,
+    ) -> Vec<Arc<dyn OutboundHandler>> {
         let tagged = self.tagged_handlers.read().await;
         let tags: Vec<String> = tagged.keys().cloned().collect();
         let selected_tags = selector.select(&tags);
@@ -79,6 +84,12 @@ impl DefaultOutboundManager {
         }
 
         Ok(())
+    }
+}
+
+impl Default for DefaultOutboundManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -134,7 +145,10 @@ impl OutboundManager for DefaultOutboundManager {
         if tagged.remove(tag).is_some() {
             Ok(())
         } else {
-            Err(Error::NotFound(format!("Outbound handler not found: {}", tag)))
+            Err(Error::NotFound(format!(
+                "Outbound handler not found: {}",
+                tag
+            )))
         }
     }
 

@@ -3,9 +3,9 @@
 
 use std::sync::Arc;
 use tokio_rustls::rustls::{
+    ClientConfig, DigitallySignedStruct, Error as RustlsError, ServerConfig, SignatureScheme,
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
     pki_types::{CertificateDer, ServerName, UnixTime},
-    ClientConfig, DigitallySignedStruct, Error as RustlsError, ServerConfig, SignatureScheme,
 };
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
@@ -99,10 +99,19 @@ impl TlsClient {
 
     pub async fn connect(&self, domain: &str, stream: BoxStream) -> Result<BoxStream> {
         let clean_domain = domain.trim();
-        let server_name = ServerName::try_from(clean_domain.to_string())
-            .map_err(|e| Error::Protocol(format!("Invalid TLS server name '{}': {}", clean_domain, e)))?;
-        let tls_stream = self.connector.connect(server_name, stream).await
-            .map_err(|e| Error::Protocol(format!("TLS handshake failed with '{}': {}", clean_domain, e)))?;
+        let server_name = ServerName::try_from(clean_domain.to_string()).map_err(|e| {
+            Error::Protocol(format!("Invalid TLS server name '{}': {}", clean_domain, e))
+        })?;
+        let tls_stream = self
+            .connector
+            .connect(server_name, stream)
+            .await
+            .map_err(|e| {
+                Error::Protocol(format!(
+                    "TLS handshake failed with '{}': {}",
+                    clean_domain, e
+                ))
+            })?;
         Ok(Box::pin(tls_stream))
     }
 }
@@ -114,7 +123,9 @@ pub struct TlsServer {
 impl TlsServer {
     pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Result<Self> {
         let certs = vec![CertificateDer::from(cert_der)];
-        let key = rustls_pki_types::PrivateKeyDer::Pkcs8(rustls_pki_types::PrivatePkcs8KeyDer::from(key_der));
+        let key = rustls_pki_types::PrivateKeyDer::Pkcs8(
+            rustls_pki_types::PrivatePkcs8KeyDer::from(key_der),
+        );
 
         let provider = rustls::crypto::ring::default_provider();
         let config = ServerConfig::builder_with_provider(Arc::new(provider))
@@ -130,7 +141,10 @@ impl TlsServer {
     }
 
     pub async fn accept(&self, stream: BoxStream) -> Result<BoxStream> {
-        let tls_stream = self.acceptor.accept(stream).await
+        let tls_stream = self
+            .acceptor
+            .accept(stream)
+            .await
             .map_err(|e| Error::Protocol(format!("TLS accept failed: {}", e)))?;
         Ok(Box::pin(tls_stream))
     }

@@ -4,5 +4,5 @@ pub mod drainer;
 #[cfg(test)]
 pub mod drain_test;
 
-pub use drain::{drain_read_n, Drainer};
-pub use drainer::{with_error, BehaviorSeedLimitedDrainer, NopDrainer};
+pub use drain::{Drainer, drain_read_n};
+pub use drainer::{BehaviorSeedLimitedDrainer, NopDrainer, with_error};

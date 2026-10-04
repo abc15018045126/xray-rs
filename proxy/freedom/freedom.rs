@@ -78,10 +78,10 @@ impl Handler {
                 DomainStrategy::AsIs => Ok(dest.clone()),
                 DomainStrategy::UseIP => {
                     let addr_str = format!("{}:{}", domain, dest.port);
-                    if let Ok(mut addrs) = lookup_host(&addr_str).await {
-                        if let Some(sock_addr) = addrs.next() {
-                            return Ok(Destination::new(Address::from(sock_addr.ip()), dest.port));
-                        }
+                    if let Ok(mut addrs) = lookup_host(&addr_str).await
+                        && let Some(sock_addr) = addrs.next()
+                    {
+                        return Ok(Destination::new(Address::from(sock_addr.ip()), dest.port));
                     }
                     Ok(dest.clone())
                 }

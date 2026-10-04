@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\sudoku\config.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\config.go
 
-use std::collections::HashSet;
-use serde::{Deserialize, Serialize};
 use crate::common::errors::{Error, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SudokuConfig {
@@ -38,7 +38,10 @@ impl SudokuConfig {
         match mode.as_str() {
             "" | "entropy" | "prefer_entropy" => Ok("prefer_entropy".to_string()),
             "ascii" | "prefer_ascii" => Ok("prefer_ascii".to_string()),
-            _ => Err(Error::Config(format!("invalid sudoku ascii mode: {}", self.ascii))),
+            _ => Err(Error::Config(format!(
+                "invalid sudoku ascii mode: {}",
+                self.ascii
+            ))),
         }
     }
 
@@ -76,9 +79,17 @@ impl SudokuConfig {
     }
 
     pub fn normalize_custom_table(pattern: &str) -> Result<String> {
-        let cleaned: String = pattern.trim().to_ascii_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
+        let cleaned: String = pattern
+            .trim()
+            .to_ascii_lowercase()
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
         if cleaned.len() != 8 {
-            return Err(Error::Config(format!("customTable must be 8 chars, got {}", cleaned.len())));
+            return Err(Error::Config(format!(
+                "customTable must be 8 chars, got {}",
+                cleaned.len()
+            )));
         }
 
         let mut x_count = 0;
@@ -90,12 +101,19 @@ impl SudokuConfig {
                 'x' => x_count += 1,
                 'p' => p_count += 1,
                 'v' => v_count += 1,
-                _ => return Err(Error::Config(format!("customTable has invalid char {:?}", ch))),
+                _ => {
+                    return Err(Error::Config(format!(
+                        "customTable has invalid char {:?}",
+                        ch
+                    )));
+                }
             }
         }
 
         if x_count != 2 || p_count != 2 || v_count != 4 {
-            return Err(Error::Config("customTable must contain exactly 2 x, 2 p and 4 v".to_string()));
+            return Err(Error::Config(
+                "customTable must contain exactly 2 x, 2 p and 4 v".to_string(),
+            ));
         }
 
         Ok(cleaned)

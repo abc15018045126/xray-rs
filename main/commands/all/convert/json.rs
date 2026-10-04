@@ -5,10 +5,9 @@ use crate::common::errors::{Error, Result};
 use crate::main::commands::base::command::Command;
 
 pub fn format_json(raw: &str) -> Result<String> {
-    let v: serde_json::Value = serde_json::from_str(raw)
-        .map_err(|e| Error::Config(format!("Invalid JSON: {}", e)))?;
-    serde_json::to_string_pretty(&v)
-        .map_err(|e| Error::Config(format!("Format JSON error: {}", e)))
+    let v: serde_json::Value =
+        serde_json::from_str(raw).map_err(|e| Error::Config(format!("Invalid JSON: {}", e)))?;
+    serde_json::to_string_pretty(&v).map_err(|e| Error::Config(format!("Format JSON error: {}", e)))
 }
 
 pub fn cmd_convert_json() -> Command {

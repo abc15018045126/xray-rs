@@ -6,12 +6,12 @@ pub mod inbound_test;
 
 pub use always::AlwaysOnInboundHandler;
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use async_trait::async_trait;
-use tokio::sync::RwLock;
 use crate::common::errors::{Error, Result};
 use crate::features::inbound::{InboundHandler, InboundManager};
+use async_trait::async_trait;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub use worker::InboundWorker;
 
@@ -65,6 +65,12 @@ impl DefaultInboundManager {
     }
 }
 
+impl Default for DefaultInboundManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl InboundManager for DefaultInboundManager {
     async fn get_handler(&self, tag: &str) -> Result<Arc<dyn InboundHandler>> {
@@ -92,7 +98,10 @@ impl InboundManager for DefaultInboundManager {
         if tagged.remove(tag).is_some() {
             Ok(())
         } else {
-            Err(Error::NotFound(format!("Inbound handler not found: {}", tag)))
+            Err(Error::NotFound(format!(
+                "Inbound handler not found: {}",
+                tag
+            )))
         }
     }
 

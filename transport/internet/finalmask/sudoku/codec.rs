@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\sudoku\codec.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\codec.go
 
-use std::sync::Arc;
+use super::table::{GoRand, SudokuTable, pack_key, sort4};
 use crate::common::errors::{Error, Result};
-use super::table::{pack_key, sort4, GoRand, SudokuTable};
+use std::sync::Arc;
 
 pub const PERM4: [[usize; 4]; 24] = [
     [0, 1, 2, 3],
@@ -81,7 +81,9 @@ impl SudokuCodec {
 
         let mut out = Vec::with_capacity(input.len() * 6 + 8);
         for &b in input {
-            let t = self.current_table().ok_or_else(|| Error::Config("sudoku table set missing".into()))?;
+            let t = self
+                .current_table()
+                .ok_or_else(|| Error::Config("sudoku table set missing".into()))?;
             if self.should_pad() {
                 let pad = self.random_padding(&t);
                 out.push(pad);
@@ -89,7 +91,10 @@ impl SudokuCodec {
 
             let enc = &t.encode[b as usize];
             if enc.is_empty() {
-                return Err(Error::Config(format!("sudoku encode table missing for byte {}", b)));
+                return Err(Error::Config(format!(
+                    "sudoku encode table missing for byte {}",
+                    b
+                )));
             }
 
             let hint_idx = self.rng.intn(enc.len());
@@ -107,11 +112,11 @@ impl SudokuCodec {
             self.table_index += 1;
         }
 
-        if self.should_pad() {
-            if let Some(t) = self.current_table() {
-                let pad = self.random_padding(&t);
-                out.push(pad);
-            }
+        if self.should_pad()
+            && let Some(t) = self.current_table()
+        {
+            let pad = self.random_padding(&t);
+            out.push(pad);
         }
 
         Ok(out)
@@ -158,9 +163,11 @@ pub fn decode_bytes(
 
         let key_bytes = sort4([hint_buf[0], hint_buf[1], hint_buf[2], hint_buf[3]]);
         let key = pack_key(key_bytes);
-        let decoded = t.decode.get(&key).copied().ok_or_else(|| {
-            Error::Protocol("invalid sudoku hint tuple".into())
-        })?;
+        let decoded = t
+            .decode
+            .get(&key)
+            .copied()
+            .ok_or_else(|| Error::Protocol("invalid sudoku hint tuple".into()))?;
 
         out.push(decoded);
         hint_buf.clear();

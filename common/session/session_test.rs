@@ -3,16 +3,16 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::common::ctx::Context;
     use crate::common::net::{Address, Destination};
     use crate::common::session::context::{
-        content_from_context, context_with_content, context_with_inbound, context_with_outbounds,
+        content_from_context, context_with_content, context_with_inbound,
+        context_with_is_reverse_mux, context_with_outbounds, get_forced_outbound_tag_from_context,
         inbound_from_context, is_reverse_mux_from_context, outbounds_from_context,
-        set_forced_outbound_tag_to_context, get_forced_outbound_tag_from_context,
-        context_with_is_reverse_mux,
+        set_forced_outbound_tag_to_context,
     };
     use crate::common::session::{Content, Inbound, Outbound};
+    use std::sync::Arc;
 
     #[test]
     fn test_session_inbound_and_outbound_context() {

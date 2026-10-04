@@ -1,11 +1,11 @@
 // Module: common\strmatcher\mph_matcher.rs
 // 1:1 Rust implementation corresponding to Go common\strmatcher\mph_matcher.go
 
-use std::collections::HashMap;
-use crate::common::errors::Result;
 use super::ac_automaton_matcher::AcAutomatonMatcher;
 use super::matchers::RegexMatcher;
 use super::strmatcher::MatcherType;
+use crate::common::errors::Result;
+use std::collections::HashMap;
 
 pub const PRIME_RK: u32 = 16777619;
 
@@ -92,10 +92,10 @@ impl MphMatcherGroup {
         if self.lookup(pattern) {
             return vec![1];
         }
-        if let Some(ac) = &self.ac {
-            if ac.match_str(pattern) {
-                return vec![1];
-            }
+        if let Some(ac) = &self.ac
+            && ac.match_str(pattern)
+        {
+            return vec![1];
         }
         for (m, id) in &self.other_matchers {
             if super::strmatcher::Matcher::match_str(m, pattern) {

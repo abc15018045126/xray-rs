@@ -1,9 +1,9 @@
 // Module: app\observatory\burst\ping.rs
 // 1:1 Rust implementation corresponding to Go app\observatory\burst\ping.go
 
-use std::time::{Duration, Instant};
-use crate::common::errors::{Error, Result};
 use super::burst::RTT_FAILED;
+use crate::common::errors::{Error, Result};
+use std::time::{Duration, Instant};
 
 pub struct PingClient {
     pub destination: String,
@@ -40,7 +40,8 @@ impl PingClient {
             format!("{}:80", host)
         };
 
-        let conn_res = tokio::time::timeout(self.timeout, tokio::net::TcpStream::connect(&target_addr)).await;
+        let conn_res =
+            tokio::time::timeout(self.timeout, tokio::net::TcpStream::connect(&target_addr)).await;
         match conn_res {
             Ok(Ok(_stream)) => (start.elapsed(), Ok(())),
             Ok(Err(e)) => (RTT_FAILED, Err(Error::Io(e))),

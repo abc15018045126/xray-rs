@@ -1,11 +1,11 @@
 // Module: transport\internet\kcp\dialer.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\kcp\dialer.go
 
+use super::connection::KcpConnection;
+use crate::common::errors::Result;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;
-use crate::common::errors::Result;
-use super::connection::KcpConnection;
 
 pub struct KcpDialer;
 

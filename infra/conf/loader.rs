@@ -1,11 +1,11 @@
 // Module: infra\conf\loader.rs
 // 1:1 Rust implementation corresponding to Go infra\conf\loader.go
 
+use super::Config;
+use crate::common::errors::{Error, Result};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use serde_json::Value;
-use crate::common::errors::{Error, Result};
-use super::Config;
 
 pub type ConfigCreator = Arc<dyn Fn() -> Value + Send + Sync>;
 
@@ -81,8 +81,8 @@ impl JSONConfigLoader {
             Value::Object(obj.into_iter().collect())
         };
 
-        let raw_bytes = serde_json::to_vec(&raw_config)
-            .map_err(|e| Error::Config(e.to_string()))?;
+        let raw_bytes =
+            serde_json::to_vec(&raw_config).map_err(|e| Error::Config(e.to_string()))?;
 
         let config = self.load_with_id(&raw_bytes, &id)?;
         Ok((config, id))
@@ -107,9 +107,11 @@ mod tests {
             )
             .unwrap();
 
-        assert!(cache
-            .register_creator("freedom", Arc::new(|| serde_json::json!({})))
-            .is_err());
+        assert!(
+            cache
+                .register_creator("freedom", Arc::new(|| serde_json::json!({})))
+                .is_err()
+        );
 
         let loader = JSONConfigLoader::new(cache, "protocol", "settings");
         let raw = br#"{"protocol":"freedom","settings":{"domainStrategy":"UseIP"}}"#;

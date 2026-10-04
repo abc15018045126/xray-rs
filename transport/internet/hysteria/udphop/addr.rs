@@ -28,6 +28,9 @@ impl UDPHopAddr {
     }
 
     pub fn addrs(&self) -> Vec<SocketAddr> {
-        self.ports.iter().map(|&p| SocketAddr::new(self.ip, p)).collect()
+        self.ports
+            .iter()
+            .map(|&p| SocketAddr::new(self.ip, p))
+            .collect()
     }
 }

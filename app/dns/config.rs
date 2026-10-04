@@ -1,16 +1,11 @@
 use std::net::IpAddr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QueryStrategy {
+    #[default]
     UseIP,
     UseIPv4,
     UseIPv6,
-}
-
-impl Default for QueryStrategy {
-    fn default() -> Self {
-        Self::UseIP
-    }
 }
 
 impl QueryStrategy {

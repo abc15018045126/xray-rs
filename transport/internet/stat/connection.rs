@@ -1,12 +1,12 @@
 // Module: transport\internet\stat\connection.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\stat\connection.go
 
+use crate::app::stats::Counter;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use crate::app::stats::Counter;
 
 pub struct StatStream<S> {
     inner: S,
@@ -42,10 +42,10 @@ impl<S: AsyncRead + Unpin> AsyncRead for StatStream<S> {
         let res = Pin::new(&mut self.inner).poll_read(cx, buf);
         if let Poll::Ready(Ok(())) = &res {
             let n = buf.filled().len() - prev_len;
-            if n > 0 {
-                if let Some(counter) = &self.read_counter {
-                    counter.add(n as i64);
-                }
+            if n > 0
+                && let Some(counter) = &self.read_counter
+            {
+                counter.add(n as i64);
             }
         }
         res
@@ -59,12 +59,11 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for StatStream<S> {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         let res = Pin::new(&mut self.inner).poll_write(cx, buf);
-        if let Poll::Ready(Ok(n)) = &res {
-            if *n > 0 {
-                if let Some(counter) = &self.write_counter {
-                    counter.add(*n as i64);
-                }
-            }
+        if let Poll::Ready(Ok(n)) = &res
+            && *n > 0
+            && let Some(counter) = &self.write_counter
+        {
+            counter.add(*n as i64);
         }
         res
     }

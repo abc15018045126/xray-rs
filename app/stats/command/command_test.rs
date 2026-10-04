@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use crate::app::stats::StatsManager;
     use super::super::command::StatsCommandServer;
+    use crate::app::stats::StatsManager;
+    use std::sync::Arc;
 
     #[test]
     fn test_stats_service_query() {
@@ -16,9 +16,15 @@ mod tests {
         c2.add(100);
 
         let svc = StatsCommandServer::new(sm);
-        assert_eq!(svc.get_stat_value("inbound>>>in-1>>>traffic>>>downlink"), 500);
+        assert_eq!(
+            svc.get_stat_value("inbound>>>in-1>>>traffic>>>downlink"),
+            500
+        );
         let queried = svc.query_stats("traffic>>>downlink");
         assert_eq!(queried.len(), 1);
-        assert_eq!(queried.get("inbound>>>in-1>>>traffic>>>downlink"), Some(&500));
+        assert_eq!(
+            queried.get("inbound>>>in-1>>>traffic>>>downlink"),
+            Some(&500)
+        );
     }
 }

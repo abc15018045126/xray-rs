@@ -64,10 +64,10 @@ impl ActivityTimer {
     }
 
     pub fn finish(&self) {
-        if !self.consumed.swap(true, Ordering::SeqCst) {
-            if let Some(cb) = self.on_timeout.lock().unwrap().take() {
-                cb();
-            }
+        if !self.consumed.swap(true, Ordering::SeqCst)
+            && let Some(cb) = self.on_timeout.lock().unwrap().take()
+        {
+            cb();
         }
     }
 
@@ -120,10 +120,10 @@ impl ActivityUpdater for ActivityTimer {
 
 impl Drop for ActivityTimer {
     fn drop(&mut self) {
-        if let Ok(mut guard) = self.task_handle.lock() {
-            if let Some(handle) = guard.take() {
-                handle.abort();
-            }
+        if let Ok(mut guard) = self.task_handle.lock()
+            && let Some(handle) = guard.take()
+        {
+            handle.abort();
         }
     }
 }

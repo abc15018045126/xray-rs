@@ -2,11 +2,11 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::app::commander::{Commander, CommanderOutbound, Service};
     use crate::common::net::{Address, Destination, Network};
     use crate::common::protocol::SessionContext;
     use crate::features::outbound::OutboundHandler;
+    use std::sync::Arc;
 
     struct DummyService(&'static str);
     impl Service for DummyService {

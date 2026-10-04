@@ -19,12 +19,10 @@ pub mod chunk_test;
 #[cfg(test)]
 pub mod io_test;
 
-pub use aes::{new_aes_gcm, AesGcmCipher};
+pub use aes::{AesGcmCipher, new_aes_gcm};
 pub use auth::Authentication;
 pub use chacha20::ChaCha20Cipher;
-pub use chunk::{
-    AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, IncreasingNonce, PlainChunk,
-};
-pub use crypto::{rand_between, rand_bytes_between, StreamCipher};
+pub use chunk::{AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, IncreasingNonce, PlainChunk};
+pub use crypto::{StreamCipher, rand_between, rand_bytes_between};
 pub use internal::chacha::ChaChaCore;
-pub use io::{xor_buffers, CryptionReader, CryptionWriter};
+pub use io::{CryptionReader, CryptionWriter, xor_buffers};

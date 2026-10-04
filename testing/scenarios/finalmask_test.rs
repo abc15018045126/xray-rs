@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use crate::transport::internet::finalmask::{
+        FragmentConfig, Fragmenter, NoiseConfig, NoiseGenerator,
+    };
     use std::time::Duration;
-    use crate::transport::internet::finalmask::{FragmentConfig, Fragmenter, NoiseConfig, NoiseGenerator};
 
     #[tokio::test]
     async fn test_finalmask_fragment_and_noise() {
@@ -17,7 +19,10 @@ mod tests {
         fake_tls_hello.extend_from_slice(&[0xaa; 75]);
 
         let mut output = Vec::new();
-        fragmenter.write_fragmented(&mut output, &fake_tls_hello).await.unwrap();
+        fragmenter
+            .write_fragmented(&mut output, &fake_tls_hello)
+            .await
+            .unwrap();
         assert_eq!(output, fake_tls_hello);
 
         let noise_gen = NoiseGenerator::new(NoiseConfig {

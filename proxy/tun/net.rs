@@ -7,8 +7,7 @@ pub static DEFAULT_OUTBOUND_INTERFACE: LazyLock<
     Arc<tokio::sync::RwLock<Option<OutboundInterface>>>,
 > = LazyLock::new(Default::default);
 
-pub static TUN_SOMARK: LazyLock<tokio::sync::RwLock<Option<u32>>> =
-    LazyLock::new(Default::default);
+pub static TUN_SOMARK: LazyLock<tokio::sync::RwLock<Option<u32>>> = LazyLock::new(Default::default);
 
 /// Initialize network configuration
 /// globally manage default outbound interface
@@ -57,7 +56,9 @@ impl From<NetworkInterface> for OutboundInterface {
                     }
                 }
                 network_interface::Addr::V6(addr) => {
-                    if addr.ip.is_unique_local() || (!addr.ip.is_loopback() && !addr.ip.is_unspecified()) {
+                    if addr.ip.is_unique_local()
+                        || (!addr.ip.is_loopback() && !addr.ip.is_unspecified())
+                    {
                         v6 = Some(*addr);
                     }
                 }
@@ -101,8 +102,7 @@ pub fn get_outbound_interface() -> Option<OutboundInterface> {
         .into_iter()
         .map(Into::into)
         .filter(|iface: &OutboundInterface| {
-            !iface.name.contains("tun")
-                && (iface.addr_v4.is_some() || iface.addr_v6.is_some())
+            !iface.name.contains("tun") && (iface.addr_v4.is_some() || iface.addr_v6.is_some())
         })
         .collect::<Vec<_>>();
 
@@ -117,8 +117,14 @@ pub fn get_outbound_interface() -> Option<OutboundInterface> {
     };
 
     all_outbounds.sort_by(|left, right| {
-        let left_pos = priority.iter().position(|x| left.name.contains(x)).unwrap_or(usize::MAX);
-        let right_pos = priority.iter().position(|x| right.name.contains(x)).unwrap_or(usize::MAX);
+        let left_pos = priority
+            .iter()
+            .position(|x| left.name.contains(x))
+            .unwrap_or(usize::MAX);
+        let right_pos = priority
+            .iter()
+            .position(|x| right.name.contains(x))
+            .unwrap_or(usize::MAX);
         left_pos.cmp(&right_pos)
     });
 

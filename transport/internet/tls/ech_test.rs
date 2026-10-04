@@ -4,9 +4,9 @@
 #[cfg(test)]
 mod tests {
     use super::super::ech::{
+        DUMMY_FALLBACK_ECH_CONFIG, EchConfig, EchConfigCache, EchServerKey, GLOBAL_ECH_CACHE,
         convert_to_ech_keys, encode_ech_keys, encode_svcb_ech_param, parse_svcb_ech_param,
-        resolve_ech_config, EchConfig, EchConfigCache, EchServerKey,
-        DUMMY_FALLBACK_ECH_CONFIG, GLOBAL_ECH_CACHE,
+        resolve_ech_config,
     };
     use base64::Engine;
     use std::time::Duration;
@@ -82,12 +82,22 @@ mod tests {
         assert_eq!(cache.get(server, domain), Some(test_config.clone()));
 
         // Expired record
-        cache.store(server, domain, test_config.clone(), Duration::from_millis(1));
+        cache.store(
+            server,
+            domain,
+            test_config.clone(),
+            Duration::from_millis(1),
+        );
         std::thread::sleep(Duration::from_millis(10));
         assert!(cache.get(server, domain).is_none());
 
         // Error record
-        cache.store_error(server, domain, "lookup timeout".into(), Duration::from_secs(60));
+        cache.store_error(
+            server,
+            domain,
+            "lookup timeout".into(),
+            Duration::from_secs(60),
+        );
         assert!(cache.get(server, domain).is_none());
 
         cache.clear();
@@ -113,7 +123,12 @@ mod tests {
 
         // Pre-cached DNS entry
         let cached_cfg = vec![9, 8, 7, 6];
-        GLOBAL_ECH_CACHE.store("udp://1.1.1.1", "cached.com", cached_cfg.clone(), Duration::from_secs(60));
+        GLOBAL_ECH_CACHE.store(
+            "udp://1.1.1.1",
+            "cached.com",
+            cached_cfg.clone(),
+            Duration::from_secs(60),
+        );
         let hit = resolve_ech_config("udp://1.1.1.1", "cached.com", "full").unwrap();
         assert_eq!(hit, Some(cached_cfg));
     }

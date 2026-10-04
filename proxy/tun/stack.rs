@@ -1,15 +1,10 @@
 // Module: proxy\tun\stack.rs
 // 1:1 Rust implementation corresponding to Go proxy\tun\stack.go
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TunStack {
+    #[default]
     System,
     GVisor,
     Mixed,
-}
-
-impl Default for TunStack {
-    fn default() -> Self {
-        TunStack::System
-    }
 }

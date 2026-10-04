@@ -4,8 +4,8 @@
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
@@ -47,10 +47,10 @@ impl SplitConn {
     }
 
     pub fn trigger_close(&self) {
-        if !self.closed.swap(true, Ordering::SeqCst) {
-            if let Some(ref cb) = self.on_close {
-                cb();
-            }
+        if !self.closed.swap(true, Ordering::SeqCst)
+            && let Some(ref cb) = self.on_close
+        {
+            cb();
         }
     }
 }

@@ -6,9 +6,9 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
 
+    use crate::app::policy::PolicyLevelConfig;
     use crate::app::policy::config_pb::{Config, Policy, PolicyTimeout, Second};
     use crate::app::policy::manager::{ConfigPolicyManager, Instance};
-    use crate::app::policy::PolicyLevelConfig;
     use crate::features::policy::session_default;
 
     #[test]
@@ -36,12 +36,18 @@ mod tests {
         // Level 0 has overridden handshake = 2s, but inherits connection_idle default
         let p0 = manager.for_level(0);
         assert_eq!(p0.timeouts.handshake, Duration::from_secs(2));
-        assert_eq!(p0.timeouts.connection_idle, p_default.timeouts.connection_idle);
+        assert_eq!(
+            p0.timeouts.connection_idle,
+            p_default.timeouts.connection_idle
+        );
 
         // Level 1 was not explicitly defined, so falls back to session_default()
         let p1 = manager.for_level(1);
         assert_eq!(p1.timeouts.handshake, p_default.timeouts.handshake);
-        assert_eq!(p1.timeouts.connection_idle, p_default.timeouts.connection_idle);
+        assert_eq!(
+            p1.timeouts.connection_idle,
+            p_default.timeouts.connection_idle
+        );
     }
 
     #[test]

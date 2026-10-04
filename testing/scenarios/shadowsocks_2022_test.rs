@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::common::net::{Address, Destination};
     use crate::proxy::shadowsocks_2022::SessionHeader;
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_ss2022_session_header_roundtrip() {

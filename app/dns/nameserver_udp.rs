@@ -1,14 +1,14 @@
 // Module: app\dns\nameserver_udp.rs
 // 1:1 Rust implementation corresponding to Go app\dns\nameserver_udp.go
 
+use async_trait::async_trait;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
-use async_trait::async_trait;
 #[allow(unused_imports)]
 use tokio::net::UdpSocket;
 
+use super::nameserver::{NameServer, build_dns_query_typed, parse_dns_response};
 use crate::common::errors::{Error, Result};
-use super::nameserver::{build_dns_query_typed, parse_dns_response, NameServer};
 
 pub struct UdpNameServer {
     pub server_addr: SocketAddr,
@@ -52,9 +52,13 @@ impl NameServer for UdpNameServer {
         #[cfg(target_os = "windows")]
         let socket = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let sock = crate::proxy::tun::socket_helpers::new_udp_socket(None, iface.as_ref(), Some(self.server_addr))
-                .await
-                .map_err(Error::Io)?;
+            let sock = crate::proxy::tun::socket_helpers::new_udp_socket(
+                None,
+                iface.as_ref(),
+                Some(self.server_addr),
+            )
+            .await
+            .map_err(Error::Io)?;
             sock.connect(self.server_addr).await.map_err(Error::Io)?;
             sock
         };

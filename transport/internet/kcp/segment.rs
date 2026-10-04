@@ -101,7 +101,8 @@ impl DataSegment {
     }
 
     pub fn decode(buf: &[u8]) -> Result<Self> {
-        let (seg, _) = read_segment(buf).ok_or_else(|| Error::Protocol("failed to parse data segment".into()))?;
+        let (seg, _) = read_segment(buf)
+            .ok_or_else(|| Error::Protocol("failed to parse data segment".into()))?;
         match seg {
             Segment::Data(d) => Ok(d),
             _ => Err(Error::Protocol("expected data segment".into())),
@@ -210,7 +211,8 @@ impl AckSegment {
     }
 
     pub fn decode(buf: &[u8]) -> Result<Self> {
-        let (seg, _) = read_segment(buf).ok_or_else(|| Error::Protocol("failed to parse ack segment".into()))?;
+        let (seg, _) = read_segment(buf)
+            .ok_or_else(|| Error::Protocol("failed to parse ack segment".into()))?;
         match seg {
             Segment::Ack(a) => Ok(a),
             _ => Err(Error::Protocol("expected ack segment".into())),

@@ -68,7 +68,10 @@ impl AddressParser {
             ADDR_TYPE_DOMAIN => {
                 let len = reader.read_u8().await.map_err(Error::Io)? as usize;
                 let mut domain_bytes = vec![0u8; len];
-                reader.read_exact(&mut domain_bytes).await.map_err(Error::Io)?;
+                reader
+                    .read_exact(&mut domain_bytes)
+                    .await
+                    .map_err(Error::Io)?;
                 let s = String::from_utf8(domain_bytes)
                     .map_err(|_| Error::Protocol("invalid utf8 domain".into()))?;
                 Address::from_str(&s)
@@ -93,8 +96,14 @@ impl AddressParser {
             }
             Address::Domain(domain) => {
                 writer.write_u8(ADDR_TYPE_DOMAIN).await.map_err(Error::Io)?;
-                writer.write_u8(domain.len() as u8).await.map_err(Error::Io)?;
-                writer.write_all(domain.as_bytes()).await.map_err(Error::Io)?;
+                writer
+                    .write_u8(domain.len() as u8)
+                    .await
+                    .map_err(Error::Io)?;
+                writer
+                    .write_all(domain.as_bytes())
+                    .await
+                    .map_err(Error::Io)?;
             }
         }
         Ok(())

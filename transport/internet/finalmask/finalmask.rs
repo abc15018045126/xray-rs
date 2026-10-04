@@ -1,8 +1,6 @@
 // Module: transport\internet\finalmask\finalmask.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\finalmask.go
 
-use std::sync::Arc;
-use crate::common::errors::{Error, Result};
 use super::header::custom::udp::{UdpCustomClient, UdpCustomServer};
 use super::header::dns::conn::DnsPacketConn;
 use super::header::dtls::conn::DtlsPacketConn;
@@ -10,6 +8,8 @@ use super::header::srtp::conn::SrtpPacketConn;
 use super::header::utp::conn::UtpPacketConn;
 use super::header::wechat::conn::WeChatPacketConn;
 use super::header::wireguard::conn::WireguardPacketConn;
+use crate::common::errors::{Error, Result};
+use std::sync::Arc;
 
 pub const FINALMASK_VERSION: u32 = 1;
 pub const UDP_SIZE: usize = 4096;
@@ -142,7 +142,9 @@ impl HeaderManager {
     /// Wraps outgoing payload with all headers in reverse order (outer-to-inner during prepending)
     pub fn wrap_outgoing(&mut self, payload: &[u8]) -> Result<Vec<u8>> {
         if self.total_size() + payload.len() > UDP_SIZE {
-            return Err(Error::Protocol("packet size exceeds finalmask UDP limit".into()));
+            return Err(Error::Protocol(
+                "packet size exceeds finalmask UDP limit".into(),
+            ));
         }
         let mut buf = payload.to_vec();
         for h in self.headers.iter_mut().rev() {
@@ -159,9 +161,9 @@ impl HeaderManager {
         }
         let mut current = packet;
         for h in &self.headers {
-            current = h.unwrap_packet(current).ok_or_else(|| {
-                Error::Protocol("finalmask header validation failed".into())
-            })?;
+            current = h
+                .unwrap_packet(current)
+                .ok_or_else(|| Error::Protocol("finalmask header validation failed".into()))?;
         }
         Ok(current)
     }

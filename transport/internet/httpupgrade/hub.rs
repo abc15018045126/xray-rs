@@ -1,12 +1,12 @@
 // Module: transport\internet\httpupgrade\hub.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\hub.go
 
-use std::net::SocketAddr;
-use crate::common::errors::Result;
-use crate::transport::internet::tcp::TcpHub;
 use super::config::HttpUpgradeConfig;
 use super::connection::HttpUpgradeConnection;
 use super::httpupgrade::HttpUpgradeStream;
+use crate::common::errors::Result;
+use crate::transport::internet::tcp::TcpHub;
+use std::net::SocketAddr;
 
 pub struct HttpUpgradeHub {
     tcp_hub: TcpHub,
@@ -35,7 +35,11 @@ impl HttpUpgradeHub {
             raw_stream,
             expected_host,
             expected_path.as_deref(),
-        ).await?;
-        Ok(HttpUpgradeConnection::new(upgrade_stream, remote_addr.to_string()))
+        )
+        .await?;
+        Ok(HttpUpgradeConnection::new(
+            upgrade_stream,
+            remote_addr.to_string(),
+        ))
     }
 }

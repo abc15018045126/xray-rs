@@ -1,8 +1,8 @@
 // Module: testing\scenarios\observatory_burst_test.rs
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use crate::app::observatory::burst::{BurstObserver, HealthPingSettings};
+    use std::time::Duration;
 
     #[test]
     fn test_burst_observer_ranking() {

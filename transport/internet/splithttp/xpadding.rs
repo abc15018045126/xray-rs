@@ -61,4 +61,3 @@ impl XPadding {
         generate_padding(method, length)
     }
 }
-

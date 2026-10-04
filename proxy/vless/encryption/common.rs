@@ -1,13 +1,13 @@
 // Module: proxy\vless\encryption\common.rs
 // 1:1 Rust implementation corresponding to Go proxy\vless\encryption\common.go
 
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::time::Duration;
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes128Gcm, Nonce as AesNonce};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce as ChaChaNonce};
 use rand::Rng;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::errors::{Error, Result};
@@ -41,10 +41,13 @@ pub fn decode_header(h: &[u8]) -> Result<usize> {
         return Err(Error::Protocol("Header too short".into()));
     }
     if h[0] != 23 || h[1] != 3 || h[2] != 3 {
-        return Err(Error::Protocol(format!("Invalid record type in header: {:?}", &h[..3])));
+        return Err(Error::Protocol(format!(
+            "Invalid record type in header: {:?}",
+            &h[..3]
+        )));
     }
     let l = ((h[3] as usize) << 8) | (h[4] as usize);
-    if l < 17 || l > 16640 {
+    if !(17..=16640).contains(&l) {
         return Err(Error::Protocol(format!("Invalid header length: {}", l)));
     }
     Ok(l)
@@ -129,9 +132,15 @@ pub fn parse_padding(padding: &str) -> Result<(Vec<[i32; 3]>, Vec<[i32; 3]>)> {
         if x.len() < 3 || x[0].is_empty() || x[1].is_empty() || x[2].is_empty() {
             return Err(Error::Config(format!("Invalid padding parameter: {}", s)));
         }
-        let y0: i32 = x[0].parse().map_err(|_| Error::Config("Invalid number".into()))?;
-        let y1: i32 = x[1].parse().map_err(|_| Error::Config("Invalid number".into()))?;
-        let y2: i32 = x[2].parse().map_err(|_| Error::Config("Invalid number".into()))?;
+        let y0: i32 = x[0]
+            .parse()
+            .map_err(|_| Error::Config("Invalid number".into()))?;
+        let y1: i32 = x[1]
+            .parse()
+            .map_err(|_| Error::Config("Invalid number".into()))?;
+        let y2: i32 = x[2]
+            .parse()
+            .map_err(|_| Error::Config("Invalid number".into()))?;
 
         if i % 2 == 0 {
             padding_lens.push([y0, y1, y2]);
@@ -254,7 +263,12 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
 
                 let l = match decode_header(&filled[..HEADER_LEN]) {
                     Ok(len) => len,
-                    Err(e) => return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))),
+                    Err(e) => {
+                        return Poll::Ready(Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            e.to_string(),
+                        )));
+                    }
                 };
 
                 let cipher_end = (HEADER_LEN + l).min(filled.len());
@@ -263,7 +277,12 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
 
                 let plaintext = match this.aead_read.open(ciphertext, header) {
                     Ok(pt) => pt,
-                    Err(e) => return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))),
+                    Err(e) => {
+                        return Poll::Ready(Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            e.to_string(),
+                        )));
+                    }
                 };
 
                 let to_write = std::cmp::min(buf.remaining(), plaintext.len());
@@ -308,7 +327,9 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
 
         let ciphertext = match this.aead_write.seal(plaintext_chunk, &header) {
             Ok(ct) => ct,
-            Err(e) => return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))),
+            Err(e) => {
+                return Poll::Ready(Err(std::io::Error::other(e.to_string())));
+            }
         };
 
         let mut frame = Vec::with_capacity(HEADER_LEN + ciphertext.len());

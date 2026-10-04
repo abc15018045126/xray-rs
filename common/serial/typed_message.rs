@@ -1,8 +1,8 @@
 // Module: common\serial\typed_message.rs
 // 1:1 Rust implementation corresponding to Go common\serial\typed_message.go
 
-use serde::{Deserialize, Serialize};
 use crate::common::errors::{Error, Result};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypedMessage {

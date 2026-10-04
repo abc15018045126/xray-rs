@@ -1,9 +1,9 @@
 // Module: transport\internet\filelocker.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\filelocker.go
 
+use crate::common::errors::Result;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use crate::common::errors::Result;
 
 pub struct FileLocker {
     pub path: PathBuf,

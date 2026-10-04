@@ -4,10 +4,10 @@
 #[cfg(test)]
 mod tests {
     use crate::proxy::proxy::{
-        is_complete_record, xtls_filter_tls, xtls_padding, xtls_unpadding,
-        DefaultUserManager, TrafficState, UserManager, COMMAND_PADDING_CONTINUE,
-        COMMAND_PADDING_END, TLS13_CIPHER_SUITE_DIC, TLS_APPLICATION_DATA_START,
-        TLS_CLIENT_HANDSHAKE_START, TLS_SERVER_HANDSHAKE_START,
+        COMMAND_PADDING_CONTINUE, COMMAND_PADDING_END, DefaultUserManager,
+        TLS_APPLICATION_DATA_START, TLS_CLIENT_HANDSHAKE_START, TLS_SERVER_HANDSHAKE_START,
+        TLS13_CIPHER_SUITE_DIC, TrafficState, UserManager, is_complete_record, xtls_filter_tls,
+        xtls_padding, xtls_unpadding,
     };
 
     #[test]

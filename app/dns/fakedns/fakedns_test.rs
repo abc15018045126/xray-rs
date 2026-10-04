@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::IpAddr;
     use super::super::fake::FakeDnsHolder;
+    use std::net::IpAddr;
 
     #[test]
     fn test_fakedns_domain_ip_mapping() {

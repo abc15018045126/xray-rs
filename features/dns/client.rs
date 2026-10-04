@@ -1,11 +1,11 @@
 // Module: features\dns\client.rs
 // 1:1 Rust implementation corresponding to Go features\dns\client.go
 
+use crate::common::errors::Result;
+use crate::features::feature::{Feature, TYPE_DNS_CLIENT};
 use async_trait::async_trait;
 use std::fmt;
 use std::net::IpAddr;
-use crate::common::errors::Result;
-use crate::features::feature::{Feature, TYPE_DNS_CLIENT};
 
 pub const DEFAULT_TTL: u32 = 300;
 

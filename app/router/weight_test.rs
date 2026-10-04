@@ -7,9 +7,7 @@ mod tests {
 
     #[test]
     fn test_weight_manager_lookup() {
-        let weights = vec![
-            StrategyWeight::new("outbound-", 50.0),
-        ];
+        let weights = vec![StrategyWeight::new("outbound-", 50.0)];
         let wm = WeightManager::new(weights, 1.0, |val, weight| val * weight);
 
         let w = wm.get("outbound-us");

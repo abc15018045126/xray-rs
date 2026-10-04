@@ -57,7 +57,9 @@ impl TaggedDialer {
             .outbound_manager
             .get_handler(tag)
             .await
-            .ok_or_else(|| Error::NotFound(format!("Tagged outbound handler not found: {}", tag)))?;
+            .ok_or_else(|| {
+                Error::NotFound(format!("Tagged outbound handler not found: {}", tag))
+            })?;
 
         let session = crate::common::protocol::SessionContext::new(tag.to_string(), dest);
         handler.connect(&session).await

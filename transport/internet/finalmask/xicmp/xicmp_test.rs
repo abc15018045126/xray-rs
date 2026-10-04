@@ -4,8 +4,8 @@
 #[cfg(test)]
 mod tests {
     use super::super::client::{
-        calculate_checksum, verify_checksum, XIcmpClient, ICMP_TYPE_ECHO_REPLY_V4,
-        ICMP_TYPE_ECHO_REPLY_V6, ICMP_TYPE_ECHO_V4, ICMP_TYPE_ECHO_V6,
+        ICMP_TYPE_ECHO_REPLY_V4, ICMP_TYPE_ECHO_REPLY_V6, ICMP_TYPE_ECHO_V4, ICMP_TYPE_ECHO_V6,
+        XIcmpClient, calculate_checksum, verify_checksum,
     };
     use super::super::config::XIcmpConfig;
     use super::super::server::XIcmpServer;
@@ -68,9 +68,14 @@ mod tests {
         let server = XIcmpServer::new(cfg);
 
         let uplink_payload = b"ping data from client over icmp";
-        let req_pkt = client.encode_request(Some(uplink_payload)).expect("Client request");
+        let req_pkt = client
+            .encode_request(Some(uplink_payload))
+            .expect("Client request");
 
-        let req_info = server.decode_request(&req_pkt).expect("Decode request").expect("Some request");
+        let req_info = server
+            .decode_request(&req_pkt)
+            .expect("Decode request")
+            .expect("Some request");
         assert_eq!(req_info.id, 0x4321);
         assert_eq!(req_info.seq, 10);
         assert!(req_info.need_seq_byte);
@@ -78,9 +83,14 @@ mod tests {
         assert_eq!(req_info.payload, uplink_payload);
 
         let downlink_payload = b"pong response from server over icmp";
-        let reply_pkt = server.encode_reply(&req_info, Some(downlink_payload)).expect("Server reply");
+        let reply_pkt = server
+            .encode_reply(&req_info, Some(downlink_payload))
+            .expect("Server reply");
 
-        let decoded = client.decode_reply(&reply_pkt).expect("Decode reply").expect("Some decoded");
+        let decoded = client
+            .decode_reply(&reply_pkt)
+            .expect("Decode reply")
+            .expect("Some decoded");
         assert_eq!(decoded, downlink_payload);
     }
 

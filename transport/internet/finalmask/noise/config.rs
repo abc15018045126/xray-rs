@@ -1,8 +1,8 @@
 // Module: transport\internet\finalmask\noise\config.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\noise\config.go & config.proto
 
-use std::time::Duration;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoiseItem {

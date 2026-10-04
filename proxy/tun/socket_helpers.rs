@@ -39,29 +39,22 @@ pub async fn new_tcp_stream(
 ) -> std::io::Result<TcpStream> {
     let (socket, family) = match endpoint {
         SocketAddr::V4(_) => (
-            socket2::Socket::new(
-                socket2::Domain::IPV4,
-                socket2::Type::STREAM,
-                None,
-            )?,
+            socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None)?,
             socket2::Domain::IPV4,
         ),
         SocketAddr::V6(_) => (
-            socket2::Socket::new(
-                socket2::Domain::IPV6,
-                socket2::Type::STREAM,
-                None,
-            )?,
+            socket2::Socket::new(socket2::Domain::IPV6, socket2::Type::STREAM, None)?,
             socket2::Domain::IPV6,
         ),
     };
     debug!("created tcp socket for {}", endpoint);
 
-    if !cfg!(target_os = "android") && !endpoint.ip().is_loopback() {
-        if let Some(iface) = iface {
-            must_bind_socket_on_interface(&socket, iface, family)?;
-            trace!("tcp socket bound to interface: {socket:?}");
-        }
+    if !cfg!(target_os = "android")
+        && !endpoint.ip().is_loopback()
+        && let Some(iface) = iface
+    {
+        must_bind_socket_on_interface(&socket, iface, family)?;
+        trace!("tcp socket bound to interface: {socket:?}");
     }
 
     socket.set_keepalive(true)?;
@@ -104,16 +97,13 @@ pub async fn new_udp_socket(
     debug!("created udp socket");
 
     if !cfg!(target_os = "android") {
-        let dst_is_loopback =
-            family_hint.map(|a| a.ip().is_loopback()).unwrap_or(false);
+        let dst_is_loopback = family_hint.map(|a| a.ip().is_loopback()).unwrap_or(false);
         match (src, iface) {
             (_, Some(iface)) if !dst_is_loopback => {
-                must_bind_socket_on_interface(&socket, iface, family).map_err(
-                    |x| {
-                        error!("failed to bind socket to interface: {}", x);
-                        x
-                    },
-                )?;
+                must_bind_socket_on_interface(&socket, iface, family).map_err(|x| {
+                    error!("failed to bind socket to interface: {}", x);
+                    x
+                })?;
                 #[cfg(target_os = "windows")]
                 if let Some(addr) = src {
                     socket.bind(&socket2::SockAddr::from(addr))?;
@@ -129,12 +119,8 @@ pub async fn new_udp_socket(
                 #[cfg(target_os = "windows")]
                 {
                     let bind_addr = match family {
-                        socket2::Domain::IPV4 => {
-                            "0.0.0.0:0".parse::<SocketAddr>().unwrap()
-                        }
-                        socket2::Domain::IPV6 => {
-                            "[::]:0".parse::<SocketAddr>().unwrap()
-                        }
+                        socket2::Domain::IPV4 => "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
+                        socket2::Domain::IPV6 => "[::]:0".parse::<SocketAddr>().unwrap(),
                         _ => "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
                     };
                     socket.bind(&socket2::SockAddr::from(bind_addr))?;

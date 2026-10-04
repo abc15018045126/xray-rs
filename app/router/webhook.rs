@@ -1,15 +1,16 @@
 // Module: app\router\webhook.rs
 // 1:1 Rust implementation corresponding to Go app\router\webhook.go
 
+use crate::common::errors::{Error, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
-use crate::common::errors::{Error, Result};
 
 pub fn parse_url(raw: &str) -> (String, String) {
-    if raw.is_empty() || (!raw.starts_with('/') && !raw.starts_with('\\') && !raw.starts_with('@')) {
+    if raw.is_empty() || (!raw.starts_with('/') && !raw.starts_with('\\') && !raw.starts_with('@'))
+    {
         return (raw.to_string(), String::new());
     }
     if let Some(idx) = raw.find(":/") {
@@ -131,10 +132,10 @@ impl WebhookNotifier {
         let now = Instant::now();
 
         if let Ok(mut seen) = self.seen.write() {
-            if let Some(&prev) = seen.get(email) {
-                if now.duration_since(prev) < ttl {
-                    return true;
-                }
+            if let Some(&prev) = seen.get(email)
+                && now.duration_since(prev) < ttl
+            {
+                return true;
             }
             seen.insert(email.to_string(), now);
         }

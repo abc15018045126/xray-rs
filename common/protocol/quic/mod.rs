@@ -3,4 +3,4 @@ pub mod sniff;
 #[cfg(test)]
 pub mod sniff_test;
 
-pub use sniff::{sniff_quic, QuicSniffHeader};
+pub use sniff::{QuicSniffHeader, sniff_quic};

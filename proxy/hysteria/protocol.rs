@@ -1,5 +1,5 @@
-use tokio::io::{AsyncRead, AsyncReadExt};
 use crate::common::errors::{Error, Result};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub const MAX_ADDRESS_LENGTH: usize = 2048;
 pub const MAX_PADDING_LENGTH: usize = 4096;
@@ -63,7 +63,7 @@ impl TcpRequest {
         buf.extend_from_slice(addr_bytes);
         QuicVarint::write(self.padding_len as u64, &mut buf);
         if self.padding_len > 0 {
-            buf.extend(std::iter::repeat(0u8).take(self.padding_len));
+            buf.extend(std::iter::repeat_n(0u8, self.padding_len));
         }
         buf
     }
@@ -104,7 +104,9 @@ mod tests {
         let encoded = req.encode();
 
         let mut cursor = std::io::Cursor::new(encoded);
-        let decoded = TcpRequest::decode(&mut cursor).await.expect("decode success");
+        let decoded = TcpRequest::decode(&mut cursor)
+            .await
+            .expect("decode success");
 
         assert_eq!(decoded.address, "example.com:443");
         assert_eq!(decoded.padding_len, 32);

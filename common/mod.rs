@@ -40,7 +40,7 @@ pub mod type_test;
 pub use antireplay::ReplayFilter;
 pub use bitmask::ByteMask;
 pub use buf::{Buffer, MultiBuffer};
-pub use bytespool::{alloc as alloc_bytes, free as free_bytes, BytesPool, GLOBAL_POOL};
+pub use bytespool::{BytesPool, GLOBAL_POOL, alloc as alloc_bytes, free as free_bytes};
 pub use cache::LruCache;
 pub use cmdarg::Arg;
 pub use crypto::{AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, IncreasingNonce, PlainChunk};
@@ -50,14 +50,17 @@ pub use mux::{Frame, SessionStatus};
 pub use net::{Address, Destination, Network};
 pub use ocsp::{OcspCache, OcspResponse};
 pub use peer::{AverageLatency, Latency};
-pub use platform::{get_asset_location, get_configuration_path, EnvFlag};
+pub use platform::{EnvFlag, get_asset_location, get_configuration_path};
 pub use protocol::{MemoryUser, RequestCommand, RequestHeader, SecurityType, SessionContext, User};
 pub use retry::RetryStrategy;
 pub use serial::{concat_strings, read_u16, read_u32, read_u64, write_u16, write_u32, write_u64};
-pub use session::{new_session_id, Content, Inbound, Outbound, SniffingRequest, Sockopt};
+pub use session::{Content, Inbound, Outbound, SniffingRequest, Sockopt, new_session_id};
 pub use signal::{ActivityTimer, Done, Notifier, Semaphore};
-pub use strmatcher::{DomainMatcher, DomainMatcherGroup, FullMatcher, Matcher, MatcherType, RegexMatcher, SubstrMatcher};
-pub use task::{parallel_run_boxed, Periodic};
-pub use units::{format_bytesize, parse_bytesize, EB, GB, KB, MB, PB, TB};
-pub use utils::{h2_base62_pad, TypedSyncMap};
-pub use xudp::{generate_global_id, XudpPacket};
+pub use strmatcher::{
+    DomainMatcher, DomainMatcherGroup, FullMatcher, Matcher, MatcherType, RegexMatcher,
+    SubstrMatcher,
+};
+pub use task::{Periodic, parallel_run_boxed};
+pub use units::{EB, GB, KB, MB, PB, TB, format_bytesize, parse_bytesize};
+pub use utils::{TypedSyncMap, h2_base62_pad};
+pub use xudp::{XudpPacket, generate_global_id};

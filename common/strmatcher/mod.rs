@@ -22,6 +22,8 @@ pub use ac_automaton_matcher::AcAutomatonMatcher;
 pub use domain_matcher::{DomainMatcher, DomainMatcherGroup};
 pub use full_matcher::{FullMatcher, FullMatcherGroup};
 pub use matchers::{RegexMatcher, SubstrMatcher};
-pub use mph_matcher::{rolling_hash, MphMatcherGroup, PRIME_RK};
+pub use mph_matcher::{MphMatcherGroup, PRIME_RK, rolling_hash};
 pub use mph_matcher_compact::CompactMatcher;
-pub use strmatcher::{IndexMatcher, IndexMatcherGroup, Matcher, MatcherEntry, MatcherGroup, MatcherType};
+pub use strmatcher::{
+    IndexMatcher, IndexMatcherGroup, Matcher, MatcherEntry, MatcherGroup, MatcherType,
+};

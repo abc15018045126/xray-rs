@@ -14,7 +14,10 @@ mod tests {
 
         let plaintext = b"0123456789012";
         let wrapped = conn.wrap(plaintext).expect("wrap should succeed");
-        assert_eq!(wrapped.len(), GCM_NONCE_SIZE + GCM_TAG_SIZE + plaintext.len());
+        assert_eq!(
+            wrapped.len(),
+            GCM_NONCE_SIZE + GCM_TAG_SIZE + plaintext.len()
+        );
 
         let opened = conn.unwrap(&wrapped).expect("unwrap should succeed");
         assert_eq!(opened, plaintext);
@@ -29,7 +32,10 @@ mod tests {
         for _ in 0..1000 {
             rng.fill_bytes(&mut buf);
             let result = conn.unwrap(&buf);
-            assert!(result.is_err(), "Random ciphertext must fail GCM authentication");
+            assert!(
+                result.is_err(),
+                "Random ciphertext must fail GCM authentication"
+            );
         }
     }
 

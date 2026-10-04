@@ -1,8 +1,10 @@
 // Module: common\platform\windows.rs
 // 1:1 Rust implementation corresponding to Go common\platform\windows.go
 
+use crate::common::platform::platform::{
+    ASSET_LOCATION, CERT_LOCATION, EnvFlag, get_executable_dir,
+};
 use std::path::PathBuf;
-use crate::common::platform::platform::{get_executable_dir, EnvFlag, ASSET_LOCATION, CERT_LOCATION};
 
 pub fn is_windows() -> bool {
     cfg!(target_os = "windows")

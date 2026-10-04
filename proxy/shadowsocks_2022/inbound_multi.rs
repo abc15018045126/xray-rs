@@ -1,9 +1,9 @@
 // Module: proxy\shadowsocks_2022\inbound_multi.rs
 // 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\inbound_multi.go
 
-use std::sync::RwLock;
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::MemoryUser;
+use std::sync::RwLock;
 
 #[derive(Debug, Default)]
 pub struct MultiUserInbound {
@@ -35,7 +35,10 @@ impl MultiUserInbound {
             return Err(Error::Other("Email must not be empty".into()));
         }
         let mut users = self.users.write().unwrap();
-        if let Some(pos) = users.iter().position(|u| u.email.eq_ignore_ascii_case(email)) {
+        if let Some(pos) = users
+            .iter()
+            .position(|u| u.email.eq_ignore_ascii_case(email))
+        {
             users.remove(pos);
             Ok(())
         } else {
@@ -48,7 +51,10 @@ impl MultiUserInbound {
             return None;
         }
         let users = self.users.read().unwrap();
-        users.iter().find(|u| u.email.eq_ignore_ascii_case(email)).cloned()
+        users
+            .iter()
+            .find(|u| u.email.eq_ignore_ascii_case(email))
+            .cloned()
     }
 
     pub fn get_users(&self) -> Vec<MemoryUser> {

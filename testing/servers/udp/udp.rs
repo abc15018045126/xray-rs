@@ -1,12 +1,12 @@
 // Module: testing\servers\udp\udp.rs
 // UDP test echo server
 
+use crate::common::errors::Result;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::net::UdpSocket;
 use tokio::sync::watch;
-use crate::common::errors::Result;
 
 pub struct Server {
     addr: SocketAddr,
@@ -16,7 +16,9 @@ pub struct Server {
 
 impl Server {
     pub async fn start(listen_addr: impl Into<Option<SocketAddr>>) -> Result<Self> {
-        let addr = listen_addr.into().unwrap_or_else(|| "127.0.0.1:0".parse().unwrap());
+        let addr = listen_addr
+            .into()
+            .unwrap_or_else(|| "127.0.0.1:0".parse().unwrap());
         let socket = UdpSocket::bind(addr).await?;
         let local_addr = socket.local_addr()?;
 

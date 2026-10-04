@@ -1,7 +1,7 @@
-use ipnet::IpNet;
-use tracing::warn;
 use super::super::config::TunConfig;
 use super::super::net::OutboundInterface;
+use ipnet::IpNet;
+use tracing::warn;
 
 pub fn check_ip_command_installed() -> std::io::Result<()> {
     std::process::Command::new("ip")

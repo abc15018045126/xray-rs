@@ -1,11 +1,11 @@
 // Module: common\retry\retry.rs
 // 1:1 Rust implementation corresponding to Go common\retry\retry.go
 
+use crate::common::errors::{Error, Result};
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use crate::common::errors::{Error, Result};
 
 pub const ERR_RETRY_FAILED: &str = "all retry attempts failed";
 
@@ -47,7 +47,11 @@ impl Retryer {
                 }
             }
         }
-        Err(Error::Other(format!("{}: {}", ERR_RETRY_FAILED, accumulated_errors.join(" > "))))
+        Err(Error::Other(format!(
+            "{}: {}",
+            ERR_RETRY_FAILED,
+            accumulated_errors.join(" > ")
+        )))
     }
 
     /// Asynchronous retry loop for async operations.
@@ -71,7 +75,11 @@ impl Retryer {
                 }
             }
         }
-        Err(Error::Other(format!("{}: {}", ERR_RETRY_FAILED, accumulated_errors.join(" > "))))
+        Err(Error::Other(format!(
+            "{}: {}",
+            ERR_RETRY_FAILED,
+            accumulated_errors.join(" > ")
+        )))
     }
 }
 

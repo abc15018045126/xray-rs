@@ -1,15 +1,15 @@
 // Module: app\dns\nameserver_tcp.rs
 // 1:1 Rust implementation corresponding to Go app\dns\nameserver_tcp.go
 
+use async_trait::async_trait;
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
-use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[allow(unused_imports)]
 use tokio::net::TcpStream;
 
+use super::nameserver::{NameServer, build_dns_query_typed, parse_dns_response};
 use crate::common::errors::{Error, Result};
-use super::nameserver::{build_dns_query_typed, parse_dns_response, NameServer};
 
 pub struct TcpNameServer {
     pub server_addr: SocketAddr,

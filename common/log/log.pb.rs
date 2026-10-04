@@ -1,15 +1,17 @@
 // Module: common\log\log.pb.rs
 // 1:1 Rust implementation corresponding to Go common\log\log.pb.go
 
-use std::fmt;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum Severity {
     Unknown = 0,
     Error = 1,
     Warning = 2,
+    #[default]
     Info = 3,
     Debug = 4,
 }
@@ -50,11 +52,5 @@ impl Severity {
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
-    }
-}
-
-impl Default for Severity {
-    fn default() -> Self {
-        Self::Info
     }
 }

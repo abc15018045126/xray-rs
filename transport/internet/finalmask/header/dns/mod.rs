@@ -1,8 +1,8 @@
 pub mod config;
 pub mod conn;
 
-use rand::Rng;
 use crate::common::errors::{Error, Result};
+use rand::Rng;
 
 #[derive(Debug, Clone)]
 pub struct DnsHeader {

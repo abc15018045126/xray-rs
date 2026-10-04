@@ -1,8 +1,8 @@
 // Module: proxy\dokodemo\dokodemo.rs
 // 1:1 Rust implementation corresponding to Go proxy\dokodemo\dokodemo.go
 
-use crate::common::net::Destination;
 use super::config::DokodemoConfig;
+use crate::common::net::Destination;
 
 pub struct DokodemoHandler {
     config: DokodemoConfig,

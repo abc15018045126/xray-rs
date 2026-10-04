@@ -1,14 +1,14 @@
 // Module: app\dns\nameserver_doh.rs
 // 1:1 Rust implementation corresponding to Go app\dns\nameserver_doh.go
 
+use async_trait::async_trait;
 use std::net::IpAddr;
 use std::time::Duration;
-use async_trait::async_trait;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[allow(unused_imports)]
 use tokio::net::TcpStream;
 
-use crate::app::dns::nameserver::{build_dns_query_typed, parse_dns_response, NameServer};
+use crate::app::dns::nameserver::{NameServer, build_dns_query_typed, parse_dns_response};
 use crate::app::dns::nameserver_local::LocalNameServer;
 use crate::common::errors::{Error, Result};
 use crate::transport::internet::tls::tls::TlsClient;
@@ -137,16 +137,21 @@ impl DohNameServer {
 
         let mut stream: crate::common::net::BoxStream = if is_https {
             let tls_client = TlsClient::new(&host, true, vec![b"http/1.1".to_vec()])?;
-            tokio::time::timeout(self.timeout, tls_client.connect(&host, Box::pin(tcp_stream)))
-                .await
-                .map_err(|_| Error::Timeout)??
+            tokio::time::timeout(
+                self.timeout,
+                tls_client.connect(&host, Box::pin(tcp_stream)),
+            )
+            .await
+            .map_err(|_| Error::Timeout)??
         } else {
             Box::pin(tcp_stream)
         };
 
         let req = format!(
             "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: xray/dns\r\nAccept: application/dns-message\r\nContent-Type: application/dns-message\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            path, host, query.len()
+            path,
+            host,
+            query.len()
         );
 
         stream.write_all(req.as_bytes()).await.map_err(Error::Io)?;
@@ -173,28 +178,29 @@ impl DohNameServer {
                 let mut resp = httparse::Response::new(&mut headers);
                 if let Ok(httparse::Status::Complete(hlen)) = resp.parse(&buf) {
                     header_len = hlen;
-                    if let Some(code) = resp.code {
-                        if code != 200 {
-                            return Err(Error::Protocol(format!(
-                                "DoH server responded with HTTP {}",
-                                code
-                            )));
-                        }
+                    if let Some(code) = resp.code
+                        && code != 200
+                    {
+                        return Err(Error::Protocol(format!(
+                            "DoH server responded with HTTP {}",
+                            code
+                        )));
                     }
                     for header in resp.headers.iter() {
-                        if header.name.eq_ignore_ascii_case("content-length") {
-                            if let Ok(s) = std::str::from_utf8(header.value) {
-                                content_len = s.trim().parse::<usize>().ok();
-                            }
+                        if header.name.eq_ignore_ascii_case("content-length")
+                            && let Ok(s) = std::str::from_utf8(header.value)
+                        {
+                            content_len = s.trim().parse::<usize>().ok();
                         }
                     }
                 }
             }
 
-            if let Some(clen) = content_len {
-                if header_len > 0 && buf.len() >= header_len + clen {
-                    break;
-                }
+            if let Some(clen) = content_len
+                && header_len > 0
+                && buf.len() >= header_len + clen
+            {
+                break;
             }
         }
 

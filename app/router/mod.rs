@@ -39,5 +39,5 @@ pub use router::Router;
 pub use strategy_leastload::LeastLoadStrategy;
 pub use strategy_leastping::LeastPingStrategy;
 pub use strategy_random::RandomStrategy;
-pub use webhook::{parse_url, resolve_socket_path, WebhookConfig, WebhookEvent, WebhookNotifier};
+pub use webhook::{WebhookConfig, WebhookEvent, WebhookNotifier, parse_url, resolve_socket_path};
 pub use weight::{StrategyWeight, WeightManager};

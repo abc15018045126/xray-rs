@@ -1,11 +1,11 @@
 // Module: features\stats\stats.rs
 // 1:1 Rust implementation corresponding to Go features\stats\stats.go
 
+use crate::features::feature::{Feature, TYPE_STATS_MANAGER};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
-use crate::features::feature::{Feature, TYPE_STATS_MANAGER};
 
 #[derive(Debug, Default)]
 pub struct Counter {

@@ -1,9 +1,9 @@
 // Module: main\confloader\confloader.rs
 // 1:1 Rust implementation corresponding to Go main\confloader\confloader.go
 
-use std::sync::RwLock;
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
+use std::sync::RwLock;
 
 pub type ConfigFileLoader = fn(&str) -> Result<Vec<u8>>;
 
@@ -23,10 +23,10 @@ pub fn load_config(file: &str) -> Result<Vec<u8>> {
         if file.is_empty() || file == "-" || file == "stdin:" {
             use std::io::Read;
             let mut buf = Vec::new();
-            std::io::stdin().read_to_end(&mut buf).map_err(|e| Error::Io(e))?;
+            std::io::stdin().read_to_end(&mut buf).map_err(Error::Io)?;
             return Ok(buf);
         }
-        std::fs::read(file).map_err(|e| Error::Io(e))
+        std::fs::read(file).map_err(Error::Io)
     }
 }
 
@@ -42,7 +42,10 @@ mod tests {
     fn test_confloader_load_from_str() {
         let json_str = r#"{"log": {"loglevel": "warning"}}"#;
         let cfg = load_config_from_str(json_str).unwrap();
-        assert_eq!(cfg.log.as_ref().unwrap().loglevel.as_deref(), Some("warning"));
+        assert_eq!(
+            cfg.log.as_ref().unwrap().loglevel.as_deref(),
+            Some("warning")
+        );
     }
 
     #[test]

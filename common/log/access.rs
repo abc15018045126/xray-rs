@@ -1,12 +1,12 @@
 // Module: common\log\access.rs
 // 1:1 Rust implementation corresponding to Go common\log\access.go
 
-use std::fmt;
-use std::net::SocketAddr;
-use std::sync::Arc;
 use crate::common::ctx::Context;
 use crate::common::log::Message;
 use crate::common::net::Destination;
+use std::fmt;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessStatus {
@@ -114,7 +114,13 @@ impl AccessLogMessage {
             Some(addr) => addr.to_string(),
             None => "-".to_string(),
         };
-        format!("{} {} {} [{}]", from_str, self.status.as_str(), self.to, self.reason)
+        format!(
+            "{} {} {} [{}]",
+            from_str,
+            self.status.as_str(),
+            self.to,
+            self.reason
+        )
     }
 
     pub fn to_access_message(&self) -> AccessMessage {

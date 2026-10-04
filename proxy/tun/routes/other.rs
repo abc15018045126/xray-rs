@@ -1,7 +1,7 @@
-use ipnet::IpNet;
-use tracing::warn;
 use super::super::config::TunConfig;
 use super::super::net::OutboundInterface;
+use ipnet::IpNet;
+use tracing::warn;
 
 #[allow(dead_code)]
 pub fn add_route(_: &OutboundInterface, _: &IpNet) -> std::io::Result<()> {

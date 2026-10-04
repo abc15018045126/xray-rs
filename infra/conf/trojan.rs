@@ -1,8 +1,8 @@
 // Module: infra\conf\trojan.rs
 // 1:1 Rust implementation corresponding to Go infra\conf\trojan.go
 
-use serde::{Deserialize, Serialize};
 use super::vless::VlessFallback;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrojanClient {

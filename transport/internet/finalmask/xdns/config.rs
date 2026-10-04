@@ -1,10 +1,10 @@
 // Module: transport\internet\finalmask\xdns\config.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\config.go
 
-use serde::{Deserialize, Serialize};
-use crate::common::errors::Result;
 use super::client::XDnsClient;
 use super::server::XDnsServer;
+use crate::common::errors::Result;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct XDnsConfig {

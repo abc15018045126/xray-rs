@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::sync::RwLock;
-use uuid::Uuid;
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::User;
 use crate::common::uuid::process_uuid;
+use std::collections::HashMap;
+use std::sync::RwLock;
+use uuid::Uuid;
 
 pub trait Validator: Send + Sync {
     fn get(&self, id: &Uuid) -> Option<User>;
@@ -41,15 +41,22 @@ impl Validator for MemoryValidator {
 
     fn add(&self, user: User) -> Result<()> {
         let normalized = process_uuid(*user.id.as_bytes());
-        let mut users_guard = self.users.write()
+        let mut users_guard = self
+            .users
+            .write()
             .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
-        let mut emails_guard = self.emails.write()
+        let mut emails_guard = self
+            .emails
+            .write()
             .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
 
         if !user.email.is_empty() {
             let email_lower = user.email.to_lowercase();
             if emails_guard.contains_key(&email_lower) {
-                return Err(Error::Config(format!("User email '{}' already exists", user.email)));
+                return Err(Error::Config(format!(
+                    "User email '{}' already exists",
+                    user.email
+                )));
             }
             emails_guard.insert(email_lower, normalized);
         }
@@ -63,12 +70,17 @@ impl Validator for MemoryValidator {
             return Err(Error::Config("Email cannot be empty".into()));
         }
         let email_lower = email.to_lowercase();
-        let mut emails_guard = self.emails.write()
+        let mut emails_guard = self
+            .emails
+            .write()
             .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
-        let mut users_guard = self.users.write()
+        let mut users_guard = self
+            .users
+            .write()
             .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
 
-        let id = emails_guard.remove(&email_lower)
+        let id = emails_guard
+            .remove(&email_lower)
             .ok_or_else(|| Error::NotFound(format!("User '{}' not found", email)))?;
         users_guard.remove(&id);
         Ok(())

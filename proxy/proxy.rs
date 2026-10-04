@@ -2,9 +2,9 @@
 // 1:1 Rust implementation corresponding to Go proxy\proxy.go
 // Includes core proxy traits and the complete XTLS-Vision state machine & padding engine.
 
-use std::collections::HashMap;
-use rand::Rng;
 use crate::common::net::Network;
+use rand::Rng;
+use std::collections::HashMap;
 
 pub const PROXY_VERSION: &str = "26.3.27";
 
@@ -128,8 +128,16 @@ pub fn is_complete_record(data: &[u8]) -> bool {
             let b = data[i];
             i += 1;
             match header_len {
-                5 => if b != 0x17 { return false; },
-                4 | 3 => if b != 0x03 { return false; },
+                5 => {
+                    if b != 0x17 {
+                        return false;
+                    }
+                }
+                4 | 3 => {
+                    if b != 0x03 {
+                        return false;
+                    }
+                }
                 2 => record_len = (b as usize) << 8,
                 1 => record_len |= b as usize,
                 _ => return false,
@@ -164,10 +172,18 @@ pub fn xtls_padding(
 
     let mut rng = rand::thread_rng();
     let mut padding_len = if (content_len as u32) < seed[0] && long_padding {
-        let rand_val = if seed[1] > 0 { rng.gen_range(0..seed[1]) as i32 } else { 0 };
+        let rand_val = if seed[1] > 0 {
+            rng.gen_range(0..seed[1]) as i32
+        } else {
+            0
+        };
         rand_val + (seed[2] as i32) - content_len
     } else {
-        if seed[3] > 0 { rng.gen_range(0..seed[3]) as i32 } else { 0 }
+        if seed[3] > 0 {
+            rng.gen_range(0..seed[3]) as i32
+        } else {
+            0
+        }
     };
 
     let max_padding = (BUFFER_SIZE as i32) - 21 - content_len;
@@ -200,11 +216,7 @@ pub fn xtls_padding(
     out
 }
 
-pub fn xtls_unpadding(
-    data: &[u8],
-    state: &mut TrafficState,
-    is_uplink: bool,
-) -> Vec<u8> {
+pub fn xtls_unpadding(data: &[u8], state: &mut TrafficState, is_uplink: bool) -> Vec<u8> {
     let (remaining_command, remaining_content, remaining_padding, current_command) = if is_uplink {
         (
             &mut state.inbound.remaining_command,
@@ -285,17 +297,24 @@ pub fn xtls_filter_tls(data: &[u8], traffic_state: &mut TrafficState) {
     traffic_state.number_of_packet_to_filter -= 1;
 
     if data.len() >= 6 {
-        if data.len() >= 3 && &data[..3] == TLS_SERVER_HANDSHAKE_START && data[5] == TLS_HANDSHAKE_TYPE_SERVER_HELLO {
+        if data.len() >= 3
+            && &data[..3] == TLS_SERVER_HANDSHAKE_START
+            && data[5] == TLS_HANDSHAKE_TYPE_SERVER_HELLO
+        {
             traffic_state.remaining_server_hello = ((data[3] as i32) << 8 | (data[4] as i32)) + 5;
             traffic_state.is_tls12_or_above = true;
             traffic_state.is_tls = true;
             if data.len() >= 79 && traffic_state.remaining_server_hello >= 79 {
                 let session_id_len = data[43] as usize;
                 if data.len() >= 43 + session_id_len + 3 {
-                    traffic_state.cipher = (data[43 + session_id_len + 1] as u16) << 8 | (data[43 + session_id_len + 2] as u16);
+                    traffic_state.cipher = (data[43 + session_id_len + 1] as u16) << 8
+                        | (data[43 + session_id_len + 2] as u16);
                 }
             }
-        } else if data.len() >= 2 && &data[..2] == TLS_CLIENT_HANDSHAKE_START && data[5] == TLS_HANDSHAKE_TYPE_CLIENT_HELLO {
+        } else if data.len() >= 2
+            && &data[..2] == TLS_CLIENT_HANDSHAKE_START
+            && data[5] == TLS_HANDSHAKE_TYPE_CLIENT_HELLO
+        {
             traffic_state.is_tls = true;
         }
     }
@@ -304,14 +323,16 @@ pub fn xtls_filter_tls(data: &[u8], traffic_state: &mut TrafficState) {
         let end = (traffic_state.remaining_server_hello as usize).min(data.len());
         traffic_state.remaining_server_hello -= data.len() as i32;
 
-        if data[..end].windows(TLS13_SUPPORTED_VERSIONS.len()).any(|w| w == TLS13_SUPPORTED_VERSIONS) {
-            if let Some(v) = TLS13_CIPHER_SUITE_DIC.get(&traffic_state.cipher) {
-                if *v != "TLS_AES_128_CCM_8_SHA256" {
-                    traffic_state.enable_xtls = true;
-                }
+        if data[..end]
+            .windows(TLS13_SUPPORTED_VERSIONS.len())
+            .any(|w| w == TLS13_SUPPORTED_VERSIONS)
+        {
+            if let Some(v) = TLS13_CIPHER_SUITE_DIC.get(&traffic_state.cipher)
+                && *v != "TLS_AES_128_CCM_8_SHA256"
+            {
+                traffic_state.enable_xtls = true;
             }
             traffic_state.number_of_packet_to_filter = 0;
-            return;
         } else if traffic_state.remaining_server_hello <= 0 {
             traffic_state.number_of_packet_to_filter = 0;
         }

@@ -1,10 +1,10 @@
 // Module: transport\internet\browser_dialer\dialer.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\browser_dialer\dialer.go
 
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
@@ -50,7 +50,9 @@ pub async fn dial_ws(_uri: &str, _ed: Option<&[u8]>) -> Result<BoxStream> {
     if !has_browser_dialer() {
         return Err(Error::NotFound("browser dialer is not active".into()));
     }
-    Err(Error::Protocol("browser websocket bridge not connected".into()))
+    Err(Error::Protocol(
+        "browser websocket bridge not connected".into(),
+    ))
 }
 
 pub async fn dial_get(
@@ -61,7 +63,9 @@ pub async fn dial_get(
     if !has_browser_dialer() {
         return Err(Error::NotFound("browser dialer is not active".into()));
     }
-    Err(Error::Protocol("browser http get bridge not connected".into()))
+    Err(Error::Protocol(
+        "browser http get bridge not connected".into(),
+    ))
 }
 
 pub async fn dial_packet(
@@ -74,7 +78,9 @@ pub async fn dial_packet(
     if !has_browser_dialer() {
         return Err(Error::NotFound("browser dialer is not active".into()));
     }
-    Err(Error::Protocol("browser packet bridge not connected".into()))
+    Err(Error::Protocol(
+        "browser packet bridge not connected".into(),
+    ))
 }
 
 pub struct BrowserDialer;
@@ -120,7 +126,14 @@ mod tests {
         set_has_browser_dialer(false);
         assert!(!has_browser_dialer());
 
-        let res = dial_packet("POST", "http://test", HashMap::new(), HashMap::new(), b"data").await;
+        let res = dial_packet(
+            "POST",
+            "http://test",
+            HashMap::new(),
+            HashMap::new(),
+            b"data",
+        )
+        .await;
         assert!(res.is_err());
     }
 }

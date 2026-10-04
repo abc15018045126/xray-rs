@@ -5,4 +5,4 @@ pub mod sniff;
 pub mod sniff_test;
 
 pub use cert::Certificate;
-pub use sniff::{read_client_hello, sniff_tls, TlsSniffHeader};
+pub use sniff::{TlsSniffHeader, read_client_hello, sniff_tls};

@@ -3,15 +3,15 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
     use crate::common::net::{Address, Destination};
     use crate::transport::internet::config::DomainStrategy;
     use crate::transport::internet::dialer::{
-        dial_system, dial_transport, register_transport_dialer, DefaultDialer, Dialer,
+        DefaultDialer, Dialer, dial_system, dial_transport, register_transport_dialer,
     };
     use crate::transport::internet::memory_settings::MemoryStreamConfig;
 

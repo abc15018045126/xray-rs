@@ -1,8 +1,8 @@
 // Module: common\protocol\context.rs
 // 1:1 Rust implementation corresponding to Go common\protocol\context.go
 
-use std::sync::Arc;
 use crate::common::protocol::user::MemoryUser;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default)]
 pub struct ProtocolContext {

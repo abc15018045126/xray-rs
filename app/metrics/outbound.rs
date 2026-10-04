@@ -1,9 +1,9 @@
 // Module: app\metrics\outbound.rs
 // 1:1 Rust implementation corresponding to Go app\metrics\outbound.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
 
 use crate::app::stats::Counter;

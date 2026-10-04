@@ -2,16 +2,16 @@
 // 1:1 Rust implementation corresponding to Go proxy\http\client.go
 
 use async_trait::async_trait;
-use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+use super::PrefixedStream;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
 use crate::transport::internet::system_dialer::SystemDialer;
-use super::PrefixedStream;
 
 pub struct HttpClient {
     tag: String,

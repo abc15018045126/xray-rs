@@ -1,11 +1,11 @@
 // Module: infra\conf\version.rs
 // 1:1 Rust implementation corresponding to Go infra\conf\version.go
 
-use serde::{Deserialize, Serialize};
-use crate::app::version::VersionConfig as ProtoVersionConfig;
-use crate::app::version::VERSION as CORE_VERSION;
-use crate::common::errors::Result;
 use super::buildable::Buildable;
+use crate::app::version::VERSION as CORE_VERSION;
+use crate::app::version::VersionConfig as ProtoVersionConfig;
+use crate::common::errors::Result;
+use serde::{Deserialize, Serialize};
 
 pub const CONFIG_VERSION: &str = "1.0";
 

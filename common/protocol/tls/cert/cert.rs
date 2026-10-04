@@ -1,8 +1,8 @@
 // Module: common\protocol\tls\cert\cert.rs
 // 1:1 Rust implementation corresponding to Go common\protocol\tls\cert\cert.go
 
-use sha2::{Digest, Sha256};
 use crate::common::errors::{Error, Result};
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Certificate {
@@ -30,11 +30,17 @@ impl Certificate {
     pub fn to_pem(&self) -> (String, String) {
         let cert_pem = format!(
             "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----\n",
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &self.certificate)
+            base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                &self.certificate
+            )
         );
         let key_pem = format!(
             "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &self.private_key)
+            base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                &self.private_key
+            )
         );
         (cert_pem, key_pem)
     }

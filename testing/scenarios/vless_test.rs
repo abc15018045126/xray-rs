@@ -1,15 +1,17 @@
 #[cfg(test)]
 mod tests {
+    use crate::infra::conf::Config;
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port, random_payload};
+    use crate::testing::servers::tcp::{Server as TcpServer, xor_processor};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use uuid::Uuid;
-    use crate::infra::conf::Config;
-    use crate::testing::scenarios::common::{pick_port, random_payload, TestEnvironment};
-    use crate::testing::servers::tcp::{xor_processor, Server as TcpServer};
 
     #[tokio::test]
     async fn test_vless_tcp_xor() {
         let xor_key = b'c';
-        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -30,7 +32,8 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(server_cfg).await.unwrap();
 
         let client_socks_port = pick_port().await;
@@ -52,10 +55,13 @@ mod tests {
                     }]
                 }
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(client_cfg).await.unwrap();
 
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_socks_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_socks_port))
+            .await
+            .unwrap();
 
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];
@@ -99,7 +105,8 @@ mod tests {
                 "settings": { "clients": [{ "id": valid_user.to_string() }] }
             }],
             "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(server_cfg).await.unwrap();
 
         let client_port = pick_port().await;
@@ -119,7 +126,9 @@ mod tests {
         })).unwrap();
         env.start_node(client_cfg).await.unwrap();
 
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_port))
+            .await
+            .unwrap();
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];
         client.read_exact(&mut auth_resp).await.unwrap();
@@ -134,7 +143,10 @@ mod tests {
         client.write_all(b"Ping").await.unwrap();
         let mut buf = [0u8; 16];
         let n = client.read(&mut buf).await.unwrap_or(0);
-        assert_eq!(n, 0, "Unauthorized connection must be closed by VLESS server");
+        assert_eq!(
+            n, 0,
+            "Unauthorized connection must be closed by VLESS server"
+        );
     }
 
     #[tokio::test]
@@ -157,7 +169,9 @@ mod tests {
             "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "127.0.0.1", "port": server_port, "users": [{ "id": user_id.to_string() }] }] } }]
         })).unwrap()).await.unwrap();
 
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_port))
+            .await
+            .unwrap();
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];
         client.read_exact(&mut auth_resp).await.unwrap();

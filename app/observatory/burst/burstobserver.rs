@@ -1,12 +1,12 @@
 // Module: app\observatory\burst\burstobserver.rs
 // 1:1 Rust implementation corresponding to Go app\observatory\burst\burstobserver.go
 
-use std::sync::Arc;
+use super::config_pb::Config;
+use super::healthping::{HealthPing, HealthPingSettings};
 use crate::app::observatory::config_pb::{
     HealthPingMeasurementResult, ObservationResult, OutboundStatus,
 };
-use super::config_pb::Config;
-use super::healthping::{HealthPing, HealthPingSettings};
+use std::sync::Arc;
 
 /// Observer implements health monitoring of outbounds using burst pings.
 pub struct Observer {

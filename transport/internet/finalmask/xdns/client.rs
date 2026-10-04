@@ -1,14 +1,14 @@
 // Module: transport\internet\finalmask\xdns\client.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\client.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use rand::RngCore;
-use crate::common::errors::{Error, Result};
 use super::dns::{
-    base32_encode, decode_rdata_txt, Message, Name, Question, ResourceRecord, CLASS_IN,
-    RCODE_NO_ERROR, RR_TYPE_OPT, RR_TYPE_TXT,
+    CLASS_IN, Message, Name, Question, RCODE_NO_ERROR, RR_TYPE_OPT, RR_TYPE_TXT, ResourceRecord,
+    base32_encode, decode_rdata_txt,
 };
+use crate::common::errors::{Error, Result};
+use rand::RngCore;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const NUM_PADDING: usize = 3;
 pub const NUM_PADDING_FOR_POLL: usize = 8;
@@ -50,10 +50,12 @@ impl XDnsClient {
     /// Encodes an optional payload into a DNS TXT query wire format.
     /// If payload is None or empty, encodes a polling query with 8 bytes of padding.
     pub fn encode_packet(&self, payload: Option<&[u8]>) -> Result<Vec<u8>> {
-        if let Some(p) = payload {
-            if p.len() >= MAX_PAYLOAD_LEN {
-                return Err(Error::Protocol("payload too long for xdns query (>= 224 bytes)".into()));
-            }
+        if let Some(p) = payload
+            && p.len() >= MAX_PAYLOAD_LEN
+        {
+            return Err(Error::Protocol(
+                "payload too long for xdns query (>= 224 bytes)".into(),
+            ));
         }
 
         let mut decoded = Vec::with_capacity(32 + payload.map_or(0, |p| p.len()));
@@ -69,11 +71,11 @@ impl XDnsClient {
         rand::thread_rng().fill_bytes(&mut padding);
         decoded.extend_from_slice(&padding);
 
-        if let Some(p) = payload {
-            if !p.is_empty() {
-                decoded.push(p.len() as u8);
-                decoded.extend_from_slice(p);
-            }
+        if let Some(p) = payload
+            && !p.is_empty()
+        {
+            decoded.push(p.len() as u8);
+            decoded.extend_from_slice(p);
         }
 
         let base32_str = base32_encode(&decoded).to_ascii_lowercase();
@@ -123,16 +125,22 @@ impl XDnsClient {
         }
 
         if resp.answers.len() != 1 {
-            return Err(Error::Protocol("DNS response must contain exactly 1 answer".into()));
+            return Err(Error::Protocol(
+                "DNS response must contain exactly 1 answer".into(),
+            ));
         }
 
         let answer = &resp.answers[0];
         if answer.name.trim_suffix(&self.domain).is_none() {
-            return Err(Error::Protocol("DNS response name suffix does not match configured domain".into()));
+            return Err(Error::Protocol(
+                "DNS response name suffix does not match configured domain".into(),
+            ));
         }
 
         if answer.rrtype != RR_TYPE_TXT {
-            return Err(Error::Protocol("DNS response answer type is not TXT".into()));
+            return Err(Error::Protocol(
+                "DNS response answer type is not TXT".into(),
+            ));
         }
 
         let payload = decode_rdata_txt(&answer.data)?;
@@ -143,7 +151,9 @@ impl XDnsClient {
             let n = u16::from_be_bytes([payload[offset], payload[offset + 1]]) as usize;
             offset += 2;
             if offset + n > payload.len() {
-                return Err(Error::Protocol("unexpected eof in DNS response subpacket stream".into()));
+                return Err(Error::Protocol(
+                    "unexpected eof in DNS response subpacket stream".into(),
+                ));
             }
             packets.push(payload[offset..offset + n].to_vec());
             offset += n;

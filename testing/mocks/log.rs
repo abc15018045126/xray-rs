@@ -1,8 +1,8 @@
 // Module: testing\mocks\log.rs
 // Mock log message receiver
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct MockLogCollector {
     count: Arc<AtomicUsize>,

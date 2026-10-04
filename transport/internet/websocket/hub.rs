@@ -1,11 +1,11 @@
 // Module: transport\internet\websocket\hub.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\websocket\hub.go
 
-use std::net::SocketAddr;
+use super::ws::WebSocketStream;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::transport::internet::tcp::TcpHub;
-use super::ws::WebSocketStream;
+use std::net::SocketAddr;
 
 pub struct WebSocketHub {
     tcp_hub: TcpHub,

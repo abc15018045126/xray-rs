@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::common::cmdarg::Arg;
     use crate::common::drain::BehaviorSeedLimitedDrainer;
-    use crate::common::platform::{get_asset_location, get_configuration_path, EnvFlag};
+    use crate::common::platform::{EnvFlag, get_asset_location, get_configuration_path};
+    use std::io::Cursor;
 
     #[test]
     fn test_platform_env_flag_and_paths() {

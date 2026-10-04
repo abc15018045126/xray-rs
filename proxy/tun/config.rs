@@ -1,5 +1,5 @@
-use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use crate::common::session::SniffingRequest;
+use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 
 #[derive(Debug, Clone)]
 pub struct TunConfig {

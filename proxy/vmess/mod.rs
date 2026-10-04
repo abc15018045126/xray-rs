@@ -10,7 +10,7 @@ pub mod vmess;
 pub mod validator_test;
 
 pub use account::Account;
-pub use encoding::{fnv1a_32, generate_chacha20_key, RequestHeader, ResponseHeader, VMESS_VERSION};
+pub use encoding::{RequestHeader, ResponseHeader, VMESS_VERSION, fnv1a_32, generate_chacha20_key};
 pub use inbound::Server as InboundServer;
 pub use outbound::Client as OutboundClient;
 pub use validator::MemoryValidator;

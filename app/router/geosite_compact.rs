@@ -12,7 +12,8 @@ impl GeoSiteCompactList {
     }
 
     pub fn add_site(&mut self, country_code: impl Into<String>, domains: Vec<String>) {
-        self.sites.insert(country_code.into().to_uppercase(), domains);
+        self.sites
+            .insert(country_code.into().to_uppercase(), domains);
     }
 
     pub fn add_dep(&mut self, country_code: impl Into<String>, dep: impl Into<String>) {

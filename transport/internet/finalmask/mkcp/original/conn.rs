@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\mkcp\original\conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\mkcp\original\conn.go
 
-use crate::common::errors::{Error, Result};
 use super::config::OriginalConfig;
 use super::xor::{xorbkd, xorfwd};
+use crate::common::errors::{Error, Result};
 
 /// FNV-1a 32-bit hash calculation matching Go's hash/fnv
 pub fn fnv32a(data: &[u8]) -> u32 {

@@ -1,13 +1,15 @@
 // Module: app\observatory\command\command.rs
 // 1:1 Rust implementation corresponding to Go app\observatory\command\command.go
 
-use std::sync::Arc;
-use async_trait::async_trait;
-use crate::common::errors::Result;
-use crate::app::observatory::Observatory;
-use crate::app::observatory::config_pb::{ObservationResult, OutboundStatus as ProtoOutboundStatus};
-use super::command_pb::{GetOutboundStatusRequest, GetOutboundStatusResponse};
 use super::command_grpc_pb::ObservatoryService as IObservatoryService;
+use super::command_pb::{GetOutboundStatusRequest, GetOutboundStatusResponse};
+use crate::app::observatory::Observatory;
+use crate::app::observatory::config_pb::{
+    ObservationResult, OutboundStatus as ProtoOutboundStatus,
+};
+use crate::common::errors::Result;
+use async_trait::async_trait;
+use std::sync::Arc;
 
 pub struct ObservatoryCommandServer {
     observatory: Arc<Observatory>,
@@ -25,7 +27,10 @@ impl ObservatoryCommandServer {
 
 #[async_trait]
 impl IObservatoryService for ObservatoryCommandServer {
-    async fn get_outbound_status(&self, _req: GetOutboundStatusRequest) -> Result<GetOutboundStatusResponse> {
+    async fn get_outbound_status(
+        &self,
+        _req: GetOutboundStatusRequest,
+    ) -> Result<GetOutboundStatusResponse> {
         let statuses = self.observatory.all_statuses();
         let proto_statuses = statuses
             .into_iter()

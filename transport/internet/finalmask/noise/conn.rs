@@ -1,11 +1,11 @@
 // Module: transport\internet\finalmask\noise\conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\noise\conn.go
 
+use super::config::NoiseConfig;
+use rand::Rng;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use rand::Rng;
-use super::config::NoiseConfig;
 
 pub struct NoiseGenerator {
     pub min_len: usize,
@@ -52,10 +52,10 @@ impl NoisePacketConn {
     pub fn should_send_noise(&self, addr_str: &str) -> bool {
         let map = self.sessions.lock().unwrap();
         let now = Instant::now();
-        if let Some(&expires) = map.get(addr_str) {
-            if now < expires {
-                return false;
-            }
+        if let Some(&expires) = map.get(addr_str)
+            && now < expires
+        {
+            return false;
         }
         true
     }

@@ -1,6 +1,6 @@
+use crate::common::errors::{Error, Result};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
-use crate::common::errors::{Error, Result};
 
 pub struct SystemListener;
 

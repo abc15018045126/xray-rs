@@ -1,8 +1,8 @@
 // Module: common\singbridge\error.rs
 // 1:1 Rust implementation corresponding to Go common\singbridge\error.go
 
-use std::io;
 use crate::common::errors::Error;
+use std::io;
 
 /// IsClosedOrCanceled returns true if the error indicates a closed connection or canceled operation.
 /// 1:1 corresponding to exceptions.IsClosedOrCanceled() in sing.

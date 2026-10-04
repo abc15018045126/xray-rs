@@ -9,7 +9,9 @@ pub struct PacketNumberIndexedQueue<T> {
 
 impl<T> PacketNumberIndexedQueue<T> {
     pub fn new() -> Self {
-        Self { entries: BTreeMap::new() }
+        Self {
+            entries: BTreeMap::new(),
+        }
     }
 
     pub fn insert(&mut self, pn: u64, entry: T) {

@@ -1,8 +1,8 @@
 // Module: app\log\log.rs
 // 1:1 Rust implementation corresponding to Go app\log\log.go
 
-use crate::common::errors::{Error, Result};
 use super::LogManager;
+use crate::common::errors::{Error, Result};
 
 pub type Instance = LogManager;
 
@@ -34,7 +34,7 @@ pub fn parse_mask_address(c: &str) -> Result<(u8, u8)> {
                 }
             }
 
-            if m4 % 8 != 0 || m4 > 32 {
+            if !m4.is_multiple_of(8) || m4 > 32 {
                 return Err(Error::Config(
                     "Log Mask: ipv4 mask must be divisible by 8 and between 0-32".into(),
                 ));

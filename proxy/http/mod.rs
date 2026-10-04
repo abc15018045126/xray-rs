@@ -3,16 +3,16 @@ pub mod config;
 pub mod http;
 pub mod server;
 
-use std::net::SocketAddr;
-use std::pin::Pin;
-use std::str::FromStr;
-use std::task::{Context, Poll};
-use async_trait::async_trait;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
+use async_trait::async_trait;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::str::FromStr;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 pub struct Server {
     tag: String,
@@ -30,7 +30,11 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let mut buf = [0u8; 4096];
         let mut total_read = 0;
         let mut header_len = 0;
@@ -55,7 +59,12 @@ impl InboundHandler for Server {
                     break;
                 }
                 Ok(httparse::Status::Partial) => continue,
-                Err(e) => return Err(Error::Protocol(format!("Failed to parse HTTP request: {}", e))),
+                Err(e) => {
+                    return Err(Error::Protocol(format!(
+                        "Failed to parse HTTP request: {}",
+                        e
+                    )));
+                }
             }
         }
 
@@ -64,20 +73,29 @@ impl InboundHandler for Server {
         }
 
         // Re-parse to get lifetimes
-        let _ = req.parse(&buf[..total_read])
+        let _ = req
+            .parse(&buf[..total_read])
             .map_err(|e| Error::Protocol(format!("Failed to re-parse HTTP request: {}", e)))?;
 
-        let method = req.method.ok_or_else(|| Error::Protocol("Missing HTTP method".into()))?;
-        let path = req.path.ok_or_else(|| Error::Protocol("Missing HTTP path".into()))?;
+        let method = req
+            .method
+            .ok_or_else(|| Error::Protocol("Missing HTTP method".into()))?;
+        let path = req
+            .path
+            .ok_or_else(|| Error::Protocol("Missing HTTP path".into()))?;
 
         let (destination, is_connect) = if method.eq_ignore_ascii_case("CONNECT") {
             let dest = Destination::from_str(path)?;
             (dest, true)
         } else {
-            let host_header = headers.iter().find(|h| h.name.eq_ignore_ascii_case("Host"))
+            let host_header = headers
+                .iter()
+                .find(|h| h.name.eq_ignore_ascii_case("Host"))
                 .and_then(|h| std::str::from_utf8(h.value).ok())
-                .ok_or_else(|| Error::Protocol("Missing Host header in HTTP proxy request".into()))?;
-            
+                .ok_or_else(|| {
+                    Error::Protocol("Missing Host header in HTTP proxy request".into())
+                })?;
+
             let dest = if host_header.contains(':') {
                 Destination::from_str(host_header)?
             } else {
@@ -90,9 +108,12 @@ impl InboundHandler for Server {
             let response = b"HTTP/1.1 200 Connection Established\r\n\r\n";
             stream.write_all(response).await?;
             stream.flush().await?;
-            
+
             let stream: BoxStream = if total_read > header_len {
-                Box::pin(PrefixedStream::new(buf[header_len..total_read].to_vec(), stream))
+                Box::pin(PrefixedStream::new(
+                    buf[header_len..total_read].to_vec(),
+                    stream,
+                ))
             } else {
                 stream
             };
@@ -154,17 +175,11 @@ impl AsyncWrite for PrefixedStream {
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
 
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
 
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 }

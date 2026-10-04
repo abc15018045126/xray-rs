@@ -29,11 +29,17 @@ impl OcspCache {
 
     pub fn get(&self) -> Option<Vec<u8>> {
         let guard = self.cache.lock().ok()?;
-        if let Some(resp) = guard.as_ref() {
-            if Instant::now() < resp.valid_until {
-                return Some(resp.raw.clone());
-            }
+        if let Some(resp) = guard.as_ref()
+            && Instant::now() < resp.valid_until
+        {
+            return Some(resp.raw.clone());
         }
         None
+    }
+}
+
+impl Default for OcspCache {
+    fn default() -> Self {
+        Self::new()
     }
 }

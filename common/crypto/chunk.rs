@@ -69,7 +69,9 @@ impl<W: AsyncWrite + Unpin> AeadChaCha20ChunkWriter<W> {
 
     pub async fn write_chunk(&mut self, data: &[u8]) -> Result<()> {
         let nonce = Nonce::from_slice(self.nonce.next());
-        let ciphertext = self.cipher.encrypt(nonce, data)
+        let ciphertext = self
+            .cipher
+            .encrypt(nonce, data)
             .map_err(|e| Error::Crypto(e.to_string()))?;
         PlainChunk::write_chunk(&mut self.writer, &ciphertext).await
     }
@@ -95,7 +97,8 @@ impl<R: AsyncRead + Unpin> AeadChaCha20ChunkReader<R> {
     pub async fn read_chunk(&mut self) -> Result<Vec<u8>> {
         let ciphertext = PlainChunk::read_chunk(&mut self.reader).await?;
         let nonce = Nonce::from_slice(self.nonce.next());
-        self.cipher.decrypt(nonce, ciphertext.as_ref())
+        self.cipher
+            .decrypt(nonce, ciphertext.as_ref())
             .map_err(|e| Error::Crypto(e.to_string()))
     }
 }

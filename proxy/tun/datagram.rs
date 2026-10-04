@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use tracing::{debug, trace};
 use watfaq_netstack::{Packet, UdpPacket, UdpSocket};
 
@@ -45,18 +45,28 @@ pub async fn handle_inbound_datagram(
             continue;
         }
 
-        if let std::net::IpAddr::V4(ipv4) = remote_addr.ip() {
-            if ipv4.is_broadcast() || ipv4.octets()[3] == 255 || ipv4 == std::net::Ipv4Addr::new(172, 19, 0, 3) {
-                continue;
-            }
-        }
-
-        // Drop Windows LAN discovery / NetBIOS / LLMNR broadcasts
-        if matches!(remote_addr.port(), 135 | 137 | 138 | 139 | 5353 | 5355 | 1900) {
+        if let std::net::IpAddr::V4(ipv4) = remote_addr.ip()
+            && (ipv4.is_broadcast()
+                || ipv4.octets()[3] == 255
+                || ipv4 == std::net::Ipv4Addr::new(172, 19, 0, 3))
+        {
             continue;
         }
 
-        trace!("tun UDP packet: {} -> {}, len={}", local_addr, remote_addr, pkt.data().len());
+        // Drop Windows LAN discovery / NetBIOS / LLMNR broadcasts
+        if matches!(
+            remote_addr.port(),
+            135 | 137 | 138 | 139 | 5353 | 5355 | 1900
+        ) {
+            continue;
+        }
+
+        trace!(
+            "tun UDP packet: {} -> {}, len={}",
+            local_addr,
+            remote_addr,
+            pkt.data().len()
+        );
 
         let key = (local_addr, remote_addr);
         let mut guard = sessions.lock().await;
@@ -120,10 +130,10 @@ pub async fn handle_inbound_datagram(
 
                 let recv_task = async {
                     while let Some(data) = packet_rx.recv().await {
-                        if let Err(_) = tun_w.write_all(&data).await {
+                        if tun_w.write_all(&data).await.is_err() {
                             break;
                         }
-                        if let Err(_) = tun_w.flush().await {
+                        if tun_w.flush().await.is_err() {
                             break;
                         }
                     }

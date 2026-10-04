@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::super::io::Reader;
     use super::super::readv_reader::{AllocStrategy, ReadVReader};
+    use std::io::Cursor;
 
     #[test]
     fn test_alloc_strategy() {

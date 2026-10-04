@@ -3,10 +3,10 @@ pub mod command;
 #[cfg(test)]
 pub mod command_test;
 
-use std::collections::HashMap;
-use std::sync::Arc;
 use crate::app::commander::Service;
 use crate::app::stats::StatsManager;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct StatsService {
     stats_manager: Arc<StatsManager>,
@@ -33,7 +33,11 @@ impl StatsService {
         let mut res = HashMap::new();
         for (name, counter) in self.stats_manager.all_counters() {
             if name.contains(pattern) {
-                let val = if reset { counter.set(0) } else { counter.value() };
+                let val = if reset {
+                    counter.set(0)
+                } else {
+                    counter.value()
+                };
                 res.insert(name, val);
             }
         }

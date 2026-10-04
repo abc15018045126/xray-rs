@@ -5,13 +5,13 @@ pub mod handler;
 #[cfg(test)]
 pub mod command_test;
 
-use std::sync::Arc;
 use crate::app::commander::Service;
 use crate::app::proxyman::inbound::DefaultInboundManager;
 use crate::app::proxyman::outbound::DefaultOutboundManager;
 use crate::common::errors::Result;
 use crate::features::inbound::InboundManager;
 use crate::features::outbound::OutboundManager;
+use std::sync::Arc;
 
 pub use command::ProxymanCommandService;
 

@@ -15,16 +15,16 @@ pub mod address_test;
 #[cfg(test)]
 pub mod destination_test;
 #[cfg(test)]
-pub mod port_test;
-#[cfg(test)]
 pub mod find_process_test;
+#[cfg(test)]
+pub mod port_test;
 
 use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-pub use address::{domain_address, ip_address, parse_address, Address};
+pub use address::{Address, domain_address, ip_address, parse_address};
 pub use cnc::CncConnection;
-pub use destination::{parse_destination, tcp_destination, udp_destination, Destination};
+pub use destination::{Destination, parse_destination, tcp_destination, udp_destination};
 pub use find_process::ProcessFinder;
 pub use network::{Network, NetworkList};
 pub use port::{Port, PortList, PortRange};

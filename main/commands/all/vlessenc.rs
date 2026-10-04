@@ -1,11 +1,11 @@
 // Module: main\commands\all\vlessenc.rs
 // 1:1 Rust implementation corresponding to Go main\commands\all\vlessenc.go
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine;
 use super::curve25519::gen_curve25519;
 use super::mlkem768::gen_mlkem768;
 use crate::main::commands::base::command::Command;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 pub fn generate_dot_config(fields: &[&str]) -> String {
     fields.join(".")
@@ -19,14 +19,14 @@ pub fn cmd_vlessenc() -> Command {
     )
     .with_run(|_args| {
         let (private_key, password, _) = gen_curve25519(None)?;
-        let server_key = URL_SAFE_NO_PAD.encode(&private_key);
-        let client_key = URL_SAFE_NO_PAD.encode(&password);
+        let server_key = URL_SAFE_NO_PAD.encode(private_key);
+        let client_key = URL_SAFE_NO_PAD.encode(password);
 
         let decryption = generate_dot_config(&["mlkem768x25519plus", "native", "600s", &server_key]);
         let encryption = generate_dot_config(&["mlkem768x25519plus", "native", "0rtt", &client_key]);
 
         let (seed, client, _) = gen_mlkem768(None);
-        let server_key_pq = URL_SAFE_NO_PAD.encode(&seed);
+        let server_key_pq = URL_SAFE_NO_PAD.encode(seed);
         let client_key_pq = URL_SAFE_NO_PAD.encode(&client);
 
         let decryption_pq = generate_dot_config(&["mlkem768x25519plus", "native", "600s", &server_key_pq]);

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use crate::app::stats::Counter;
+use std::sync::Arc;
 
 pub struct SizeStatCounter {
     pub read_counter: Option<Arc<Counter>>,

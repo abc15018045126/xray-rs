@@ -81,12 +81,11 @@ where
                 if let Some(pos) = inner.order.iter().position(|x| x == &key) {
                     inner.order.remove(pos);
                 }
-            } else if inner.order.len() >= self.capacity {
-                if let Some(lru_key) = inner.order.pop_front() {
-                    if let Some(old_val) = inner.key_to_val.remove(&lru_key) {
-                        inner.val_to_key.remove(&old_val);
-                    }
-                }
+            } else if inner.order.len() >= self.capacity
+                && let Some(lru_key) = inner.order.pop_front()
+                && let Some(old_val) = inner.key_to_val.remove(&lru_key)
+            {
+                inner.val_to_key.remove(&old_val);
             }
 
             inner.key_to_val.insert(key.clone(), val.clone());

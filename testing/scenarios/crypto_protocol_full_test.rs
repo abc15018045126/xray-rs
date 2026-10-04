@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
     use crate::common::buf::Buffer;
     use crate::common::crypto::AesGcmCipher;
     use crate::common::net::{Address, Destination, Network};
     use crate::common::protocol::{BittorrentSniffer, Timestamp, UdpPacket};
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_aes_gcm_128_and_256_roundtrip() {
@@ -30,8 +30,10 @@ mod tests {
 
         assert_eq!(BittorrentSniffer::sniff(&bt_header).unwrap(), "bittorrent");
 
-        let utp_header = vec![0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        let utp_header = vec![
+            0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
         assert_eq!(BittorrentSniffer::sniff(&utp_header).unwrap(), "utp");
 
         let invalid = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";

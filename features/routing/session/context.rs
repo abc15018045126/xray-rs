@@ -1,11 +1,11 @@
 // Module: features\routing\session\context.rs
 // 1:1 Rust implementation corresponding to Go features\routing\session\context.go
 
-use std::collections::HashMap;
-use std::net::IpAddr;
 use crate::common::net::Network;
 use crate::common::protocol::SessionContext;
 use crate::features::routing::context::RoutingContext;
+use std::collections::HashMap;
+use std::net::IpAddr;
 
 pub struct SessionRouteContext {
     pub session: SessionContext,
@@ -27,7 +27,10 @@ impl RoutingContext for SessionRouteContext {
     }
 
     fn get_source_ips(&self) -> Vec<IpAddr> {
-        self.session.source.map(|s| vec![s.ip()]).unwrap_or_default()
+        self.session
+            .source
+            .map(|s| vec![s.ip()])
+            .unwrap_or_default()
     }
 
     fn get_source_port(&self) -> u16 {
@@ -35,10 +38,10 @@ impl RoutingContext for SessionRouteContext {
     }
 
     fn get_target_ips(&self) -> Vec<IpAddr> {
-        if let Some(target) = &self.session.route_target {
-            if let Some(ip) = target.address.to_ip() {
-                return vec![ip];
-            }
+        if let Some(target) = &self.session.route_target
+            && let Some(ip) = target.address.to_ip()
+        {
+            return vec![ip];
         }
         self.session
             .destination
@@ -60,10 +63,10 @@ impl RoutingContext for SessionRouteContext {
         if let Some(d) = self.session.sniffed_domain.as_deref() {
             return Some(d);
         }
-        if let Some(target) = &self.session.route_target {
-            if let Some(d) = target.address.domain_name() {
-                return Some(d);
-            }
+        if let Some(target) = &self.session.route_target
+            && let Some(d) = target.address.domain_name()
+        {
+            return Some(d);
         }
         self.session.destination.address.domain_name()
     }

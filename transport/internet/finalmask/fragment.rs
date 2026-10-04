@@ -1,7 +1,7 @@
-#[path = "fragment/config.pb.rs"]
-pub mod config_pb;
 #[path = "fragment/config.rs"]
 pub mod config;
+#[path = "fragment/config.pb.rs"]
+pub mod config_pb;
 #[path = "fragment/conn.rs"]
 pub mod conn;
 
@@ -12,9 +12,9 @@ pub mod fragment_test;
 pub use config::Config;
 pub use conn::FragmentConn;
 
+use crate::common::errors::Result;
 use std::time::Duration;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
-use crate::common::errors::Result;
 
 #[derive(Debug, Clone)]
 pub struct FragmentConfig {
@@ -54,7 +54,11 @@ impl Fragmenter {
         false
     }
 
-    pub async fn write_fragmented<W: AsyncWrite + Unpin>(&self, writer: &mut W, data: &[u8]) -> Result<()> {
+    pub async fn write_fragmented<W: AsyncWrite + Unpin>(
+        &self,
+        writer: &mut W,
+        data: &[u8],
+    ) -> Result<()> {
         if self.config.packets == "tlshello" && !Self::is_tls_client_hello(data) {
             writer.write_all(data).await?;
             return Ok(());
@@ -65,13 +69,17 @@ impl Fragmenter {
         use rand::Rng;
 
         while offset < data.len() {
-            let chunk_size = rng.gen_range(self.config.min_len..=self.config.max_len).min(data.len() - offset);
+            let chunk_size = rng
+                .gen_range(self.config.min_len..=self.config.max_len)
+                .min(data.len() - offset);
             writer.write_all(&data[offset..offset + chunk_size]).await?;
             writer.flush().await?;
             offset += chunk_size;
 
             if offset < data.len() {
-                let delay_ms = rng.gen_range(self.config.min_delay.as_millis()..=self.config.max_delay.as_millis());
+                let delay_ms = rng.gen_range(
+                    self.config.min_delay.as_millis()..=self.config.max_delay.as_millis(),
+                );
                 tokio::time::sleep(Duration::from_millis(delay_ms as u64)).await;
             }
         }

@@ -1,7 +1,9 @@
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{add_address, add_route, delete_route, maybe_routes_clean_up, set_dns_v4, set_dns_v6};
+pub use windows::{
+    add_address, add_route, delete_route, maybe_routes_clean_up, set_dns_v4, set_dns_v6,
+};
 
 #[cfg(target_os = "macos")]
 mod macos;
@@ -11,24 +13,18 @@ pub use macos::{add_route, maybe_add_default_route, maybe_routes_clean_up};
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub use linux::{add_route, check_ip_command_installed, maybe_routes_clean_up, setup_policy_routing};
+pub use linux::{
+    add_route, check_ip_command_installed, maybe_routes_clean_up, setup_policy_routing,
+};
 
-#[cfg(not(any(
-    windows,
-    target_os = "macos",
-    target_os = "linux",
-)))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux",)))]
 mod other;
-#[cfg(not(any(
-    windows,
-    target_os = "macos",
-    target_os = "linux",
-)))]
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux",)))]
 pub use other::{add_route, maybe_routes_clean_up};
 
-use tracing::warn;
 use super::config::TunConfig;
 use super::net::get_interface_by_name;
+use tracing::warn;
 
 pub fn maybe_add_routes(cfg: &TunConfig, tun_name: &str) -> std::io::Result<()> {
     if cfg.route_all || !cfg.routes.is_empty() {
@@ -60,11 +56,15 @@ pub fn maybe_add_routes(cfg: &TunConfig, tun_name: &str) -> std::io::Result<()> 
                         IpNet::new(
                             std::net::IpAddr::V6(std::net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)),
                             1,
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                         IpNet::new(
-                            std::net::IpAddr::V6(std::net::Ipv6Addr::new(0x8000, 0, 0, 0, 0, 0, 0, 0)),
+                            std::net::IpAddr::V6(std::net::Ipv6Addr::new(
+                                0x8000, 0, 0, 0, 0, 0, 0, 0,
+                            )),
                             1,
-                        ).unwrap(),
+                        )
+                        .unwrap(),
                     ]);
                 }
 

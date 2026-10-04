@@ -1,9 +1,9 @@
 // Module: transport\internet\udp\hub_linux.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\udp\hub_linux.go
 
+use crate::common::net::Destination;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use crate::common::net::Destination;
 
 pub const SO_REUSEPORT: bool = true;
 

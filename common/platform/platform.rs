@@ -44,10 +44,10 @@ impl EnvFlag {
         if let Ok(v) = env::var(&self.name) {
             return v;
         }
-        if !self.alt_name.is_empty() {
-            if let Ok(v) = env::var(&self.alt_name) {
-                return v;
-            }
+        if !self.alt_name.is_empty()
+            && let Ok(v) = env::var(&self.alt_name)
+        {
+            return v;
         }
         default_value()
     }
@@ -78,10 +78,10 @@ impl EnvFlag {
 }
 
 pub fn get_executable_dir() -> PathBuf {
-    if let Ok(exe) = env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            return parent.to_path_buf();
-        }
+    if let Ok(exe) = env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        return parent.to_path_buf();
     }
     PathBuf::from(".")
 }
@@ -132,13 +132,28 @@ pub fn line_separator() -> &'static str {
 
 pub fn get_os_name() -> &'static str {
     #[cfg(target_os = "windows")]
-    { "windows" }
+    {
+        "windows"
+    }
     #[cfg(target_os = "linux")]
-    { "linux" }
+    {
+        "linux"
+    }
     #[cfg(target_os = "macos")]
-    { "darwin" }
+    {
+        "darwin"
+    }
     #[cfg(target_os = "freebsd")]
-    { "freebsd" }
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos", target_os = "freebsd")))]
-    { "unknown" }
+    {
+        "freebsd"
+    }
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "freebsd"
+    )))]
+    {
+        "unknown"
+    }
 }

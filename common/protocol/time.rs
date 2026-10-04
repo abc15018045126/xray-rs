@@ -1,5 +1,5 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use crate::common::dice::roll;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(pub i64);

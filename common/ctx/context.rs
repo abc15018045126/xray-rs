@@ -41,12 +41,12 @@ impl Context {
 pub fn context_with_id(ctx: &Context, id: ID) -> Context {
     let new_ctx = Context::new();
     // Copy existing keys if needed
-    if let Ok(guard) = ctx.values.read() {
-        if let Ok(mut new_guard) = new_ctx.values.write() {
-            for (k, _) in guard.iter() {
-                if let Some(val) = ctx.get::<ID>(k) {
-                    new_guard.insert(k.clone(), Box::new(val));
-                }
+    if let Ok(guard) = ctx.values.read()
+        && let Ok(mut new_guard) = new_ctx.values.write()
+    {
+        for k in guard.keys() {
+            if let Some(val) = ctx.get::<ID>(k) {
+                new_guard.insert(k.clone(), Box::new(val));
             }
         }
     }

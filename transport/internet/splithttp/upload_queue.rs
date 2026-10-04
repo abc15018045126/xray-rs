@@ -1,11 +1,11 @@
 // Module: transport\internet\splithttp\upload_queue.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\upload_queue.go
 
+use crate::common::errors::{Error, Result};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::common::errors::{Error, Result};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Packet {

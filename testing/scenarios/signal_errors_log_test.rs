@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use crate::common::errors::{Error, MultiError};
     use crate::common::log::{AccessLogMessage, AccessStatus};
     use crate::common::net::{Address, Destination};
     use crate::common::signal::PubSubService;
+    use std::net::SocketAddr;
 
     #[tokio::test]
     async fn test_pubsub_service_broadcast_and_cleanup() {
@@ -12,7 +12,9 @@ mod tests {
         let mut sub1 = pubsub.subscribe("routing-events");
         let mut sub2 = pubsub.subscribe("routing-events");
 
-        pubsub.publish("routing-events", "node-switched-to-direct").unwrap();
+        pubsub
+            .publish("routing-events", "node-switched-to-direct")
+            .unwrap();
 
         assert_eq!(sub1.recv().await.unwrap(), "node-switched-to-direct");
         assert_eq!(sub2.recv().await.unwrap(), "node-switched-to-direct");
@@ -48,6 +50,9 @@ mod tests {
         };
 
         let formatted = msg.format();
-        assert_eq!(formatted, "127.0.0.1:12345 accepted google.com:443 [match-domain-rule]");
+        assert_eq!(
+            formatted,
+            "127.0.0.1:12345 accepted google.com:443 [match-domain-rule]"
+        );
     }
 }

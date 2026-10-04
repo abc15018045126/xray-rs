@@ -1,35 +1,25 @@
 // Module: app\router\config.pb.rs
 // 1:1 Rust protobuf message definitions corresponding to Go app\router\config.pb.go
 
+use super::webhook::WebhookConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use super::webhook::WebhookConfig;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum DomainType {
+    #[default]
     Plain = 0,
     Regex = 1,
     Domain = 2,
     Full = 3,
 }
 
-impl Default for DomainType {
-    fn default() -> Self {
-        Self::Plain
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum DomainStrategy {
+    #[default]
     AsIs = 0,
     IpIfNonMatch = 2,
     IpOnDemand = 3,
-}
-
-impl Default for DomainStrategy {
-    fn default() -> Self {
-        Self::AsIs
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

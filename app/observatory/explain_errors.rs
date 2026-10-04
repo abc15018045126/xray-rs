@@ -14,10 +14,20 @@ pub fn explain_error(err_str: &str) -> (&'static str, ErrorCategory) {
     let lower = err_str.to_lowercase();
     if lower.contains("timeout") || lower.contains("timed out") || lower.contains("deadline") {
         ("Request timeout / packet dropped", ErrorCategory::Timeout)
-    } else if lower.contains("connection refused") || lower.contains("10061") || lower.contains("reset by peer") {
-        ("Remote endpoint refused connection", ErrorCategory::ConnectionRefused)
-    } else if lower.contains("tls") || lower.contains("handshake") || lower.contains("certificate") {
-        ("TLS handshake or SNI interception failure", ErrorCategory::TlsHandshakeFailed)
+    } else if lower.contains("connection refused")
+        || lower.contains("10061")
+        || lower.contains("reset by peer")
+    {
+        (
+            "Remote endpoint refused connection",
+            ErrorCategory::ConnectionRefused,
+        )
+    } else if lower.contains("tls") || lower.contains("handshake") || lower.contains("certificate")
+    {
+        (
+            "TLS handshake or SNI interception failure",
+            ErrorCategory::TlsHandshakeFailed,
+        )
     } else if lower.contains("dns") || lower.contains("not resolved") || lower.contains("lookup") {
         ("DNS resolution failure", ErrorCategory::DnsLookupFailed)
     } else {
@@ -67,7 +77,10 @@ mod tests {
 
         assert!(collector.has_errors());
         assert_eq!(collector.count(), 2);
-        assert_eq!(collector.underlying_error(), Some("connection reset by peer"));
+        assert_eq!(
+            collector.underlying_error(),
+            Some("connection reset by peer")
+        );
 
         let (exp, cat) = explain_error(collector.underlying_error().unwrap());
         assert_eq!(cat, ErrorCategory::ConnectionRefused);

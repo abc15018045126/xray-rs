@@ -1,10 +1,10 @@
 // Module: app\dns\nameserver_local.rs
 // 1:1 Rust implementation corresponding to Go app\dns\nameserver_local.go
 
-use std::net::IpAddr;
-use async_trait::async_trait;
-use crate::common::errors::{Error, Result};
 use super::nameserver::NameServer;
+use crate::common::errors::{Error, Result};
+use async_trait::async_trait;
+use std::net::IpAddr;
 
 pub struct LocalNameServer;
 
@@ -32,7 +32,10 @@ impl NameServer for LocalNameServer {
             Ok(addrs) => {
                 let ips: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();
                 if ips.is_empty() {
-                    Err(Error::NotFound(format!("Domain '{}' not resolved locally", clean)))
+                    Err(Error::NotFound(format!(
+                        "Domain '{}' not resolved locally",
+                        clean
+                    )))
                 } else {
                     Ok(ips)
                 }

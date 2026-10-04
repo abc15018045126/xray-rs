@@ -11,5 +11,5 @@ mod httpupgrade_test;
 pub use config::HttpUpgradeConfig;
 pub use connection::HttpUpgradeConnection;
 pub use dialer::HttpUpgradeDialer;
-pub use httpupgrade::{HttpUpgradeStream, UpgradedStream, PROTOCOL_NAME};
+pub use httpupgrade::{HttpUpgradeStream, PROTOCOL_NAME, UpgradedStream};
 pub use hub::HttpUpgradeHub;

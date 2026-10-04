@@ -23,7 +23,9 @@ pub fn sniff_tls(b: &[u8]) -> Result<TlsSniffHeader> {
         return Err(Error::Protocol("TLS payload too short".into()));
     }
 
-    if b[0] != 0x16 /* TLS Handshake */ {
+    if b[0] != 0x16
+    /* TLS Handshake */
+    {
         return Err(Error::Protocol("not TLS handshake".into()));
     }
 

@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
+    use super::super::StatsManager;
     use super::super::online_map::OnlineMap;
     use super::super::stats::*;
-    use super::super::StatsManager;
 
     #[test]
     fn test_stats_metric_names() {
@@ -14,9 +14,18 @@ mod tests {
         assert_eq!(STATS_OUTBOUND_UPLINK, "outbound>>>uplink");
         assert_eq!(STATS_OUTBOUND_DOWNLINK, "outbound>>>downlink");
 
-        assert_eq!(inbound_uplink_name("http_in"), "inbound>>>http_in>>>traffic>>>uplink");
-        assert_eq!(outbound_downlink_name("proxy_out"), "outbound>>>proxy_out>>>traffic>>>downlink");
-        assert_eq!(user_uplink_name("user@test.com"), "user>>>user@test.com>>>traffic>>>uplink");
+        assert_eq!(
+            inbound_uplink_name("http_in"),
+            "inbound>>>http_in>>>traffic>>>uplink"
+        );
+        assert_eq!(
+            outbound_downlink_name("proxy_out"),
+            "outbound>>>proxy_out>>>traffic>>>downlink"
+        );
+        assert_eq!(
+            user_uplink_name("user@test.com"),
+            "user>>>user@test.com>>>traffic>>>uplink"
+        );
     }
 
     #[test]

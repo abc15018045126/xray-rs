@@ -1,11 +1,11 @@
 // Module: transport\internet\hysteria\udphop\conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\hysteria\udphop\conn.go
 
-use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
 use super::addr::UDPHopAddr;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 
 pub const DEFAULT_HOP_INTERVAL: Duration = Duration::from_secs(30);
 

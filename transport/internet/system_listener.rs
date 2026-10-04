@@ -6,10 +6,10 @@ use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 use tokio::sync::RwLock;
 
+use super::system_dialer::ControllerFunc;
 use crate::common::errors::{Error, Result};
 use crate::transport::internet::filelocker::FileLocker;
 use crate::transport::internet::sockopt::SocketOptions;
-use super::system_dialer::ControllerFunc;
 
 pub struct UnixListenerWrapper {
     pub lock_path: Option<String>,
@@ -19,7 +19,7 @@ impl Drop for UnixListenerWrapper {
     fn drop(&mut self) {
         if let Some(ref path) = self.lock_path {
             let mut locker = FileLocker::new(path);
-            let _ = locker.release();
+            locker.release();
         }
     }
 }
@@ -42,7 +42,10 @@ impl SystemListener {
         })
     }
 
-    pub async fn listen_packet(addr: SocketAddr, _sockopt: Option<&SocketOptions>) -> Result<UdpSocket> {
+    pub async fn listen_packet(
+        addr: SocketAddr,
+        _sockopt: Option<&SocketOptions>,
+    ) -> Result<UdpSocket> {
         let socket = UdpSocket::bind(addr).await.map_err(Error::Io)?;
         Ok(socket)
     }

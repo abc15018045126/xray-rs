@@ -3,8 +3,8 @@
 
 use async_trait::async_trait;
 
-use crate::common::buf::io::{Reader, Writer};
 use crate::common::buf::MultiBuffer;
+use crate::common::buf::io::{Reader, Writer};
 use crate::common::errors::Result;
 use crate::common::net::Address;
 
@@ -29,10 +29,10 @@ impl<R: Reader + Send + Sync> Reader for EndpointOverrideReader<R> {
     async fn read_multi_buffer(&mut self) -> Result<MultiBuffer> {
         let mut mb = self.reader.read_multi_buffer().await?;
         for b in mb.buffers_mut() {
-            if let Some(ref mut udp) = b.udp {
-                if udp.address == self.original_dest {
-                    udp.address = self.dest.clone();
-                }
+            if let Some(ref mut udp) = b.udp
+                && udp.address == self.original_dest
+            {
+                udp.address = self.dest.clone();
             }
         }
         Ok(mb)
@@ -59,10 +59,10 @@ impl<W: Writer> EndpointOverrideWriter<W> {
 impl<W: Writer + Send + Sync> Writer for EndpointOverrideWriter<W> {
     async fn write_multi_buffer(&mut self, mut mb: MultiBuffer) -> Result<()> {
         for b in mb.buffers_mut() {
-            if let Some(ref mut udp) = b.udp {
-                if udp.address == self.dest {
-                    udp.address = self.original_dest.clone();
-                }
+            if let Some(ref mut udp) = b.udp
+                && udp.address == self.dest
+            {
+                udp.address = self.original_dest.clone();
             }
         }
         self.writer.write_multi_buffer(mb).await

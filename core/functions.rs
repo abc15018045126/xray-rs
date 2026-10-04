@@ -1,16 +1,16 @@
 // Module: core\functions.rs
 // 1:1 Rust implementation corresponding to Go core\functions.go
 
-use std::sync::Arc;
+use super::config::load_config;
+use super::xray::Instance;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::infra::conf::Config;
-use crate::transport::internet::udp::{dial_dispatcher, DispatcherConn, LinkDispatcher};
-use crate::transport::pipe::new_pipe;
 use crate::transport::Link;
-use super::config::load_config;
-use super::xray::Instance;
+use crate::transport::internet::udp::{DispatcherConn, LinkDispatcher, dial_dispatcher};
+use crate::transport::pipe::new_pipe;
+use std::sync::Arc;
 
 /// CreateObject creates a new object based on the given Xray instance and config.
 pub fn create_object(_instance: Option<&Instance>, config: &Config) -> Result<Instance> {

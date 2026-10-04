@@ -1,12 +1,12 @@
 // Module: features\outbound\outbound.rs
 // 1:1 Rust implementation corresponding to Go features\outbound\outbound.go
 
-use std::sync::Arc;
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::feature::TYPE_OUTBOUND_MANAGER;
+use async_trait::async_trait;
+use std::sync::Arc;
 
 #[async_trait]
 pub trait OutboundHandler: Send + Sync {

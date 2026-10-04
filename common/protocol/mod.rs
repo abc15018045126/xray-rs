@@ -22,8 +22,8 @@ pub mod id_test;
 #[cfg(test)]
 pub mod time_test;
 
-use std::net::SocketAddr;
 use crate::common::net::Destination;
+use std::net::SocketAddr;
 
 pub use account::{Account, AsAccount};
 pub use address::AddressParser;
@@ -84,4 +84,3 @@ impl SessionContext {
         self
     }
 }
-

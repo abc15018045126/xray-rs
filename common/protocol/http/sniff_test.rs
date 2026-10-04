@@ -7,7 +7,8 @@ mod tests {
 
     #[test]
     fn test_sniff_http_get() {
-        let req = b"GET /index.html HTTP/1.1\r\nHost: www.xray.com\r\nUser-Agent: curl/7.68.0\r\n\r\n";
+        let req =
+            b"GET /index.html HTTP/1.1\r\nHost: www.xray.com\r\nUser-Agent: curl/7.68.0\r\n\r\n";
         let header = sniff_http(req).unwrap();
         assert_eq!(header.domain(), "www.xray.com");
         assert_eq!(header.protocol(), "http1");

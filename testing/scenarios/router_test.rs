@@ -1,73 +1,89 @@
 #[cfg(test)]
 mod tests {
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port};
+    use crate::testing::servers::tcp::{Server as TcpServer, echo_processor, xor_processor};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use uuid::Uuid;
-    use crate::testing::scenarios::common::{pick_port, TestEnvironment};
-    use crate::testing::servers::tcp::{echo_processor, xor_processor, Server as TcpServer};
 
     #[tokio::test]
     async fn test_router_rule_dispatching() {
-        let direct_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let direct_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let direct_port = direct_server.port();
 
-        let proxy_target_server = TcpServer::start(None, Some(xor_processor(b'k')), None).await.unwrap();
+        let proxy_target_server = TcpServer::start(None, Some(xor_processor(b'k')), None)
+            .await
+            .unwrap();
         let proxy_target_port = proxy_target_server.port();
 
         let mut env = TestEnvironment::new();
         let user_id = Uuid::new_v4();
 
         let vless_port = pick_port().await;
-        env.start_node(serde_json::from_value(serde_json::json!({
-            "inbounds": [{
-                "tag": "vless-in",
-                "port": vless_port,
-                "listen": "127.0.0.1",
-                "protocol": "vless",
-                "settings": { "clients": [{ "id": user_id.to_string() }] }
-            }],
-            "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
-        })).unwrap()).await.unwrap();
+        env.start_node(
+            serde_json::from_value(serde_json::json!({
+                "inbounds": [{
+                    "tag": "vless-in",
+                    "port": vless_port,
+                    "listen": "127.0.0.1",
+                    "protocol": "vless",
+                    "settings": { "clients": [{ "id": user_id.to_string() }] }
+                }],
+                "outbounds": [{ "tag": "direct", "protocol": "freedom" }]
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
 
         let socks_port = pick_port().await;
-        env.start_node(serde_json::from_value(serde_json::json!({
-            "inbounds": [{
-                "tag": "socks-in",
-                "port": socks_port,
-                "listen": "127.0.0.1",
-                "protocol": "socks"
-            }],
-            "outbounds": [
-                { "tag": "direct", "protocol": "freedom" },
-                {
-                    "tag": "proxy-vless",
-                    "protocol": "vless",
-                    "settings": {
-                        "vnext": [{
-                            "address": "127.0.0.1",
-                            "port": vless_port,
-                            "users": [{ "id": user_id.to_string() }]
-                        }]
-                    }
-                },
-                { "tag": "blocked", "protocol": "blackhole" }
-            ],
-            "routing": {
-                "rules": [
+        env.start_node(
+            serde_json::from_value(serde_json::json!({
+                "inbounds": [{
+                    "tag": "socks-in",
+                    "port": socks_port,
+                    "listen": "127.0.0.1",
+                    "protocol": "socks"
+                }],
+                "outbounds": [
+                    { "tag": "direct", "protocol": "freedom" },
                     {
-                        "type": "field",
-                        "outboundTag": "blocked",
-                        "domain": ["keyword:block"]
+                        "tag": "proxy-vless",
+                        "protocol": "vless",
+                        "settings": {
+                            "vnext": [{
+                                "address": "127.0.0.1",
+                                "port": vless_port,
+                                "users": [{ "id": user_id.to_string() }]
+                            }]
+                        }
                     },
-                    {
-                        "type": "field",
-                        "outboundTag": "proxy-vless",
-                        "domain": ["keyword:proxy"]
-                    }
-                ]
-            }
-        })).unwrap()).await.unwrap();
+                    { "tag": "blocked", "protocol": "blackhole" }
+                ],
+                "routing": {
+                    "rules": [
+                        {
+                            "type": "field",
+                            "outboundTag": "blocked",
+                            "domain": ["keyword:block"]
+                        },
+                        {
+                            "type": "field",
+                            "outboundTag": "proxy-vless",
+                            "domain": ["keyword:proxy"]
+                        }
+                    ]
+                }
+            }))
+            .unwrap(),
+        )
+        .await
+        .unwrap();
 
-        let mut c1 = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", socks_port)).await.unwrap();
+        let mut c1 = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", socks_port))
+            .await
+            .unwrap();
         c1.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut resp = [0u8; 2];
         c1.read_exact(&mut resp).await.unwrap();
@@ -82,7 +98,9 @@ mod tests {
         c1.read_exact(&mut connect_resp).await.unwrap();
         assert_eq!(connect_resp[1], 0x00);
 
-        let mut c2 = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", socks_port)).await.unwrap();
+        let mut c2 = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", socks_port))
+            .await
+            .unwrap();
         c2.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         c2.read_exact(&mut resp).await.unwrap();
 
@@ -101,7 +119,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_udp_rule_does_not_block_tcp() {
-        let echo_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let echo_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let echo_port = echo_server.port();
 
         let mut env = TestEnvironment::new();
@@ -128,10 +148,14 @@ mod tests {
                 ]
             }
         });
-        env.start_node(serde_json::from_value(cfg).unwrap()).await.unwrap();
+        env.start_node(serde_json::from_value(cfg).unwrap())
+            .await
+            .unwrap();
 
         // Connect via TCP: must NOT be blocked because rule only applies to UDP!
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", socks_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", socks_port))
+            .await
+            .unwrap();
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();
         let mut auth_resp = [0u8; 2];
         client.read_exact(&mut auth_resp).await.unwrap();

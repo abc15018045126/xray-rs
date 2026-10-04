@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use uuid::Uuid;
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::RequestCommand;
     use crate::proxy::vless::encoding::{Addons, RequestHeader, ResponseHeader};
+    use std::io::Cursor;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_vless_addons_protobuf_roundtrip() {

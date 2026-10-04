@@ -2,10 +2,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, TcpListener};
+    use crate::app::router::condition::Rule;
     use crate::common::net::{Address, Destination, ProcessFinder};
     use crate::common::protocol::SessionContext;
-    use crate::app::router::condition::Rule;
+    use std::net::{Ipv4Addr, TcpListener};
 
     #[test]
     fn test_find_process_current_pid() {
@@ -13,7 +13,10 @@ mod tests {
         #[cfg(target_os = "windows")]
         {
             let name = crate::common::net::find_process_windows::find_process_name_by_pid(cur_pid);
-            assert!(name.is_some(), "Expected current process name to be resolved");
+            assert!(
+                name.is_some(),
+                "Expected current process name to be resolved"
+            );
         }
     }
 
@@ -26,9 +29,16 @@ mod tests {
         {
             let proc_info = ProcessFinder::find_process_by_socket(local_addr, true)
                 .expect("Search should succeed");
-            assert!(proc_info.is_some(), "Expected process info for local TCP socket");
+            assert!(
+                proc_info.is_some(),
+                "Expected process info for local TCP socket"
+            );
             let info = proc_info.unwrap();
-            assert_eq!(info.pid, std::process::id(), "Owning PID should match current process");
+            assert_eq!(
+                info.pid,
+                std::process::id(),
+                "Owning PID should match current process"
+            );
         }
     }
 
@@ -46,7 +56,10 @@ mod tests {
 
         #[cfg(target_os = "windows")]
         {
-            assert!(rule.matches(&session), "Rule with self/ must match current process socket");
+            assert!(
+                rule.matches(&session),
+                "Rule with self/ must match current process socket"
+            );
         }
     }
 
@@ -62,6 +75,9 @@ mod tests {
         let mut session = SessionContext::new("tun-in", dest);
         session.source = Some(local_addr);
 
-        assert!(!rule.matches(&session), "Rule with non-matching process must not match");
+        assert!(
+            !rule.matches(&session),
+            "Rule with non-matching process must not match"
+        );
     }
 }

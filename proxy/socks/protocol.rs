@@ -1,6 +1,6 @@
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub const SOCKS5_VERSION: u8 = 0x05;
 pub const SOCKS4_VERSION: u8 = 0x04;
@@ -24,14 +24,20 @@ impl SocksProtocol {
         target: &Destination,
     ) -> Result<()> {
         // 1. Client greeting: version 5, 1 auth method (No Auth = 0x00)
-        stream.write_all(&[SOCKS5_VERSION, 0x01, AUTH_NO_AUTH]).await.map_err(Error::Io)?;
+        stream
+            .write_all(&[SOCKS5_VERSION, 0x01, AUTH_NO_AUTH])
+            .await
+            .map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
 
         // 2. Server choice
         let mut resp = [0u8; 2];
         stream.read_exact(&mut resp).await.map_err(Error::Io)?;
         if resp[0] != SOCKS5_VERSION || resp[1] != AUTH_NO_AUTH {
-            return Err(Error::Protocol(format!("SOCKS5 auth negotiation failed: {:?}", resp)));
+            return Err(Error::Protocol(format!(
+                "SOCKS5 auth negotiation failed: {:?}",
+                resp
+            )));
         }
 
         // 3. Connect request: [0x05, 0x01, 0x00, ATYP, ADDR, PORT]
@@ -60,10 +66,16 @@ impl SocksProtocol {
         let mut reply_hdr = [0u8; 4];
         stream.read_exact(&mut reply_hdr).await.map_err(Error::Io)?;
         if reply_hdr[0] != SOCKS5_VERSION {
-            return Err(Error::Protocol(format!("Invalid SOCKS5 reply version: {}", reply_hdr[0])));
+            return Err(Error::Protocol(format!(
+                "Invalid SOCKS5 reply version: {}",
+                reply_hdr[0]
+            )));
         }
         if reply_hdr[1] != STATUS_SUCCESS {
-            return Err(Error::Protocol(format!("SOCKS5 server replied error status: 0x{:02X}", reply_hdr[1])));
+            return Err(Error::Protocol(format!(
+                "SOCKS5 server replied error status: 0x{:02X}",
+                reply_hdr[1]
+            )));
         }
 
         // Skip bound addr & port
@@ -82,7 +94,10 @@ impl SocksProtocol {
                 stream.read_exact(&mut b).await.map_err(Error::Io)?;
             }
             other => {
-                return Err(Error::Protocol(format!("Unknown ATYP in reply: 0x{:02X}", other)));
+                return Err(Error::Protocol(format!(
+                    "Unknown ATYP in reply: 0x{:02X}",
+                    other
+                )));
             }
         }
 

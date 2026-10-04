@@ -1,10 +1,10 @@
 // Module: proxy\vless\outbound\outbound.rs
 // 1:1 Rust implementation corresponding to Go proxy\vless\outbound\outbound.go
 
+use async_trait::async_trait;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use uuid::Uuid;
 
@@ -13,7 +13,7 @@ use crate::common::net::{BoxStream, Destination, Network};
 use crate::common::protocol::{RequestCommand, SessionContext};
 use crate::features::outbound::OutboundHandler;
 use crate::proxy::vless::encoding::{Addons, RequestHeader};
-use crate::proxy::vless::flow::{VisionStream, FLOW_VISION};
+use crate::proxy::vless::flow::{FLOW_VISION, VisionStream};
 use crate::transport::internet::reality::RealityClient;
 use crate::transport::internet::{TcpDialer, TlsClient, WebSocketStream};
 
@@ -56,7 +56,10 @@ impl Client {
         }
     }
 
-    pub fn with_fragment(mut self, cfg: crate::transport::internet::finalmask::fragment::Config) -> Self {
+    pub fn with_fragment(
+        mut self,
+        cfg: crate::transport::internet::finalmask::fragment::Config,
+    ) -> Self {
         self.fragment_cfg = Some(cfg);
         self
     }
@@ -87,15 +90,23 @@ impl OutboundHandler for Client {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
 
         let tcp_stream: BoxStream = if let Some(ref f_cfg) = self.fragment_cfg {
-            Box::pin(crate::transport::internet::finalmask::fragment::FragmentConn::new_client(f_cfg.clone(), tcp_stream))
+            Box::pin(
+                crate::transport::internet::finalmask::fragment::FragmentConn::new_client(
+                    f_cfg.clone(),
+                    tcp_stream,
+                ),
+            )
         } else {
             tcp_stream
         };
 
-        let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
-            crate::common::net::Address::Domain(d) => d.as_str(),
-            _ => "localhost",
-        });
+        let sni = self
+            .tls_sni
+            .as_deref()
+            .unwrap_or_else(|| match &self.server_addr.address {
+                crate::common::net::Address::Domain(d) => d.as_str(),
+                _ => "localhost",
+            });
 
         // 1. Optional TLS or Reality Layer
         let stream = if let Some(reality) = &self.reality_client {
@@ -148,7 +159,10 @@ impl OutboundHandler for Client {
         let final_stream: BoxStream = if self.flow.as_deref() == Some(FLOW_VISION) {
             Box::pin(VisionStream::new(
                 vless_stream,
-                crate::proxy::vless::flow::VisionContext::new(self.user_id.into_bytes().to_vec(), true),
+                crate::proxy::vless::flow::VisionContext::new(
+                    self.user_id.into_bytes().to_vec(),
+                    true,
+                ),
                 false,
             ))
         } else {
@@ -212,7 +226,8 @@ impl AsyncRead for VlessStream {
                             self.pending_buf.drain(..header_len);
 
                             if !self.pending_buf.is_empty() {
-                                let to_write = std::cmp::min(buf.remaining(), self.pending_buf.len());
+                                let to_write =
+                                    std::cmp::min(buf.remaining(), self.pending_buf.len());
                                 buf.put_slice(&self.pending_buf[..to_write]);
                                 self.pending_buf.drain(..to_write);
                                 return Poll::Ready(Ok(()));

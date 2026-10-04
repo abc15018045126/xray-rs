@@ -4,13 +4,13 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use super::destination::{to_destination, to_socksaddr, Socksaddr};
+use super::destination::{Socksaddr, to_destination, to_socksaddr};
 use super::error::return_error;
 use crate::common::buf::{Buffer, MultiBuffer};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Destination, Network};
-use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 use crate::transport::Link;
+use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 
 pub const PACKET_READ_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -45,7 +45,11 @@ impl PacketConnWrapper {
             return Ok((buf, socksaddr));
         }
 
-        match self.reader.read_multi_buffer_timeout(PACKET_READ_TIMEOUT).await {
+        match self
+            .reader
+            .read_multi_buffer_timeout(PACKET_READ_TIMEOUT)
+            .await
+        {
             Ok(mb) => {
                 let mut buffers = mb.into_buffers();
                 if buffers.is_empty() {
@@ -81,10 +85,7 @@ impl PacketConnWrapper {
 
 /// CopyPacketConn copies packets between a Link and a packet connection.
 /// 1:1 corresponding to CopyPacketConn() in packet.go.
-pub async fn copy_packet_conn(
-    link: &Link,
-    destination: Destination,
-) -> Result<()> {
+pub async fn copy_packet_conn(link: &Link, destination: Destination) -> Result<()> {
     let mut wrapper = PacketConnWrapper::from_link(link, destination);
     match wrapper.read_packet().await {
         Ok(_) => Ok(()),

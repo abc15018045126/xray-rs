@@ -3,15 +3,15 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::common::ctx::Context;
+    use crate::common::log::{
+        self, AccessMessage, AccessStatus, DnsLog, DnsStatus, GeneralMessage, Handler, Message,
+        Severity, access_message_from_context, context_with_access_message,
+    };
+    use crate::common::net;
     use std::net::IpAddr;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
-    use crate::common::ctx::Context;
-    use crate::common::log::{
-        self, access_message_from_context, context_with_access_message, AccessMessage,
-        AccessStatus, DnsLog, DnsStatus, GeneralMessage, Handler, Message, Severity,
-    };
-    use crate::common::net;
 
     struct TestLogger {
         value: Mutex<String>,
@@ -43,7 +43,8 @@ mod tests {
 
     #[test]
     fn test_access_message_and_context() {
-        let mut msg = AccessMessage::new("127.0.0.1:12345", "example.com:443", AccessStatus::Accepted);
+        let mut msg =
+            AccessMessage::new("127.0.0.1:12345", "example.com:443", AccessStatus::Accepted);
         msg.detour = "proxy".to_string();
         msg.reason = "matched-domain".to_string();
         msg.email = "admin@example.com".to_string();

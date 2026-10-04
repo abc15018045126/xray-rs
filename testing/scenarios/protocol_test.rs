@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::headers::{RequestCommand, RequestHeader};
     use crate::common::protocol::id::Id;
     use crate::common::protocol::user::{MemoryUser, SecurityType};
+    use uuid::Uuid;
 
     #[test]
     fn test_protocol_id_cmd_key_derivation() {

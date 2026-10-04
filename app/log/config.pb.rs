@@ -1,21 +1,16 @@
 // Module: app\log\config.pb.rs
 // 1:1 Rust protobuf message definitions corresponding to Go app\log\config.pb.go
 
-use serde::{Deserialize, Serialize};
 use crate::common::log::Severity;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum LogType {
     None = 0,
+    #[default]
     Console = 1,
     File = 2,
     Event = 3,
-}
-
-impl Default for LogType {
-    fn default() -> Self {
-        Self::Console
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,15 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::common::mux::{Frame, SessionStatus};
     use crate::common::net::{Address, Destination};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_mux_new_session_frame_roundtrip() {
-        let dest = Destination::tcp(
-            Address::Domain("api.openai.com".into()),
-            443,
-        );
+        let dest = Destination::tcp(Address::Domain("api.openai.com".into()), 443);
         let payload = b"GET /v1/models HTTP/1.1\r\n\r\n";
         let frame = Frame::new_session(1001, dest.clone(), payload.to_vec());
 

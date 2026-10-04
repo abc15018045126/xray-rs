@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::RequestCommand;
-    use crate::proxy::trojan::protocol::{hash_password, TrojanRequestHeader, TrojanUdpPacket};
+    use crate::proxy::trojan::protocol::{TrojanRequestHeader, TrojanUdpPacket, hash_password};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_trojan_tcp_request_header_roundtrip() {

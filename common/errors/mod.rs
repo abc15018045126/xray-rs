@@ -8,15 +8,14 @@ pub mod errors_test;
 use thiserror::Error;
 
 pub use errors::{
-    cause, get_severity, log_debug, log_debug_inner, log_error, log_error_inner, log_info,
-    log_info_inner, log_warning, log_warning_inner, new as new_error_detail, new_error,
-    ErrorDetail,
+    ErrorDetail, cause, get_severity, log_debug, log_debug_inner, log_error, log_error_inner,
+    log_info, log_info_inner, log_warning, log_warning_inner, new as new_error_detail, new_error,
 };
 pub use feature_errors::{
     missing_feature, print_deprecated_feature_warning,
     print_non_removal_deprecated_feature_warning, print_removed_feature_error,
 };
-pub use multi_error::{all_equal, combine, MultiError};
+pub use multi_error::{MultiError, all_equal, combine};
 
 #[derive(Error, Debug)]
 pub enum Error {

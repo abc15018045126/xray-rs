@@ -12,16 +12,16 @@ pub mod log_test;
 pub mod logger_test;
 
 pub use access::{
-    access_message_from_context, context_with_access_message, AccessLogMessage, AccessMessage,
-    AccessStatus, ACCESS_ACCEPTED, ACCESS_REJECTED,
+    ACCESS_ACCEPTED, ACCESS_REJECTED, AccessLogMessage, AccessMessage, AccessStatus,
+    access_message_from_context, context_with_access_message,
 };
-pub use dns::{format_dns_log, DnsLog, DnsStatus, DNS_CACHE_HIT, DNS_CACHE_OPTIMISTE, DNS_QUERIED};
+pub use dns::{DNS_CACHE_HIT, DNS_CACHE_OPTIMISTE, DNS_QUERIED, DnsLog, DnsStatus, format_dns_log};
 pub use log::{
-    get_log_handler, record, register_handler, GeneralMessage, Handler, LogLevel, Message,
-    SyncHandler,
+    GeneralMessage, Handler, LogLevel, Message, SyncHandler, get_log_handler, record,
+    register_handler,
 };
 pub use log_pb::Severity;
 pub use logger::{
-    create_file_log_writer, create_stderr_log_writer, create_stdout_log_writer, new_logger,
-    replace_with_severity_logger, GeneralLogger, Logger, SeverityLogger, Writer, WriterCreator,
+    GeneralLogger, Logger, SeverityLogger, Writer, WriterCreator, create_file_log_writer,
+    create_stderr_log_writer, create_stdout_log_writer, new_logger, replace_with_severity_logger,
 };

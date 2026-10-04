@@ -3,11 +3,11 @@
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use super::super::common::{
-        create_padding, decode_header, encode_header, increase_nonce, parse_padding,
-        CommonConn, VlessAead,
+        CommonConn, VlessAead, create_padding, decode_header, encode_header, increase_nonce,
+        parse_padding,
     };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn test_header_encode_decode() {

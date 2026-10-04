@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
+    use super::super::connection::KcpConnection;
     use std::sync::Arc;
     use tokio::net::UdpSocket;
-    use super::super::connection::KcpConnection;
 
     #[tokio::test]
     async fn test_kcp_connection_lifecycle() {

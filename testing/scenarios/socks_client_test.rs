@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::common::net::{Address, Destination, Network};
     use crate::features::inbound::InboundHandler;
-    use crate::proxy::socks::protocol::SocksProtocol;
     use crate::proxy::socks::Server;
+    use crate::proxy::socks::protocol::SocksProtocol;
+    use std::net::SocketAddr;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_socks5_client_and_server_handshake() {
@@ -20,9 +20,15 @@ mod tests {
 
         let server_task = tokio::spawn(async move {
             let fake_remote: SocketAddr = "127.0.0.1:54321".parse().unwrap();
-            let res = server.handle_connection(Box::pin(server_stream), fake_remote).await.unwrap();
+            let res = server
+                .handle_connection(Box::pin(server_stream), fake_remote)
+                .await
+                .unwrap();
             assert_eq!(res.session.destination.port, 443);
-            assert_eq!(res.session.destination.address, Address::Domain("www.example.com".to_string()));
+            assert_eq!(
+                res.session.destination.address,
+                Address::Domain("www.example.com".to_string())
+            );
 
             let mut stream = res.stream;
             let mut buf = [0u8; 4];
@@ -32,7 +38,9 @@ mod tests {
         });
 
         let mut client = client_stream;
-        SocksProtocol::client_handshake(&mut client, &target).await.unwrap();
+        SocksProtocol::client_handshake(&mut client, &target)
+            .await
+            .unwrap();
 
         client.write_all(b"ping").await.unwrap();
         let mut resp = [0u8; 4];

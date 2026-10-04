@@ -19,7 +19,7 @@ pub mod session_test;
 
 pub use client::{Client, MuxClient};
 pub use frame::{
-    Frame, FrameMetadata, FrameType, SessionStatus, OPTION_DATA, OPTION_ERROR, TARGET_NETWORK_TCP,
+    Frame, FrameMetadata, FrameType, OPTION_DATA, OPTION_ERROR, SessionStatus, TARGET_NETWORK_TCP,
     TARGET_NETWORK_UDP,
 };
 pub use mux::ClientStrategy;

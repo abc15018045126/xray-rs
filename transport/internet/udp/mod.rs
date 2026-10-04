@@ -18,6 +18,9 @@ pub mod dispatcher_test;
 
 pub use config::UdpConfig;
 pub use dialer::UdpDialer;
-pub use dispatcher::{dial_dispatcher, ConnEntry, Dispatcher, DispatcherConn, LinkDispatcher, ResponseCallback, UdpDispatcher};
+pub use dispatcher::{
+    ConnEntry, Dispatcher, DispatcherConn, LinkDispatcher, ResponseCallback, UdpDispatcher,
+    dial_dispatcher,
+};
 pub use hub::{Hub, HubOption, UdpHub, UdpPacket};
 pub use udp::PROTOCOL_NAME;

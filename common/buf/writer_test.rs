@@ -3,11 +3,11 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::super::buffer::Buffer;
     use super::super::io::Writer;
     use super::super::multi_buffer::MultiBuffer;
     use super::super::writer::{BufferedWriter, Discard, SequentialWriter};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_buffered_writer() {

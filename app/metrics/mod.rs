@@ -5,9 +5,9 @@
 pub mod config;
 pub mod outbound;
 
+use crate::app::stats::StatsManager;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::app::stats::StatsManager;
 
 pub use config::Config;
 pub use outbound::{MetricsOutbound, Outbound, OutboundListener};
@@ -30,8 +30,11 @@ impl MetricsHandler {
 
         let stats_map = self.stats.get_all_stats().await;
         for (name, val) in stats_map {
-            let sanitized = name.replace(">>>", "_").replace('.', "_").replace('-', "_");
-            out.push_str(&format!("xray_traffic_bytes_total{{metric=\"{}\"}} {}\n", sanitized, val));
+            let sanitized = name.replace(">>>", "_").replace(['.', '-'], "_");
+            out.push_str(&format!(
+                "xray_traffic_bytes_total{{metric=\"{}\"}} {}\n",
+                sanitized, val
+            ));
         }
 
         out
@@ -87,7 +90,9 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_handler_formatting() {
         let stats = Arc::new(StatsManager::new());
-        let counter = stats.register_counter("inbound>>>tag>>>traffic>>>downlink").await;
+        let counter = stats
+            .register_counter("inbound>>>tag>>>traffic>>>downlink")
+            .await;
         counter.add(1024);
 
         let handler = MetricsHandler::new("metrics".into(), "127.0.0.1:9090".into(), stats);
@@ -97,6 +102,9 @@ mod tests {
         assert!(prom.contains("1024"));
 
         let json_stats = handler.format_json_stats().await;
-        assert_eq!(json_stats.get("inbound>>>tag>>>traffic>>>downlink"), Some(&1024));
+        assert_eq!(
+            json_stats.get("inbound>>>tag>>>traffic>>>downlink"),
+            Some(&1024)
+        );
     }
 }

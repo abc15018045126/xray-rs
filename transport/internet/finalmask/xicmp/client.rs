@@ -1,9 +1,9 @@
 // Module: transport\internet\finalmask\xicmp\client.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xicmp\client.go
 
-use std::collections::HashMap;
-use crate::common::errors::{Error, Result};
 use super::config::XIcmpConfig;
+use crate::common::errors::{Error, Result};
+use std::collections::HashMap;
 
 pub const ICMP_TYPE_ECHO_V4: u8 = 8;
 pub const ICMP_TYPE_ECHO_REPLY_V4: u8 = 0;

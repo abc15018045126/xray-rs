@@ -5,12 +5,12 @@ pub mod dokodemo;
 pub mod fakeudp_linux;
 pub mod fakeudp_other;
 
-use std::net::SocketAddr;
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination, Network};
 use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
+use async_trait::async_trait;
+use std::net::SocketAddr;
 
 pub use config::DokodemoConfig;
 pub use dokodemo::DokodemoHandler;
@@ -37,7 +37,11 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(&self, stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let mut session = SessionContext::new(&self.tag, self.destination.clone());
         session.source = Some(remote_addr);
         session.destination.network = self.network;

@@ -1,8 +1,8 @@
 // Module: transport\internet\splithttp\config.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\config.go
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use super::common::*;
 

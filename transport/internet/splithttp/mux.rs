@@ -1,8 +1,8 @@
 // Module: transport\internet\splithttp\mux.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\splithttp\mux.go
 
-use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
@@ -43,10 +43,10 @@ impl XmuxClient {
         if self.left_requests.load(Ordering::SeqCst) <= 0 {
             return false;
         }
-        if let Some(exp) = self.unreusable_at {
-            if Instant::now() >= exp {
-                return false;
-            }
+        if let Some(exp) = self.unreusable_at
+            && Instant::now() >= exp
+        {
+            return false;
         }
         true
     }
@@ -111,7 +111,8 @@ impl XmuxManager {
         // Try existing eligible client
         for c in &self.clients {
             let guard = c.lock().await;
-            if guard.open_usage.load(Ordering::SeqCst) < self.max_concurrency && guard.is_reusable() {
+            if guard.open_usage.load(Ordering::SeqCst) < self.max_concurrency && guard.is_reusable()
+            {
                 drop(guard);
                 return c.clone();
             }
@@ -140,4 +141,3 @@ impl XmuxManager {
 }
 
 pub type SplitHttpMux = XmuxManager;
-

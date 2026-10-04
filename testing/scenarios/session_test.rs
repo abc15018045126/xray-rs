@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::common::session::{new_session_id, Content, Inbound, Outbound, SniffingRequest};
+    use crate::common::session::{Content, Inbound, Outbound, SniffingRequest, new_session_id};
 
     #[test]
     fn test_session_id_monotonicity() {

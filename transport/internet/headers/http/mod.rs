@@ -14,7 +14,7 @@ pub mod http_test;
 
 pub use config_pb::{Config, Header, Method, RequestConfig, ResponseConfig, Status, Version};
 pub use http::{
-    new_authenticator, Authenticator, HeaderReader, HeaderWriter, HttpHeaderObfuscator, HttpStream, CRLF, ENDING,
-    MAX_HEADER_LENGTH,
+    Authenticator, CRLF, ENDING, HeaderReader, HeaderWriter, HttpHeaderObfuscator, HttpStream,
+    MAX_HEADER_LENGTH, new_authenticator,
 };
 pub use resp::{resp400, resp404};

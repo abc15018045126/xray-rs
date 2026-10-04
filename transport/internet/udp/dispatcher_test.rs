@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
     use tokio::time::sleep;
 
@@ -12,7 +12,9 @@ mod tests {
     use crate::common::errors::Result;
     use crate::common::net::{Address, Destination, Port};
     use crate::common::protocol::udp::UdpPacket;
-    use crate::transport::internet::udp::dispatcher::{dial_dispatcher, Dispatcher, LinkDispatcher, ResponseCallback};
+    use crate::transport::internet::udp::dispatcher::{
+        Dispatcher, LinkDispatcher, ResponseCallback, dial_dispatcher,
+    };
     use crate::transport::internet::udp::hub::{Hub, HubOption};
     use crate::transport::link::Link;
     use crate::transport::pipe::{new_with_options, with_size_limit};
@@ -27,7 +29,10 @@ mod tests {
     impl LinkDispatcher for TestDispatcher {
         async fn dispatch(&self, _dest: Destination) -> Result<Link> {
             self.count.fetch_add(1, Ordering::SeqCst);
-            Ok(Link::new(self.downlink_reader.clone(), self.uplink_writer.clone()))
+            Ok(Link::new(
+                self.downlink_reader.clone(),
+                self.uplink_writer.clone(),
+            ))
         }
     }
 
@@ -79,8 +84,16 @@ mod tests {
 
         sleep(Duration::from_millis(150)).await;
 
-        assert_eq!(count.load(Ordering::SeqCst), 1, "Only 1 connection should be dispatched for same dest");
-        assert_eq!(msg_count.load(Ordering::SeqCst), 6, "All 6 messages should be received by callback");
+        assert_eq!(
+            count.load(Ordering::SeqCst),
+            1,
+            "Only 1 connection should be dispatched for same dest"
+        );
+        assert_eq!(
+            msg_count.load(Ordering::SeqCst),
+            6,
+            "All 6 messages should be received by callback"
+        );
 
         dispatcher.remove_ray().await;
     }
@@ -136,7 +149,10 @@ mod tests {
             &address,
             Port::new(0),
             None,
-            &[HubOption::Capacity(128), HubOption::ReceiveOriginalDestination(false)],
+            &[
+                HubOption::Capacity(128),
+                HubOption::ReceiveOriginalDestination(false),
+            ],
         )
         .await
         .unwrap();

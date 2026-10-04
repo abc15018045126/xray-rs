@@ -1,16 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::app::commander::{Commander, CommanderOutbound};
-    use crate::app::log::{create_logger, LogCreatorOptions, LogLevel};
+    use crate::app::log::{LogCreatorOptions, LogLevel, create_logger};
     use crate::app::router::GeoSiteCompactList;
     use crate::common::net::{Address, Destination};
     use crate::common::protocol::SessionContext;
     use crate::features::outbound::OutboundHandler;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_commander_outbound_lifecycle() {
-        let commander = Arc::new(Commander::new("commander-in".into(), "127.0.0.1:10085".into()));
+        let commander = Arc::new(Commander::new(
+            "commander-in".into(),
+            "127.0.0.1:10085".into(),
+        ));
         let outbound = CommanderOutbound::new("commander-out", commander.clone());
         assert_eq!(outbound.tag(), "commander-out");
         assert_eq!(outbound.commander().tag, "commander-in");

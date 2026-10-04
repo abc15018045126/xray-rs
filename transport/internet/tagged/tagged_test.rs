@@ -11,8 +11,10 @@ mod tests {
     use crate::common::protocol::SessionContext;
     use crate::features::feature::Feature;
     use crate::features::routing::Dispatcher;
-    use crate::transport::internet::tagged::taggedimpl::{dial_tagged_outbound, register_tagged_dialer};
     use crate::transport::internet::tagged::dial;
+    use crate::transport::internet::tagged::taggedimpl::{
+        dial_tagged_outbound, register_tagged_dialer,
+    };
 
     struct MockDispatcher;
 
@@ -26,10 +28,19 @@ mod tests {
     impl Dispatcher for MockDispatcher {
         async fn dispatch(&self, session: SessionContext, mut stream: BoxStream) -> Result<()> {
             let mut buf = vec![0u8; 100];
-            let n = stream.read(&mut buf).await.map_err(crate::common::errors::Error::Io)?;
+            let n = stream
+                .read(&mut buf)
+                .await
+                .map_err(crate::common::errors::Error::Io)?;
             assert_eq!(&buf[..n], b"request from tagged dial");
-            let response = format!("echo to {}:{}", session.inbound_tag, session.destination.port);
-            stream.write_all(response.as_bytes()).await.map_err(crate::common::errors::Error::Io)?;
+            let response = format!(
+                "echo to {}:{}",
+                session.inbound_tag, session.destination.port
+            );
+            stream
+                .write_all(response.as_bytes())
+                .await
+                .map_err(crate::common::errors::Error::Io)?;
             Ok(())
         }
     }
@@ -43,7 +54,10 @@ mod tests {
             .await
             .unwrap();
 
-        client_stream.write_all(b"request from tagged dial").await.unwrap();
+        client_stream
+            .write_all(b"request from tagged dial")
+            .await
+            .unwrap();
 
         let mut resp = vec![0u8; 128];
         let n = client_stream.read(&mut resp).await.unwrap();

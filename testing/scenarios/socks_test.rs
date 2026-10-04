@@ -3,17 +3,19 @@
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::infra::conf::Config;
     use crate::testing::scenarios::common::{
-        pick_port, random_payload, socks5_connect, xor, TestEnvironment,
+        TestEnvironment, pick_port, random_payload, socks5_connect, xor,
     };
     use crate::testing::servers::http::Server as HttpServer;
-    use crate::testing::servers::tcp::{echo_processor, xor_processor, Server as TcpServer};
+    use crate::testing::servers::tcp::{Server as TcpServer, echo_processor, xor_processor};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_socks5_direct_echo() {
-        let tcp_server = TcpServer::start(None, Some(echo_processor()), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(echo_processor()), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -30,10 +32,13 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(cfg).await.unwrap();
 
-        let mut client = socks5_connect(socks_port, "localhost", target_port).await.unwrap();
+        let mut client = socks5_connect(socks_port, "localhost", target_port)
+            .await
+            .unwrap();
 
         let msg = b"Testing SOCKS5 Direct Domain Resolution";
         client.write_all(msg).await.unwrap();
@@ -64,13 +69,19 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(cfg).await.unwrap();
 
         // 3. Connect via SOCKS5 to the HTTP server
-        let mut client = socks5_connect(socks_port, "127.0.0.1", target_port).await.unwrap();
+        let mut client = socks5_connect(socks_port, "127.0.0.1", target_port)
+            .await
+            .unwrap();
 
-        let req = format!("GET / HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n", target_port);
+        let req = format!(
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+            target_port
+        );
         client.write_all(req.as_bytes()).await.unwrap();
 
         let mut resp = Vec::new();
@@ -90,7 +101,9 @@ mod tests {
     async fn test_socks5_bridge_tcp() {
         // Echo server with XOR key
         let xor_key = b's';
-        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -109,7 +122,8 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(server_cfg).await.unwrap();
 
         // Node 2: SOCKS5 Inbound -> SOCKS5 Outbound
@@ -130,11 +144,14 @@ mod tests {
                     }]
                 }
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(client_cfg).await.unwrap();
 
         // Connect to client inbound, which bridges through SOCKS outbound to SOCKS server to target
-        let mut client = socks5_connect(client_inbound_port, "127.0.0.1", target_port).await.unwrap();
+        let mut client = socks5_connect(client_inbound_port, "127.0.0.1", target_port)
+            .await
+            .unwrap();
 
         let payload = random_payload(2048);
         client.write_all(&payload).await.unwrap();

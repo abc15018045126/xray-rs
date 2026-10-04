@@ -13,34 +13,34 @@ pub mod stats;
 pub mod feature_test;
 
 pub use dns::{
-    client_type, fake_dns_type, DnsClient, FakeDnsEngine, FakeDnsFeature, IPOption,
-    LocalDnsClient, RCodeError, DEFAULT_TTL, FAKE_IPV4_POOL, FAKE_IPV6_POOL,
+    DEFAULT_TTL, DnsClient, FAKE_IPV4_POOL, FAKE_IPV6_POOL, FakeDnsEngine, FakeDnsFeature,
+    IPOption, LocalDnsClient, RCodeError, client_type, fake_dns_type,
 };
 pub use extension::{
-    observatory_type, BurstObservatory, ContextReceiver, Observation, ObservatoryFeature,
+    BurstObservatory, ContextReceiver, Observation, ObservatoryFeature, observatory_type,
 };
 pub use feature::{
     Feature, TYPE_DISPATCHER, TYPE_DNS_CLIENT, TYPE_FAKE_DNS, TYPE_INBOUND_MANAGER,
-    TYPE_OBSERVATORY, TYPE_OUTBOUND_MANAGER, TYPE_POLICY_MANAGER, TYPE_ROUTER,
-    TYPE_STATS_MANAGER,
+    TYPE_OBSERVATORY, TYPE_OUTBOUND_MANAGER, TYPE_POLICY_MANAGER, TYPE_ROUTER, TYPE_STATS_MANAGER,
 };
-pub use inbound::{manager_type as inbound_manager_type, InboundHandler, InboundManager, InboundResult};
+pub use inbound::{
+    InboundHandler, InboundManager, InboundResult, manager_type as inbound_manager_type,
+};
 pub use outbound::{
-    manager_type as outbound_manager_type, HandlerSelector, OutboundHandler, OutboundManager,
+    HandlerSelector, OutboundHandler, OutboundManager, manager_type as outbound_manager_type,
 };
 pub use policy::{
-    default_buffer_policy, default_policy, manager_type as policy_manager_type,
-    session_default, Buffer, DefaultManager as DefaultPolicyManager, Policy, PolicyManager,
-    SessionPolicy, Stats as PolicyStats, SystemPolicy, SystemStats, Timeout,
+    Buffer, DefaultManager as DefaultPolicyManager, Policy, PolicyManager, SessionPolicy,
+    Stats as PolicyStats, SystemPolicy, SystemStats, Timeout, default_buffer_policy,
+    default_policy, manager_type as policy_manager_type, session_default,
 };
 pub use routing::{
-    dispatcher_type, router_type, Balancer, BalancerFeature, BalancerOverrider,
-    BalancerPrincipleTarget, DefaultRoute, DefaultRouter, Dispatcher, DispatcherFeature,
-    ResolvableContext, Route, RouteContext, Router, RouterFeature, RoutingContext,
-    SessionRouteContext,
+    Balancer, BalancerFeature, BalancerOverrider, BalancerPrincipleTarget, DefaultRoute,
+    DefaultRouter, Dispatcher, DispatcherFeature, ResolvableContext, Route, RouteContext, Router,
+    RouterFeature, RoutingContext, SessionRouteContext, dispatcher_type, router_type,
 };
 pub use stats::{
-    get_or_register_counter, get_or_register_online_map, manager_type as stats_manager_type,
-    Counter, DefaultOnlineMap, DefaultStatsManager, NoopStatsManager, OnlineMap,
-    StatsManager, StatsManagerTrait,
+    Counter, DefaultOnlineMap, DefaultStatsManager, NoopStatsManager, OnlineMap, StatsManager,
+    StatsManagerTrait, get_or_register_counter, get_or_register_online_map,
+    manager_type as stats_manager_type,
 };

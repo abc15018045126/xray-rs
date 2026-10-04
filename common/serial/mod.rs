@@ -12,7 +12,8 @@ pub mod string_test;
 pub mod typed_message_test;
 
 pub use serial::{
-    read_u16, read_u32, read_u64, read_uint16, write_u16, write_u32, write_u64, write_uint16, write_uint64,
+    read_u16, read_u32, read_u64, read_uint16, write_u16, write_u32, write_u64, write_uint16,
+    write_uint64,
 };
-pub use string::{concat, concat_strings, to_string, to_string_val, StringValue};
-pub use typed_message::{get_instance, to_typed_message, TypedMessage};
+pub use string::{StringValue, concat, concat_strings, to_string, to_string_val};
+pub use typed_message::{TypedMessage, get_instance, to_typed_message};

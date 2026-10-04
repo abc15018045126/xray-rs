@@ -11,6 +11,9 @@ pub struct MockIoPair {
 impl MockIoPair {
     pub fn new(buf_size: usize) -> Self {
         let (c, s) = tokio::io::duplex(buf_size);
-        Self { client: c, server: s }
+        Self {
+            client: c,
+            server: s,
+        }
     }
 }

@@ -3,12 +3,12 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-    use crate::common::net::{Address, Destination};
     use super::super::{
-        generate_global_id, read_address_port, write_address_port, PacketReader, PacketWriter,
-        XudpPacket, XUDP_MAGIC,
+        PacketReader, PacketWriter, XUDP_MAGIC, XudpPacket, generate_global_id, read_address_port,
+        write_address_port,
     };
+    use crate::common::net::{Address, Destination};
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
     use tokio::io::duplex;
 
     #[test]
@@ -70,7 +70,10 @@ mod tests {
 
         let writer_task = tokio::spawn(async move {
             writer.write_packet(b"query-payload-1", true).await.unwrap();
-            writer.write_packet(b"query-payload-2", false).await.unwrap();
+            writer
+                .write_packet(b"query-payload-2", false)
+                .await
+                .unwrap();
         });
 
         let reader_task = tokio::spawn(async move {

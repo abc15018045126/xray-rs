@@ -1,9 +1,9 @@
+use super::{Address, Network};
+use crate::common::errors::{Error, Result};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
-use crate::common::errors::{Error, Result};
-use super::{Address, Network};
 
 /// Represents a network destination (Address + Port + Network).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -48,7 +48,9 @@ impl Destination {
     }
 
     pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        self.address.to_ip().map(|ip| SocketAddr::new(ip, self.port))
+        self.address
+            .to_ip()
+            .map(|ip| SocketAddr::new(ip, self.port))
     }
 
     pub fn net_addr(&self) -> String {
@@ -66,7 +68,9 @@ impl Destination {
     pub fn parse_str(s: &str, network: Network) -> Result<Self> {
         let s = s.trim();
         if let Some((host, port_str)) = s.rsplit_once(':') {
-            let port = port_str.parse::<u16>().map_err(|e| Error::Config(format!("Invalid port: {}", e)))?;
+            let port = port_str
+                .parse::<u16>()
+                .map_err(|e| Error::Config(format!("Invalid port: {}", e)))?;
             let host = host.trim_matches('[').trim_matches(']');
             if let Ok(ip) = IpAddr::from_str(host) {
                 let mut d = Destination::from_ip_port(ip, port);
@@ -118,7 +122,7 @@ impl PartialEq<SocketAddr> for Destination {
         if self.port != other.port() {
             return false;
         }
-        self.to_socket_addr().map_or(false, |sa| sa == *other)
+        self.to_socket_addr() == Some(*other)
     }
 }
 
@@ -133,24 +137,29 @@ impl FromStr for Destination {
 
     fn from_str(s: &str) -> Result<Self> {
         let s = s.trim();
-        if let Some(rest) = s.strip_prefix('[') {
-            if let Some((ip_part, port_part)) = rest.split_once("]:") {
-                let ip = Ipv6Addr::from_str(ip_part)
-                    .map_err(|e| Error::AddressParse(format!("Invalid IPv6 in {}: {}", s, e)))?;
-                let port = port_part.parse::<u16>()
-                    .map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)))?;
-                return Ok(Destination::new(Address::Ipv6(ip), port));
-            }
+        if let Some(rest) = s.strip_prefix('[')
+            && let Some((ip_part, port_part)) = rest.split_once("]:")
+        {
+            let ip = Ipv6Addr::from_str(ip_part)
+                .map_err(|e| Error::AddressParse(format!("Invalid IPv6 in {}: {}", s, e)))?;
+            let port = port_part
+                .parse::<u16>()
+                .map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)))?;
+            return Ok(Destination::new(Address::Ipv6(ip), port));
         }
 
         if let Some((host_part, port_part)) = s.rsplit_once(':') {
-            let port = port_part.parse::<u16>()
+            let port = port_part
+                .parse::<u16>()
                 .map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)))?;
             let address = Address::from_str(host_part)?;
             return Ok(Destination::new(address, port));
         }
 
-        Err(Error::AddressParse(format!("Missing port in destination address: {}", s)))
+        Err(Error::AddressParse(format!(
+            "Missing port in destination address: {}",
+            s
+        )))
     }
 }
 

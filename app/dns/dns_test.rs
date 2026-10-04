@@ -3,8 +3,8 @@
 
 #[cfg(test)]
 mod tests {
-    use std::net::{IpAddr, Ipv4Addr};
     use super::super::dns::DnsClient;
+    use std::net::{IpAddr, Ipv4Addr};
 
     #[tokio::test]
     async fn test_dns_client_lookup_hosts() {

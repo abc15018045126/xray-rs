@@ -11,7 +11,9 @@ pub mod writer;
 pub mod pipe_test;
 
 pub use self::impl_::{Pipe, PipeOption, State};
-pub use self::pipe::{discard_overflow, new_pipe, new_with_options, with_size_limit, without_size_limit, OptionFn};
+pub use self::pipe::{
+    OptionFn, discard_overflow, new_pipe, new_with_options, with_size_limit, without_size_limit,
+};
 pub use self::reader::Reader;
 pub use self::writer::Writer;
 

@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use crate::common::crypto::{
+        AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, IncreasingNonce, PlainChunk,
+    };
     use std::io::Cursor;
-    use crate::common::crypto::{AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, IncreasingNonce, PlainChunk};
 
     #[test]
     fn test_increasing_nonce() {

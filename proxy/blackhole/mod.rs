@@ -8,11 +8,11 @@ pub mod blackhole_test;
 #[cfg(test)]
 pub mod config_test;
 
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
+use async_trait::async_trait;
 
 pub use blackhole::BlackholeHandler;
 pub use config::{BlackholeConfig, ResponseType};
@@ -50,7 +50,9 @@ impl OutboundHandler for Handler {
             ResponseType::Http403 => {
                 tokio::spawn(async move {
                     use tokio::io::AsyncWriteExt;
-                    let _ = client_stream.write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n").await;
+                    let _ = client_stream
+                        .write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
+                        .await;
                     let _ = client_stream.flush().await;
                 });
                 Ok(Box::pin(server_stream))
@@ -58,7 +60,11 @@ impl OutboundHandler for Handler {
             ResponseType::Http500 => {
                 tokio::spawn(async move {
                     use tokio::io::AsyncWriteExt;
-                    let _ = client_stream.write_all(b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n").await;
+                    let _ = client_stream
+                        .write_all(
+                            b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n",
+                        )
+                        .await;
                     let _ = client_stream.flush().await;
                 });
                 Ok(Box::pin(server_stream))

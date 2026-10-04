@@ -1,9 +1,9 @@
 // Module: proxy\shadowsocks_2022\inbound_relay.rs
 // 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\inbound_relay.go
 
-use std::sync::RwLock;
 use crate::common::errors::{Error, Result};
 use crate::common::net::Destination;
+use std::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub struct RelayDestination {
@@ -24,7 +24,10 @@ impl RelayInbound {
     pub fn new(method: impl Into<String>, key: impl Into<String>) -> Result<Self> {
         let method = method.into();
         if !method.contains("aes") {
-            return Err(Error::Unsupported(format!("unsupported relay method: {}", method)));
+            return Err(Error::Unsupported(format!(
+                "unsupported relay method: {}",
+                method
+            )));
         }
         Ok(Self {
             destinations: RwLock::new(Vec::new()),
@@ -44,7 +47,10 @@ impl RelayInbound {
 
     pub fn get_destination(&self, email: &str) -> Option<RelayDestination> {
         let destinations = self.destinations.read().unwrap();
-        destinations.iter().find(|d| d.email.eq_ignore_ascii_case(email)).cloned()
+        destinations
+            .iter()
+            .find(|d| d.email.eq_ignore_ascii_case(email))
+            .cloned()
     }
 
     pub fn method(&self) -> &str {

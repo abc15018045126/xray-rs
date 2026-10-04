@@ -10,9 +10,15 @@ pub fn parse_duration(s: &str) -> Option<Duration> {
     } else if let Some(sec) = s.strip_suffix('s') {
         sec.trim().parse::<u64>().ok().map(Duration::from_secs)
     } else if let Some(min) = s.strip_suffix('m') {
-        min.trim().parse::<u64>().ok().map(|m| Duration::from_secs(m * 60))
+        min.trim()
+            .parse::<u64>()
+            .ok()
+            .map(|m| Duration::from_secs(m * 60))
     } else if let Some(hr) = s.strip_suffix('h') {
-        hr.trim().parse::<u64>().ok().map(|h| Duration::from_secs(h * 3600))
+        hr.trim()
+            .parse::<u64>()
+            .ok()
+            .map(|h| Duration::from_secs(h * 3600))
     } else {
         s.parse::<u64>().ok().map(Duration::from_secs)
     }

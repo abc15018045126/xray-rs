@@ -4,9 +4,9 @@ use windows::{
     Win32::{
         Foundation::GetLastError,
         Networking::WinSock::{
-            IP_MULTICAST_IF, IP_UNICAST_IF, IPPROTO_IP, IPPROTO_IPV6,
-            IPV6_MULTICAST_IF, IPV6_UNICAST_IF, SO_TYPE, SOCK_DGRAM, SOCKET,
-            SOL_SOCKET, WINSOCK_SOCKET_TYPE, getsockopt, setsockopt,
+            IP_MULTICAST_IF, IP_UNICAST_IF, IPPROTO_IP, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+            IPV6_UNICAST_IF, SO_TYPE, SOCK_DGRAM, SOCKET, SOL_SOCKET, WINSOCK_SOCKET_TYPE,
+            getsockopt, setsockopt,
         },
     },
     core::PSTR,
@@ -15,7 +15,7 @@ use windows::{
 use crate::proxy::tun::OutboundInterface;
 
 fn new_io_error(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 pub fn must_bind_socket_on_interface(

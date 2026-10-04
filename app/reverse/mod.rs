@@ -8,11 +8,11 @@ pub mod reverse;
 #[cfg(test)]
 pub mod portal_test;
 
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{Mutex, mpsc};
 
 pub use config::{BridgeConfig, PortalConfig, ReverseConfig};
 
@@ -35,7 +35,9 @@ impl Portal {
     }
 
     pub async fn dispatch(&self, stream: BoxStream) -> Result<()> {
-        self.channel_tx.send(stream).await
+        self.channel_tx
+            .send(stream)
+            .await
             .map_err(|_| Error::Closed)
     }
 

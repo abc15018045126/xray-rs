@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
+    use async_trait::async_trait;
     use std::collections::HashMap;
     use std::net::{IpAddr, Ipv4Addr};
     use std::sync::Arc;
-    use async_trait::async_trait;
     use tokio::io::AsyncWriteExt;
 
     use crate::app::dispatcher::default::DefaultDispatcher;
@@ -105,16 +105,21 @@ mod tests {
         payload.extend_from_slice(&sni_ext);
 
         let sniffer = Sniffer::new(None);
-        let res = sniffer.sniff(&payload, Network::Tcp).expect("Sniff should succeed");
+        let res = sniffer
+            .sniff(&payload, Network::Tcp)
+            .expect("Sniff should succeed");
         assert_eq!(res.protocol, "tls");
         assert_eq!(res.domain, "xray.com");
     }
 
     #[test]
     fn test_sniffer_http_host() {
-        let http_req = b"GET /index.html HTTP/1.1\r\nHost: api.xray.io\r\nUser-Agent: curl/7.68.0\r\n\r\n";
+        let http_req =
+            b"GET /index.html HTTP/1.1\r\nHost: api.xray.io\r\nUser-Agent: curl/7.68.0\r\n\r\n";
         let sniffer = Sniffer::new(None);
-        let res = sniffer.sniff(http_req, Network::Tcp).expect("HTTP sniff should succeed");
+        let res = sniffer
+            .sniff(http_req, Network::Tcp)
+            .expect("HTTP sniff should succeed");
         assert_eq!(res.protocol, "http");
         assert_eq!(res.domain, "api.xray.io");
     }
@@ -129,7 +134,9 @@ mod tests {
         bt_req.extend_from_slice(&[2u8; 20]); // peer id
 
         let sniffer = Sniffer::new(None);
-        let res = sniffer.sniff(&bt_req, Network::Tcp).expect("BitTorrent sniff should succeed");
+        let res = sniffer
+            .sniff(&bt_req, Network::Tcp)
+            .expect("BitTorrent sniff should succeed");
         assert_eq!(res.protocol, "bittorrent");
     }
 
@@ -137,42 +144,59 @@ mod tests {
     fn test_should_override_logic() {
         let fake_holder = Arc::new(FakeDnsHolder::new("198.18.0.0/15").unwrap());
         let mut outbounds = HashMap::new();
-        outbounds.insert("proxy".into(), Arc::new(MockEchoOutbound { tag: "proxy".into() }) as Arc<dyn OutboundHandler>);
-        let router = Arc::new(MockRouter { picked: "proxy".into() });
-        let dispatcher = DefaultDispatcher::new(outbounds, router)
-            .with_fakedns(fake_holder.clone());
+        outbounds.insert(
+            "proxy".into(),
+            Arc::new(MockEchoOutbound {
+                tag: "proxy".into(),
+            }) as Arc<dyn OutboundHandler>,
+        );
+        let router = Arc::new(MockRouter {
+            picked: "proxy".into(),
+        });
+        let dispatcher =
+            DefaultDispatcher::new(outbounds, router).with_fakedns(fake_holder.clone());
 
         let req = SniffingRequest {
             enabled: true,
             metadata_only: false,
             route_only: false,
-            exclude_for_domain: vec![
-                "regexp:^.*\\.apple\\.com$".into(),
-                "blocked.com".into(),
-            ],
+            exclude_for_domain: vec!["regexp:^.*\\.apple\\.com$".into(), "blocked.com".into()],
             override_destination_for_protocol: vec!["tls".into(), "http".into(), "fakedns".into()],
         };
 
         let dest_ip = Destination::new(Address::ip(IpAddr::V4(Ipv4Addr::new(198, 18, 0, 10))), 443);
 
         // 1. Should override normal TLS
-        let res_tls = SniffResult { protocol: "tls".into(), domain: "google.com".into() };
+        let res_tls = SniffResult {
+            protocol: "tls".into(),
+            domain: "google.com".into(),
+        };
         assert!(dispatcher.should_override(&res_tls, &req, &dest_ip));
 
         // 2. Should NOT override regex matched domain
-        let res_apple = SniffResult { protocol: "tls".into(), domain: "service.apple.com".into() };
+        let res_apple = SniffResult {
+            protocol: "tls".into(),
+            domain: "service.apple.com".into(),
+        };
         assert!(!dispatcher.should_override(&res_apple, &req, &dest_ip));
 
         // 3. Should NOT override exact excluded domain
-        let res_blocked = SniffResult { protocol: "http".into(), domain: "blocked.com".into() };
+        let res_blocked = SniffResult {
+            protocol: "http".into(),
+            domain: "blocked.com".into(),
+        };
         assert!(!dispatcher.should_override(&res_blocked, &req, &dest_ip));
 
         // 4. FakeDNS pool check
-        let res_fakedns = SniffResult { protocol: "fakedns".into(), domain: "example.org".into() };
+        let res_fakedns = SniffResult {
+            protocol: "fakedns".into(),
+            domain: "example.org".into(),
+        };
         assert!(dispatcher.should_override(&res_fakedns, &req, &dest_ip));
 
         // Outside pool destination
-        let dest_outside = Destination::new(Address::ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))), 443);
+        let dest_outside =
+            Destination::new(Address::ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))), 443);
         let req_fake_only = SniffingRequest {
             enabled: true,
             metadata_only: false,
@@ -180,15 +204,25 @@ mod tests {
             exclude_for_domain: vec![],
             override_destination_for_protocol: vec!["fakedns".into()],
         };
-        let res_unknown = SniffResult { protocol: "unknown".into(), domain: "example.org".into() };
+        let res_unknown = SniffResult {
+            protocol: "unknown".into(),
+            domain: "example.org".into(),
+        };
         assert!(!dispatcher.should_override(&res_unknown, &req_fake_only, &dest_outside));
     }
 
     #[tokio::test]
     async fn test_dispatcher_routing_and_stats() {
         let mut outbounds = HashMap::new();
-        outbounds.insert("direct".into(), Arc::new(MockEchoOutbound { tag: "direct".into() }) as Arc<dyn OutboundHandler>);
-        let router = Arc::new(MockRouter { picked: "direct".into() });
+        outbounds.insert(
+            "direct".into(),
+            Arc::new(MockEchoOutbound {
+                tag: "direct".into(),
+            }) as Arc<dyn OutboundHandler>,
+        );
+        let router = Arc::new(MockRouter {
+            picked: "direct".into(),
+        });
         let stats_mgr = Arc::new(DefaultStatsManager::new());
         let policy_mgr = Arc::new(MockPolicyManager);
 
@@ -204,14 +238,14 @@ mod tests {
             email: "alice@example.com".into(),
             level: 0,
         };
-        let mut session = SessionContext::new("inbound-http", dest)
-            .with_user(user);
+        let mut session = SessionContext::new("inbound-http", dest).with_user(user);
         session.source = Some("127.0.0.1:54321".parse().unwrap());
 
         // Spawn dispatch in background
-        let disp_handle = tokio::spawn(async move {
-            dispatcher.dispatch(Box::pin(server_stream), session).await
-        });
+        let disp_handle =
+            tokio::spawn(
+                async move { dispatcher.dispatch(Box::pin(server_stream), session).await },
+            );
 
         // Write some payload through client_stream and read back echo
         let mut client_pinned = Box::pin(client_stream);
@@ -219,7 +253,9 @@ mod tests {
         client_pinned.write_all(msg).await.unwrap();
 
         let mut buf = vec![0u8; msg.len()];
-        tokio::io::AsyncReadExt::read_exact(&mut client_pinned, &mut buf).await.unwrap();
+        tokio::io::AsyncReadExt::read_exact(&mut client_pinned, &mut buf)
+            .await
+            .unwrap();
         assert_eq!(&buf, msg);
 
         // Drop client stream to terminate echo loop
@@ -228,8 +264,12 @@ mod tests {
         assert!(res.is_ok());
 
         // Check stats counter
-        let up_counter = stats_mgr.get_counter("user>>>alice@example.com>>>traffic>>>uplink").expect("Uplink counter exists");
-        let down_counter = stats_mgr.get_counter("user>>>alice@example.com>>>traffic>>>downlink").expect("Downlink counter exists");
+        let up_counter = stats_mgr
+            .get_counter("user>>>alice@example.com>>>traffic>>>uplink")
+            .expect("Uplink counter exists");
+        let down_counter = stats_mgr
+            .get_counter("user>>>alice@example.com>>>traffic>>>downlink")
+            .expect("Downlink counter exists");
         assert_eq!(up_counter.value(), msg.len() as i64);
         assert_eq!(down_counter.value(), msg.len() as i64);
     }

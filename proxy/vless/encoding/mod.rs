@@ -6,11 +6,11 @@ pub mod encoding;
 #[cfg(test)]
 pub mod encoding_test;
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use uuid::Uuid;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination};
 use crate::common::protocol::RequestCommand;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use uuid::Uuid;
 
 pub const VLESS_VERSION: u8 = 0;
 
@@ -129,7 +129,10 @@ impl RequestHeader {
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let version = reader.read_u8().await?;
         if version != VLESS_VERSION {
-            return Err(Error::Protocol(format!("Unsupported VLESS version: {}", version)));
+            return Err(Error::Protocol(format!(
+                "Unsupported VLESS version: {}",
+                version
+            )));
         }
 
         let mut user_bytes = [0u8; 16];
@@ -161,8 +164,9 @@ impl RequestHeader {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom)
-                    .map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in VLESS header: {}", e)))?;
+                let s = String::from_utf8(dom).map_err(|e| {
+                    Error::Protocol(format!("Invalid UTF-8 domain in VLESS header: {}", e))
+                })?;
                 Address::Domain(s)
             }
             3 => {
@@ -170,7 +174,12 @@ impl RequestHeader {
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => return Err(Error::Protocol(format!("Invalid VLESS address type: {}", other))),
+            other => {
+                return Err(Error::Protocol(format!(
+                    "Invalid VLESS address type: {}",
+                    other
+                )));
+            }
         };
 
         let destination = if command == RequestCommand::Udp {
@@ -215,7 +224,10 @@ impl ResponseHeader {
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let version = reader.read_u8().await?;
         if version != VLESS_VERSION {
-            return Err(Error::Protocol(format!("Unsupported VLESS response version: {}", version)));
+            return Err(Error::Protocol(format!(
+                "Unsupported VLESS response version: {}",
+                version
+            )));
         }
         let addons_len = reader.read_u8().await? as usize;
         let addons = if addons_len > 0 {

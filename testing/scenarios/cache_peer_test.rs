@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use crate::common::cache::LruCache;
     use crate::common::ocsp::OcspCache;
     use crate::common::peer::AverageLatency;
+    use std::time::Duration;
 
     #[test]
     fn test_lru_cache_capacity_and_eviction() {

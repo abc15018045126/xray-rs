@@ -1,8 +1,8 @@
 // Module: proxy\dokodemo\config.rs
 // 1:1 Rust implementation corresponding to Go proxy\dokodemo\config.go
 
-use serde::{Deserialize, Serialize};
 use crate::common::net::Address;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DokodemoConfig {

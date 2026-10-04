@@ -64,12 +64,11 @@ impl MultiBuffer {
     }
 
     pub fn append_bytes(&mut self, mut src: &[u8]) {
-        if let Some(last) = self.buffers.last_mut() {
-            if !last.is_full() {
-                if let Ok(n) = last.write(src) {
-                    src = &src[n..];
-                }
-            }
+        if let Some(last) = self.buffers.last_mut()
+            && !last.is_full()
+            && let Ok(n) = last.write(src)
+        {
+            src = &src[n..];
         }
         while !src.is_empty() {
             let mut b = Buffer::new();

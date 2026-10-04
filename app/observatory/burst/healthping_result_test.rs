@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
+    use super::super::burst::RTT_FAILED;
+    use super::super::healthping_result::{HealthPingStats, new_health_ping_result};
     use std::thread::sleep;
     use std::time::Duration;
-    use super::super::burst::RTT_FAILED;
-    use super::super::healthping_result::{new_health_ping_result, HealthPingStats};
 
     #[test]
     fn test_health_ping_results() {

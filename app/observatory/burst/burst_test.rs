@@ -10,9 +10,15 @@ mod tests {
     #[tokio::test]
     async fn test_burst_observer_and_selector() {
         let observer = BurstObserver::new();
-        observer.update(HealthStatus::new("us-east", true, 120)).await;
-        observer.update(HealthStatus::new("us-west", true, 60)).await;
-        observer.update(HealthStatus::new("eu-central", false, 0)).await;
+        observer
+            .update(HealthStatus::new("us-east", true, 120))
+            .await;
+        observer
+            .update(HealthStatus::new("us-west", true, 60))
+            .await;
+        observer
+            .update(HealthStatus::new("eu-central", false, 0))
+            .await;
 
         let s1 = observer.get("us-west").await.unwrap();
         assert_eq!(s1.latency_ms, 60);

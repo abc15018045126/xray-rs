@@ -4,18 +4,18 @@
 #[cfg(test)]
 mod tests {
     use super::super::config::HysteriaTransportConfig;
+    use super::super::congestion::bbr::bandwidth::Bandwidth;
+    use super::super::congestion::bbr::packet_number_indexed_queue::PacketNumberIndexedQueue;
+    use super::super::congestion::bbr::ringbuffer::RingBuffer;
+    use super::super::congestion::bbr::windowed_filter::WindowedMaxFilter;
+    use super::super::congestion::brutal::brutal::BrutalSender;
+    use super::super::congestion::common::pacer::Pacer;
     use super::super::conn::HysteriaConn;
     use super::super::dialer::HysteriaDialer;
     use super::super::hub::HysteriaHub;
-    use super::super::padding::padding::{Padding, PADDING_CHARS};
+    use super::super::padding::padding::{PADDING_CHARS, Padding};
     use super::super::udphop::addr::UDPHopAddr;
     use super::super::udphop::conn::UdpHopPacketConn;
-    use super::super::congestion::bbr::bandwidth::Bandwidth;
-    use super::super::congestion::bbr::ringbuffer::RingBuffer;
-    use super::super::congestion::bbr::packet_number_indexed_queue::PacketNumberIndexedQueue;
-    use super::super::congestion::bbr::windowed_filter::WindowedMaxFilter;
-    use super::super::congestion::common::pacer::Pacer;
-    use super::super::congestion::brutal::brutal::BrutalSender;
     use std::net::{IpAddr, Ipv4Addr};
     use std::time::{Duration, Instant};
 
@@ -37,12 +37,17 @@ mod tests {
         assert_eq!(hop_addr.addrs().len(), 3);
 
         // Interval < 5 seconds rejected
-        let bad = UdpHopPacketConn::new(hop_addr.clone(), Duration::from_secs(2), Duration::from_secs(3));
+        let bad = UdpHopPacketConn::new(
+            hop_addr.clone(),
+            Duration::from_secs(2),
+            Duration::from_secs(3),
+        );
         assert!(bad.is_err());
 
         // Valid conn
-        let conn = UdpHopPacketConn::new(hop_addr, Duration::from_secs(10), Duration::from_secs(20))
-            .expect("valid hop conn");
+        let conn =
+            UdpHopPacketConn::new(hop_addr, Duration::from_secs(10), Duration::from_secs(20))
+                .expect("valid hop conn");
         assert_eq!(conn.current_addr().port(), 10001);
         assert_eq!(conn.hop().port(), 10002);
         assert_eq!(conn.hop().port(), 10003);

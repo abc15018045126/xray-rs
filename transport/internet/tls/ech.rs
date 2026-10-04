@@ -1,11 +1,11 @@
 // Module: transport\internet\tls\ech.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\tls\ech.go
 
+use base64::Engine;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use base64::Engine;
-use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_ECH_TTL: Duration = Duration::from_secs(3600);
 pub const SVCB_PARAM_ECH: u16 = 5;
@@ -219,11 +219,18 @@ pub fn resolve_ech_config(
         let (name_to_query, dns_server) = match parts.len() {
             2 => (parts[0], parts[1]),
             1 => (server_name, parts[0]),
-            _ => return Err(format!("Invalid ECH DNS server format: {}", ech_config_list)),
+            _ => {
+                return Err(format!(
+                    "Invalid ECH DNS server format: {}",
+                    ech_config_list
+                ));
+            }
         };
 
         if name_to_query.is_empty() {
-            return Err("Using DNS for ECH Config needs serverName or example.com+server format".into());
+            return Err(
+                "Using DNS for ECH Config needs serverName or example.com+server format".into(),
+            );
         }
 
         // Check global cache

@@ -3,11 +3,11 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use crate::common::mux::frame::{Frame, FrameType, SessionStatus};
     use crate::common::mux::reader::FrameReader;
     use crate::common::mux::writer::FrameWriter;
     use crate::common::net::{Address, Destination};
+    use std::io::Cursor;
 
     #[test]
     fn test_mux_frame_flags() {

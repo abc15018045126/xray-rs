@@ -3,10 +3,12 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use crate::core::context::{from_context, must_from_context, to_background_detached_context, to_context, CoreContext};
     use crate::core::Instance;
+    use crate::core::context::{
+        CoreContext, from_context, must_from_context, to_background_detached_context, to_context,
+    };
     use crate::infra::conf::Config;
+    use std::sync::Arc;
 
     #[test]
     fn test_core_instance_from_config() {

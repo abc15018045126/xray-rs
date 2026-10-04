@@ -45,7 +45,7 @@ impl Pacer {
 
     pub fn sent_packet(&mut self, send_time: Instant, size: u64) {
         let current_budget = self.budget(send_time);
-        self.budget_at_last_sent = if size > current_budget { 0 } else { current_budget - size };
+        self.budget_at_last_sent = current_budget.saturating_sub(size);
         self.last_sent_time = Some(send_time);
     }
 

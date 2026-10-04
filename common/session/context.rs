@@ -1,9 +1,9 @@
 // Module: common\session\context.rs
 // 1:1 Rust implementation corresponding to Go common\session\context.go
 
-use std::sync::Arc;
-use crate::common::ctx::Context;
 use super::{Content, Inbound, Outbound};
+use crate::common::ctx::Context;
+use std::sync::Arc;
 
 pub use crate::common::protocol::SessionContext;
 

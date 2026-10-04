@@ -1,10 +1,10 @@
 // Module: transport\internet\grpc\hub.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\grpc\hub.go
 
+use super::config::GrpcConfig;
+use crate::common::errors::Result;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
-use crate::common::errors::Result;
-use super::config::GrpcConfig;
 
 pub struct GrpcListener {
     _config: GrpcConfig,

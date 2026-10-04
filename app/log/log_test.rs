@@ -4,7 +4,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::config_pb::{Config as LogConfigPb, LogType as PbLogType};
-    use super::super::{create_logger, LogCreatorOptions, LogLevel, LogManager};
+    use super::super::{LogCreatorOptions, LogLevel, LogManager, create_logger};
     use crate::common::log::Severity;
 
     #[test]

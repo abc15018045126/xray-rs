@@ -1,10 +1,9 @@
 // Module: app\reverse\bridge.rs
 // 1:1 Rust implementation corresponding to Go app\reverse\bridge.go
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::Mutex;
-
 
 pub struct BridgeWorker {
     pub id: u32,

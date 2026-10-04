@@ -22,11 +22,11 @@ impl BytesPool {
     pub fn alloc(&self, size: usize) -> Vec<u8> {
         for (idx, &pool_size) in POOL_SIZES.iter().enumerate() {
             if size <= pool_size {
-                if let Ok(mut guard) = self.pools[idx].lock() {
-                    if let Some(mut buf) = guard.pop() {
-                        buf.resize(size, 0);
-                        return buf;
-                    }
+                if let Ok(mut guard) = self.pools[idx].lock()
+                    && let Some(mut buf) = guard.pop()
+                {
+                    buf.resize(size, 0);
+                    return buf;
                 }
                 return vec![0u8; size];
             }
@@ -39,14 +39,20 @@ impl BytesPool {
         for (idx, &pool_size) in POOL_SIZES.iter().enumerate() {
             if cap >= pool_size && (idx == NUM_POOLS - 1 || cap < POOL_SIZES[idx + 1]) {
                 buf.clear();
-                if let Ok(mut guard) = self.pools[idx].lock() {
-                    if guard.len() < 128 {
-                        guard.push(buf);
-                    }
+                if let Ok(mut guard) = self.pools[idx].lock()
+                    && guard.len() < 128
+                {
+                    guard.push(buf);
                 }
                 return;
             }
         }
+    }
+}
+
+impl Default for BytesPool {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -1,11 +1,11 @@
 // Module: common\net\address.rs
 // 1:1 Rust implementation corresponding to Go common\net\address.go
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::sync::LazyLock;
-use serde::{Deserialize, Serialize};
 
 use crate::common::errors::{Error, Result};
 
@@ -37,7 +37,8 @@ pub static LOCAL_HOST_IP: LazyLock<Address> =
 pub static ANY_IP: LazyLock<Address> = LazyLock::new(|| Address::Ipv4(Ipv4Addr::new(0, 0, 0, 0)));
 pub static LOCAL_HOST_DOMAIN: LazyLock<Address> =
     LazyLock::new(|| Address::Domain("localhost".into()));
-pub static LOCAL_HOST_IPV6: LazyLock<Address> = LazyLock::new(|| Address::Ipv6(Ipv6Addr::LOCALHOST));
+pub static LOCAL_HOST_IPV6: LazyLock<Address> =
+    LazyLock::new(|| Address::Ipv6(Ipv6Addr::LOCALHOST));
 pub static ANY_IPV6: LazyLock<Address> = LazyLock::new(|| Address::Ipv6(Ipv6Addr::UNSPECIFIED));
 
 pub fn local_host_ip() -> Address {
@@ -209,7 +210,8 @@ impl From<Ipv6Addr> for Address {
 }
 
 pub fn parse_address(addr: &str) -> Address {
-    addr.parse::<Address>().unwrap_or_else(|_| Address::Domain(addr.to_string()))
+    addr.parse::<Address>()
+        .unwrap_or_else(|_| Address::Domain(addr.to_string()))
 }
 
 pub fn ip_address(ip: impl Into<IpAddr>) -> Address {

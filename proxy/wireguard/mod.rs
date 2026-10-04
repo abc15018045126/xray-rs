@@ -16,4 +16,4 @@ pub use client::Client;
 pub use config::{WireGuardConfig, WireGuardPeer};
 pub use server::WireGuardServer;
 pub use tun::WireGuardTunDevice;
-pub use wireguard::{create_ipc_request, parse_endpoints, DEFAULT_MTU, PROTOCOL_NAME};
+pub use wireguard::{DEFAULT_MTU, PROTOCOL_NAME, create_ipc_request, parse_endpoints};

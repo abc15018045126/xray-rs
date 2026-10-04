@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::finalmask::{
-        HeaderManager, HeaderMask, UdpmaskManager, FINALMASK_VERSION, UDP_SIZE,
+        FINALMASK_VERSION, HeaderManager, HeaderMask, UDP_SIZE, UdpmaskManager,
     };
     use super::super::header::custom::config::{UDPConfig, UDPItem};
     use super::super::header::custom::udp::{UdpCustomClient, UdpCustomServer};

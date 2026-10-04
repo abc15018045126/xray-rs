@@ -1,10 +1,10 @@
 // Module: transport\internet\finalmask\sudoku\conn_tcp_packed.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\conn_tcp_packed.go
 
-use std::sync::Arc;
-use crate::common::errors::{Error, Result};
 use super::codec::SudokuCodec;
-use super::table::{entropy_layout, ByteLayout, SudokuTable};
+use super::table::{ByteLayout, SudokuTable, entropy_layout};
+use crate::common::errors::{Error, Result};
+use std::sync::Arc;
 
 pub struct PackedEncoder {
     pub layouts: Vec<Arc<ByteLayout>>,
@@ -156,9 +156,8 @@ pub fn decode_packed_bytes(
             continue;
         }
 
-        let group = (layout.decode_group)(b).ok_or_else(|| {
-            Error::Protocol(format!("invalid packed sudoku byte: {}", b))
-        })?;
+        let group = (layout.decode_group)(b)
+            .ok_or_else(|| Error::Protocol(format!("invalid packed sudoku byte: {}", b)))?;
         group_index += 1;
 
         bit_buf = (bit_buf << 6) | (group as u64);

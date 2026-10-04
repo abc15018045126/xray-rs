@@ -4,7 +4,9 @@
 #[cfg(test)]
 mod tests {
     use super::super::config::RealityConfig;
-    use super::super::reality::{derive_auth_key, open_session_id, seal_session_id, RealityClient, RealityServer};
+    use super::super::reality::{
+        RealityClient, RealityServer, derive_auth_key, open_session_id, seal_session_id,
+    };
     use rand::RngCore;
     use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
@@ -70,7 +72,8 @@ mod tests {
         };
 
         let server = RealityServer::new(&config).expect("Server new");
-        let client = RealityClient::new("www.apple.com", &server_pub_hex, short_id).expect("Client new");
+        let client =
+            RealityClient::new("www.apple.com", &server_pub_hex, short_id).expect("Client new");
 
         let client_secret = EphemeralSecret::random_from_rng(rand::thread_rng());
         let client_pub = PublicKey::from(&client_secret);
@@ -135,6 +138,9 @@ mod tests {
             tampered_aad,
             30,
         );
-        assert!(result.is_err(), "Tampered AAD must fail AEAD authentication");
+        assert!(
+            result.is_err(),
+            "Tampered AAD must fail AEAD authentication"
+        );
     }
 }

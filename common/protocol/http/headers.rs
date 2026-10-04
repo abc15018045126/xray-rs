@@ -38,11 +38,11 @@ pub fn remove_hop_by_hop_headers(headers: &mut HashMap<String, String>) {
 
 pub fn parse_host(raw_host: &str, default_port: u16) -> Result<Destination> {
     let raw = raw_host.trim();
-    if let Some((h, p)) = raw.rsplit_once(':') {
-        if let Ok(port) = p.parse::<u16>() {
-            let addr = Address::from_str(h)?;
-            return Ok(Destination::tcp(addr, port));
-        }
+    if let Some((h, p)) = raw.rsplit_once(':')
+        && let Ok(port) = p.parse::<u16>()
+    {
+        let addr = Address::from_str(h)?;
+        return Ok(Destination::tcp(addr, port));
     }
     let addr = Address::from_str(raw)?;
     Ok(Destination::tcp(addr, default_port))

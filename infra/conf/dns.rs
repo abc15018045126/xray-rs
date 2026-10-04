@@ -1,8 +1,8 @@
 // Module: infra\conf\dns.rs
 // 1:1 Rust implementation corresponding to Go infra\conf\dns.go
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DnsConfig {

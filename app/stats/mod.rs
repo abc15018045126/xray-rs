@@ -38,7 +38,9 @@ impl StatsManager {
     pub fn register_counter_sync(&self, name: impl Into<String>) -> Arc<Counter> {
         let name_str = name.into();
         let mut map = self.counters.write().unwrap();
-        map.entry(name_str).or_insert_with(|| Arc::new(Counter::new())).clone()
+        map.entry(name_str)
+            .or_insert_with(|| Arc::new(Counter::new()))
+            .clone()
     }
 
     pub async fn register_counter(&self, name: impl Into<String>) -> Arc<Counter> {
@@ -55,10 +57,17 @@ impl StatsManager {
         map.get(name).cloned()
     }
 
-    pub fn register_channel_sync(&self, name: impl Into<String>, buffer_size: usize, subscriber_limit: usize) -> Arc<StatsChannel> {
+    pub fn register_channel_sync(
+        &self,
+        name: impl Into<String>,
+        buffer_size: usize,
+        subscriber_limit: usize,
+    ) -> Arc<StatsChannel> {
         let name_str = name.into();
         let mut map = self.channels.write().unwrap();
-        map.entry(name_str).or_insert_with(|| Arc::new(StatsChannel::new(buffer_size, subscriber_limit))).clone()
+        map.entry(name_str)
+            .or_insert_with(|| Arc::new(StatsChannel::new(buffer_size, subscriber_limit)))
+            .clone()
     }
 
     pub fn unregister_channel(&self, name: &str) -> bool {

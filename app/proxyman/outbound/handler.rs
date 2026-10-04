@@ -1,8 +1,8 @@
 // Module: app\proxyman\outbound\handler.rs
 // 1:1 Rust implementation corresponding to Go app\proxyman\outbound\handler.go
 
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;

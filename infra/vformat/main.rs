@@ -1,8 +1,8 @@
 // Module: infra\vformat\main.rs
 // 1:1 Rust implementation corresponding to Go infra\vformat\main.go
 
-use std::path::{Path, PathBuf};
 use crate::common::errors::Result;
+use std::path::{Path, PathBuf};
 
 pub fn find_files_to_format(root: &Path, ext: &str) -> Vec<PathBuf> {
     let mut files = Vec::new();
@@ -22,7 +22,8 @@ pub fn find_files_to_format(root: &Path, ext: &str) -> Vec<PathBuf> {
                     walk_dir(&path, ext, files);
                 } else if path.is_file() {
                     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if name.ends_with(ext) && !name.ends_with(".pb.rs") && !name.ends_with(".pb.go") {
+                    if name.ends_with(ext) && !name.ends_with(".pb.rs") && !name.ends_with(".pb.go")
+                    {
                         files.push(path);
                     }
                 }

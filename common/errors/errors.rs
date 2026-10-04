@@ -1,9 +1,9 @@
 // Module: common\errors\errors.rs
 // 1:1 Rust implementation corresponding to Go common\errors\errors.go
 
-use std::fmt;
-use crate::common::log::Severity;
 pub use super::{Error, Result};
+use crate::common::log::Severity;
+use std::fmt;
 
 /// ErrorDetail represents an error with contextual prefixes, caller information,
 /// severity levels, and chained inner causes, corresponding to Go `errors.Error`.
@@ -114,7 +114,7 @@ pub fn new(msg: impl Into<String>) -> ErrorDetail {
 }
 
 /// Cause returns the root cause of this error by traversing inner errors.
-pub fn cause<'a>(mut err: &'a ErrorDetail) -> &'a ErrorDetail {
+pub fn cause(mut err: &ErrorDetail) -> &ErrorDetail {
     while let Some(ref inner) = err.inner {
         err = inner;
     }

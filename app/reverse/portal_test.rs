@@ -3,9 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use tokio::io::duplex;
     use super::super::bridge::ReverseBridge;
-    use super::super::portal::{new_static_mux_picker, ReversePortal};
+    use super::super::portal::{ReversePortal, new_static_mux_picker};
+    use tokio::io::duplex;
 
     #[test]
     fn test_static_picker_empty() {

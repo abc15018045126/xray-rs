@@ -1,9 +1,9 @@
 // Module: common\net\find_process.rs
 // 1:1 Rust implementation corresponding to Go common\net\find_process_windows.go and find_process.go
 
-use std::net::SocketAddr;
-use crate::common::errors::Result;
 use super::Destination;
+use crate::common::errors::Result;
+use std::net::SocketAddr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcessInfo {
@@ -34,7 +34,7 @@ impl ProcessFinder {
     pub fn find_process_by_socket(src: SocketAddr, is_tcp: bool) -> Result<Option<ProcessInfo>> {
         #[cfg(target_os = "windows")]
         {
-            return Ok(windows_impl::find_process(is_tcp, src));
+            Ok(windows_impl::find_process(is_tcp, src))
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -46,6 +46,7 @@ impl ProcessFinder {
 
 #[cfg(target_os = "windows")]
 pub mod windows_impl {
+    use super::ProcessInfo;
     use std::ffi::c_void;
     use std::net::{IpAddr, SocketAddr};
     use windows::Win32::Foundation::CloseHandle;
@@ -53,9 +54,9 @@ pub mod windows_impl {
         GetExtendedTcpTable, GetExtendedUdpTable, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
     };
     use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
     };
-    use super::ProcessInfo;
 
     const AF_INET: u32 = 2;
     const AF_INET6: u32 = 23;
@@ -80,14 +81,7 @@ pub mod windows_impl {
     fn search_tcp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
         let mut size: u32 = 0;
         unsafe {
-            let _ = GetExtendedTcpTable(
-                None,
-                &mut size,
-                false,
-                family,
-                TCP_TABLE_OWNER_PID_ALL,
-                0,
-            );
+            let _ = GetExtendedTcpTable(None, &mut size, false, family, TCP_TABLE_OWNER_PID_ALL, 0);
         }
         if size == 0 {
             return None;
@@ -109,16 +103,17 @@ pub mod windows_impl {
         }
 
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
-        let (item_size, port_offset, ip_offset, ip_len, pid_offset, _state_offset) = if family == AF_INET {
-            // MIB_TCPROW_OWNER_PID:
-            // dwState (0), dwLocalAddr (4), dwLocalPort (8), dwRemoteAddr (12), dwRemotePort (16), dwOwningPid (20)
-            (24, 8, 4, 4, 20, 0)
-        } else {
-            // MIB_TCP6ROW_OWNER_PID:
-            // ucLocalAddr (0), dwLocalScopeId (16), dwLocalPort (20), ucRemoteAddr (24), dwRemoteScopeId (40),
-            // dwRemotePort (44), dwState (48), dwOwningPid (52)
-            (56, 20, 0, 16, 52, 48)
-        };
+        let (item_size, port_offset, ip_offset, ip_len, pid_offset, _state_offset) =
+            if family == AF_INET {
+                // MIB_TCPROW_OWNER_PID:
+                // dwState (0), dwLocalAddr (4), dwLocalPort (8), dwRemoteAddr (12), dwRemotePort (16), dwOwningPid (20)
+                (24, 8, 4, 4, 20, 0)
+            } else {
+                // MIB_TCP6ROW_OWNER_PID:
+                // ucLocalAddr (0), dwLocalScopeId (16), dwLocalPort (20), ucRemoteAddr (24), dwRemoteScopeId (40),
+                // dwRemotePort (44), dwState (48), dwOwningPid (52)
+                (56, 20, 0, 16, 52, 48)
+            };
 
         for i in 0..num_entries {
             let start = 4 + i * item_size;
@@ -161,14 +156,7 @@ pub mod windows_impl {
     fn search_udp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
         let mut size: u32 = 0;
         unsafe {
-            let _ = GetExtendedUdpTable(
-                None,
-                &mut size,
-                false,
-                family,
-                UDP_TABLE_OWNER_PID,
-                0,
-            );
+            let _ = GetExtendedUdpTable(None, &mut size, false, family, UDP_TABLE_OWNER_PID, 0);
         }
         if size == 0 {
             return None;
@@ -257,7 +245,7 @@ pub mod windows_impl {
             let norm_path = cur_exe.replace('\\', "/");
             let name = norm_path
                 .split('/')
-                .last()
+                .next_back()
                 .unwrap_or(&norm_path)
                 .trim_end_matches(".exe")
                 .to_string();
@@ -284,7 +272,7 @@ pub mod windows_impl {
                     let norm_path = path.replace('\\', "/");
                     let name = norm_path
                         .split('/')
-                        .last()
+                        .next_back()
                         .unwrap_or(&norm_path)
                         .trim_end_matches(".exe")
                         .to_string();

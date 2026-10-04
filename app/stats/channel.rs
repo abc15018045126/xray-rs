@@ -1,11 +1,11 @@
 // Module: app\stats\channel.rs
 // 1:1 Rust implementation corresponding to Go app\stats\channel.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use tokio::sync::broadcast;
-use crate::common::errors::{Error, Result};
 use super::config_pb::ChannelConfig;
+use crate::common::errors::{Error, Result};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::broadcast;
 
 pub struct StatsChannel {
     tx: broadcast::Sender<i64>,
@@ -35,7 +35,9 @@ impl StatsChannel {
             return Err(Error::Closed);
         }
         if self.subscriber_limit > 0 && self.tx.receiver_count() >= self.subscriber_limit {
-            return Err(Error::Config("Stats channel subscriber limit reached".into()));
+            return Err(Error::Config(
+                "Stats channel subscriber limit reached".into(),
+            ));
         }
         Ok(self.tx.subscribe())
     }

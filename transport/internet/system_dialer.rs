@@ -1,12 +1,12 @@
 // Module: transport\internet\system_dialer.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\system_dialer.go
 
+use async_trait::async_trait;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::RwLock;
@@ -95,6 +95,12 @@ impl DefaultSystemDialer {
     }
 }
 
+impl Default for DefaultSystemDialer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl SystemDialerTrait for DefaultSystemDialer {
     async fn dial(
@@ -136,9 +142,13 @@ impl SystemDialerTrait for DefaultSystemDialer {
             #[cfg(target_os = "windows")]
             {
                 let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-                let socket = crate::proxy::tun::socket_helpers::new_udp_socket(None, iface.as_ref(), Some(target_addr))
-                    .await
-                    .map_err(Error::Io)?;
+                let socket = crate::proxy::tun::socket_helpers::new_udp_socket(
+                    None,
+                    iface.as_ref(),
+                    Some(target_addr),
+                )
+                .await
+                .map_err(Error::Io)?;
                 let wrapper = PacketConnWrapper::new(socket, target_addr);
                 return Ok(Box::pin(wrapper));
             }
@@ -158,9 +168,10 @@ impl SystemDialerTrait for DefaultSystemDialer {
         #[cfg(target_os = "windows")]
         {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let stream = crate::proxy::tun::socket_helpers::new_tcp_stream(target_addr, iface.as_ref())
-                .await
-                .map_err(Error::Io)?;
+            let stream =
+                crate::proxy::tun::socket_helpers::new_tcp_stream(target_addr, iface.as_ref())
+                    .await
+                    .map_err(Error::Io)?;
             let _ = stream.set_nodelay(true);
             return Ok(Box::pin(stream));
         }
@@ -225,7 +236,8 @@ impl SystemDialer {
         #[cfg(target_os = "windows")]
         {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let stream = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await?;
+            let stream =
+                crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await?;
             let _ = stream.set_nodelay(true);
             Ok(stream)
         }

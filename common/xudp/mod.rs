@@ -4,14 +4,14 @@ pub mod xudp;
 pub mod xudp_test;
 
 pub use xudp::{
-    read_address_port, write_address_port, PacketReader, PacketWriter, XUDP_MAGIC,
-    XUDP_MAX_PACKET_SIZE,
+    PacketReader, PacketWriter, XUDP_MAGIC, XUDP_MAX_PACKET_SIZE, read_address_port,
+    write_address_port,
 };
 
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub fn generate_global_id(src: &SocketAddr, base_key: &[u8; 32]) -> [u8; 8] {
     use sha2::{Digest, Sha256};
@@ -32,7 +32,10 @@ pub struct XudpPacket {
 
 impl XudpPacket {
     pub fn new(destination: Destination, payload: Vec<u8>) -> Self {
-        Self { destination, payload }
+        Self {
+            destination,
+            payload,
+        }
     }
 
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
@@ -83,7 +86,12 @@ impl XudpPacket {
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(Ipv6Addr::from(ip))
             }
-            other => return Err(Error::Protocol(format!("Invalid XUDP address type: {}", other))),
+            other => {
+                return Err(Error::Protocol(format!(
+                    "Invalid XUDP address type: {}",
+                    other
+                )));
+            }
         };
 
         let mut payload = Vec::new();

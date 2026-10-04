@@ -1,6 +1,6 @@
-use tokio::io::{AsyncRead, AsyncReadExt};
 use crate::common::buf::MultiBuffer;
 use crate::common::errors::{Error, Result};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub struct VectorReader<R> {
     inner: R,

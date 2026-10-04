@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Barrier;
@@ -42,7 +42,11 @@ struct PROCESS_MEMORY_COUNTERS_EX {
 unsafe extern "system" {
     fn OpenProcess(desired_access: u32, inherit_handle: i32, process_id: u32) -> isize;
     fn CloseHandle(handle: isize) -> i32;
-    fn GetProcessMemoryInfo(handle: isize, counters: *mut PROCESS_MEMORY_COUNTERS_EX, cb: u32) -> i32;
+    fn GetProcessMemoryInfo(
+        handle: isize,
+        counters: *mut PROCESS_MEMORY_COUNTERS_EX,
+        cb: u32,
+    ) -> i32;
 }
 
 fn get_process_memory_mb(pid: u32) -> f64 {
@@ -175,12 +179,12 @@ async fn bench_latency(proxy_port: u16) -> (f64, f64, f64, f64) {
 
     for _ in 0..PING_ROUNDS {
         let t0 = Instant::now();
-        if let Ok(mut stream) = socks5_connect(proxy_port, ECHO_HOST, ECHO_PORT).await {
-            if stream.write_all(b"PING\n").await.is_ok() {
-                let mut resp = [0u8; 5];
-                if stream.read_exact(&mut resp).await.is_ok() && &resp == b"PONG\n" {
-                    latencies.push(t0.elapsed().as_secs_f64() * 1000.0);
-                }
+        if let Ok(mut stream) = socks5_connect(proxy_port, ECHO_HOST, ECHO_PORT).await
+            && stream.write_all(b"PING\n").await.is_ok()
+        {
+            let mut resp = [0u8; 5];
+            if stream.read_exact(&mut resp).await.is_ok() && &resp == b"PONG\n" {
+                latencies.push(t0.elapsed().as_secs_f64() * 1000.0);
             }
         }
     }
@@ -271,12 +275,12 @@ async fn bench_concurrency(proxy_port: u16, clients: usize) -> (f64, f64) {
         let b = barrier.clone();
         handles.push(tokio::spawn(async move {
             b.wait().await;
-            if let Ok(mut stream) = socks5_connect(proxy_port, ECHO_HOST, ECHO_PORT).await {
-                if stream.write_all(b"PING\n").await.is_ok() {
-                    let mut resp = [0u8; 5];
-                    if stream.read_exact(&mut resp).await.is_ok() && &resp == b"PONG\n" {
-                        return true;
-                    }
+            if let Ok(mut stream) = socks5_connect(proxy_port, ECHO_HOST, ECHO_PORT).await
+                && stream.write_all(b"PING\n").await.is_ok()
+            {
+                let mut resp = [0u8; 5];
+                if stream.read_exact(&mut resp).await.is_ok() && &resp == b"PONG\n" {
+                    return true;
                 }
             }
             false
@@ -302,7 +306,10 @@ async fn main() -> Result<()> {
     println!("      Rust High-Precision Benchmark: Xray-core vs clash-rs (Windows)      ");
     println!("{}", "=".repeat(85));
 
-    let root_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf();
+    let root_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf();
     let xray_go_bin = root_dir.join("xray-go.exe");
     let xray_rust_bin = root_dir.join("xray-rust").join("xray.exe");
     let clash_bin = root_dir.join("clash-rs-x86_64-pc-windows-msvc-static-crt (1).exe");
@@ -334,17 +341,39 @@ async fn main() -> Result<()> {
     )?;
 
     start_echo_server().await?;
-    println!("[*] High-speed Async Echo Server listening on {}:{}", ECHO_HOST, ECHO_PORT);
+    println!(
+        "[*] High-speed Async Echo Server listening on {}:{}",
+        ECHO_HOST, ECHO_PORT
+    );
 
     let mut targets = Vec::new();
     if xray_go_bin.exists() {
-        targets.push(("Xray-Go (原版)", xray_go_bin, vec!["run".to_string(), "-c".to_string(), xray_cfg.to_str().unwrap().to_string()], XRAY_PORT));
+        targets.push((
+            "Xray-Go (原版)",
+            xray_go_bin,
+            vec![
+                "run".to_string(),
+                "-c".to_string(),
+                xray_cfg.to_str().unwrap().to_string(),
+            ],
+            XRAY_PORT,
+        ));
     }
     if xray_rust_bin.exists() {
-        targets.push(("Xray-Rust (1:1版)", xray_rust_bin, vec!["-c".to_string(), xray_cfg.to_str().unwrap().to_string()], XRAY_PORT));
+        targets.push((
+            "Xray-Rust (1:1版)",
+            xray_rust_bin,
+            vec!["-c".to_string(), xray_cfg.to_str().unwrap().to_string()],
+            XRAY_PORT,
+        ));
     }
     if clash_bin.exists() {
-        targets.push(("Clash-rs (官方版)", clash_bin, vec!["-c".to_string(), clash_cfg.to_str().unwrap().to_string()], CLASH_PORT));
+        targets.push((
+            "Clash-rs (官方版)",
+            clash_bin,
+            vec!["-c".to_string(), clash_cfg.to_str().unwrap().to_string()],
+            CLASH_PORT,
+        ));
     }
 
     let mut results: BTreeMap<String, Scorecard> = BTreeMap::new();
@@ -386,20 +415,43 @@ async fn main() -> Result<()> {
             lat_avg, lat_med, lat_p95, lat_min
         );
 
-        println!("    [3/5] Upload Throughput ({} MB)...", THROUGHPUT_BYTES / (1024 * 1024));
+        println!(
+            "    [3/5] Upload Throughput ({} MB)...",
+            THROUGHPUT_BYTES / (1024 * 1024)
+        );
         let up_mbps = bench_upload(port, THROUGHPUT_BYTES).await;
-        println!("          Speed: {:.2} Mbps ({:.2} MB/s)", up_mbps, up_mbps / 8.0);
+        println!(
+            "          Speed: {:.2} Mbps ({:.2} MB/s)",
+            up_mbps,
+            up_mbps / 8.0
+        );
 
-        println!("    [4/5] Download Throughput ({} MB)...", THROUGHPUT_BYTES / (1024 * 1024));
+        println!(
+            "    [4/5] Download Throughput ({} MB)...",
+            THROUGHPUT_BYTES / (1024 * 1024)
+        );
         let down_mbps = bench_download(port, THROUGHPUT_BYTES).await;
-        println!("          Speed: {:.2} Mbps ({:.2} MB/s)", down_mbps, down_mbps / 8.0);
+        println!(
+            "          Speed: {:.2} Mbps ({:.2} MB/s)",
+            down_mbps,
+            down_mbps / 8.0
+        );
 
-        println!("    [5/5] Concurrency Stress ({} workers)...", CONCURRENT_CLIENTS);
+        println!(
+            "    [5/5] Concurrency Stress ({} workers)...",
+            CONCURRENT_CLIENTS
+        );
         let (qps, succ_rate) = bench_concurrency(port, CONCURRENT_CLIENTS).await;
-        println!("          QPS: {:.1} req/s | Success Rate: {:.1}%", qps, succ_rate);
+        println!(
+            "          QPS: {:.1} req/s | Success Rate: {:.1}%",
+            qps, succ_rate
+        );
 
         let active_mem = get_process_memory_mb(pid);
-        println!("          Active Memory (Peak RSS)   : {:.2} MB", active_mem);
+        println!(
+            "          Active Memory (Peak RSS)   : {:.2} MB",
+            active_mem
+        );
 
         results.insert(
             name.to_string(),
@@ -440,20 +492,63 @@ async fn main() -> Result<()> {
     println!("{}", "-".repeat(28 + 21 * cand_names.len()));
 
     let metrics: Vec<(&str, Box<dyn Fn(&Scorecard) -> f64>, &str, &str)> = vec![
-        ("Idle Memory (MB)", Box::new(|s| s.idle_mb), "{:.2} MB", "lower"),
-        ("Active Memory (MB)", Box::new(|s| s.active_mb), "{:.2} MB", "lower"),
-        ("Latency Avg (ms)", Box::new(|s| s.lat_avg), "{:.2} ms", "lower"),
-        ("Latency P95 (ms)", Box::new(|s| s.lat_p95), "{:.2} ms", "lower"),
-        ("Upload Speed (Mbps)", Box::new(|s| s.up_mbps), "{:.2} Mbps", "higher"),
-        ("Download Speed (Mbps)", Box::new(|s| s.down_mbps), "{:.2} Mbps", "higher"),
-        ("Concurrent QPS", Box::new(|s| s.qps), "{:.1} req/s", "higher"),
-        ("Success Rate (%)", Box::new(|s| s.succ_rate), "{:.1}%", "higher"),
+        (
+            "Idle Memory (MB)",
+            Box::new(|s| s.idle_mb),
+            "{:.2} MB",
+            "lower",
+        ),
+        (
+            "Active Memory (MB)",
+            Box::new(|s| s.active_mb),
+            "{:.2} MB",
+            "lower",
+        ),
+        (
+            "Latency Avg (ms)",
+            Box::new(|s| s.lat_avg),
+            "{:.2} ms",
+            "lower",
+        ),
+        (
+            "Latency P95 (ms)",
+            Box::new(|s| s.lat_p95),
+            "{:.2} ms",
+            "lower",
+        ),
+        (
+            "Upload Speed (Mbps)",
+            Box::new(|s| s.up_mbps),
+            "{:.2} Mbps",
+            "higher",
+        ),
+        (
+            "Download Speed (Mbps)",
+            Box::new(|s| s.down_mbps),
+            "{:.2} Mbps",
+            "higher",
+        ),
+        (
+            "Concurrent QPS",
+            Box::new(|s| s.qps),
+            "{:.1} req/s",
+            "higher",
+        ),
+        (
+            "Success Rate (%)",
+            Box::new(|s| s.succ_rate),
+            "{:.1}%",
+            "higher",
+        ),
     ];
 
     for (label, getter, fmt, direction) in metrics {
         let vals: Vec<f64> = cand_names.iter().map(|n| getter(&results[n])).collect();
         let best_val = if direction == "lower" {
-            vals.iter().cloned().filter(|&v| v > 0.0).fold(f64::INFINITY, f64::min)
+            vals.iter()
+                .cloned()
+                .filter(|&v| v > 0.0)
+                .fold(f64::INFINITY, f64::min)
         } else {
             vals.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
         };

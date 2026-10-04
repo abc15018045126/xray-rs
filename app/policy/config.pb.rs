@@ -1,8 +1,8 @@
 // Module: app\policy\config.pb.rs
 // 1:1 Rust protobuf message definitions corresponding to Go app\policy\config.pb.go
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Second {

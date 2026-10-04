@@ -1,9 +1,9 @@
 // Module: proxy\vmess\encoding\commands.rs
 // 1:1 Rust implementation corresponding to Go proxy\vmess\encoding\commands.go
 
-use uuid::Uuid;
 use super::auth::authenticate;
 use crate::common::errors::{Error, Result};
+use uuid::Uuid;
 
 pub const CMD_TCP: u8 = 1;
 pub const CMD_UDP: u8 = 2;
@@ -41,7 +41,9 @@ impl CommandSwitchAccount {
         let host_len = b[0] as usize;
         let mut idx = 1;
         if b.len() < idx + host_len + 2 + 16 + 2 + 4 + 1 {
-            return Err(Error::Protocol("Insufficient length for CommandSwitchAccount".into()));
+            return Err(Error::Protocol(
+                "Insufficient length for CommandSwitchAccount".into(),
+            ));
         }
         let host = String::from_utf8(b[idx..idx + host_len].to_vec())
             .map_err(|e| Error::Protocol(format!("Invalid host in CommandSwitchAccount: {}", e)))?;
@@ -90,7 +92,9 @@ pub fn marshal_command(cmd_id: u8, payload: &[u8]) -> Result<Vec<u8>> {
 
 pub fn unmarshal_command(data: &[u8]) -> Result<(u8, Vec<u8>)> {
     if data.len() < 6 {
-        return Err(Error::Protocol("Insufficient length for command frame".into()));
+        return Err(Error::Protocol(
+            "Insufficient length for command frame".into(),
+        ));
     }
     let cmd_id = data[0];
     let total_len = data[1] as usize;

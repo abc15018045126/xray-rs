@@ -1,12 +1,12 @@
 // Module: transport\internet\finalmask\xicmp\server.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xicmp\server.go
 
-use crate::common::errors::{Error, Result};
 use super::client::{
-    calculate_checksum, verify_checksum, ICMP_TYPE_ECHO_REPLY_V4, ICMP_TYPE_ECHO_REPLY_V6,
-    ICMP_TYPE_ECHO_V4, ICMP_TYPE_ECHO_V6,
+    ICMP_TYPE_ECHO_REPLY_V4, ICMP_TYPE_ECHO_REPLY_V6, ICMP_TYPE_ECHO_V4, ICMP_TYPE_ECHO_V6,
+    calculate_checksum, verify_checksum,
 };
 use super::config::XIcmpConfig;
+use crate::common::errors::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct XIcmpServerRequest {
@@ -94,7 +94,11 @@ impl XIcmpServer {
     /// Encodes an ICMP Echo Reply replying to a previous client request.
     /// If request had a payload, prepends a distinct random byte `b2 != req.seq_byte`
     /// to prevent echo reflection attacks.
-    pub fn encode_reply(&self, req: &XIcmpServerRequest, payload: Option<&[u8]>) -> Result<Vec<u8>> {
+    pub fn encode_reply(
+        &self,
+        req: &XIcmpServerRequest,
+        payload: Option<&[u8]>,
+    ) -> Result<Vec<u8>> {
         let typ = if self.is_ipv6 {
             ICMP_TYPE_ECHO_REPLY_V6
         } else {

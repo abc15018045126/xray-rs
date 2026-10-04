@@ -1,8 +1,8 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::str::FromStr;
 use crate::app::router::geo::GeoDatabase;
 use crate::common::net::{Address, Network};
 use crate::common::protocol::SessionContext;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::str::FromStr;
 
 lazy_static::lazy_static! {
     static ref GLOBAL_GEO_DB: GeoDatabase = GeoDatabase::new();
@@ -37,9 +37,13 @@ impl DomainMatcher {
         let d = domain.to_lowercase();
         match self {
             DomainMatcher::Exact(pattern) => d == *pattern,
-            DomainMatcher::Suffix(pattern) => d == *pattern || d.ends_with(&format!(".{}", pattern)),
+            DomainMatcher::Suffix(pattern) => {
+                d == *pattern || d.ends_with(&format!(".{}", pattern))
+            }
             DomainMatcher::Keyword(pattern) => d.contains(pattern),
-            DomainMatcher::Plain(pattern) => d == *pattern || d.ends_with(&format!(".{}", pattern)) || d.contains(pattern),
+            DomainMatcher::Plain(pattern) => {
+                d == *pattern || d.ends_with(&format!(".{}", pattern)) || d.contains(pattern)
+            }
             DomainMatcher::GeoSite(group) => GLOBAL_GEO_DB.match_geosite(group, &d),
         }
     }
@@ -71,14 +75,14 @@ impl IpMatcher {
         }
 
         // Check for CIDR
-        if let Some((ip_part, mask_part)) = s.split_once('/') {
-            if let Ok(mask) = mask_part.parse::<u8>() {
-                if let Ok(v4) = Ipv4Addr::from_str(ip_part) {
-                    return Some(IpMatcher::CidrV4(v4, mask));
-                }
-                if let Ok(v6) = Ipv6Addr::from_str(ip_part) {
-                    return Some(IpMatcher::CidrV6(v6, mask));
-                }
+        if let Some((ip_part, mask_part)) = s.split_once('/')
+            && let Ok(mask) = mask_part.parse::<u8>()
+        {
+            if let Ok(v4) = Ipv4Addr::from_str(ip_part) {
+                return Some(IpMatcher::CidrV4(v4, mask));
+            }
+            if let Ok(v6) = Ipv6Addr::from_str(ip_part) {
+                return Some(IpMatcher::CidrV6(v6, mask));
             }
         }
 
@@ -208,7 +212,8 @@ impl Rule {
             None => return false,
         };
 
-        let proc_info = match crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp) {
+        let proc_info = match crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp)
+        {
             Ok(Some(info)) => info,
             _ => return false,
         };
@@ -229,7 +234,11 @@ impl Rule {
                 continue;
             }
             if p_norm.ends_with('/') {
-                if proc_info.path.to_ascii_lowercase().starts_with(&p_norm.to_ascii_lowercase()) {
+                if proc_info
+                    .path
+                    .to_ascii_lowercase()
+                    .starts_with(&p_norm.to_ascii_lowercase())
+                {
                     return true;
                 }
                 continue;
@@ -256,21 +265,29 @@ impl Rule {
             }
         }
 
-        if !self.inbound_tags.is_empty() && !self.inbound_tags.iter().any(|tag| tag == &session.inbound_tag) {
+        if !self.inbound_tags.is_empty()
+            && !self
+                .inbound_tags
+                .iter()
+                .any(|tag| tag == &session.inbound_tag)
+        {
             return false;
         }
 
-        if let Some(net) = self.network {
-            if net != session.destination.network {
-                return false;
-            }
+        if let Some(net) = self.network
+            && net != session.destination.network
+        {
+            return false;
         }
 
         // Port matching: exact ports or port ranges
         let target_port = session.destination.port;
         if !self.ports.is_empty() || !self.port_ranges.is_empty() {
             let port_match = self.ports.contains(&target_port)
-                || self.port_ranges.iter().any(|&(s, e)| target_port >= s && target_port <= e);
+                || self
+                    .port_ranges
+                    .iter()
+                    .any(|&(s, e)| target_port >= s && target_port <= e);
             if !port_match {
                 return false;
             }
@@ -327,12 +344,10 @@ impl Rule {
         }
 
         // Check sniffed domain first if present
-        if has_domain_rules {
-            if let Some(domain) = session.sniffed_domain.as_deref() {
-                for matcher in &self.domain_matchers {
-                    if matcher.matches(domain) {
-                        return true;
-                    }
+        if has_domain_rules && let Some(domain) = session.sniffed_domain.as_deref() {
+            for matcher in &self.domain_matchers {
+                if matcher.matches(domain) {
+                    return true;
                 }
             }
         }

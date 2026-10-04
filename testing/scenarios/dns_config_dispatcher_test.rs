@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
+    use crate::app::dispatcher::DispatcherBuilder;
+    use crate::app::dns::{QueryStrategy, is_local_tld_or_dotless};
+    use crate::app::router::Router;
+    use crate::app::router::command::CommandRoutingContext;
+    use crate::common::net::Network;
     use std::net::Ipv4Addr;
     use std::sync::Arc;
-    use crate::app::dispatcher::DispatcherBuilder;
-    use crate::app::dns::{is_local_tld_or_dotless, QueryStrategy};
-    use crate::app::router::command::CommandRoutingContext;
-    use crate::app::router::Router;
-    use crate::common::net::Network;
 
     #[test]
     fn test_dns_config_and_local_tld_rules() {
@@ -39,7 +39,10 @@ mod tests {
         let session = ctx.to_session_context();
         assert_eq!(session.inbound_tag, "in-socks");
         assert_eq!(session.destination.port, 443);
-        assert_eq!(session.user.as_ref().map(|u| u.email.as_str()), Some("test-user"));
+        assert_eq!(
+            session.user.as_ref().map(|u| u.email.as_str()),
+            Some("test-user")
+        );
     }
 
     #[test]

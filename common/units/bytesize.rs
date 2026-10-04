@@ -1,9 +1,9 @@
 // Module: common\units\bytesize.rs
 // 1:1 Rust implementation corresponding to Go common\units\bytesize.go
 
+use crate::common::errors::{Error, Result};
 use std::fmt;
 use std::ops::Deref;
-use crate::common::errors::{Error, Result};
 
 pub const KB: u64 = 1024;
 pub const MB: u64 = 1024 * KB;
@@ -31,9 +31,14 @@ impl ByteSize {
     /// Parse parses ByteSize from string (e.g. "1.00KB", "2MB", "10GiB")
     pub fn parse(&mut self, s: &str) -> Result<()> {
         let s = s.trim().to_uppercase();
-        let i = s.find(|c: char| c.is_alphabetic()).ok_or_else(|| Error::Protocol("invalid or unsupported unit".into()))?;
+        let i = s
+            .find(|c: char| c.is_alphabetic())
+            .ok_or_else(|| Error::Protocol("invalid or unsupported unit".into()))?;
         let (bytes_str, multiple) = s.split_at(i);
-        let bytes: f64 = bytes_str.trim().parse().map_err(|_| Error::Protocol("invalid size".into()))?;
+        let bytes: f64 = bytes_str
+            .trim()
+            .parse()
+            .map_err(|_| Error::Protocol("invalid size".into()))?;
         if bytes <= 0.0 {
             return Err(Error::Protocol("invalid size".into()));
         }

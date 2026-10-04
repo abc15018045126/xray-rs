@@ -3,17 +3,21 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::app::metrics::MetricsHandler;
     use crate::app::stats::StatsManager;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_scenario_metrics_service() {
         let stats = Arc::new(StatsManager::new());
-        let counter_up = stats.register_counter("inbound>>>socks-in>>>traffic>>>uplink").await;
+        let counter_up = stats
+            .register_counter("inbound>>>socks-in>>>traffic>>>uplink")
+            .await;
         counter_up.add(1048576);
 
-        let counter_down = stats.register_counter("inbound>>>socks-in>>>traffic>>>downlink").await;
+        let counter_down = stats
+            .register_counter("inbound>>>socks-in>>>traffic>>>downlink")
+            .await;
         counter_down.add(2097152);
 
         let handler = MetricsHandler::new("metrics-in".into(), "127.0.0.1:9090".into(), stats);

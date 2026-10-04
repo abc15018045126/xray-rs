@@ -16,7 +16,10 @@ impl TcpHub {
     pub async fn listen(addr: SocketAddr) -> Result<Self> {
         let listener = TokioTcpListener::bind(addr).await?;
         let local_addr = listener.local_addr()?;
-        Ok(Self { listener, local_addr })
+        Ok(Self {
+            listener,
+            local_addr,
+        })
     }
 
     pub fn local_addr(&self) -> SocketAddr {

@@ -1,7 +1,7 @@
+use crate::common::errors::{Error, Result};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
-use crate::common::errors::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Port(pub u16);
@@ -51,7 +51,10 @@ impl PortRange {
     }
 
     pub fn single(port: u16) -> Self {
-        Self { from: port, to: port }
+        Self {
+            from: port,
+            to: port,
+        }
     }
 
     pub fn contains(&self, port: Port) -> bool {

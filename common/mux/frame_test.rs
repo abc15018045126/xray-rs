@@ -3,11 +3,9 @@
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use crate::common::mux::frame::{
-        Frame, FrameMetadata, SessionStatus, OPTION_DATA,
-    };
+    use crate::common::mux::frame::{Frame, FrameMetadata, OPTION_DATA, SessionStatus};
     use crate::common::net::{Address, Destination};
+    use std::io::Cursor;
 
     #[tokio::test]
     async fn test_frame_new_session_serialize() {

@@ -2,8 +2,8 @@
 // 1:1 Rust implementation corresponding to Go transport\internet\udp\hub.go
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 
@@ -13,12 +13,12 @@ use crate::common::net::{Address, Destination, Port};
 pub use crate::common::protocol::udp::UdpPacket;
 use crate::transport::internet::MemoryStreamConfig;
 
-#[cfg(target_os = "linux")]
-use super::hub_linux as platform_hub;
 #[cfg(target_os = "macos")]
 use super::hub_darwin as platform_hub;
 #[cfg(target_os = "freebsd")]
 use super::hub_freebsd as platform_hub;
+#[cfg(target_os = "linux")]
+use super::hub_linux as platform_hub;
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
 use super::hub_other as platform_hub;
 
@@ -68,15 +68,16 @@ impl Hub {
             address.clone()
         };
 
-        if let Some(ss) = stream_settings {
-            if let Some(sockopt) = &ss.socket_settings {
-                if sockopt.receive_original_dest_address {
-                    recv_orig_dest = true;
-                }
-            }
+        if let Some(ss) = stream_settings
+            && let Some(sockopt) = &ss.socket_settings
+            && sockopt.receive_original_dest_address
+        {
+            recv_orig_dest = true;
         }
 
-        let ip = bind_addr.to_ip().ok_or_else(|| Error::Other("invalid IP address".into()))?;
+        let ip = bind_addr
+            .to_ip()
+            .ok_or_else(|| Error::Other("invalid IP address".into()))?;
         let sock_addr = SocketAddr::new(ip, port.value());
         let socket = Arc::new(UdpSocket::bind(sock_addr).await.map_err(Error::Io)?);
 
@@ -99,8 +100,7 @@ impl Hub {
                         let buffer = Buffer::from_bytes(&payload[..n]);
                         let source = Destination::udp(Address::from(addr.ip()), addr.port());
                         let target = if recv_orig_dest && noob > 0 {
-                            platform_hub::retrieve_original_dest(&oob[..noob])
-                                .unwrap_or_else(Destination::default)
+                            platform_hub::retrieve_original_dest(&oob[..noob]).unwrap_or_default()
                         } else {
                             Destination::default()
                         };
@@ -141,14 +141,23 @@ impl Hub {
 
     pub async fn write_to(&self, payload: &[u8], dest: &Destination) -> Result<usize> {
         if let Some(target) = dest.to_socket_addr() {
-            self.socket.send_to(payload, target).await.map_err(Error::Io)
+            self.socket
+                .send_to(payload, target)
+                .await
+                .map_err(Error::Io)
         } else {
-            Err(Error::Other(format!("cannot resolve destination: {:?}", dest)))
+            Err(Error::Other(format!(
+                "cannot resolve destination: {:?}",
+                dest
+            )))
         }
     }
 
     pub async fn send_to(&self, payload: &[u8], target: SocketAddr) -> Result<usize> {
-        self.socket.send_to(payload, target).await.map_err(Error::Io)
+        self.socket
+            .send_to(payload, target)
+            .await
+            .map_err(Error::Io)
     }
 
     pub fn local_addr(&self) -> Result<SocketAddr> {

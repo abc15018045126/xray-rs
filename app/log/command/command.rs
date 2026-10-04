@@ -1,8 +1,8 @@
 // Module: app\log\command\command.rs
 // 1:1 Rust implementation corresponding to Go app\log\command\command.go
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct LoggerServer {
     restarted: Arc<AtomicBool>,

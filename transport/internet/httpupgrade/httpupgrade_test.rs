@@ -5,7 +5,7 @@
 mod tests {
     use super::super::config::HttpUpgradeConfig;
     use super::super::dialer::HttpUpgradeDialer;
-    use super::super::httpupgrade::{HttpUpgradeStream, UpgradedStream, PROTOCOL_NAME};
+    use super::super::httpupgrade::{HttpUpgradeStream, PROTOCOL_NAME, UpgradedStream};
     use super::super::hub::HttpUpgradeHub;
     use crate::common::net::{Address, Destination};
     use std::collections::HashMap;
@@ -152,7 +152,10 @@ mod tests {
             let n = stream.read(&mut buf).await.expect("server read");
             assert_eq!(&buf[..n], b"Client Payload");
 
-            stream.write_all(b"Server Reply").await.expect("server write");
+            stream
+                .write_all(b"Server Reply")
+                .await
+                .expect("server write");
             stream.flush().await.expect("server flush");
         });
 
@@ -167,7 +170,10 @@ mod tests {
                 .await
                 .expect("dial failed");
 
-            stream.write_all(b"Client Payload").await.expect("client write");
+            stream
+                .write_all(b"Client Payload")
+                .await
+                .expect("client write");
             stream.flush().await.expect("client flush");
 
             let mut buf = [0u8; 64];

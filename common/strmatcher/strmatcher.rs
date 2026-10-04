@@ -1,11 +1,11 @@
 // Module: common\strmatcher\strmatcher.rs
 // 1:1 Rust implementation corresponding to Go common\strmatcher\strmatcher.go
 
-use serde::{Deserialize, Serialize};
-use crate::common::errors::Result;
 use super::domain_matcher::{DomainMatcher, DomainMatcherGroup};
 use super::full_matcher::{FullMatcher, FullMatcherGroup};
 use super::matchers::{RegexMatcher, SubstrMatcher};
+use crate::common::errors::Result;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MatcherType {

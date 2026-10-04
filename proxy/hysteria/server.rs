@@ -1,15 +1,15 @@
 // Module: proxy\hysteria\server.rs
 // 1:1 Rust implementation corresponding to Go proxy\hysteria\server.go
 
-use std::net::SocketAddr;
-use std::str::FromStr;
-use async_trait::async_trait;
+use super::config::HysteriaConfig;
+use super::protocol::TcpRequest;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
-use super::config::HysteriaConfig;
-use super::protocol::TcpRequest;
+use async_trait::async_trait;
+use std::net::SocketAddr;
+use std::str::FromStr;
 
 pub struct HysteriaServer {
     pub tag: String,
@@ -31,7 +31,11 @@ impl InboundHandler for HysteriaServer {
         &self.tag
     }
 
-    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+    async fn handle_connection(
+        &self,
+        mut stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<InboundResult> {
         let req = TcpRequest::decode(&mut stream).await?;
         let dest = Destination::from_str(&req.address)?;
 

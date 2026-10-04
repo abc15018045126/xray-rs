@@ -7,8 +7,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::infra::conf::Config;
-    use crate::testing::scenarios::common::{pick_port, random_payload, xor, TestEnvironment};
-    use crate::testing::servers::tcp::{xor_processor, Server as TcpServer};
+    use crate::testing::scenarios::common::{TestEnvironment, pick_port, random_payload, xor};
+    use crate::testing::servers::tcp::{Server as TcpServer, xor_processor};
     use crate::transport::internet::tls::pin::generate_cert_hash_hex;
 
     #[test]
@@ -21,7 +21,9 @@ mod tests {
     #[tokio::test]
     async fn test_simple_tls_connection() {
         let xor_key = b't';
-        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None).await.unwrap();
+        let tcp_server = TcpServer::start(None, Some(xor_processor(xor_key)), None)
+            .await
+            .unwrap();
         let target_port = tcp_server.port();
 
         let mut env = TestEnvironment::new();
@@ -42,7 +44,8 @@ mod tests {
                 "tag": "direct",
                 "protocol": "freedom"
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(server_cfg).await.unwrap();
 
         let client_socks_port = pick_port().await;
@@ -64,10 +67,13 @@ mod tests {
                     }]
                 }
             }]
-        })).unwrap();
+        }))
+        .unwrap();
         env.start_node(client_cfg).await.unwrap();
 
-        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_socks_port)).await.unwrap();
+        let mut client = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", client_socks_port))
+            .await
+            .unwrap();
 
         // SOCKS5 Handshake
         client.write_all(&[0x05, 0x01, 0x00]).await.unwrap();

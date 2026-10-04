@@ -5,4 +5,4 @@ pub mod private_key;
 #[cfg(test)]
 pub mod cert_test;
 
-pub use cert::{parse_certificate, Certificate};
+pub use cert::{Certificate, parse_certificate};

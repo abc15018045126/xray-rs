@@ -14,10 +14,10 @@ pub fn config_loader(arg: &str) -> Result<Vec<u8>> {
     } else if arg == "stdin:" || arg == "-" {
         use std::io::Read;
         let mut buf = Vec::new();
-        std::io::stdin().read_to_end(&mut buf).map_err(|e| Error::Io(e))?;
+        std::io::stdin().read_to_end(&mut buf).map_err(Error::Io)?;
         Ok(buf)
     } else {
-        std::fs::read(arg).map_err(|e| Error::Io(e))
+        std::fs::read(arg).map_err(Error::Io)
     }
 }
 
@@ -25,7 +25,9 @@ pub fn fetch_http_content(target: &str) -> Result<Vec<u8>> {
     if !target.starts_with("http://") && !target.starts_with("https://") {
         return Err(Error::Other(format!("invalid scheme: {}", target)));
     }
-    Err(Error::Other(format!("remote http config fetching from {target} requires live network connection")))
+    Err(Error::Other(format!(
+        "remote http config fetching from {target} requires live network connection"
+    )))
 }
 
 pub fn fetch_unix_socket_http_content(target: &str) -> Result<Vec<u8>> {
@@ -41,10 +43,15 @@ pub fn fetch_unix_socket_http_content(target: &str) -> Result<Vec<u8>> {
     let _effective_http_path = if http_path.is_empty() { "/" } else { http_path };
 
     if !std::path::Path::new(socket_path).exists() {
-        return Err(Error::Other(format!("socket file not found: {}", socket_path)));
+        return Err(Error::Other(format!(
+            "socket file not found: {}",
+            socket_path
+        )));
     }
 
-    Err(Error::Other(format!("unix socket connection to {socket_path} not available")))
+    Err(Error::Other(format!(
+        "unix socket connection to {socket_path} not available"
+    )))
 }
 
 pub fn init_external_loader() {
@@ -60,8 +67,13 @@ mod tests {
         let err = fetch_http_content("ftp://example.com/conf").unwrap_err();
         assert!(err.to_string().contains("invalid scheme"));
 
-        let sock_err = fetch_unix_socket_http_content("http+unix://relative/test.sock").unwrap_err();
-        assert!(sock_err.to_string().contains("unix socket path must be absolute"));
+        let sock_err =
+            fetch_unix_socket_http_content("http+unix://relative/test.sock").unwrap_err();
+        assert!(
+            sock_err
+                .to_string()
+                .contains("unix socket path must be absolute")
+        );
 
         let no_ext_err = fetch_unix_socket_http_content("http+unix:///tmp/socketfile").unwrap_err();
         assert!(no_ext_err.to_string().contains(".sock"));

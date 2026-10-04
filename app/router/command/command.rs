@@ -1,11 +1,11 @@
 // Module: app\router\command\command.rs
 // 1:1 Rust implementation corresponding to Go app\router\command\command.go
 
-use std::sync::Arc;
 use crate::app::commander::Service;
 use crate::app::router::Router;
 use crate::common::protocol::SessionContext;
 use crate::features::routing::RouterFeature;
+use std::sync::Arc;
 
 pub struct RoutingService {
     router: Arc<Router>,

@@ -45,7 +45,7 @@ pub fn frag_udp_message(m: &UDPMessage, max_size: usize) -> Vec<UDPMessage> {
 
     let max_payload_size = max_size - header_sz;
     let full_payload = &m.data;
-    let frag_count = ((full_payload.len() + max_payload_size - 1) / max_payload_size) as u8;
+    let frag_count = full_payload.len().div_ceil(max_payload_size) as u8;
 
     let mut frags = Vec::with_capacity(frag_count as usize);
     let mut off = 0;
@@ -116,10 +116,8 @@ impl Defragger {
                 let session_id = first.session_id;
                 let packet_id = first.packet_id;
 
-                for frag_opt in &self.frags {
-                    if let Some(f) = frag_opt {
-                        data.extend_from_slice(&f.data);
-                    }
+                for f in self.frags.iter().flatten() {
+                    data.extend_from_slice(&f.data);
                 }
 
                 self.frags.clear();

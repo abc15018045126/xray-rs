@@ -1,8 +1,8 @@
 // Module: transport\internet\kcp\sending.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\kcp\sending.go
 
-use std::collections::VecDeque;
 use super::segment::DataSegment;
+use std::collections::VecDeque;
 
 pub struct SendingWindow {
     pub cache: VecDeque<DataSegment>,
@@ -40,7 +40,9 @@ impl SendingWindow {
             // number < una
             if front.number.wrapping_sub(una) >= 0x7FFFFFFF {
                 let seg = self.cache.pop_front().unwrap();
-                self.total_in_flight_size = self.total_in_flight_size.saturating_sub(seg.payload.len() as u32);
+                self.total_in_flight_size = self
+                    .total_in_flight_size
+                    .saturating_sub(seg.payload.len() as u32);
             } else {
                 break;
             }
@@ -63,7 +65,9 @@ impl SendingWindow {
     pub fn acknowledge(&mut self, number: u32, current: u32) -> Option<u32> {
         if let Some(pos) = self.cache.iter().position(|s| s.number == number) {
             let seg = self.cache.remove(pos).unwrap();
-            self.total_in_flight_size = self.total_in_flight_size.saturating_sub(seg.payload.len() as u32);
+            self.total_in_flight_size = self
+                .total_in_flight_size
+                .saturating_sub(seg.payload.len() as u32);
             if current >= seg.timestamp {
                 return Some(current - seg.timestamp);
             }
@@ -106,5 +110,11 @@ impl SendingWindow {
                 }
             }
         }
+    }
+}
+
+impl Default for SendingWindow {
+    fn default() -> Self {
+        Self::new()
     }
 }

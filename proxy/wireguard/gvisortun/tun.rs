@@ -15,4 +15,10 @@ impl GVisorWireguardTun {
     }
 }
 
+impl Default for GVisorWireguardTun {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub type GVisorTunDevice = GVisorWireguardTun;

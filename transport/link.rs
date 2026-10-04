@@ -22,4 +22,3 @@ impl Link {
         (self.reader, self.writer)
     }
 }
-

@@ -90,7 +90,8 @@ impl UotPacket {
                 if pos + 4 > data.len() {
                     return Err(Error::Protocol("Incomplete IPv4 in UoT".into()));
                 }
-                let ip = std::net::Ipv4Addr::new(data[pos], data[pos + 1], data[pos + 2], data[pos + 3]);
+                let ip =
+                    std::net::Ipv4Addr::new(data[pos], data[pos + 1], data[pos + 2], data[pos + 3]);
                 pos += 4;
                 Address::Ipv4(ip)
             }
@@ -117,7 +118,12 @@ impl UotPacket {
                 pos += 16;
                 Address::Ipv6(std::net::Ipv6Addr::from(octets))
             }
-            _ => return Err(Error::Protocol(format!("Invalid ATYP 0x{:02x} in UoT", atyp))),
+            _ => {
+                return Err(Error::Protocol(format!(
+                    "Invalid ATYP 0x{:02x} in UoT",
+                    atyp
+                )));
+            }
         };
 
         if pos + 4 > data.len() {

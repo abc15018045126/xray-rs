@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use crate::transport::internet::kcp::{AckSegment, DataSegment, KcpConnection};
     use std::sync::Arc;
     use tokio::net::UdpSocket;
-    use crate::transport::internet::kcp::{AckSegment, DataSegment, KcpConnection};
 
     #[test]
     fn test_kcp_data_segment_roundtrip() {

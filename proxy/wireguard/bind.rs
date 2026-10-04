@@ -1,9 +1,9 @@
 // Module: proxy\wireguard\bind.rs
 // 1:1 Rust implementation corresponding to Go proxy\wireguard\bind.go
 
+use crate::common::errors::Result;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use crate::common::errors::Result;
 
 pub struct WireGuardBind {
     socket: UdpSocket,

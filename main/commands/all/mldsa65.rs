@@ -1,11 +1,11 @@
 // Module: main\commands\all\mldsa65.rs
 // 1:1 Rust implementation corresponding to Go main\commands\all\mldsa65.go
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use crate::main::commands::base::command::Command;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use crate::main::commands::base::command::Command;
 
 pub fn gen_mldsa65(input_seed: Option<&[u8]>) -> ([u8; 32], Vec<u8>) {
     let mut seed = [0u8; 32];
@@ -18,7 +18,7 @@ pub fn gen_mldsa65(input_seed: Option<&[u8]>) -> ([u8; 32], Vec<u8>) {
     }
     let mut hasher = Sha256::new();
     hasher.update(b"ML-DSA-65-VERIFY-KEY-DERIVATION");
-    hasher.update(&seed);
+    hasher.update(seed);
     let verify = hasher.finalize().to_vec();
     (seed, verify)
 }
@@ -44,7 +44,7 @@ pub fn cmd_mldsa65() -> Command {
         let (seed, verify) = gen_mldsa65(input_seed.as_deref());
         Ok(format!(
             "Seed: {}\nVerify: {}",
-            URL_SAFE_NO_PAD.encode(&seed),
+            URL_SAFE_NO_PAD.encode(seed),
             URL_SAFE_NO_PAD.encode(&verify)
         ))
     })

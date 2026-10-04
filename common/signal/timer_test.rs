@@ -3,10 +3,10 @@
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use super::super::timer::{ActivityTimer, cancel_after_inactivity};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
-    use super::super::timer::{cancel_after_inactivity, ActivityTimer};
 
     #[tokio::test]
     async fn test_activity_timer_flow() {

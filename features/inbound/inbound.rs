@@ -1,13 +1,13 @@
 // Module: features\inbound\inbound.rs
 // 1:1 Rust implementation corresponding to Go features\inbound\inbound.go
 
-use std::net::SocketAddr;
-use std::sync::Arc;
-use async_trait::async_trait;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::feature::TYPE_INBOUND_MANAGER;
+use async_trait::async_trait;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 pub struct InboundResult {
     pub stream: BoxStream,

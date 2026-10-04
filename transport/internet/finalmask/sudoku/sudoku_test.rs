@@ -17,7 +17,11 @@ mod tests {
         let table = &tables[0];
         assert_eq!(table.encode.len(), 256);
         for b in 0..256 {
-            assert!(!table.encode[b].is_empty(), "byte {} has empty encode clues", b);
+            assert!(
+                !table.encode[b].is_empty(),
+                "byte {} has empty encode clues",
+                b
+            );
         }
         assert!(table.decode.len() >= 256);
     }
@@ -33,7 +37,10 @@ mod tests {
         let payload = b"Hello, World! This is an ASCII-favored Sudoku masking test in Rust.";
         let masked = udp.mask(payload).expect("mask failed");
 
-        let ascii_chars = masked.iter().filter(|&&b| b >= 0x20 && b <= 0x7e || b == b'\n').count();
+        let ascii_chars = masked
+            .iter()
+            .filter(|&&b| b >= 0x20 && b <= 0x7e || b == b'\n')
+            .count();
         let ratio = (ascii_chars as f64) / (masked.len() as f64);
         assert!(ratio >= 0.95, "ASCII ratio {} too low", ratio);
 
@@ -49,7 +56,9 @@ mod tests {
         config.padding_max = 30;
 
         let udp = SudokuUdpConn::new(&config).expect("failed to init udp");
-        let payload = vec![0xca, 0xfe, 0xba, 0xbe, 0x01, 0x02, 0x03, 0xff, 0x00, 0x55, 0xaa];
+        let payload = vec![
+            0xca, 0xfe, 0xba, 0xbe, 0x01, 0x02, 0x03, 0xff, 0x00, 0x55, 0xaa,
+        ];
         let masked = udp.mask(&payload).expect("mask failed");
         let unmasked = udp.unmask(&masked).expect("unmask failed");
         assert_eq!(unmasked, payload);
@@ -107,14 +116,18 @@ mod tests {
         let uplink_data = b"Uplink request from client to server";
         let client_sent = client.encode_stream(uplink_data).expect("client send");
         let mut server_buf = vec![0u8; 1024];
-        let n1 = server.feed_and_read(&client_sent, &mut server_buf).expect("server read");
+        let n1 = server
+            .feed_and_read(&client_sent, &mut server_buf)
+            .expect("server read");
         assert_eq!(&server_buf[..n1], uplink_data);
 
         // Server to Client (Downlink: server writes packed, client reads packed)
         let downlink_data = b"Downlink response from server to client with high compression";
         let server_sent = server.encode_stream(downlink_data).expect("server send");
         let mut client_buf = vec![0u8; 1024];
-        let n2 = client.feed_and_read(&server_sent, &mut client_buf).expect("client read");
+        let n2 = client
+            .feed_and_read(&server_sent, &mut client_buf)
+            .expect("client read");
         assert_eq!(&client_buf[..n2], downlink_data);
     }
 }

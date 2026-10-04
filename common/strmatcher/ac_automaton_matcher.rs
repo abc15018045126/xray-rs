@@ -1,8 +1,8 @@
 // Module: common\strmatcher\ac_automaton_matcher.rs
 // 1:1 Rust implementation corresponding to Go common\strmatcher\ac_automaton_matcher.go
 
-use std::collections::VecDeque;
 use super::strmatcher::MatcherType;
+use std::collections::VecDeque;
 
 const VALID_CHAR_COUNT: usize = 53;
 
@@ -12,19 +12,10 @@ pub struct MatchType {
     pub exist: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Edge {
     pub edge_type: bool, // true: TrieEdge, false: FailEdge
     pub next_node: usize,
-}
-
-impl Default for Edge {
-    fn default() -> Self {
-        Self {
-            edge_type: false,
-            next_node: 0,
-        }
-    }
 }
 
 pub struct AcAutomatonMatcher {
@@ -178,10 +169,8 @@ impl AcAutomatonMatcher {
 
             match self.exists[node].m_type {
                 MatcherType::Substr => return true,
-                MatcherType::Domain => {
-                    if full_match {
-                        return true;
-                    }
+                MatcherType::Domain if full_match => {
+                    return true;
                 }
                 _ => {}
             }

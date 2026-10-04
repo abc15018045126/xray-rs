@@ -1,10 +1,10 @@
 // Module: transport\internet\finalmask\fragment\conn.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\finalmask\fragment\conn.go
 
+use rand::Rng;
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use rand::Rng;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 
 use super::config_pb::Config;
@@ -67,13 +67,15 @@ impl FragmentConn {
             }
 
             let data = &p[5..record_len];
-            let max_split = Self::rand_between(self.config.max_split_min, self.config.max_split_max);
+            let max_split =
+                Self::rand_between(self.config.max_split_min, self.config.max_split_max);
             let mut split_num = 0i64;
             let mut from = 0;
             let mut hello = Vec::new();
 
             while from < data.len() {
-                let chunk_len = Self::rand_between(self.config.length_min, self.config.length_max).max(1) as usize;
+                let chunk_len = Self::rand_between(self.config.length_min, self.config.length_max)
+                    .max(1) as usize;
                 let mut to = from + chunk_len;
                 split_num += 1;
                 if to > data.len() || (max_split > 0 && split_num >= max_split) {
@@ -111,7 +113,8 @@ impl FragmentConn {
         }
 
         if self.config.packets_from != 0
-            && (self.count < self.config.packets_from as u64 || self.count > self.config.packets_to as u64)
+            && (self.count < self.config.packets_from as u64
+                || self.count > self.config.packets_to as u64)
         {
             self.stream.write_all(p).await?;
             return Ok(p.len());
@@ -123,7 +126,8 @@ impl FragmentConn {
         let mut from = 0;
 
         while from < p.len() {
-            let chunk_len = Self::rand_between(self.config.length_min, self.config.length_max).max(1) as usize;
+            let chunk_len =
+                Self::rand_between(self.config.length_min, self.config.length_max).max(1) as usize;
             let mut to = from + chunk_len;
             split_num += 1;
             if to > p.len() || (max_split > 0 && split_num >= max_split) {
@@ -198,13 +202,15 @@ impl AsyncWrite for FragmentConn {
             }
 
             let data = &buf[5..record_len];
-            let max_split = Self::rand_between(this.config.max_split_min, this.config.max_split_max);
+            let max_split =
+                Self::rand_between(this.config.max_split_min, this.config.max_split_max);
             let mut split_num = 0i64;
             let mut from = 0;
             let mut chunks = Vec::new();
 
             while from < data.len() {
-                let chunk_len = Self::rand_between(this.config.length_min, this.config.length_max).max(1) as usize;
+                let chunk_len = Self::rand_between(this.config.length_min, this.config.length_max)
+                    .max(1) as usize;
                 let mut to = from + chunk_len;
                 split_num += 1;
                 if to > data.len() || (max_split > 0 && split_num >= max_split) {
@@ -242,7 +248,9 @@ impl AsyncWrite for FragmentConn {
             }
 
             while this.pending_offset < this.pending.len() {
-                match Pin::new(&mut this.stream).poll_write(cx, &this.pending[this.pending_offset..]) {
+                match Pin::new(&mut this.stream)
+                    .poll_write(cx, &this.pending[this.pending_offset..])
+                {
                     Poll::Ready(Ok(n)) => {
                         this.pending_offset += n;
                     }

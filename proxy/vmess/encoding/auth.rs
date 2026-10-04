@@ -1,8 +1,8 @@
 // Module: proxy\vmess\encoding\auth.rs
 // 1:1 Rust implementation corresponding to Go proxy\vmess\encoding\auth.go
 
-use md5::{Digest, Md5};
 use crate::common::errors::Result;
+use md5::{Digest, Md5};
 
 pub const AUTH_TIME_TOLERANCE: u64 = 120;
 
@@ -48,7 +48,10 @@ impl ShakeSizeParser {
     }
 
     fn next_mask(&mut self) -> u16 {
-        self.mask_state = self.mask_state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        self.mask_state = self
+            .mask_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
         (self.mask_state >> 48) as u16
     }
 

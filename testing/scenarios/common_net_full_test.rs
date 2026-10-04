@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use crate::common::net::cnc::CncConnection;
+    use crate::common::net::{Address, Destination, Network, Port, PortList, PortRange};
     use std::net::{Ipv4Addr, SocketAddr};
     use std::str::FromStr;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use crate::common::net::cnc::CncConnection;
-    use crate::common::net::{Address, Destination, Network, Port, PortList, PortRange};
 
     #[test]
     fn test_port_and_port_range_and_list() {
@@ -51,7 +51,8 @@ mod tests {
         assert_eq!(dest.port, 443);
         assert_eq!(dest.to_string(), "example.com:443");
 
-        let dest_udp = Destination::from_ip_port(std::net::IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53);
+        let dest_udp =
+            Destination::from_ip_port(std::net::IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53);
         assert_eq!(dest_udp.port, 53);
     }
 

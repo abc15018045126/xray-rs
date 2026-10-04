@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use crate::transport::internet::websocket::WebSocketStream;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_websocket_stream_duplex() {
@@ -10,7 +10,9 @@ mod tests {
 
         tokio::spawn(async move {
             let (raw_stream, _) = listener.accept().await.unwrap();
-            let mut ws_stream = WebSocketStream::server_handshake(Box::pin(raw_stream)).await.unwrap();
+            let mut ws_stream = WebSocketStream::server_handshake(Box::pin(raw_stream))
+                .await
+                .unwrap();
 
             let mut buf = [0u8; 1024];
             let n = ws_stream.read(&mut buf).await.unwrap();
@@ -19,7 +21,9 @@ mod tests {
 
         let raw_client = tokio::net::TcpStream::connect(local_addr).await.unwrap();
         let ws_url = format!("ws://127.0.0.1:{}/ws", local_addr.port());
-        let mut client_ws = WebSocketStream::client_handshake(&ws_url, None, Box::pin(raw_client)).await.unwrap();
+        let mut client_ws = WebSocketStream::client_handshake(&ws_url, None, Box::pin(raw_client))
+            .await
+            .unwrap();
 
         let msg = b"Testing WebSocket Framed Stream in Xray-Rust";
         client_ws.write_all(msg).await.unwrap();

@@ -24,10 +24,10 @@ impl<'a> Arg<'a> {
             if arg == name {
                 return self.raw.get(i + 1).copied();
             }
-            if let Some(stripped) = arg.strip_prefix(name) {
-                if let Some(val) = stripped.strip_prefix('=') {
-                    return Some(val);
-                }
+            if let Some(stripped) = arg.strip_prefix(name)
+                && let Some(val) = stripped.strip_prefix('=')
+            {
+                return Some(val);
             }
         }
         None
