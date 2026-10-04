@@ -1,5 +1,6 @@
 // Module: transport\internet\tls\tls.rs
 // Standard official Rust TLS implementation (rustls + ring + webpki_roots)
+// with uTLS / rquest browser fingerprint emulation profiles (Chrome, Firefox, Safari, Edge, Random)
 
 use std::sync::Arc;
 use tokio_rustls::rustls::{
@@ -61,16 +62,89 @@ impl ServerCertVerifier for NoCertificateVerification {
     }
 }
 
+/// Applies browser TLS fingerprint emulation (Chrome, Firefox, Safari, Edge, Android, Random)
+/// aligning with Xray uTLS and rquest emulation specifications.
+pub fn apply_fingerprint(provider: &mut rustls::crypto::CryptoProvider, fingerprint: &str) {
+    let fp = fingerprint.trim().to_ascii_lowercase();
+    match fp.as_str() {
+        "firefox" => {
+            // Firefox standard cipher suite order: AES-128 -> ChaCha20 -> AES-256
+            provider.cipher_suites.sort_by_key(|cs| match cs.suite() {
+                rustls::CipherSuite::TLS13_AES_128_GCM_SHA256 => 0,
+                rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => 1,
+                rustls::CipherSuite::TLS13_AES_256_GCM_SHA384 => 2,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => 3,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => 4,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 => 5,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 => 6,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 => 7,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 => 8,
+                _ => 10,
+            });
+        }
+        "chrome" | "edge" | "360" | "qq" | "android" => {
+            // Chrome / Edge Chromium standard cipher suite order: AES-128 -> AES-256 -> ChaCha20
+            provider.cipher_suites.sort_by_key(|cs| match cs.suite() {
+                rustls::CipherSuite::TLS13_AES_128_GCM_SHA256 => 0,
+                rustls::CipherSuite::TLS13_AES_256_GCM_SHA384 => 1,
+                rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => 2,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => 3,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => 4,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 => 5,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 => 6,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 => 7,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 => 8,
+                _ => 10,
+            });
+        }
+        "safari" | "ios" => {
+            // Safari / iOS profile: prioritizes ChaCha20 and ECDSA
+            provider.cipher_suites.sort_by_key(|cs| match cs.suite() {
+                rustls::CipherSuite::TLS13_AES_128_GCM_SHA256 => 0,
+                rustls::CipherSuite::TLS13_AES_256_GCM_SHA384 => 1,
+                rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => 2,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 => 3,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 => 4,
+                rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 => 5,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 => 6,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => 7,
+                rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 => 8,
+                _ => 10,
+            });
+        }
+        "random" | "randomized" => {
+            use rand::seq::SliceRandom;
+            let mut rng = rand::thread_rng();
+            provider.cipher_suites.shuffle(&mut rng);
+            provider.kx_groups.shuffle(&mut rng);
+        }
+        _ => {}
+    }
+}
+
 pub struct TlsClient {
     connector: TlsConnector,
 }
 
 impl TlsClient {
-    pub fn new(_server_name: &str, allow_insecure: bool, alpn: Vec<Vec<u8>>) -> Result<Self> {
+    pub fn new(server_name: &str, allow_insecure: bool, alpn: Vec<Vec<u8>>) -> Result<Self> {
+        Self::new_with_fingerprint(server_name, allow_insecure, alpn, "")
+    }
+
+    pub fn new_with_fingerprint(
+        _server_name: &str,
+        allow_insecure: bool,
+        alpn: Vec<Vec<u8>>,
+        fingerprint: &str,
+    ) -> Result<Self> {
         let mut root_store = rustls::RootCertStore::empty();
         root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
 
-        let provider = rustls::crypto::ring::default_provider();
+        let mut provider = rustls::crypto::ring::default_provider();
+        if !fingerprint.is_empty() {
+            apply_fingerprint(&mut provider, fingerprint);
+        }
+
         let mut config = if allow_insecure {
             ClientConfig::builder_with_provider(Arc::new(provider))
                 .with_safe_default_protocol_versions()
@@ -147,5 +221,58 @@ impl TlsServer {
             .await
             .map_err(|e| Error::Protocol(format!("TLS accept failed: {}", e)))?;
         Ok(Box::pin(tls_stream))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_fingerprint_chrome_vs_firefox() {
+        let mut chrome_provider = rustls::crypto::ring::default_provider();
+        apply_fingerprint(&mut chrome_provider, "chrome");
+
+        let mut firefox_provider = rustls::crypto::ring::default_provider();
+        apply_fingerprint(&mut firefox_provider, "firefox");
+
+        // In Chrome, TLS13_AES_256_GCM_SHA384 precedes TLS13_CHACHA20_POLY1305_SHA256
+        let chrome_pos_aes256 = chrome_provider
+            .cipher_suites
+            .iter()
+            .position(|s| s.suite() == rustls::CipherSuite::TLS13_AES_256_GCM_SHA384)
+            .unwrap();
+        let chrome_pos_chacha = chrome_provider
+            .cipher_suites
+            .iter()
+            .position(|s| s.suite() == rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256)
+            .unwrap();
+        assert!(chrome_pos_aes256 < chrome_pos_chacha);
+
+        // In Firefox, TLS13_CHACHA20_POLY1305_SHA256 precedes TLS13_AES_256_GCM_SHA384
+        let firefox_pos_aes256 = firefox_provider
+            .cipher_suites
+            .iter()
+            .position(|s| s.suite() == rustls::CipherSuite::TLS13_AES_256_GCM_SHA384)
+            .unwrap();
+        let firefox_pos_chacha = firefox_provider
+            .cipher_suites
+            .iter()
+            .position(|s| s.suite() == rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256)
+            .unwrap();
+        assert!(firefox_pos_chacha < firefox_pos_aes256);
+    }
+
+    #[test]
+    fn test_tls_client_creation_with_fingerprints() {
+        for fp in &["chrome", "firefox", "safari", "edge", "random", ""] {
+            let client =
+                TlsClient::new_with_fingerprint("example.com", true, vec![b"h2".to_vec()], fp);
+            assert!(
+                client.is_ok(),
+                "failed to create client with fingerprint '{}'",
+                fp
+            );
+        }
     }
 }

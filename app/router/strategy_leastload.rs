@@ -85,11 +85,8 @@ pub fn select_least_load(
     let mut count = 0;
     for &b in baselines {
         let baseline = Duration::from_millis(b as u64);
-        for i in count..available_count {
-            if nodes[i].rtt_deviation_cost >= baseline {
-                break;
-            }
-            count = i + 1;
+        while count < available_count && nodes[count].rtt_deviation_cost < baseline {
+            count += 1;
         }
         if count >= expected {
             break;

@@ -9,7 +9,7 @@ use xray_core::infra::conf::Config;
 #[derive(Parser, Debug)]
 #[command(
     name = "xray",
-    version = "0.1.0",
+    version = env!("CARGO_PKG_VERSION"),
     about = "Xray Core in Rust (1:1 Complete Edition)"
 )]
 struct Cli {
@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Some(Commands::Version) => {
-            println!("Xray-core 0.1.0 (Rust 1:1 Edition)");
+            println!("Xray-core {} (Rust 1:1 Edition)", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
         Some(Commands::Uuid) => {

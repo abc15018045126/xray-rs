@@ -1,3 +1,6 @@
+#![allow(clippy::module_inception)]
+#![allow(clippy::type_complexity)]
+
 #[path = "../common/mod.rs"]
 pub mod common;
 

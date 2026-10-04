@@ -449,7 +449,13 @@ impl Config {
                                 .into_iter()
                                 .map(|s| s.into_bytes())
                                 .collect();
-                            tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
+                            let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
+                            tls_client = Some(TlsClient::new_with_fingerprint(
+                                &sni,
+                                allow_insecure,
+                                alpn,
+                                fp,
+                            )?);
                             tls_sni = Some(sni.clone());
 
                             if ws_host.is_none() {
@@ -502,7 +508,13 @@ impl Config {
                             .into_iter()
                             .map(|s| s.into_bytes())
                             .collect();
-                        tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
+                        let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
+                        tls_client = Some(TlsClient::new_with_fingerprint(
+                            &sni,
+                            allow_insecure,
+                            alpn,
+                            fp,
+                        )?);
                         tls_sni = Some(sni);
                     }
 
@@ -571,7 +583,13 @@ impl Config {
                             .into_iter()
                             .map(|s| s.into_bytes())
                             .collect();
-                        tls_client = Some(TlsClient::new(&sni, allow_insecure, alpn)?);
+                        let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
+                        tls_client = Some(TlsClient::new_with_fingerprint(
+                            &sni,
+                            allow_insecure,
+                            alpn,
+                            fp,
+                        )?);
                         tls_sni = Some(sni);
                     }
 
