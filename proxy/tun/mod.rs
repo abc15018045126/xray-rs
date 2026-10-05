@@ -1,7 +1,6 @@
 pub mod config;
 #[path = "config.pb.rs"]
 pub mod config_pb;
-pub mod datagram;
 pub mod handler;
 pub mod net;
 pub mod platform;
@@ -11,7 +10,6 @@ pub mod socket_helpers;
 pub mod stack;
 pub mod stack_gvisor;
 pub mod stack_gvisor_endpoint;
-pub mod stream;
 pub mod tun;
 pub mod tun_android;
 pub mod tun_darwin;

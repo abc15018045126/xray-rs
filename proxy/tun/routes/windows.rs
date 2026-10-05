@@ -1,24 +1,19 @@
-use anyhow::anyhow;
 use ipnet::IpNet;
 use std::{
     io,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::SocketAddr,
 };
 use tracing::{debug, error, info, warn};
-use windows::{
-    Win32::{
-        Foundation::ERROR_OBJECT_ALREADY_EXISTS,
-        NetworkManagement::IpHelper::{
-            CreateIpForwardEntry2, CreateUnicastIpAddressEntry, DNS_INTERFACE_SETTINGS,
-            DNS_INTERFACE_SETTINGS_VERSION1, DNS_SETTING_IPV6, DNS_SETTING_NAMESERVER,
-            DeleteIpForwardEntry2, GetIfEntry2, IP_ADDRESS_PREFIX, InitializeIpForwardEntry,
-            MIB_IF_ROW2, MIB_IPFORWARD_ROW2, MIB_UNICASTIPADDRESS_ROW, SetInterfaceDnsSettings,
-        },
-        Networking::WinSock::{
-            AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET,
-        },
+use windows::Win32::{
+    Foundation::ERROR_OBJECT_ALREADY_EXISTS,
+    NetworkManagement::IpHelper::{
+        CreateIpForwardEntry2, CreateUnicastIpAddressEntry, DeleteIpForwardEntry2,
+        IP_ADDRESS_PREFIX, InitializeIpForwardEntry, MIB_IPFORWARD_ROW2,
+        MIB_UNICASTIPADDRESS_ROW,
     },
-    core::{GUID, PWSTR},
+    Networking::WinSock::{
+        AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET,
+    },
 };
 
 use super::super::config::TunConfig;
@@ -141,75 +136,8 @@ pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     Ok(())
 }
 
-fn get_guid(iface: &OutboundInterface) -> Option<GUID> {
-    let mut if_row: MIB_IF_ROW2 = unsafe { std::mem::zeroed() };
-    if_row.InterfaceIndex = iface.index;
-
-    let result = unsafe { GetIfEntry2(&mut if_row) }.to_hresult().ok();
-    match result {
-        Ok(_) => Some(if_row.InterfaceGuid),
-        Err(e) => {
-            error!(
-                "failed to get interface row with index: {} due to {}",
-                iface.index, e
-            );
-            None
-        }
-    }
-}
-
-pub fn set_dns_v4(iface: &OutboundInterface, name_servers: &[Ipv4Addr]) -> anyhow::Result<()> {
-    let mut dns_wstr = name_servers
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(",")
-        .encode_utf16()
-        .collect::<Vec<u16>>();
-    dns_wstr.push(0);
-
-    let dns_settings = DNS_INTERFACE_SETTINGS {
-        Version: DNS_INTERFACE_SETTINGS_VERSION1,
-        Flags: DNS_SETTING_NAMESERVER as u64,
-        NameServer: PWSTR::from_raw(dns_wstr.as_mut_ptr()),
-        ..Default::default()
-    };
-
-    let guid = get_guid(iface).ok_or_else(|| anyhow!("interface {} not found", iface.name))?;
-
-    unsafe { SetInterfaceDnsSettings(guid, &dns_settings) }
-        .to_hresult()
-        .ok()
-        .map_err(|e| anyhow::anyhow!(e))
-}
-
-pub fn set_dns_v6(iface: &OutboundInterface, name_servers: &[Ipv6Addr]) -> anyhow::Result<()> {
-    let mut dns_wstr = name_servers
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<String>>()
-        .join(",")
-        .encode_utf16()
-        .collect::<Vec<u16>>();
-    dns_wstr.push(0);
-
-    let dns_settings = DNS_INTERFACE_SETTINGS {
-        Version: DNS_INTERFACE_SETTINGS_VERSION1,
-        Flags: (DNS_SETTING_NAMESERVER | DNS_SETTING_IPV6) as u64,
-        NameServer: PWSTR::from_raw(dns_wstr.as_mut_ptr()),
-        ..Default::default()
-    };
-
-    let guid = get_guid(iface).ok_or_else(|| anyhow!("interface {} not found", iface.name))?;
-
-    unsafe { SetInterfaceDnsSettings(guid, &dns_settings) }
-        .to_hresult()
-        .ok()
-        .map_err(|e| anyhow::anyhow!(e))
-}
-
 #[allow(dead_code)]
-pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> anyhow::Result<()> {
+pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()> {
     let mut addr_inet = SOCKADDR_INET::default();
     match addr_net {
         IpNet::V4(ipv4_net) => {
@@ -240,10 +168,10 @@ pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> anyhow::Result
     if res.is_ok() || res == ERROR_OBJECT_ALREADY_EXISTS.to_hresult() {
         Ok(())
     } else {
-        Err(anyhow::anyhow!(
+        Err(io::Error::other(format!(
             "failed to add address to tun interface: {}",
             res.message()
-        ))
+        )))
     }
 }
 

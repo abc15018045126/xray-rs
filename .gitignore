@@ -6,3 +6,4 @@
 *.pdb
 *.swp
 .DS_Store
+config.json

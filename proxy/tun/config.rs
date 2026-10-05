@@ -28,7 +28,7 @@ impl Default for TunConfig {
             enable: true,
             name: "tun0".into(),
             device_id: "tun0".into(),
-            route_all: true,
+            route_all: false,
             routes: Vec::new(),
             gateway: default_gateway(),
             gateway_v6: None,
@@ -36,8 +36,8 @@ impl Default for TunConfig {
             so_mark: None,
             dns_hijack: false,
             sniffing: None,
-            auto_route: true,
-            strict_route: true,
+            auto_route: false,
+            strict_route: false,
         }
     }
 }

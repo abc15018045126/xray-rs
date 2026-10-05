@@ -1,6 +1,6 @@
 [package]
 name = "xray-rs"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 description = "High-performance Rust implementation of Xray-core with XTLS Vision, Reality, and TUN support."
@@ -61,10 +61,10 @@ tun = { version = "0.8.14", features = ["async"] }
 tun-rs = { version = "2", features = ["async", "async_framed"] }
 network-interface = "2"
 ipnet = "2"
-tun2proxy = { version = "0.8.4", default-features = false, features = ["tokio"] }
+ipstack = "1.0.1"
 
 [target.'cfg(windows)'.dependencies]
-wintun = { package = "wintun-rs", version = "0.0.5", path = "../wintun-rs/api" }
+wintun = { package = "wintun-rs", version = "0.0.6" }
 windows = { version = "0.62", features = [
     "Win32_Networking_WinSock",
     "Win32_Foundation",

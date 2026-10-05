@@ -1,9 +1,7 @@
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{
-    add_address, add_route, delete_route, maybe_routes_clean_up, set_dns_v4, set_dns_v6,
-};
+pub use windows::{add_address, add_route, delete_route, maybe_routes_clean_up};
 
 #[cfg(target_os = "macos")]
 mod macos;
@@ -72,14 +70,6 @@ pub fn maybe_add_routes(cfg: &TunConfig, tun_name: &str) -> std::io::Result<()> 
                     add_route(&tun_iface, &r)?;
                 }
 
-                #[cfg(target_os = "windows")]
-                {
-                    if cfg.dns_hijack {
-                        warn!("DNS hijack is enabled, setting DNS server for tun interface");
-                        let name_server = vec!["1.1.1.1".parse().unwrap()];
-                        let _ = windows::set_dns_v4(&tun_iface, &name_server);
-                    }
-                }
 
                 #[cfg(target_os = "macos")]
                 {

@@ -217,30 +217,6 @@ impl DefaultDispatcher {
             return Err(Error::NotFound("No outbound handlers configured".into()));
         };
 
-        // Self-traffic loopback protection (identical to Go proxyman loopback detection)
-        let is_self = if let Some(src) = session.source {
-            if let Ok(Some(proc_info)) = crate::common::net::ProcessFinder::find_process_by_socket(
-                src,
-                session.destination.network == Network::Tcp,
-            ) {
-                proc_info.pid == std::process::id()
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        let outbound_tag = if !cfg!(test)
-            && is_self
-            && outbound_tag == "proxy"
-            && self.outbounds.contains_key("direct")
-        {
-            "direct".to_string()
-        } else {
-            outbound_tag
-        };
-
         session.outbound_tag = Some(outbound_tag.clone());
 
         let outbound = if let Some(om) = &self.outbound_manager {
