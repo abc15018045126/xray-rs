@@ -15,3 +15,6 @@ tracing.workspace = true
 ipnet.workspace = true
 pingora-load-balancing.workspace = true
 hickory-resolver.workspace = true
+
+[lints]
+workspace = true

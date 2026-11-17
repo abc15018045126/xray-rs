@@ -1,4 +1,5 @@
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code)]
 mod win;
 #[cfg(target_os = "windows")]
 pub use win::must_bind_socket_on_interface;

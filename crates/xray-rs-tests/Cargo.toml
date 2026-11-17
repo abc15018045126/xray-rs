@@ -16,3 +16,6 @@ xray-rs-outbound = { path = "../xray-rs-outbound" }
 tokio.workspace = true
 bytes.workspace = true
 uuid.workspace = true
+
+[lints]
+workspace = true

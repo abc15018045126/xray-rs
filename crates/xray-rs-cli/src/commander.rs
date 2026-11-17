@@ -5,6 +5,7 @@ use crate::stats::TrafficStats;
 
 /// Commander service registry & Metrics exporter (Prometheus / JSON).
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct Commander {
     services: RwLock<Vec<String>>,
     tags: RwLock<HashMap<String, String>>,

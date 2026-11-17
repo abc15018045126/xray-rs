@@ -22,3 +22,6 @@ rand.workspace = true
 x25519-dalek.workspace = true
 sha2.workspace = true
 hex.workspace = true
+
+[lints]
+workspace = true

@@ -294,8 +294,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .clone()
                     .unwrap_or_else(|| format!("{}-{}", ib.protocol, idx));
                 if ib.protocol.eq_ignore_ascii_case("tun") {
-                    let mut tun_cfg = TunConfig::default();
-                    tun_cfg.tag = tag;
+                    let mut tun_cfg = TunConfig {
+                        tag,
+                        ..Default::default()
+                    };
                     if let Some(settings) = &ib.settings
                         && let Ok(ts) =
                             serde_json::from_value::<config::TunInboundSettings>(settings.clone())

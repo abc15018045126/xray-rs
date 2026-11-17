@@ -9,6 +9,7 @@ use xray_rs_types::net::OUTBOUND_IFACE_INDEX;
 use xray_rs_types::{Address, BoxStream, Destination, Error, Result};
 
 #[cfg(windows)]
+#[allow(unsafe_code)]
 fn bind_windows_iface(socket: &Socket, domain: Domain, iface_idx: u32) {
     use std::os::windows::io::AsRawSocket;
     use windows::Win32::Networking::WinSock::{

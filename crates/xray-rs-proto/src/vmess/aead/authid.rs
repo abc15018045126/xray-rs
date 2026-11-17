@@ -19,8 +19,8 @@ impl AuthIdGenerator {
         let mut id = [0u8; AUTH_ID_SIZE];
         let ts_bytes = timestamp.to_be_bytes();
         id[..8].copy_from_slice(&ts_bytes);
-        for i in 0..16 {
-            id[i] ^= self.key[i];
+        for (byte, key_byte) in id.iter_mut().zip(self.key.iter()) {
+            *byte ^= *key_byte;
         }
         id
     }

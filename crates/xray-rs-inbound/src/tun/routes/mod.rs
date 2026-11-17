@@ -1,4 +1,5 @@
 ﻿#[cfg(windows)]
+#[allow(unsafe_code)]
 mod windows;
 #[cfg(windows)]
 pub use windows::{add_address, add_route, delete_route, maybe_routes_clean_up};

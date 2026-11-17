@@ -18,6 +18,13 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/abc15018045126/xray-rs"
 homepage = "https://github.com/abc15018045126/xray-rs"
 
+[workspace.lints.rust]
+unsafe_code = "deny"
+warnings = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
 [workspace.dependencies]
 tokio = { version = "1.40", features = ["full"] }
 bytes = "1.7"
