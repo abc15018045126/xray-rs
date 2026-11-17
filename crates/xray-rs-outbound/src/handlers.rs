@@ -4,11 +4,15 @@ use std::time::Duration;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use xray_rs_proto::{TrojanRequestHeader, VlessRequestHeader, VlessStream};
+use xray_rs_proto::{
+    FLOW_VISION, TrojanRequestHeader, VisionContext, VisionStream, VlessRequestHeader, VlessStream,
+    write_target_address,
+};
 use xray_rs_types::{Address, BoxStream, Destination, Error, OutboundHandler, Result, SessionContext};
 
 use crate::transport::{
-    PingoraStreamPool, TcpTransport, TlsTransport, WebSocketTransport, pool_key,
+    FragmentConfig, FragmentConn, HttpUpgradeTransport, PingoraStreamPool, TcpTransport,
+    TlsTransport, WebSocketTransport, pool_key,
 };
 
 /// Direct TCP outbound handler ("freedom").
@@ -65,6 +69,9 @@ pub struct VlessOutboundHandler {
     tls_sni: Option<String>,
     ws_path: Option<String>,
     ws_host: Option<String>,
+    httpupgrade_path: Option<String>,
+    httpupgrade_host: Option<String>,
+    fragment: Option<FragmentConfig>,
 }
 
 impl VlessOutboundHandler {
@@ -82,7 +89,21 @@ impl VlessOutboundHandler {
             tls_sni: None,
             ws_path: None,
             ws_host: None,
+            httpupgrade_path: None,
+            httpupgrade_host: None,
+            fragment: None,
         }
+    }
+
+    pub fn with_httpupgrade(mut self, path: impl Into<String>, host: Option<String>) -> Self {
+        self.httpupgrade_path = Some(path.into());
+        self.httpupgrade_host = host;
+        self
+    }
+
+    pub fn with_fragment(mut self, cfg: FragmentConfig) -> Self {
+        self.fragment = Some(cfg);
+        self
     }
 
     pub fn with_flow(mut self, flow: impl Into<String>) -> Self {
@@ -111,6 +132,9 @@ impl OutboundHandler for VlessOutboundHandler {
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = TcpTransport::dial(&self.server).await?;
+        if let Some(frag) = &self.fragment {
+            stream = Box::pin(FragmentConn::new_client(frag.clone(), stream));
+        }
 
         let default_sni = match &self.server.address {
             Address::Domain(d) => d.as_str(),
@@ -128,6 +152,9 @@ impl OutboundHandler for VlessOutboundHandler {
             let ws_url = format!("{}://{}{}", scheme, dest_host, path);
             let host_hdr = self.ws_host.as_deref().unwrap_or(sni);
             stream = WebSocketTransport::client_handshake(&ws_url, Some(host_hdr), stream).await?;
+        } else if let Some(path) = &self.httpupgrade_path {
+            let host_hdr = self.httpupgrade_host.as_deref().unwrap_or(sni);
+            stream = HttpUpgradeTransport::client_handshake(path, host_hdr, stream).await?;
         }
 
         let mut req = VlessRequestHeader::new(self.user_id, session.destination.clone());
@@ -136,7 +163,16 @@ impl OutboundHandler for VlessOutboundHandler {
         }
         req.write_to(&mut stream).await?;
 
-        Ok(Box::pin(VlessStream::new(stream)))
+        let vless_stream: BoxStream = Box::pin(VlessStream::new(stream));
+        if self.flow.as_deref() == Some(FLOW_VISION) {
+            Ok(Box::pin(VisionStream::new(
+                vless_stream,
+                VisionContext::new(self.user_id.into_bytes().to_vec(), true),
+                false,
+            )))
+        } else {
+            Ok(vless_stream)
+        }
     }
 }
 
@@ -149,6 +185,7 @@ pub struct TrojanOutboundHandler {
     tls_sni: Option<String>,
     ws_path: Option<String>,
     ws_host: Option<String>,
+    fragment: Option<FragmentConfig>,
 }
 
 impl TrojanOutboundHandler {
@@ -165,7 +202,13 @@ impl TrojanOutboundHandler {
             tls_sni: None,
             ws_path: None,
             ws_host: None,
+            fragment: None,
         }
+    }
+
+    pub fn with_fragment(mut self, cfg: FragmentConfig) -> Self {
+        self.fragment = Some(cfg);
+        self
     }
 
     pub fn with_tls(mut self, tls: TlsTransport, sni: Option<String>) -> Self {
@@ -189,6 +232,9 @@ impl OutboundHandler for TrojanOutboundHandler {
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = TcpTransport::dial(&self.server).await?;
+        if let Some(frag) = &self.fragment {
+            stream = Box::pin(FragmentConn::new_client(frag.clone(), stream));
+        }
 
         let default_sni = match &self.server.address {
             Address::Domain(d) => d.as_str(),
@@ -210,6 +256,51 @@ impl OutboundHandler for TrojanOutboundHandler {
         let req = TrojanRequestHeader::new(&self.password, session.destination.clone());
         req.write_to(&mut stream).await?;
 
+        Ok(stream)
+    }
+}
+
+/// Shadowsocks outbound handler.
+pub struct ShadowsocksOutboundHandler {
+    tag: String,
+    server: Destination,
+    method: String,
+    password: String,
+}
+
+impl ShadowsocksOutboundHandler {
+    pub fn new(
+        tag: impl Into<String>,
+        server: Destination,
+        method: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
+        Self {
+            tag: tag.into(),
+            server,
+            method: method.into(),
+            password: password.into(),
+        }
+    }
+
+    pub fn method(&self) -> &str {
+        &self.method
+    }
+
+    pub fn password(&self) -> &str {
+        &self.password
+    }
+}
+
+#[async_trait]
+impl OutboundHandler for ShadowsocksOutboundHandler {
+    fn tag(&self) -> &str {
+        &self.tag
+    }
+
+    async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
+        let mut stream = TcpTransport::dial(&self.server).await?;
+        write_target_address(&mut stream, &session.destination).await?;
         Ok(stream)
     }
 }

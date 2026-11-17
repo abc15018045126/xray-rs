@@ -20,4 +20,10 @@ webpki-roots.workspace = true
 tokio-tungstenite.workspace = true
 pingora-pool.workspace = true
 socket2.workspace = true
+httparse.workspace = true
 uuid.workspace = true
+rand.workspace = true
+serde.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true

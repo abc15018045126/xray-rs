@@ -18,6 +18,7 @@ pub struct Dispatcher {
     default_outbound: String,
     idle_timeout: Duration,
     sniffing_enabled: bool,
+    stats_cb: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
 }
 
 impl Dispatcher {
@@ -28,6 +29,7 @@ impl Dispatcher {
             default_outbound: default_outbound.into(),
             idle_timeout: Duration::from_secs(300),
             sniffing_enabled: false,
+            stats_cb: None,
         }
     }
 
@@ -43,6 +45,11 @@ impl Dispatcher {
 
     pub fn with_sniffing(mut self, enabled: bool) -> Self {
         self.sniffing_enabled = enabled;
+        self
+    }
+
+    pub fn with_stats_callback(mut self, cb: Arc<dyn Fn(u64, u64) + Send + Sync>) -> Self {
+        self.stats_cb = Some(cb);
         self
     }
 
@@ -105,6 +112,9 @@ impl Dispatcher {
         .await
         {
             Ok((up, down)) => {
+                if let Some(cb) = &self.stats_cb {
+                    cb(up, down);
+                }
                 debug!(
                     "Session {} closed: up={} down={}",
                     session.destination, up, down

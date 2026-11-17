@@ -10,15 +10,18 @@ use clap::{Parser, Subcommand};
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 
-use xray_rs_inbound::{MixedInbound, PingoraHttpInbound, SocksInbound};
+use xray_rs_inbound::tun::init_net_config;
+use xray_rs_inbound::{MixedInbound, PingoraHttpInbound, SocksInbound, TunConfig, TunRunner};
 use xray_rs_outbound::{
-    BlackholeHandler, FreedomHandler, PingoraPooledOutbound, TlsTransport, TrojanOutboundHandler,
-    VlessOutboundHandler,
+    BlackholeHandler, FreedomHandler, PingoraPooledOutbound, ShadowsocksOutboundHandler,
+    TlsTransport, TrojanOutboundHandler, VlessOutboundHandler,
 };
 use xray_rs_route::{Dispatcher, DomainRule, IpRule, RouteRule, Router};
 use xray_rs_types::{BoxStream, InboundHandler, Network, OutboundHandler};
 
-use config::{XrayJsonConfig, parse_trojan_settings, parse_vless_settings};
+use config::{
+    XrayJsonConfig, parse_shadowsocks_settings, parse_trojan_settings, parse_vless_settings,
+};
 use stats::TrafficStats;
 
 #[derive(Parser)]
@@ -132,6 +135,17 @@ fn build_outbound(cfg: &config::OutboundConfig, idx: usize) -> Option<Arc<dyn Ou
                 Duration::from_secs(60),
             )))
         }
+        "shadowsocks" => {
+            let (server, method, password) = parse_shadowsocks_settings(&cfg.settings).ok()?;
+            let inner: Arc<dyn OutboundHandler> =
+                Arc::new(ShadowsocksOutboundHandler::new(tag.clone(), server, method, password));
+            Some(Arc::new(PingoraPooledOutbound::new(
+                tag,
+                vec![inner],
+                128,
+                Duration::from_secs(60),
+            )))
+        }
         other => {
             warn!("Skipping unsupported outbound protocol '{}'", other);
             None
@@ -177,8 +191,7 @@ async fn spawn_inbound(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
-    let _stats = Arc::new(TrafficStats::default());
-    let _ = _stats.snapshot();
+    let stats = Arc::new(TrafficStats::default());
 
     match cli.command {
         Some(Commands::Run { config }) => {
@@ -245,21 +258,79 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .unwrap_or_default();
 
-            let mut dispatcher = Dispatcher::new(default_tag).with_router(Router::new(rules));
+            let has_sniffing = cfg
+                .inbounds
+                .iter()
+                .any(|ib| ib.sniffing.as_ref().is_some_and(|s| s.enabled));
+            let stats_ref = stats.clone();
+            let mut dispatcher = Dispatcher::new(default_tag)
+                .with_router(Router::new(rules))
+                .with_sniffing(has_sniffing)
+                .with_stats_callback(Arc::new(move |up, down| {
+                    stats_ref.add(up, down);
+                }));
             for h in outbounds {
                 dispatcher.register_outbound(h);
             }
             let dispatcher = Arc::new(dispatcher);
 
+            let has_tun = cfg
+                .inbounds
+                .iter()
+                .any(|ib| ib.protocol.eq_ignore_ascii_case("tun"));
+            if has_tun {
+                init_net_config(None).await;
+            }
+
             let mut tasks = Vec::new();
             for (idx, ib) in cfg.inbounds.iter().enumerate() {
-                let Some(port) = ib.port else { continue };
-                let listen = ib.listen.as_deref().unwrap_or("127.0.0.1");
-                let addr: SocketAddr = format!("{}:{}", listen, port).parse()?;
                 let tag = ib
                     .tag
                     .clone()
                     .unwrap_or_else(|| format!("{}-{}", ib.protocol, idx));
+                if ib.protocol.eq_ignore_ascii_case("tun") {
+                    let mut tun_cfg = TunConfig::default();
+                    tun_cfg.tag = tag;
+                    if let Some(settings) = &ib.settings
+                        && let Ok(ts) =
+                            serde_json::from_value::<config::TunInboundSettings>(settings.clone())
+                    {
+                        if let Some(name) = ts.name
+                            && !name.is_empty()
+                        {
+                            tun_cfg.name = name.clone();
+                            tun_cfg.device_id = name;
+                        }
+                        if let Some(mtu) = ts.mtu
+                            && mtu > 0
+                        {
+                            tun_cfg.mtu = mtu;
+                        }
+                        if let Some(ar) = ts.auto_route {
+                            tun_cfg.auto_route = ar;
+                            tun_cfg.route_all = ar;
+                        }
+                        if let Some(sr) = ts.strict_route {
+                            tun_cfg.strict_route = sr;
+                        }
+                    }
+                    let dsp = dispatcher.clone();
+                    let cb: xray_rs_inbound::tun::DispatchCallback = Arc::new(move |stream, session| {
+                        let dsp = dsp.clone();
+                        Box::pin(async move {
+                            if let Err(e) = dsp.dispatch(stream, session).await {
+                                warn!("TUN dispatch error: {}", e);
+                            }
+                        })
+                    });
+                    let runner = TunRunner::new(tun_cfg);
+                    tasks.push(runner.start(cb).await?);
+                    continue;
+                }
+
+                let Some(port) = ib.port else { continue };
+                let listen = ib.listen.as_deref().unwrap_or("127.0.0.1");
+                let addr: SocketAddr = format!("{}:{}", listen, port).parse()?;
                 let handler: Arc<dyn InboundHandler> =
                     match ib.protocol.to_ascii_lowercase().as_str() {
                         "http" => Arc::new(PingoraHttpInbound::new(tag)),

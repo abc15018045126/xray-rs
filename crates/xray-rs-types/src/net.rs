@@ -50,6 +50,10 @@ pub struct Destination {
 }
 
 impl Destination {
+    pub fn new(address: Address, port: u16) -> Self {
+        Self::tcp(address, port)
+    }
+
     pub fn tcp(address: Address, port: u16) -> Self {
         Self {
             network: Network::Tcp,
@@ -118,3 +122,6 @@ impl<T> AsyncStream for T where T: AsyncRead + AsyncWrite + Send + Sync + Unpin 
 
 /// Pinned boxed stream passed between layers.
 pub type BoxStream = Pin<Box<dyn AsyncStream>>;
+
+/// Physical outbound interface index (set when TUN is active) to prevent routing loops.
+pub static OUTBOUND_IFACE_INDEX: std::sync::RwLock<Option<u32>> = std::sync::RwLock::new(None);

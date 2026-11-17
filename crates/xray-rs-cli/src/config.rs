@@ -26,6 +26,24 @@ pub struct InboundConfig {
     pub protocol: String,
     pub listen: Option<String>,
     pub port: Option<u16>,
+    pub settings: Option<serde_json::Value>,
+    pub sniffing: Option<SniffingConfig>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SniffingConfig {
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TunInboundSettings {
+    pub name: Option<String>,
+    pub mtu: Option<usize>,
+    pub auto_route: Option<bool>,
+    pub strict_route: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -187,4 +205,42 @@ pub fn parse_trojan_settings(
         Address::Domain(srv.address)
     };
     Ok((Destination::tcp(address, srv.port), srv.password))
+}
+
+#[derive(Debug, Deserialize)]
+struct ShadowsocksSettings {
+    #[serde(default)]
+    servers: Vec<ShadowsocksServer>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ShadowsocksServer {
+    address: String,
+    port: u16,
+    method: String,
+    password: String,
+}
+
+pub fn parse_shadowsocks_settings(
+    settings: &Option<serde_json::Value>,
+) -> Result<(Destination, String, String)> {
+    let val = settings
+        .as_ref()
+        .ok_or_else(|| Error::Config("Shadowsocks outbound missing settings".into()))?;
+    let parsed: ShadowsocksSettings = serde_json::from_value(val.clone())
+        .map_err(|e| Error::Config(format!("Invalid Shadowsocks settings: {}", e)))?;
+    let srv = parsed
+        .servers
+        .into_iter()
+        .next()
+        .ok_or_else(|| Error::Config("Shadowsocks settings missing servers".into()))?;
+    let address = if let Ok(ip) = srv.address.parse::<IpAddr>() {
+        match ip {
+            IpAddr::V4(v4) => Address::Ipv4(v4),
+            IpAddr::V6(v6) => Address::Ipv6(v6),
+        }
+    } else {
+        Address::Domain(srv.address)
+    };
+    Ok((Destination::tcp(address, srv.port), srv.method, srv.password))
 }

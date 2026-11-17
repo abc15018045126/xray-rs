@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Protocol error: {0}")]
     Protocol(String),
 
+    #[error("Crypto error: {0}")]
+    Crypto(String),
+
     #[error("Invalid address: {0}")]
     InvalidAddress(String),
 

@@ -3,12 +3,15 @@ use std::net::IpAddr;
 use ipnet::IpNet;
 use xray_rs_types::{Address, Network, SessionContext};
 
+use crate::geo::GLOBAL_GEO_DB;
+
 #[derive(Debug, Clone)]
 pub enum DomainRule {
     Exact(String),
     Suffix(String),
     Keyword(String),
     Private,
+    GeoSite(String),
 }
 
 impl DomainRule {
@@ -16,9 +19,8 @@ impl DomainRule {
         let lower = s.trim().to_ascii_lowercase();
         if lower == "geosite:private" {
             Some(Self::Private)
-        } else if lower.starts_with("geosite:") {
-            // External geosite.dat rules are skipped unless a GeoSite DB is loaded
-            None
+        } else if let Some(code) = lower.strip_prefix("geosite:") {
+            Some(Self::GeoSite(code.to_string()))
         } else if let Some(rest) = lower.strip_prefix("full:") {
             Some(Self::Exact(rest.to_string()))
         } else if let Some(rest) = lower.strip_prefix("domain:") {
@@ -43,6 +45,7 @@ impl DomainRule {
                     || h.ends_with(".lan")
                     || h.ends_with(".internal")
             }
+            Self::GeoSite(code) => GLOBAL_GEO_DB.match_geosite(code, &h),
         }
     }
 }
@@ -51,6 +54,7 @@ impl DomainRule {
 pub enum IpRule {
     Net(IpNet),
     Private,
+    GeoIp(String),
 }
 
 impl IpRule {
@@ -59,8 +63,8 @@ impl IpRule {
         if trimmed.eq_ignore_ascii_case("geoip:private") {
             return Some(Self::Private);
         }
-        if trimmed.to_ascii_lowercase().starts_with("geoip:") {
-            return None;
+        if let Some(code) = trimmed.to_ascii_lowercase().strip_prefix("geoip:") {
+            return Some(Self::GeoIp(code.to_string()));
         }
         if let Ok(net) = trimmed.parse::<IpNet>() {
             return Some(Self::Net(net));
@@ -83,6 +87,7 @@ impl IpRule {
                 }
                 IpAddr::V6(v6) => v6.is_loopback() || v6.is_unique_local() || v6.is_unicast_link_local(),
             },
+            Self::GeoIp(code) => GLOBAL_GEO_DB.match_geoip(code, &ip),
         }
     }
 }

@@ -9,7 +9,22 @@ repository.workspace = true
 
 [dependencies]
 xray-rs-types = { path = "../xray-rs-types" }
+xray-rs-proto = { path = "../xray-rs-proto" }
 tokio.workspace = true
+tokio-util.workspace = true
 async-trait.workspace = true
 pingora-http.workspace = true
 httparse.workspace = true
+ipnet.workspace = true
+ipstack.workspace = true
+network-interface.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+socket2.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+wintun.workspace = true
+windows.workspace = true
+
+[target.'cfg(not(windows))'.dependencies]
+tun.workspace = true

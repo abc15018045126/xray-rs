@@ -8,12 +8,12 @@ pub struct TrafficStats {
 }
 
 impl TrafficStats {
-    #[allow(dead_code)]
     pub fn add(&self, up: u64, down: u64) {
         self.uplink.fetch_add(up as i64, Ordering::Relaxed);
         self.downlink.fetch_add(down as i64, Ordering::Relaxed);
     }
 
+    #[allow(dead_code)]
     pub fn snapshot(&self) -> (i64, i64) {
         (
             self.uplink.load(Ordering::Relaxed),

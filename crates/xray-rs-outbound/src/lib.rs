@@ -2,9 +2,10 @@ pub mod handlers;
 pub mod transport;
 
 pub use handlers::{
-    BlackholeHandler, FreedomHandler, PingoraPooledOutbound, TrojanOutboundHandler,
-    VlessOutboundHandler,
+    BlackholeHandler, FreedomHandler, PingoraPooledOutbound, ShadowsocksOutboundHandler,
+    TrojanOutboundHandler, VlessOutboundHandler,
 };
 pub use transport::{
-    PingoraStreamPool, TcpTransport, TlsTransport, WebSocketTransport, pool_key,
+    FragmentConfig, FragmentConn, HttpUpgradeTransport, PingoraStreamPool, TcpTransport,
+    TlsTransport, WebSocketTransport, pool_key,
 };
