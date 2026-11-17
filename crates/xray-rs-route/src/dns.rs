@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use hickory_proto::op::{Message, ResponseCode};
 use hickory_proto::rr::{RData, Record, RecordType};
@@ -31,6 +31,8 @@ pub struct DnsUpstreamConfig {
     pub skip_fallback: bool,
 }
 
+type DnsWireCache = RwLock<HashMap<(String, RecordType), (Instant, Vec<u8>)>>;
+
 /// Unified Xray `dns` module configured from `config.json` (`hosts` + `servers`) and routed
 /// through the exact same `Router` and `OutboundHandler`s as normal proxy traffic.
 pub struct DnsModule {
@@ -38,6 +40,7 @@ pub struct DnsModule {
     pub hosts: HashMap<String, Vec<IpAddr>>,
     pub servers: Vec<DnsUpstreamConfig>,
     tls: TlsConnector,
+    cache: DnsWireCache,
 }
 
 impl DnsModule {
@@ -57,6 +60,7 @@ impl DnsModule {
             hosts,
             servers,
             tls: TlsConnector::from(Arc::new(tls_cfg)),
+            cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -87,6 +91,17 @@ impl DnsModule {
             return Ok(reply);
         }
 
+        let cache_key = (qname.clone(), qtype);
+        if let Some((ts, cached)) = self.cache.read().unwrap().get(&cache_key)
+            && ts.elapsed() < Duration::from_secs(60)
+            && let Ok(mut msg) = Message::from_vec(cached)
+        {
+            msg.metadata.id = req.metadata.id;
+            if let Ok(bytes) = msg.to_vec() {
+                return Ok(bytes);
+            }
+        }
+
         let matching: Vec<&DnsUpstreamConfig> = self
             .servers
             .iter()
@@ -99,7 +114,10 @@ impl DnsModule {
                 .query_server(srv, query, router, outbounds, default_outbound)
                 .await
             {
-                Ok(resp) => return Ok(resp),
+                Ok(resp) => {
+                    self.cache.write().unwrap().insert(cache_key, (Instant::now(), resp.clone()));
+                    return Ok(resp);
+                }
                 Err(e) => {
                     debug!("DNS server '{}' ({}) failed for {}: {}", srv.tag, srv.address, qname, e);
                     if !srv.skip_fallback {
@@ -115,7 +133,10 @@ impl DnsModule {
                     .query_server(srv, query, router, outbounds, default_outbound)
                     .await
                 {
-                    Ok(resp) => return Ok(resp),
+                    Ok(resp) => {
+                        self.cache.write().unwrap().insert(cache_key, (Instant::now(), resp.clone()));
+                        return Ok(resp);
+                    }
                     Err(e) => {
                         debug!(
                             "Fallback DNS server '{}' ({}) failed for {}: {}",

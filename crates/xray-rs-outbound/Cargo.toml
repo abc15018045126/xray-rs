@@ -24,6 +24,7 @@ httparse.workspace = true
 uuid.workspace = true
 rand.workspace = true
 serde.workspace = true
+hickory-proto.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true

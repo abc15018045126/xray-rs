@@ -3421,6 +3421,7 @@ version = "2.0.2"
 dependencies = [
  "async-trait",
  "futures",
+ "hickory-proto",
  "httparse",
  "pingora-pool",
  "rand 0.8.8",
