@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 mod commander;
 mod config;
 mod stats;
