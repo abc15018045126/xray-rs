@@ -10,7 +10,7 @@ use tracing::{debug, warn};
 use xray_rs_types::{BoxStream, Error, Result};
 
 const WS_DUPLEX_BUF_SIZE: usize = 256 * 1024;
-const WS_READ_CHUNK_SIZE: usize = 32 * 1024;
+const WS_READ_CHUNK_SIZE: usize = 64 * 1024;
 
 fn bridge_ws_stream<S>(ws_stream: TungsteniteStream<S>) -> BoxStream
 where

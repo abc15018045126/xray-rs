@@ -165,6 +165,7 @@ async fn spawn_inbound(
         loop {
             match listener.accept().await {
                 Ok((stream, remote_addr)) => {
+                    let _ = stream.set_nodelay(true);
                     let handler = handler.clone();
                     let dispatcher = dispatcher.clone();
                     tokio::spawn(async move {

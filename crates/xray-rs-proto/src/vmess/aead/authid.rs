@@ -1,4 +1,4 @@
-﻿// Module: proxy\vmess\aead\authid.rs
+// Module: proxy\vmess\aead\authid.rs
 // 1:1 Rust implementation corresponding to Go proxy\vmess\aead\authid.go
 
 use super::consts::AUTH_ID_SIZE;

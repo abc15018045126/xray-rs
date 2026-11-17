@@ -11,6 +11,7 @@ pub struct Commander {
     tags: RwLock<HashMap<String, String>>,
 }
 
+#[allow(dead_code)]
 impl Commander {
     pub fn new() -> Self {
         Self::default()

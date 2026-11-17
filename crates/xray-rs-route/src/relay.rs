@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::debug;
@@ -5,7 +7,7 @@ use tracing::debug;
 async fn copy_one_dir<R, W>(
     mut reader: R,
     mut writer: W,
-    activity_tx: tokio::sync::mpsc::Sender<()>,
+    active: Arc<AtomicBool>,
 ) -> std::io::Result<u64>
 where
     R: AsyncRead + Unpin,
@@ -22,7 +24,7 @@ where
             }
             Ok(n) => {
                 total += n as u64;
-                let _ = activity_tx.try_send(());
+                active.store(true, Ordering::Relaxed);
                 if let Err(e) = writer.write_all(&buf[..n]).await {
                     let _ = writer.shutdown().await;
                     return Err(e);
@@ -41,7 +43,7 @@ where
     }
 }
 
-/// Bidirectional streaming with activity-based idle timeout and graceful half-close.
+/// Bidirectional streaming with low-CPU periodic activity check (matches Go Xray-core) and graceful half-close.
 pub async fn copy_bidirectional_with_timeout<A, B>(
     a: &mut A,
     b: &mut B,
@@ -60,31 +62,24 @@ where
     let (mut a_read, mut a_write) = tokio::io::split(a);
     let (mut b_read, mut b_write) = tokio::io::split(b);
 
-    let (activity_tx, mut activity_rx) = tokio::sync::mpsc::channel::<()>(1);
-    let activity_tx_b = activity_tx.clone();
+    let active = Arc::new(AtomicBool::new(false));
+    let active_a = active.clone();
+    let active_b = active.clone();
 
-    let timer_task = async {
-        let sleep = tokio::time::sleep(timeout_duration);
-        tokio::pin!(sleep);
+    let timer_task = async move {
+        // Check once per timeout_duration instead of resetting a timer on every packet (near-zero CPU).
         loop {
-            tokio::select! {
-                _ = &mut sleep => break,
-                msg = activity_rx.recv() => {
-                    match msg {
-                        Some(()) => {
-                            sleep.as_mut().reset(tokio::time::Instant::now() + timeout_duration);
-                        }
-                        None => break,
-                    }
-                }
+            tokio::time::sleep(timeout_duration).await;
+            if !active.swap(false, Ordering::Relaxed) {
+                break;
             }
         }
     };
 
     tokio::select! {
         (res_a, res_b) = async {
-            let fut_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx);
-            let fut_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b);
+            let fut_a = copy_one_dir(&mut a_read, &mut b_write, active_a);
+            let fut_b = copy_one_dir(&mut b_read, &mut a_write, active_b);
             tokio::join!(fut_a, fut_b)
         } => {
             match (res_a, res_b) {
