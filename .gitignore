@@ -2,8 +2,8 @@
 **/*.rs.bk
 *.log
 *.exe
-!xray.exe
 *.pdb
 *.swp
 .DS_Store
 config.json
+testing/
