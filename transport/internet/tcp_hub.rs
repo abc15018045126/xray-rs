@@ -5,16 +5,15 @@ use crate::common::errors::{Error, Result};
 use crate::common::net::Address;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use tokio::net::{TcpListener, UdpSocket};
 
 pub use super::tcp::TcpHub;
 
 type ListenCallback = Arc<dyn Fn(SocketAddr) -> Result<TcpListener> + Send + Sync>;
 
-lazy_static::lazy_static! {
-    static ref TRANSPORT_LISTENERS: Mutex<HashMap<String, ListenCallback>> = Mutex::new(HashMap::new());
-}
+static TRANSPORT_LISTENERS: LazyLock<Mutex<HashMap<String, ListenCallback>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn register_transport_listener<F>(protocol: &str, listener: F) -> Result<()>
 where

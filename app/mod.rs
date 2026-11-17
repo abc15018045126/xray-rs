@@ -4,6 +4,7 @@ pub mod dns;
 pub mod log;
 pub mod metrics;
 pub mod observatory;
+pub mod pingora_bridge;
 pub mod policy;
 pub mod proxyman;
 pub mod reverse;

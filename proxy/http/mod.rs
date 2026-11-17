@@ -3,130 +3,40 @@ pub mod config;
 pub mod http;
 pub mod server;
 
-use crate::common::errors::{Error, Result};
-use crate::common::net::{BoxStream, Destination};
-use crate::common::protocol::SessionContext;
+use crate::app::pingora_bridge::PingoraHttpInbound;
+use crate::common::errors::Result;
+use crate::common::net::BoxStream;
 use crate::features::inbound::{InboundHandler, InboundResult};
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::str::FromStr;
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 pub struct Server {
-    tag: String,
+    inner: PingoraHttpInbound,
 }
 
 impl Server {
     pub fn new(tag: impl Into<String>) -> Self {
-        Self { tag: tag.into() }
+        Self {
+            inner: PingoraHttpInbound::new(tag),
+        }
     }
 }
 
 #[async_trait]
 impl InboundHandler for Server {
     fn tag(&self) -> &str {
-        &self.tag
+        self.inner.tag()
     }
 
     async fn handle_connection(
         &self,
-        mut stream: BoxStream,
+        stream: BoxStream,
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
-        let mut buf = [0u8; 4096];
-        let mut total_read = 0;
-        let mut header_len = 0;
-        let mut is_complete = false;
-
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        let mut req = httparse::Request::new(&mut headers);
-
-        while total_read < buf.len() {
-            let n = stream.read(&mut buf[total_read..]).await?;
-            if n == 0 {
-                return Err(Error::Closed);
-            }
-            total_read += n;
-
-            let mut tmp_headers = [httparse::EMPTY_HEADER; 64];
-            let mut tmp_req = httparse::Request::new(&mut tmp_headers);
-            match tmp_req.parse(&buf[..total_read]) {
-                Ok(httparse::Status::Complete(len)) => {
-                    header_len = len;
-                    is_complete = true;
-                    break;
-                }
-                Ok(httparse::Status::Partial) => continue,
-                Err(e) => {
-                    return Err(Error::Protocol(format!(
-                        "Failed to parse HTTP request: {}",
-                        e
-                    )));
-                }
-            }
-        }
-
-        if !is_complete {
-            return Err(Error::Protocol("Incomplete HTTP request header".into()));
-        }
-
-        // Re-parse to get lifetimes
-        let _ = req
-            .parse(&buf[..total_read])
-            .map_err(|e| Error::Protocol(format!("Failed to re-parse HTTP request: {}", e)))?;
-
-        let method = req
-            .method
-            .ok_or_else(|| Error::Protocol("Missing HTTP method".into()))?;
-        let path = req
-            .path
-            .ok_or_else(|| Error::Protocol("Missing HTTP path".into()))?;
-
-        let (destination, is_connect) = if method.eq_ignore_ascii_case("CONNECT") {
-            let dest = Destination::from_str(path)?;
-            (dest, true)
-        } else {
-            let host_header = headers
-                .iter()
-                .find(|h| h.name.eq_ignore_ascii_case("Host"))
-                .and_then(|h| std::str::from_utf8(h.value).ok())
-                .ok_or_else(|| {
-                    Error::Protocol("Missing Host header in HTTP proxy request".into())
-                })?;
-
-            let dest = if host_header.contains(':') {
-                Destination::from_str(host_header)?
-            } else {
-                Destination::from_str(&format!("{}:80", host_header))?
-            };
-            (dest, false)
-        };
-
-        if is_connect {
-            let response = b"HTTP/1.1 200 Connection Established\r\n\r\n";
-            stream.write_all(response).await?;
-            stream.flush().await?;
-
-            let stream: BoxStream = if total_read > header_len {
-                Box::pin(PrefixedStream::new(
-                    buf[header_len..total_read].to_vec(),
-                    stream,
-                ))
-            } else {
-                stream
-            };
-
-            let mut session = SessionContext::new(&self.tag, destination);
-            session.source = Some(remote_addr);
-            Ok(InboundResult { stream, session })
-        } else {
-            let stream = Box::pin(PrefixedStream::new(buf[..total_read].to_vec(), stream));
-            let mut session = SessionContext::new(&self.tag, destination);
-            session.source = Some(remote_addr);
-            Ok(InboundResult { stream, session })
-        }
+        self.inner.handle_connection(stream, remote_addr).await
     }
 }
 

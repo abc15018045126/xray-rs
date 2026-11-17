@@ -3,10 +3,9 @@ use crate::common::net::{Address, Network};
 use crate::common::protocol::SessionContext;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
+use std::sync::LazyLock;
 
-lazy_static::lazy_static! {
-    static ref GLOBAL_GEO_DB: GeoDatabase = GeoDatabase::new();
-}
+static GLOBAL_GEO_DB: LazyLock<GeoDatabase> = LazyLock::new(GeoDatabase::new);
 
 #[derive(Debug, Clone)]
 pub enum DomainMatcher {

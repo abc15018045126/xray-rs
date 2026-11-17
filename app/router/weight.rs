@@ -3,13 +3,11 @@
 
 use regex::Regex;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 pub type WeightScaler = fn(value: f64, weight: f64) -> f64;
 
-lazy_static::lazy_static! {
-    static ref NUMBER_FINDER: Regex = Regex::new(r"\d+(\.\d+)?").unwrap();
-}
+static NUMBER_FINDER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d+(\.\d+)?").unwrap());
 
 #[derive(Debug, Clone)]
 pub struct StrategyWeight {

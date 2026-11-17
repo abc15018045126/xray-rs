@@ -3,7 +3,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::RwLock;
 
 use crate::common::errors::{Error, Result};
@@ -21,9 +21,7 @@ pub type DialFunc = Arc<
         + Sync,
 >;
 
-lazy_static::lazy_static! {
-    pub static ref DIALER: RwLock<Option<DialFunc>> = RwLock::new(None);
-}
+pub static DIALER: LazyLock<RwLock<Option<DialFunc>>> = LazyLock::new(|| RwLock::new(None));
 
 pub async fn set_dialer(dialer: DialFunc) {
     let mut guard = DIALER.write().await;

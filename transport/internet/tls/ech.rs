@@ -116,9 +116,8 @@ impl EchConfigCache {
     }
 }
 
-lazy_static::lazy_static! {
-    pub static ref GLOBAL_ECH_CACHE: Arc<EchConfigCache> = Arc::new(EchConfigCache::new());
-}
+pub static GLOBAL_ECH_CACHE: std::sync::LazyLock<Arc<EchConfigCache>> =
+    std::sync::LazyLock::new(|| Arc::new(EchConfigCache::new()));
 
 /// Convert raw binary ECH keys to Go/RFC-compatible ECH private key & config pairs.
 /// Wire format per entry:

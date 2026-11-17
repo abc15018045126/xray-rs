@@ -5,6 +5,7 @@
 use crate::common::net::Network;
 use rand::Rng;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 pub const PROXY_VERSION: &str = "26.3.27";
 
@@ -22,17 +23,15 @@ pub const COMMAND_PADDING_DIRECT: u8 = 0x02;
 
 pub const BUFFER_SIZE: usize = 2048;
 
-lazy_static::lazy_static! {
-    pub static ref TLS13_CIPHER_SUITE_DIC: HashMap<u16, &'static str> = {
-        let mut m = HashMap::new();
-        m.insert(0x1301, "TLS_AES_128_GCM_SHA256");
-        m.insert(0x1302, "TLS_AES_256_GCM_SHA384");
-        m.insert(0x1303, "TLS_CHACHA20_POLY1305_SHA256");
-        m.insert(0x1304, "TLS_AES_128_CCM_SHA256");
-        m.insert(0x1305, "TLS_AES_128_CCM_8_SHA256");
-        m
-    };
-}
+pub static TLS13_CIPHER_SUITE_DIC: LazyLock<HashMap<u16, &'static str>> = LazyLock::new(|| {
+    let mut m = HashMap::new();
+    m.insert(0x1301, "TLS_AES_128_GCM_SHA256");
+    m.insert(0x1302, "TLS_AES_256_GCM_SHA384");
+    m.insert(0x1303, "TLS_CHACHA20_POLY1305_SHA256");
+    m.insert(0x1304, "TLS_AES_128_CCM_SHA256");
+    m.insert(0x1305, "TLS_AES_128_CCM_8_SHA256");
+    m
+});
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InboundState {

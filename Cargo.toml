@@ -52,7 +52,6 @@ chacha20poly1305 = "0.10"
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 hkdf = "0.12"
 tokio-tungstenite = "0.24"
-lazy_static = "1.5"
 md-5 = "0.10"
 regex = "1.10"
 sha-1 = "0.10"
@@ -62,6 +61,10 @@ tun-rs = { version = "2", features = ["async", "async_framed"] }
 network-interface = "2"
 ipnet = "2"
 ipstack = "1.0.1"
+pingora-pool = "0.9.1"
+pingora-http = "0.9.1"
+pingora-core = { version = "0.9.1", features = ["rustls"] }
+pingora-load-balancing = { version = "0.9.1", features = ["rustls"] }
 
 [target.'cfg(windows)'.dependencies]
 wintun = { package = "wintun-rs", version = "0.0.6" }

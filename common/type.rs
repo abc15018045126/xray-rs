@@ -4,13 +4,12 @@
 use crate::common::errors::{Error, Result};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 pub type ConfigCreator = Box<dyn Fn(Box<dyn Any>) -> Result<Box<dyn Any>> + Send + Sync>;
 
-lazy_static::lazy_static! {
-    static ref TYPE_CREATOR_REGISTRY: RwLock<HashMap<TypeId, ConfigCreator>> = RwLock::new(HashMap::new());
-}
+static TYPE_CREATOR_REGISTRY: LazyLock<RwLock<HashMap<TypeId, ConfigCreator>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 pub fn type_of<T>(_: &T) -> &'static str {
     std::any::type_name::<T>()

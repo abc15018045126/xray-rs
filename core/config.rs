@@ -7,7 +7,7 @@ use super::format::{
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 pub type ConfigLoader = fn(&[u8]) -> Result<Config>;
 
@@ -42,28 +42,29 @@ impl ConfigFormat {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref LOADERS_BY_NAME: RwLock<HashMap<String, ConfigLoader>> = {
-        let mut map = HashMap::new();
-        map.insert(CONFIG_FORMAT_JSON.to_string(), json_loader as ConfigLoader);
-        map.insert(CONFIG_FORMAT_YAML.to_string(), json_loader as ConfigLoader);
-        map.insert(CONFIG_FORMAT_TOML.to_string(), json_loader as ConfigLoader);
-        map.insert(CONFIG_FORMAT_PROTOBUF.to_string(), json_loader as ConfigLoader);
-        RwLock::new(map)
-    };
+static LOADERS_BY_NAME: LazyLock<RwLock<HashMap<String, ConfigLoader>>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    map.insert(CONFIG_FORMAT_JSON.to_string(), json_loader as ConfigLoader);
+    map.insert(CONFIG_FORMAT_YAML.to_string(), json_loader as ConfigLoader);
+    map.insert(CONFIG_FORMAT_TOML.to_string(), json_loader as ConfigLoader);
+    map.insert(
+        CONFIG_FORMAT_PROTOBUF.to_string(),
+        json_loader as ConfigLoader,
+    );
+    RwLock::new(map)
+});
 
-    static ref LOADERS_BY_EXT: RwLock<HashMap<String, String>> = {
-        let mut map = HashMap::new();
-        map.insert("json".to_string(), CONFIG_FORMAT_JSON.to_string());
-        map.insert("jsonc".to_string(), CONFIG_FORMAT_JSON.to_string());
-        map.insert("yaml".to_string(), CONFIG_FORMAT_YAML.to_string());
-        map.insert("yml".to_string(), CONFIG_FORMAT_YAML.to_string());
-        map.insert("toml".to_string(), CONFIG_FORMAT_TOML.to_string());
-        map.insert("pb".to_string(), CONFIG_FORMAT_PROTOBUF.to_string());
-        map.insert("protobuf".to_string(), CONFIG_FORMAT_PROTOBUF.to_string());
-        RwLock::new(map)
-    };
-}
+static LOADERS_BY_EXT: LazyLock<RwLock<HashMap<String, String>>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    map.insert("json".to_string(), CONFIG_FORMAT_JSON.to_string());
+    map.insert("jsonc".to_string(), CONFIG_FORMAT_JSON.to_string());
+    map.insert("yaml".to_string(), CONFIG_FORMAT_YAML.to_string());
+    map.insert("yml".to_string(), CONFIG_FORMAT_YAML.to_string());
+    map.insert("toml".to_string(), CONFIG_FORMAT_TOML.to_string());
+    map.insert("pb".to_string(), CONFIG_FORMAT_PROTOBUF.to_string());
+    map.insert("protobuf".to_string(), CONFIG_FORMAT_PROTOBUF.to_string());
+    RwLock::new(map)
+});
 
 fn json_loader(data: &[u8]) -> Result<Config> {
     let s = std::str::from_utf8(data)

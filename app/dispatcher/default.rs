@@ -383,17 +383,34 @@ where
     R: tokio::io::AsyncRead + Unpin,
     W: tokio::io::AsyncWrite + Unpin,
 {
-    let mut buf = [0u8; 16384];
+    let mut buf = vec![0u8; 32768];
     let mut total = 0u64;
     loop {
-        let n = reader.read(&mut buf).await?;
-        if n == 0 {
-            let _ = writer.shutdown().await;
-            return Ok(total);
+        match reader.read(&mut buf).await {
+            Ok(0) => {
+                let _ = writer.flush().await;
+                let _ = writer.shutdown().await;
+                return Ok(total);
+            }
+            Ok(n) => {
+                total += n as u64;
+                let _ = activity_tx.try_send(());
+                if let Err(e) = writer.write_all(&buf[..n]).await {
+                    let _ = writer.shutdown().await;
+                    return Err(e);
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                // Treat missing TLS close_notify / abrupt EOF as stream end after flushing
+                let _ = writer.flush().await;
+                let _ = writer.shutdown().await;
+                return Ok(total);
+            }
+            Err(e) => {
+                let _ = writer.shutdown().await;
+                return Err(e);
+            }
         }
-        total += n as u64;
-        let _ = activity_tx.try_send(());
-        writer.write_all(&buf[..n]).await?;
     }
 }
 
@@ -443,11 +460,16 @@ where
     };
 
     tokio::select! {
-        res = async {
-            let res_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx);
-            let res_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b);
-            tokio::try_join!(res_a, res_b)
-        } => res,
+        (res_a, res_b) = async {
+            let fut_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx);
+            let fut_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b);
+            tokio::join!(fut_a, fut_b)
+        } => {
+            match (res_a, res_b) {
+                (Ok(from_client), Ok(from_server)) => Ok((from_client, from_server)),
+                (Err(e), _) | (_, Err(e)) => Err(e),
+            }
+        },
         _ = timer_task => {
             debug!("Session idle for {:?}, terminating connection", timeout_duration);
             Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "session idle timeout"))
