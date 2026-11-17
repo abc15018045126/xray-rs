@@ -1,0 +1,16 @@
+[package]
+name = "xray-rs-proto"
+description = "Pure-Rust Xray protocol codecs (VLESS, etc.) over AsyncRead/AsyncWrite."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+xray-rs-types = { path = "../xray-rs-types" }
+tokio = { version = "1.40", features = ["io-util"] }
+bytes.workspace = true
+uuid.workspace = true
+sha2 = "0.10"
+hex = "0.4"

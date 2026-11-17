@@ -1,0 +1,15 @@
+[package]
+name = "xray-rs-inbound"
+description = "Inbound proxy handlers (Pingora HTTP, SOCKS5, Mixed) for xray-rs."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+xray-rs-types = { path = "../xray-rs-types" }
+tokio.workspace = true
+async-trait.workspace = true
+pingora-http.workspace = true
+httparse.workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "xray-rs-tests"
+description = "Integration and end-to-end test suite for the xray-rs workspace."
+publish = false
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dev-dependencies]
+xray-rs-types = { path = "../xray-rs-types" }
+xray-rs-proto = { path = "../xray-rs-proto" }
+xray-rs-inbound = { path = "../xray-rs-inbound" }
+xray-rs-route = { path = "../xray-rs-route" }
+xray-rs-outbound = { path = "../xray-rs-outbound" }
+tokio.workspace = true
+bytes.workspace = true
+uuid.workspace = true
