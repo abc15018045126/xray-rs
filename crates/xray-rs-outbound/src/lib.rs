@@ -6,6 +6,7 @@ pub use handlers::{
     TrojanOutboundHandler, VlessOutboundHandler,
 };
 pub use transport::{
-    FragmentConfig, FragmentConn, HttpUpgradeTransport, PingoraStreamPool, TcpTransport,
-    TlsTransport, WebSocketTransport, pool_key,
+    FragmentConfig, FragmentConn, GrpcConfig, HttpUpgradeTransport, HysteriaConfig, KcpConfig,
+    PingoraStreamPool, SplitHttpConfig, TcpTransport, TlsTransport, WebSocketTransport,
+    WireGuardConfig, pool_key,
 };

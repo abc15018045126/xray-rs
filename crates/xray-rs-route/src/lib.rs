@@ -5,7 +5,9 @@ pub mod fakedns;
 pub mod geo;
 pub mod geosite_compact;
 pub mod observatory;
+pub mod policy;
 pub mod relay;
+pub mod reverse;
 pub mod router;
 pub mod sniffer;
 
@@ -15,6 +17,8 @@ pub use dns::HickoryDnsResolver;
 pub use fakedns::FakeDnsPool;
 pub use geo::{GLOBAL_GEO_DB, GeoDatabase};
 pub use observatory::{Observatory, OutboundStatus};
+pub use policy::{PolicyManager, SessionPolicy, StatsPolicy, TimeoutPolicy};
 pub use relay::copy_bidirectional_with_timeout;
+pub use reverse::ReverseRegistry;
 pub use router::{DomainRule, IpRule, RouteRule, Router};
 pub use sniffer::{sniff_http_host, sniff_tls_sni};

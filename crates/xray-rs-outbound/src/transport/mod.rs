@@ -1,3 +1,4 @@
+pub mod extra;
 pub mod fragment;
 pub mod fragment_config;
 pub mod httpupgrade;
@@ -6,6 +7,7 @@ pub mod tcp;
 pub mod tls;
 pub mod ws;
 
+pub use extra::{GrpcConfig, HysteriaConfig, KcpConfig, SplitHttpConfig, WireGuardConfig};
 pub use fragment::FragmentConn;
 pub use fragment_config::Config as FragmentConfig;
 pub use httpupgrade::HttpUpgradeTransport;

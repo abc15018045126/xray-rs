@@ -1,3 +1,4 @@
+mod commander;
 mod config;
 mod stats;
 
@@ -192,6 +193,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
     let stats = Arc::new(TrafficStats::default());
+    let _commander = Arc::new(commander::Commander::new());
+    _commander.register_service("StatsService");
+    _commander.register_service("HandlerService");
+    _commander.register_service("RoutingService");
 
     match cli.command {
         Some(Commands::Run { config }) => {
