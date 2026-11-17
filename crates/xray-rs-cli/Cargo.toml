@@ -1,0 +1,26 @@
+[package]
+name = "xray-rs-cli"
+description = "CLI entrypoint wiring xray-rs-inbound -> xray-rs-route -> xray-rs-outbound."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "xray"
+path = "src/main.rs"
+
+[dependencies]
+xray-rs-types = { path = "../xray-rs-types" }
+xray-rs-proto = { path = "../xray-rs-proto" }
+xray-rs-inbound = { path = "../xray-rs-inbound" }
+xray-rs-route = { path = "../xray-rs-route" }
+xray-rs-outbound = { path = "../xray-rs-outbound" }
+tokio.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "xray-rs-route"
+description = "Routing, load-balancing (Pingora), and bidirectional relay for xray-rs."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+xray-rs-types = { path = "../xray-rs-types" }
+tokio.workspace = true
+futures.workspace = true
+tracing.workspace = true
+ipnet.workspace = true
+pingora-load-balancing.workspace = true
+hickory-resolver.workspace = true
