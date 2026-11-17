@@ -71,7 +71,11 @@ impl TunRunner {
 
             for _ in 0..30 {
                 if let Some(iface) = super::net::get_interface_by_name(&tun_name) {
+                    super::routes::configure_tun_interface(iface.index, mtu as u32);
                     let _ = super::routes::add_address(&iface, cfg.gateway.into());
+                    if let Some(v6) = cfg.gateway_v6 {
+                        let _ = super::routes::add_address(&iface, v6.into());
+                    }
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;

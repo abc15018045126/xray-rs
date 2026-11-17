@@ -15,6 +15,11 @@ tracing.workspace = true
 ipnet.workspace = true
 pingora-load-balancing.workspace = true
 hickory-resolver.workspace = true
+hickory-proto.workspace = true
+httparse.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+webpki-roots.workspace = true
 
 [lints]
 workspace = true

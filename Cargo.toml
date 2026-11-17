@@ -11,7 +11,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "2.0.1"
+version = "2.0.2"
 edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 license = "MIT OR Apache-2.0"
@@ -64,6 +64,7 @@ pingora-http = "0.9.1"
 pingora-timeout = "0.9.1"
 pingora-load-balancing = { version = "0.9.1", features = ["rustls"] }
 hickory-resolver = { version = "0.26", features = ["system-config", "tokio", "https-ring", "tls-ring", "webpki-roots"] }
+hickory-proto = "0.26"
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 ipstack = "1.0.1"
 network-interface = "2"

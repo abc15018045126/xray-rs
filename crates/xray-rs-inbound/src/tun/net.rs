@@ -60,8 +60,10 @@ impl From<NetworkInterface> for OutboundInterface {
                     }
                 }
                 network_interface::Addr::V6(addr) => {
-                    if addr.ip.is_unique_local()
-                        || (!addr.ip.is_loopback() && !addr.ip.is_unspecified())
+                    if !addr.ip.is_loopback()
+                        && !addr.ip.is_unspecified()
+                        && !addr.ip.is_unicast_link_local()
+                        && !addr.ip.is_multicast()
                     {
                         v6 = Some(*addr);
                     }
@@ -106,12 +108,22 @@ pub fn get_outbound_interface() -> Option<OutboundInterface> {
         .into_iter()
         .map(Into::into)
         .filter(|iface: &OutboundInterface| {
-            !iface.name.contains("tun") && (iface.addr_v4.is_some() || iface.addr_v6.is_some())
+            let lower = iface.name.to_ascii_lowercase();
+            let is_virtual = lower.contains("tun")
+                || lower.contains("loopback")
+                || lower.contains("vethernet")
+                || lower.contains("hyper-v")
+                || lower.contains("vmware")
+                || lower.contains("virtualbox")
+                || lower.contains("bluetooth")
+                || lower.contains("teredo")
+                || lower.contains("isatap");
+            !is_virtual && (iface.addr_v4.is_some() || iface.addr_v6.is_some())
         })
         .collect::<Vec<_>>();
 
     let priority: &[&str] = if cfg!(target_os = "windows") {
-        &["Ethernet", "Wi-Fi", "Tailscale"]
+        &["Ethernet", "以太网", "Wi-Fi", "WLAN", "Tailscale"]
     } else if cfg!(target_os = "linux") {
         &["eth", "wlp", "en", "Tailscale"]
     } else if cfg!(target_os = "macos") {

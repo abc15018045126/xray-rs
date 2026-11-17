@@ -21,6 +21,10 @@ fn default_gateway() -> Ipv4Net {
     "172.19.0.1/30".parse().unwrap()
 }
 
+fn default_gateway_v6() -> Ipv6Net {
+    "fdfe:dcba:9876::1/126".parse().unwrap()
+}
+
 impl Default for TunConfig {
     fn default() -> Self {
         Self {
@@ -31,7 +35,7 @@ impl Default for TunConfig {
             route_all: true,
             routes: Vec::new(),
             gateway: default_gateway(),
-            gateway_v6: None,
+            gateway_v6: Some(default_gateway_v6()),
             mtu: 1500,
             so_mark: None,
             dns_hijack: false,

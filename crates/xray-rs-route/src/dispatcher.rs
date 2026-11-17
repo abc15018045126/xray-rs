@@ -5,11 +5,18 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
-use xray_rs_types::{Address, BoxStream, Destination, Error, OutboundHandler, Result, SessionContext};
+use xray_rs_types::{
+    Address, BoxStream, Destination, Error, Network, OutboundHandler, Result, SessionContext,
+};
 
+use crate::dns::{DnsModule, dns_tcp_exchange};
 use crate::relay::copy_bidirectional_with_timeout;
 use crate::router::Router;
 use crate::sniffer::{sniff_http_host, sniff_tls_sni};
+
+const DNS_HEADER_LEN: usize = 12;
+const DNS_FLOW_IDLE: Duration = Duration::from_secs(30);
+const DNS_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Minimal dataflow dispatcher connecting Inbound -> Sniffer -> Router -> Outbound.
 pub struct Dispatcher {
@@ -19,6 +26,7 @@ pub struct Dispatcher {
     idle_timeout: Duration,
     sniffing_enabled: bool,
     stats_cb: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+    dns_module: Option<Arc<DnsModule>>,
 }
 
 impl Dispatcher {
@@ -30,7 +38,92 @@ impl Dispatcher {
             idle_timeout: Duration::from_secs(300),
             sniffing_enabled: false,
             stats_cb: None,
+            dns_module: None,
         }
+    }
+
+    pub fn with_dns_module(mut self, dns: Arc<DnsModule>) -> Self {
+        self.dns_module = Some(dns);
+        self
+    }
+
+    async fn relay_dns_datagrams(
+        &self,
+        mut inbound: BoxStream,
+        outbound: Arc<dyn OutboundHandler>,
+        session: &SessionContext,
+        first_datagram: Vec<u8>,
+    ) -> Result<()> {
+        let mut upstream: Option<BoxStream> = None;
+        let mut pending = (!first_datagram.is_empty()).then_some(first_datagram);
+        let mut buf = vec![0u8; usize::from(u16::MAX)];
+
+        loop {
+            let query = match pending.take() {
+                Some(q) => q,
+                None => match timeout(DNS_FLOW_IDLE, inbound.read(&mut buf)).await {
+                    Ok(Ok(0)) | Err(_) => break,
+                    Ok(Ok(n)) => buf[..n].to_vec(),
+                    Ok(Err(e)) => {
+                        debug!("DNS flow {} read error: {}", session.destination, e);
+                        break;
+                    }
+                },
+            };
+            if query.len() < DNS_HEADER_LEN {
+                continue;
+            }
+
+            if let Some(dns) = self.dns_module.as_deref() {
+                match dns
+                    .resolve_wire(&query, &self.router, &self.outbounds, &self.default_outbound)
+                    .await
+                {
+                    Ok(resp) => {
+                        inbound.write_all(&resp).await?;
+                    }
+                    Err(e) => {
+                        debug!("Unified DNS module failed for {}: {}", session.destination, e);
+                    }
+                }
+                continue;
+            }
+
+            let mut answered = false;
+            for _ in 0..2 {
+                if upstream.is_none() {
+                    match outbound.connect(session).await {
+                        Ok(s) => upstream = Some(s),
+                        Err(e) => {
+                            warn!("DNS upstream connect failed: {}", e);
+                            break;
+                        }
+                    }
+                }
+                let Some(up) = upstream.as_mut() else {
+                    break;
+                };
+                match timeout(DNS_QUERY_TIMEOUT, dns_tcp_exchange(up, &query)).await {
+                    Ok(Ok(resp)) => {
+                        inbound.write_all(&resp).await?;
+                        answered = true;
+                        break;
+                    }
+                    Ok(Err(e)) => {
+                        debug!("DNS upstream exchange failed, reconnecting: {}", e);
+                        upstream = None;
+                    }
+                    Err(_) => {
+                        debug!("DNS upstream exchange timed out, reconnecting");
+                        upstream = None;
+                    }
+                }
+            }
+            if !answered {
+                debug!("DNS query to {} left unanswered", session.destination);
+            }
+        }
+        Ok(())
     }
 
     pub fn with_router(mut self, router: Router) -> Self {
@@ -98,6 +191,13 @@ impl Dispatcher {
             .clone();
 
         info!("Dispatching {} via '{}'", session.destination, tag);
+
+        if outbound.is_dns() && session.destination.network == Network::Udp {
+            return self
+                .relay_dns_datagrams(inbound_stream, outbound, &session, initial_payload)
+                .await;
+        }
+
         let mut outbound_stream = outbound.connect(&session).await?;
 
         if !initial_payload.is_empty() {

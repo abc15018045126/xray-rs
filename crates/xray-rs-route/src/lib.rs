@@ -13,7 +13,7 @@ pub mod sniffer;
 
 pub use balancer::PingoraUpstreamBalancer;
 pub use dispatcher::Dispatcher;
-pub use dns::HickoryDnsResolver;
+pub use dns::{DnsModule, DnsUpstreamConfig, HickoryDnsResolver};
 pub use fakedns::FakeDnsPool;
 pub use geo::{GLOBAL_GEO_DB, GeoDatabase};
 pub use observatory::{Observatory, OutboundStatus};

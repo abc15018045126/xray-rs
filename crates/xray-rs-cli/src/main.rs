@@ -15,10 +15,12 @@ use tracing::{info, warn};
 use xray_rs_inbound::tun::init_net_config;
 use xray_rs_inbound::{MixedInbound, PingoraHttpInbound, SocksInbound, TunConfig, TunRunner};
 use xray_rs_outbound::{
-    BlackholeHandler, FreedomHandler, PingoraPooledOutbound, ShadowsocksOutboundHandler,
-    TlsTransport, TrojanOutboundHandler, VlessOutboundHandler,
+    BlackholeHandler, DnsOutboundHandler, FreedomHandler, PingoraPooledOutbound,
+    ShadowsocksOutboundHandler, TlsTransport, TrojanOutboundHandler, VlessOutboundHandler,
 };
-use xray_rs_route::{Dispatcher, DomainRule, IpRule, RouteRule, Router};
+use xray_rs_route::{
+    Dispatcher, DnsModule, DnsUpstreamConfig, DomainRule, IpRule, RouteRule, Router,
+};
 use xray_rs_types::{BoxStream, InboundHandler, Network, OutboundHandler};
 
 use config::{
@@ -54,6 +56,7 @@ fn build_outbound(cfg: &config::OutboundConfig, idx: usize) -> Option<Arc<dyn Ou
     match cfg.protocol.to_ascii_lowercase().as_str() {
         "freedom" => Some(Arc::new(FreedomHandler::new(tag))),
         "blackhole" => Some(Arc::new(BlackholeHandler::new(tag))),
+        "dns" => Some(Arc::new(DnsOutboundHandler::new(tag))),
         "vless" => {
             let (server, uuid, flow) = parse_vless_settings(&cfg.settings).ok()?;
             let mut handler = VlessOutboundHandler::new(tag.clone(), server, uuid);
@@ -190,9 +193,30 @@ async fn spawn_inbound(
     }))
 }
 
+fn init_logging(config_level: Option<&str>) {
+    use tracing_subscriber::EnvFilter;
+    let default_level = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "warn"
+    };
+    let mapped = match config_level.map(|s| s.to_ascii_lowercase()).as_deref() {
+        Some("debug") => "debug",
+        Some("info") => "info",
+        Some("warning") | Some("warn") => "warn",
+        Some("error") => "error",
+        Some("none") | Some("off") => "off",
+        _ => default_level,
+    };
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(mapped));
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .try_init();
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
     let cli = Cli::parse();
     let stats = Arc::new(TrafficStats::default());
     let _commander = Arc::new(commander::Commander::new());
@@ -203,6 +227,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Some(Commands::Run { config }) => {
             let cfg = XrayJsonConfig::from_file(&config)?;
+            init_logging(cfg.log.as_ref().and_then(|l| l.loglevel.as_deref()));
             let mut default_tag = "direct".to_string();
             let mut outbounds = Vec::new();
             for (idx, ob) in cfg.outbounds.iter().enumerate() {
@@ -276,6 +301,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_stats_callback(Arc::new(move |up, down| {
                     stats_ref.add(up, down);
                 }));
+            if let Some(dns_cfg) = cfg.dns {
+                let module_tag = dns_cfg
+                    .tag
+                    .unwrap_or_else(|| "dns-module".to_string());
+                let hosts = dns_cfg
+                    .hosts
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let ips = v
+                            .into_vec()
+                            .into_iter()
+                            .filter_map(|s| s.parse().ok())
+                            .collect();
+                        (k.to_ascii_lowercase(), ips)
+                    })
+                    .collect();
+                let servers = dns_cfg
+                    .servers
+                    .into_iter()
+                    .map(|s| match s {
+                        config::DnsServerEntry::Address(address) => DnsUpstreamConfig {
+                            address,
+                            domains: Vec::new(),
+                            tag: module_tag.clone(),
+                            skip_fallback: false,
+                        },
+                        config::DnsServerEntry::Object {
+                            address,
+                            domains,
+                            tag,
+                            skip_fallback,
+                        } => DnsUpstreamConfig {
+                            address,
+                            domains: domains
+                                .into_iter()
+                                .filter_map(|d| DomainRule::parse(&d))
+                                .collect(),
+                            tag: tag.unwrap_or_else(|| module_tag.clone()),
+                            skip_fallback,
+                        },
+                    })
+                    .collect();
+                dispatcher = dispatcher.with_dns_module(Arc::new(DnsModule::new(
+                    module_tag, hosts, servers,
+                )));
+            }
             for h in outbounds {
                 dispatcher.register_outbound(h);
             }
@@ -358,6 +429,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         None => {
+            init_logging(None);
             let inbound: Arc<dyn InboundHandler> = Arc::new(MixedInbound::new("mixed-in"));
             let freedom = Arc::new(FreedomHandler::new("direct"));
             let pooled = Arc::new(PingoraPooledOutbound::new(

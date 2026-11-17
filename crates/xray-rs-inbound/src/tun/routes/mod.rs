@@ -2,7 +2,7 @@
 #[allow(unsafe_code)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{add_address, add_route, delete_route, maybe_routes_clean_up};
+pub use windows::{add_address, add_route, configure_tun_interface, delete_route, maybe_routes_clean_up};
 
 #[cfg(target_os = "macos")]
 mod macos;
@@ -30,12 +30,17 @@ pub fn maybe_add_routes(cfg: &TunConfig, tun_name: &str) -> std::io::Result<()> 
         #[cfg(target_os = "linux")]
         linux::check_ip_command_installed()?;
 
-        let tun_iface = get_interface_by_name(tun_name).ok_or_else(|| {
+        let mut tun_iface = get_interface_by_name(tun_name).ok_or_else(|| {
             std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("tun interface {} not found", tun_name),
             )
         })?;
+        if tun_iface.addr_v6.is_none()
+            && let Some(v6) = cfg.gateway_v6
+        {
+            tun_iface.addr_v6 = Some(v6.addr());
+        }
 
         if cfg.route_all {
             warn!("route_all is enabled, traffic will be routed through the tun interface");
@@ -67,8 +72,19 @@ pub fn maybe_add_routes(cfg: &TunConfig, tun_name: &str) -> std::io::Result<()> 
                     ]);
                 }
 
+                let mut added_any = false;
+                let mut last_err = None;
                 for r in default_routes {
-                    add_route(&tun_iface, &r)?;
+                    match add_route(&tun_iface, &r) {
+                        Ok(()) => added_any = true,
+                        Err(e) => {
+                            warn!("failed to add default route {}: {}", r, e);
+                            last_err = Some(e);
+                        }
+                    }
+                }
+                if !added_any && let Some(e) = last_err {
+                    return Err(e);
                 }
 
 

@@ -28,4 +28,8 @@ pub trait InboundHandler: Send + Sync {
 pub trait OutboundHandler: Send + Sync {
     fn tag(&self) -> &str;
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream>;
+    /// `true` for Xray's `dns` outbound: UDP DNS datagrams are relayed as DNS-over-TCP (RFC 7766).
+    fn is_dns(&self) -> bool {
+        false
+    }
 }

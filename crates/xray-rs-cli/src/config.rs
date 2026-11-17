@@ -10,7 +10,57 @@ use xray_rs_types::{Address, Destination, Error, Result};
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct LogConfig {
+    pub loglevel: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum StringOrVec {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl StringOrVec {
+    pub fn into_vec(self) -> Vec<String> {
+        match self {
+            Self::One(s) => vec![s],
+            Self::Many(v) => v,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum DnsServerEntry {
+    Address(String),
+    Object {
+        address: String,
+        #[serde(default)]
+        domains: Vec<String>,
+        tag: Option<String>,
+        #[serde(default, rename = "skipFallback")]
+        skip_fallback: bool,
+    },
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DnsConfig {
+    pub tag: Option<String>,
+    #[serde(default)]
+    pub hosts: HashMap<String, StringOrVec>,
+    #[serde(default)]
+    pub servers: Vec<DnsServerEntry>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct XrayJsonConfig {
+    #[serde(default)]
+    pub log: Option<LogConfig>,
+    #[serde(default)]
+    pub dns: Option<DnsConfig>,
     #[serde(default)]
     pub inbounds: Vec<InboundConfig>,
     #[serde(default)]

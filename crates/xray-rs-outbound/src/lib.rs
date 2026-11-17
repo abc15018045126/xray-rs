@@ -2,8 +2,8 @@ pub mod handlers;
 pub mod transport;
 
 pub use handlers::{
-    BlackholeHandler, FreedomHandler, PingoraPooledOutbound, ShadowsocksOutboundHandler,
-    TrojanOutboundHandler, VlessOutboundHandler,
+    BlackholeHandler, DnsOutboundHandler, FreedomHandler, PingoraPooledOutbound,
+    ShadowsocksOutboundHandler, TrojanOutboundHandler, VlessOutboundHandler,
 };
 pub use transport::{
     FragmentConfig, FragmentConn, GrpcConfig, HttpUpgradeTransport, HysteriaConfig, KcpConfig,

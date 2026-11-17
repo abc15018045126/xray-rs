@@ -1,18 +1,20 @@
-﻿use ipnet::IpNet;
+use ipnet::IpNet;
 use std::{
     io,
-    net::SocketAddr,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
 };
 use tracing::{debug, error, info, warn};
 use windows::Win32::{
     Foundation::ERROR_OBJECT_ALREADY_EXISTS,
     NetworkManagement::IpHelper::{
         CreateIpForwardEntry2, CreateUnicastIpAddressEntry, DeleteIpForwardEntry2,
-        IP_ADDRESS_PREFIX, InitializeIpForwardEntry, MIB_IPFORWARD_ROW2,
-        MIB_UNICASTIPADDRESS_ROW,
+        GetIpInterfaceEntry, IP_ADDRESS_PREFIX, InitializeIpForwardEntry,
+        InitializeIpInterfaceEntry, MIB_IPFORWARD_ROW2, MIB_IPINTERFACE_ROW,
+        MIB_UNICASTIPADDRESS_ROW, SetIpInterfaceEntry,
     },
     Networking::WinSock::{
-        AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET,
+        AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, RouterDiscoveryDisabled,
+        SOCKADDR_INET,
     },
 };
 
@@ -46,19 +48,9 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     };
     let metric = 0;
     let next_hop: SocketAddr = if dest.addr().is_ipv4() {
-        (
-            via.addr_v4
-                .ok_or_else(|| io::Error::other("tun interface has no ipv4 address"))?,
-            0,
-        )
-            .into()
+        (Ipv4Addr::UNSPECIFIED, 0).into()
     } else {
-        (
-            via.addr_v6
-                .ok_or_else(|| io::Error::other("tun interface has no ipv6 address"))?,
-            0,
-        )
-            .into()
+        (Ipv6Addr::UNSPECIFIED, 0).into()
     };
     row.NextHop = next_hop.into();
     row.Metric = metric;
@@ -112,17 +104,9 @@ pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
         PrefixLength: dest.prefix_len(),
     };
     let next_hop: SocketAddr = if dest.addr().is_ipv4() {
-        if let Some(v4) = via.addr_v4 {
-            (v4, 0).into()
-        } else {
-            return Ok(());
-        }
+        (Ipv4Addr::UNSPECIFIED, 0).into()
     } else {
-        if let Some(v6) = via.addr_v6 {
-            (v6, 0).into()
-        } else {
-            return Ok(());
-        }
+        (Ipv6Addr::UNSPECIFIED, 0).into()
     };
     row.NextHop = next_hop.into();
 
@@ -172,6 +156,37 @@ pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()>
             "failed to add address to tun interface: {}",
             res.message()
         )))
+    }
+}
+
+pub fn configure_tun_interface(iface_index: u32, mtu: u32) {
+    for family in [AF_INET, AF_INET6] {
+        let mut row = MIB_IPINTERFACE_ROW::default();
+        unsafe {
+            InitializeIpInterfaceEntry(&mut row);
+        }
+        row.Family = family;
+        row.InterfaceIndex = iface_index;
+        let get_res = unsafe { GetIpInterfaceEntry(&mut row) };
+        if get_res.is_err() {
+            continue;
+        }
+        row.RouterDiscoveryBehavior = RouterDiscoveryDisabled;
+        row.DadTransmits = 0;
+        row.ManagedAddressConfigurationSupported = false;
+        row.OtherStatefulConfigurationSupported = false;
+        if mtu > 0 {
+            row.NlMtu = mtu;
+        }
+        row.UseAutomaticMetric = false;
+        row.Metric = 0;
+        let set_res = unsafe { SetIpInterfaceEntry(&mut row) };
+        if set_res.is_err() {
+            debug!(
+                "SetIpInterfaceEntry failed for iface {} family {:?}: {:?}",
+                iface_index, family, set_res
+            );
+        }
     }
 }
 

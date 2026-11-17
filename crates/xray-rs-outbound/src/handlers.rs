@@ -1,3 +1,4 @@
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -56,6 +57,70 @@ impl OutboundHandler for BlackholeHandler {
 
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
         Err(Error::Closed)
+    }
+}
+
+/// Xray `dns` outbound: hijacked DNS queries are answered by plain-IP upstream resolvers over
+/// DNS-over-TCP (RFC 7766). Upstream sockets are pinned to the physical interface by
+/// [`TcpTransport`], so they never loop back into the TUN, and both IPv4 and IPv6 upstreams are
+/// raced, so it also works on IPv6-only (or IPv4-only) networks.
+pub struct DnsOutboundHandler {
+    tag: String,
+    upstreams: Vec<Destination>,
+}
+
+impl DnsOutboundHandler {
+    const DEFAULT_UPSTREAMS: [IpAddr; 4] = [
+        IpAddr::V6(Ipv6Addr::new(0x2400, 0x3200, 0, 0, 0, 0, 0, 1)),
+        IpAddr::V4(Ipv4Addr::new(223, 5, 5, 5)),
+        IpAddr::V6(Ipv6Addr::new(0x2402, 0x4e00, 0, 0, 0, 0, 0, 0)),
+        IpAddr::V4(Ipv4Addr::new(119, 29, 29, 29)),
+    ];
+
+    pub fn new(tag: impl Into<String>) -> Self {
+        Self::with_upstreams(tag, Self::DEFAULT_UPSTREAMS.to_vec())
+    }
+
+    pub fn with_upstreams(tag: impl Into<String>, upstreams: Vec<IpAddr>) -> Self {
+        let upstreams = if upstreams.is_empty() {
+            Self::DEFAULT_UPSTREAMS.to_vec()
+        } else {
+            upstreams
+        };
+        Self {
+            tag: tag.into(),
+            upstreams: upstreams
+                .into_iter()
+                .map(|ip| {
+                    let addr = match ip {
+                        IpAddr::V4(v4) => Address::Ipv4(v4),
+                        IpAddr::V6(v6) => Address::Ipv6(v6),
+                    };
+                    Destination::tcp(addr, 53)
+                })
+                .collect(),
+        }
+    }
+}
+
+#[async_trait]
+impl OutboundHandler for DnsOutboundHandler {
+    fn tag(&self) -> &str {
+        &self.tag
+    }
+
+    fn is_dns(&self) -> bool {
+        true
+    }
+
+    async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
+        let attempts = self.upstreams.iter().map(|dest| {
+            Box::pin(TcpTransport::dial_with_timeout(dest, Duration::from_secs(3)))
+        });
+        match futures::future::select_ok(attempts).await {
+            Ok((stream, _rest)) => Ok(stream),
+            Err(e) => Err(e),
+        }
     }
 }
 
