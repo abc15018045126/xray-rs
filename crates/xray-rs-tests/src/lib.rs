@@ -156,4 +156,225 @@ mod tests {
         // 4. Direct PingoraHttpInbound check as well
         let _pg = PingoraHttpInbound::new("http");
     }
+
+    #[tokio::test]
+    async fn test_robustness_large_traffic_50mb_streaming() {
+        const TOTAL_BYTES: usize = 50 * 1024 * 1024;
+        let server_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut s, _)) = server_listener.accept().await {
+                let chunk = vec![0x5Au8; 64 * 1024];
+                let mut sent = 0;
+                while sent < TOTAL_BYTES {
+                    let n = std::cmp::min(chunk.len(), TOTAL_BYTES - sent);
+                    if s.write_all(&chunk[..n]).await.is_err() {
+                        break;
+                    }
+                    sent += n;
+                }
+                let _ = s.shutdown().await;
+            }
+        });
+
+        let inbound: Arc<dyn InboundHandler> = Arc::new(MixedInbound::new("mixed"));
+        let mut dispatcher = Dispatcher::new("direct");
+        dispatcher.register_outbound(Arc::new(FreedomHandler::new("direct")));
+        let dispatcher = Arc::new(dispatcher);
+
+        let proxy_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_addr = proxy_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((stream, remote)) = proxy_listener.accept().await {
+                let box_stream: BoxStream = Box::pin(stream);
+                if let Ok(res) = inbound.handle_connection(box_stream, remote).await {
+                    let _ = dispatcher.dispatch(res.stream, res.session).await;
+                }
+            }
+        });
+
+        let start = std::time::Instant::now();
+        let mut client = tokio::net::TcpStream::connect(proxy_addr).await.unwrap();
+        client
+            .write_all(format!("CONNECT {0} HTTP/1.1\r\nHost: {0}\r\n\r\n", server_addr).as_bytes())
+            .await
+            .unwrap();
+        let mut resp = [0u8; 128];
+        let n = client.read(&mut resp).await.unwrap();
+        assert!(String::from_utf8_lossy(&resp[..n]).contains("200"));
+
+        let mut received = 0usize;
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            let r = client.read(&mut buf).await.unwrap();
+            if r == 0 {
+                break;
+            }
+            assert!(buf[..r].iter().all(|&b| b == 0x5A));
+            received += r;
+        }
+        assert_eq!(received, TOTAL_BYTES);
+        let elapsed = start.elapsed();
+        let mb_s = (TOTAL_BYTES as f64 / (1024.0 * 1024.0)) / elapsed.as_secs_f64();
+        println!("[STRESS] 50MB single-stream download: {:?} ({:.1} MB/s)", elapsed, mb_s);
+    }
+
+    #[tokio::test]
+    async fn test_robustness_client_half_close_during_download() {
+        const TOTAL_BYTES: usize = 5 * 1024 * 1024;
+        let server_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut s, _)) = server_listener.accept().await {
+                let mut req = [0u8; 64];
+                let _ = s.read(&mut req).await;
+                // Wait briefly after client half-closes before sending 5MB
+                tokio::time::sleep(Duration::from_millis(30)).await;
+                let chunk = vec![0xABu8; 32 * 1024];
+                let mut sent = 0;
+                while sent < TOTAL_BYTES {
+                    let n = std::cmp::min(chunk.len(), TOTAL_BYTES - sent);
+                    if s.write_all(&chunk[..n]).await.is_err() {
+                        break;
+                    }
+                    sent += n;
+                }
+                let _ = s.shutdown().await;
+            }
+        });
+
+        let inbound: Arc<dyn InboundHandler> = Arc::new(MixedInbound::new("mixed"));
+        let mut dispatcher = Dispatcher::new("direct");
+        dispatcher.register_outbound(Arc::new(FreedomHandler::new("direct")));
+        let dispatcher = Arc::new(dispatcher);
+
+        let proxy_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_addr = proxy_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((stream, remote)) = proxy_listener.accept().await {
+                let box_stream: BoxStream = Box::pin(stream);
+                if let Ok(res) = inbound.handle_connection(box_stream, remote).await {
+                    let _ = dispatcher.dispatch(res.stream, res.session).await;
+                }
+            }
+        });
+
+        let mut client = tokio::net::TcpStream::connect(proxy_addr).await.unwrap();
+        client
+            .write_all(format!("CONNECT {0} HTTP/1.1\r\nHost: {0}\r\n\r\n", server_addr).as_bytes())
+            .await
+            .unwrap();
+        let mut resp = [0u8; 128];
+        let _ = client.read(&mut resp).await.unwrap();
+
+        client.write_all(b"GET / HTTP/1.1\r\n\r\n").await.unwrap();
+        // Client immediately half-closes write side!
+        client.shutdown().await.unwrap();
+
+        let mut received = 0usize;
+        let mut buf = vec![0u8; 32 * 1024];
+        loop {
+            let r = client.read(&mut buf).await.unwrap();
+            if r == 0 {
+                break;
+            }
+            received += r;
+        }
+        assert_eq!(received, TOTAL_BYTES, "Half-close must not abort download");
+        println!("[CHAOS] Half-close 5MB download survived intact");
+    }
+
+    #[tokio::test]
+    async fn test_robustness_concurrent_50_burst_and_abrupt_drops() {
+        let server_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut idx = 0usize;
+            while let Ok((mut s, _)) = server_listener.accept().await {
+                let cur = idx;
+                idx += 1;
+                tokio::spawn(async move {
+                    if cur % 2 == 1 {
+                        // Abruptly drop every odd connection
+                        drop(s);
+                        return;
+                    }
+                    let payload = vec![0x42u8; 128 * 1024];
+                    let _ = s.write_all(&payload).await;
+                    let _ = s.shutdown().await;
+                });
+            }
+        });
+
+        let inbound: Arc<dyn InboundHandler> = Arc::new(MixedInbound::new("mixed"));
+        let mut dispatcher = Dispatcher::new("direct");
+        dispatcher.register_outbound(Arc::new(FreedomHandler::new("direct")));
+        let dispatcher = Arc::new(dispatcher);
+
+        let proxy_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_addr = proxy_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((stream, remote)) = proxy_listener.accept().await {
+                let inbound = inbound.clone();
+                let dispatcher = dispatcher.clone();
+                tokio::spawn(async move {
+                    let box_stream: BoxStream = Box::pin(stream);
+                    if let Ok(res) = inbound.handle_connection(box_stream, remote).await {
+                        let _ = dispatcher.dispatch(res.stream, res.session).await;
+                    }
+                });
+            }
+        });
+
+        let mut handles = Vec::new();
+        for _ in 0..50 {
+            handles.push(tokio::spawn(async move {
+                let mut client = tokio::net::TcpStream::connect(proxy_addr).await.unwrap();
+                client
+                    .write_all(
+                        format!("CONNECT {0} HTTP/1.1\r\nHost: {0}\r\n\r\n", server_addr).as_bytes(),
+                    )
+                    .await
+                    .unwrap();
+                let mut resp = [0u8; 128];
+                let _ = client.read(&mut resp).await;
+                let mut total = 0usize;
+                let mut buf = [0u8; 16384];
+                while let Ok(r) = client.read(&mut buf).await {
+                    if r == 0 {
+                        break;
+                    }
+                    total += r;
+                }
+                total
+            }));
+        }
+
+        let mut full_ok = 0;
+        for h in handles {
+            let n = h.await.unwrap();
+            if n == 128 * 1024 {
+                full_ok += 1;
+            }
+        }
+        assert!(full_ok >= 20, "Expected healthy connections to succeed despite abrupt drops, got {}", full_ok);
+        println!("[CHAOS] 50 concurrent burst connections with 50% abrupt drops: {}/25 healthy completed", full_ok);
+    }
+
+    #[tokio::test]
+    async fn test_robustness_idle_timeout_terminates_stalled_session() {
+        let (mut a, _a_peer) = tokio::io::duplex(4096);
+        let (mut b, _b_peer) = tokio::io::duplex(4096);
+        let start = std::time::Instant::now();
+        let res = xray_rs_route::copy_bidirectional_with_timeout(
+            &mut a,
+            &mut b,
+            Duration::from_millis(120),
+        )
+        .await;
+        assert!(res.is_err());
+        let elapsed = start.elapsed();
+        assert!(elapsed >= Duration::from_millis(100) && elapsed < Duration::from_secs(2));
+        println!("[CHAOS] Stalled session terminated cleanly in {:?}", elapsed);
+    }
 }
