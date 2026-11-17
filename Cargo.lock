@@ -2874,7 +2874,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-cli"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "clap",
  "serde",
@@ -2892,7 +2892,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-inbound"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "httparse",
@@ -2903,7 +2903,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-outbound"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "futures",
@@ -2922,7 +2922,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-proto"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "bytes",
  "hex",
@@ -2934,7 +2934,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-route"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "futures",
  "hickory-resolver",
@@ -2947,7 +2947,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-tests"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "bytes",
  "tokio",
@@ -2961,7 +2961,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs-types"
-version = "1.0.3"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "serde",

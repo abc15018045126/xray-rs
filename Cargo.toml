@@ -1,9 +1,17 @@
 [workspace]
-members = ["crates/*"]
+members = [
+    "crates/xray-rs-types",
+    "crates/xray-rs-proto",
+    "crates/xray-rs-inbound",
+    "crates/xray-rs-route",
+    "crates/xray-rs-outbound",
+    "crates/xray-rs-cli",
+    "crates/xray-rs-tests",
+]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.3"
+version = "2.0.0"
 edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 license = "MIT OR Apache-2.0"
