@@ -111,6 +111,7 @@ impl TunRunner {
         let tun_name_clean = tun_name.clone();
         let cancel_run = cancellation_token.clone();
         let tag = cfg.tag.clone();
+        let session_limit = Arc::new(tokio::sync::Semaphore::new(512));
 
         let handle = tokio::spawn(async move {
             loop {
@@ -123,6 +124,9 @@ impl TunRunner {
                         match res {
                             Ok(stream) => match stream {
                                 IpStackStream::Tcp(tcp) => {
+                                    let Ok(permit) = session_limit.clone().try_acquire_owned() else {
+                                        continue;
+                                    };
                                     let ip = match tcp.peer_addr().ip() {
                                         std::net::IpAddr::V4(v4) => Address::Ipv4(v4),
                                         std::net::IpAddr::V6(v6) => Address::Ipv6(v6),
@@ -133,10 +137,14 @@ impl TunRunner {
 
                                     let d = dispatch.clone();
                                     tokio::spawn(async move {
+                                        let _permit = permit;
                                         d(Box::pin(tcp), session).await;
                                     });
                                 }
                                 IpStackStream::Udp(udp) => {
+                                    let Ok(permit) = session_limit.clone().try_acquire_owned() else {
+                                        continue;
+                                    };
                                     let ip = match udp.peer_addr().ip() {
                                         std::net::IpAddr::V4(v4) => Address::Ipv4(v4),
                                         std::net::IpAddr::V6(v6) => Address::Ipv6(v6),
@@ -147,6 +155,7 @@ impl TunRunner {
 
                                     let d = dispatch.clone();
                                     tokio::spawn(async move {
+                                        let _permit = permit;
                                         d(Box::pin(udp), session).await;
                                     });
                                 }

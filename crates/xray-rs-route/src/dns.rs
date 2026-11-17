@@ -109,7 +109,7 @@ impl DnsModule {
             .collect();
 
         let mut allow_fallback = matching.is_empty();
-        for srv in matching {
+        for srv in &matching {
             match self
                 .query_server(srv, query, router, outbounds, default_outbound)
                 .await
@@ -125,6 +125,12 @@ impl DnsModule {
                     }
                 }
             }
+        }
+        // On IPv6-only networks, CN direct DNS entries (119.29.29.29, 223.5.5.5, doh.pub)
+        // only have IPv4 addresses and all fail even with skipFallback=true; fall back so
+        // queries don't fail-loop into WSAENOBUFS (10055).
+        if !matching.is_empty() {
+            allow_fallback = true;
         }
 
         if allow_fallback {
