@@ -23,6 +23,12 @@ path = "main/main.rs"
 name = "benchmark"
 path = "main/benchmark.rs"
 
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
 [dependencies]
 tokio = { version = "1.40", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
@@ -63,8 +69,11 @@ ipnet = "2"
 ipstack = "1.0.1"
 pingora-pool = "0.9.1"
 pingora-http = "0.9.1"
+pingora-timeout = "0.9.1"
 pingora-core = { version = "0.9.1", features = ["rustls"] }
 pingora-load-balancing = { version = "0.9.1", features = ["rustls"] }
+hickory-resolver = { version = "0.26", features = ["system-config", "tokio", "https-ring", "tls-ring", "webpki-roots"] }
+hickory-proto = "0.26"
 
 [target.'cfg(windows)'.dependencies]
 wintun = { package = "wintun-rs", version = "0.0.6" }

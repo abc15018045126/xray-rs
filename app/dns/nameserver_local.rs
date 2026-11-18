@@ -4,13 +4,25 @@
 use super::nameserver::NameServer;
 use crate::common::errors::{Error, Result};
 use async_trait::async_trait;
+use hickory_resolver::TokioResolver;
 use std::net::IpAddr;
+use std::sync::OnceLock;
 
-pub struct LocalNameServer;
+pub struct LocalNameServer {
+    resolver: OnceLock<Option<TokioResolver>>,
+}
 
 impl LocalNameServer {
     pub fn new() -> Self {
-        Self
+        Self {
+            resolver: OnceLock::new(),
+        }
+    }
+
+    fn hickory(&self) -> Option<&TokioResolver> {
+        self.resolver
+            .get_or_init(|| TokioResolver::builder_tokio().ok().map(|b| b.build().ok()).flatten())
+            .as_ref()
     }
 }
 
@@ -28,6 +40,14 @@ impl NameServer for LocalNameServer {
 
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
+        if let Some(resolver) = self.hickory()
+            && let Ok(lookup) = resolver.lookup_ip(clean).await
+        {
+            let ips: Vec<IpAddr> = lookup.iter().collect();
+            if !ips.is_empty() {
+                return Ok(ips);
+            }
+        }
         match tokio::net::lookup_host(format!("{}:53", clean)).await {
             Ok(addrs) => {
                 let ips: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();
