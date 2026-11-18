@@ -200,6 +200,8 @@ pub struct WsSettingsConfig {
     pub host: Option<String>,
     #[serde(default)]
     pub headers: Option<HashMap<String, String>>,
+    #[serde(default, rename = "heartbeatPeriod")]
+    pub heartbeat_period: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -396,6 +398,7 @@ impl Config {
                     let mut tls_sni = None;
                     let mut ws_path = None;
                     let mut ws_host = None;
+                    let mut ws_heartbeat = 0u32;
                     let mut fragment_cfg = None;
 
                     if let Some(stream_settings) = out_cfg.stream_settings {
@@ -407,6 +410,7 @@ impl Config {
                             || stream_settings.ws_settings.is_some();
                         if is_ws {
                             let ws_cfg = stream_settings.ws_settings.as_ref();
+                            ws_heartbeat = ws_cfg.and_then(|w| w.heartbeat_period).unwrap_or(0);
                             let raw_path = ws_cfg.and_then(|w| w.path.as_deref()).unwrap_or("/");
                             let clean_path = if raw_path.trim().is_empty() {
                                 "/"
@@ -470,7 +474,8 @@ impl Config {
 
                     let mut client = p::vless::OutboundClient::new(
                         &tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
-                    );
+                    )
+                    .with_ws_heartbeat(ws_heartbeat);
                     if let Some(f_cfg) = fragment_cfg {
                         client = client.with_fragment(f_cfg);
                     }
@@ -907,6 +912,19 @@ impl Config {
 fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::DnsClient {
     let mut client = crate::app::dns::DnsClient::new();
     if let Some(val) = dns_val {
+        if let Some(qs) = val.get("queryStrategy").and_then(|v| v.as_str()) {
+            client.set_query_strategy(crate::app::dns::config::QueryStrategy::from_str(qs));
+        }
+        if let Some(dc) = val.get("disableCache").and_then(|v| v.as_bool()) {
+            client.set_disable_cache(dc);
+        }
+        if let Some(df) = val.get("disableFallback").and_then(|v| v.as_bool()) {
+            client.set_disable_fallback(df);
+        }
+        if let Some(dfim) = val.get("disableFallbackIfMatch").and_then(|v| v.as_bool()) {
+            client.set_disable_fallback_if_match(dfim);
+        }
+
         if let Some(hosts_obj) = val.get("hosts").and_then(|h| h.as_object()) {
             for (domain, ip_val) in hosts_obj {
                 let mut ips = Vec::new();
@@ -930,22 +948,55 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
         }
 
         if let Some(servers_arr) = val.get("servers").and_then(|s| s.as_array()) {
+            let parse_str_list = |obj: &serde_json::Map<String, serde_json::Value>, key: &str| {
+                obj.get(key)
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect::<Vec<String>>()
+                    })
+                    .unwrap_or_default()
+            };
+
             for s in servers_arr {
-                let addr_str = if let Some(addr) = s.as_str() {
-                    Some(addr.to_string())
-                } else if let Some(obj) = s.as_object() {
-                    obj.get("address")
+                if let Some(addr) = s.as_str() {
+                    client.add_server(crate::app::dns::DnsServerConfig {
+                        address: addr.to_string(),
+                        ..Default::default()
+                    });
+                } else if let Some(obj) = s.as_object()
+                    && let Some(raw_addr) = obj.get("address").and_then(|v| v.as_str())
+                {
+                    let addr = if let Some(port) = obj.get("port").and_then(|v| v.as_u64())
+                        && let Ok(ip) = raw_addr.parse::<std::net::IpAddr>()
+                    {
+                        std::net::SocketAddr::new(ip, port as u16).to_string()
+                    } else {
+                        raw_addr.to_string()
+                    };
+                    let domains = parse_str_list(obj, "domains");
+                    let expect_ips = parse_str_list(obj, "expectIPs");
+                    let skip_fallback = obj
+                        .get("skipFallback")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let query_strategy = obj
+                        .get("queryStrategy")
                         .and_then(|v| v.as_str())
-                        .map(|v| v.to_string())
-                } else {
-                    None
-                };
-                if let Some(addr) = addr_str {
+                        .map(crate::app::dns::config::QueryStrategy::from_str);
+                    let tag = obj
+                        .get("tag")
+                        .and_then(|v| v.as_str())
+                        .map(|v| v.to_string());
+
                     client.add_server(crate::app::dns::DnsServerConfig {
                         address: addr,
-                        domains: Vec::new(),
-                        skip_fallback: false,
-                        tag: None,
+                        domains,
+                        expect_ips,
+                        skip_fallback,
+                        query_strategy,
+                        tag,
                     });
                 }
             }

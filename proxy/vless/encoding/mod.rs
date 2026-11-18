@@ -93,7 +93,7 @@ impl RequestHeader {
         }
     }
 
-    pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
+    pub fn encode_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         buf.push(VLESS_VERSION);
         buf.extend_from_slice(self.user_id.as_bytes());
@@ -120,7 +120,11 @@ impl RequestHeader {
                 buf.extend_from_slice(&v6.octets());
             }
         }
+        buf
+    }
 
+    pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
+        let buf = self.encode_bytes();
         writer.write_all(&buf).await?;
         writer.flush().await?;
         Ok(())

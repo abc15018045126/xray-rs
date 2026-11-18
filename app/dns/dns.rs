@@ -9,30 +9,50 @@ use std::time::Duration;
 
 use crate::app::dns::cache_controller::CacheController;
 use crate::app::dns::config::QueryStrategy;
+use crate::app::dns::fakedns::FakeDnsHolder;
 use crate::app::dns::hosts::StaticHosts;
 use crate::app::dns::nameserver::NameServer;
 use crate::app::dns::nameserver_doh::DohNameServer;
+use crate::app::dns::nameserver_fakedns::FakeDnsNameServer;
 use crate::app::dns::nameserver_local::LocalNameServer;
 use crate::app::dns::nameserver_tcp::TcpNameServer;
 use crate::app::dns::nameserver_udp::UdpNameServer;
+use crate::app::router::condition::{DomainMatcher, IpMatcher};
 use crate::common::errors::{Error, Result};
 use crate::features::dns::client::{DnsClient as DnsClientTrait, IPOption};
 use crate::features::feature::{Feature, TYPE_DNS_CLIENT};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DnsServerConfig {
     pub address: String,
     pub domains: Vec<String>,
+    pub expect_ips: Vec<String>,
     pub skip_fallback: bool,
+    pub query_strategy: Option<QueryStrategy>,
     pub tag: Option<String>,
+}
+
+struct ServerEntry {
+    ns: Arc<dyn NameServer>,
+    domain_matchers: Vec<DomainMatcher>,
+    expect_ip_matchers: Vec<IpMatcher>,
+    skip_fallback: bool,
+    query_strategy: Option<QueryStrategy>,
+    is_fakedns: bool,
+    is_local: bool,
 }
 
 pub struct DnsClient {
     hosts: Arc<StaticHosts>,
     cache: Arc<CacheController>,
     servers: Vec<DnsServerConfig>,
+    entries: Vec<ServerEntry>,
     nameservers: Vec<Arc<dyn NameServer>>,
     query_strategy: QueryStrategy,
+    disable_cache: bool,
+    disable_fallback: bool,
+    disable_fallback_if_match: bool,
+    fakedns_holder: Option<Arc<FakeDnsHolder>>,
 }
 
 impl Default for DnsClient {
@@ -52,33 +72,42 @@ impl DnsClient {
                 Duration::from_secs(3600),
             )),
             servers: Vec::new(),
+            entries: Vec::new(),
             nameservers: Vec::new(),
             query_strategy: QueryStrategy::UseIP,
+            disable_cache: false,
+            disable_fallback: false,
+            disable_fallback_if_match: false,
+            fakedns_holder: None,
         }
     }
 
     pub fn with_hosts(hosts_map: HashMap<String, Vec<IpAddr>>) -> Self {
-        let hosts = StaticHosts::new();
+        let client = Self::new();
         for (domain, ips) in hosts_map {
-            hosts.add_exact(&domain, ips);
+            client.hosts.add_exact(&domain, ips);
         }
-
-        Self {
-            hosts: Arc::new(hosts),
-            cache: Arc::new(CacheController::new(
-                "default".into(),
-                false,
-                true,
-                Duration::from_secs(3600),
-            )),
-            servers: Vec::new(),
-            nameservers: Vec::new(),
-            query_strategy: QueryStrategy::UseIP,
-        }
+        client
     }
 
     pub fn set_query_strategy(&mut self, strategy: QueryStrategy) {
         self.query_strategy = strategy;
+    }
+
+    pub fn set_disable_cache(&mut self, disable: bool) {
+        self.disable_cache = disable;
+    }
+
+    pub fn set_disable_fallback(&mut self, disable: bool) {
+        self.disable_fallback = disable;
+    }
+
+    pub fn set_disable_fallback_if_match(&mut self, disable: bool) {
+        self.disable_fallback_if_match = disable;
+    }
+
+    pub fn set_fakedns_holder(&mut self, holder: Arc<FakeDnsHolder>) {
+        self.fakedns_holder = Some(holder);
     }
 
     pub fn query_strategy(&self) -> QueryStrategy {
@@ -90,41 +119,96 @@ impl DnsClient {
     }
 
     pub fn add_nameserver(&mut self, ns: Arc<dyn NameServer>) {
+        self.entries.push(ServerEntry {
+            ns: ns.clone(),
+            domain_matchers: Vec::new(),
+            expect_ip_matchers: Vec::new(),
+            skip_fallback: false,
+            query_strategy: None,
+            is_fakedns: false,
+            is_local: false,
+        });
         self.nameservers.push(ns);
     }
 
     pub fn add_server(&mut self, server: DnsServerConfig) {
         let addr = server.address.trim();
-        if addr.starts_with("https://") || addr.starts_with("http://") {
-            self.nameservers.push(Arc::new(DohNameServer::new(addr)));
+        let mut is_fakedns = false;
+        let mut is_local = false;
+
+        let ns: Option<Arc<dyn NameServer>> = if addr.eq_ignore_ascii_case("fakedns") {
+            is_fakedns = true;
+            let holder = self.fakedns_holder.get_or_insert_with(|| {
+                Arc::new(FakeDnsHolder::new("198.18.0.0/15").expect("valid default FakeDNS CIDR"))
+            });
+            Some(Arc::new(FakeDnsNameServer::new(holder.clone())))
+        } else if let Some(rest) = addr.strip_prefix("https+local://") {
+            Some(Arc::new(DohNameServer::new(&format!("https://{}", rest))))
+        } else if addr.starts_with("https://") || addr.starts_with("http://") {
+            Some(Arc::new(DohNameServer::new(addr)))
         } else if addr.eq_ignore_ascii_case("local") || addr.eq_ignore_ascii_case("localhost") {
-            self.nameservers.push(Arc::new(LocalNameServer::new()));
-        } else if let Some(stripped) = addr.strip_prefix("tcp://") {
+            is_local = true;
+            Some(Arc::new(LocalNameServer::new()))
+        } else if let Some(stripped) = addr
+            .strip_prefix("tcp+local://")
+            .or_else(|| addr.strip_prefix("tcp://"))
+        {
             if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                self.nameservers.push(Arc::new(TcpNameServer::new(sa)));
+                Some(Arc::new(TcpNameServer::new(sa)))
             } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                self.nameservers
-                    .push(Arc::new(TcpNameServer::new(SocketAddr::new(ip, 53))));
+                Some(Arc::new(TcpNameServer::new(SocketAddr::new(ip, 53))))
+            } else {
+                None
             }
         } else if let Some(stripped) = addr.strip_prefix("udp://") {
             if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                self.nameservers.push(Arc::new(UdpNameServer::new(sa)));
+                Some(Arc::new(UdpNameServer::new(sa)))
             } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                self.nameservers
-                    .push(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))));
+                Some(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))))
+            } else {
+                None
             }
         } else if let Ok(sa) = addr.parse::<SocketAddr>() {
-            self.nameservers.push(Arc::new(UdpNameServer::new(sa)));
+            Some(Arc::new(UdpNameServer::new(sa)))
         } else if let Ok(ip) = addr.parse::<IpAddr>() {
-            self.nameservers
-                .push(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))));
+            Some(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))))
+        } else {
+            None
+        };
+
+        if let Some(ns) = ns {
+            let domain_matchers = server
+                .domains
+                .iter()
+                .map(|d| DomainMatcher::parse(d))
+                .collect();
+            let expect_ip_matchers = server
+                .expect_ips
+                .iter()
+                .filter_map(|ip| IpMatcher::parse(ip))
+                .collect();
+
+            self.entries.push(ServerEntry {
+                ns: ns.clone(),
+                domain_matchers,
+                expect_ip_matchers,
+                skip_fallback: server.skip_fallback,
+                query_strategy: server.query_strategy,
+                is_fakedns,
+                is_local,
+            });
+            self.nameservers.push(ns);
         }
 
         self.servers.push(server);
     }
 
-    fn filter_ips(&self, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
-        let (ipv4_allow, ipv6_allow) = match self.query_strategy {
+    fn filter_ips_with_strategy(
+        strategy: QueryStrategy,
+        ips: &[IpAddr],
+        option: &IPOption,
+    ) -> Vec<IpAddr> {
+        let (ipv4_allow, ipv6_allow) = match strategy {
             QueryStrategy::UseIPv4 => (true, false),
             QueryStrategy::UseIPv6 => (false, true),
             QueryStrategy::UseIP => (option.ipv4_enable, option.ipv6_enable),
@@ -137,6 +221,30 @@ impl DnsClient {
                 IpAddr::V6(_) => ipv6_allow,
             })
             .collect()
+    }
+
+    fn filter_ips(&self, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
+        Self::filter_ips_with_strategy(self.query_strategy, ips, option)
+    }
+
+    async fn query_entry(&self, entry: &ServerEntry, clean: &str, option: &IPOption) -> Option<Vec<IpAddr>> {
+        let ips = entry.ns.query_ip(clean).await.ok()?;
+        if ips.is_empty() {
+            return None;
+        }
+        let strategy = entry.query_strategy.unwrap_or(self.query_strategy);
+        let mut filtered = Self::filter_ips_with_strategy(strategy, &ips, option);
+        if !entry.expect_ip_matchers.is_empty() {
+            filtered.retain(|ip| entry.expect_ip_matchers.iter().any(|m| m.matches(ip)));
+        }
+        if filtered.is_empty() {
+            return None;
+        }
+        if !self.disable_cache && !entry.is_fakedns {
+            self.cache
+                .set(clean, filtered.clone(), Duration::from_secs(300));
+        }
+        Some(filtered)
     }
 
     pub async fn lookup_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
@@ -161,34 +269,64 @@ impl DnsClient {
         }
 
         // 2. Cache
-        if let Some(ips) = self.cache.get(clean) {
+        if !self.disable_cache
+            && let Some(ips) = self.cache.get(clean)
+        {
             let filtered = self.filter_ips(&ips, &option);
             if !filtered.is_empty() {
                 return Ok((filtered, 300));
             }
         }
 
-        // 3. Upstream NameServers
-        for ns in &self.nameservers {
-            if let Ok(ips) = ns.query_ip(clean).await
-                && !ips.is_empty()
+        // 3. Domain-matched NameServers (prioritized)
+        let mut tried = vec![false; self.entries.len()];
+        let mut any_domain_matched = false;
+        let mut local_tried = false;
+
+        for (idx, entry) in self.entries.iter().enumerate() {
+            if !entry.domain_matchers.is_empty()
+                && entry.domain_matchers.iter().any(|m| m.matches(clean))
             {
-                self.cache.set(clean, ips.clone(), Duration::from_secs(300));
-                let filtered = self.filter_ips(&ips, &option);
-                if !filtered.is_empty() {
-                    return Ok((filtered, 300));
+                any_domain_matched = true;
+                tried[idx] = true;
+                if entry.is_local {
+                    local_tried = true;
+                }
+                if let Some(ips) = self.query_entry(entry, clean, &option).await {
+                    return Ok((ips, 300));
                 }
             }
         }
 
-        // 4. Local resolution fallback
-        if let Ok(ips) = LocalNameServer::new().query_ip(clean).await
-            && !ips.is_empty()
-        {
-            self.cache.set(clean, ips.clone(), Duration::from_secs(300));
-            let filtered = self.filter_ips(&ips, &option);
-            if !filtered.is_empty() {
-                return Ok((filtered, 300));
+        // 4. Fallback NameServers (unless disabled by config)
+        let block_fallback =
+            self.disable_fallback || (self.disable_fallback_if_match && any_domain_matched);
+        if !block_fallback {
+            for (idx, entry) in self.entries.iter().enumerate() {
+                if tried[idx] || entry.skip_fallback {
+                    continue;
+                }
+                if entry.is_local {
+                    local_tried = true;
+                }
+                if let Some(ips) = self.query_entry(entry, clean, &option).await {
+                    return Ok((ips, 300));
+                }
+            }
+
+            // 5. System local resolution fallback
+            if !local_tried
+                && let Ok(ips) = LocalNameServer::new().query_ip(clean).await
+                && !ips.is_empty()
+            {
+                let filtered = self.filter_ips(&ips, &option);
+                if !filtered.is_empty() {
+                    if !self.disable_cache {
+                        self.cache
+                            .set(clean, filtered.clone(), Duration::from_secs(300));
+                    }
+                    return Ok((filtered, 300));
+                }
             }
         }
 
