@@ -46,7 +46,17 @@ impl DispatcherBuilder {
         tag: impl Into<String>,
         outbound: Arc<dyn OutboundHandler>,
     ) -> Self {
-        self.outbounds.insert(tag.into(), outbound);
+        let tag_str = tag.into();
+        let pooled: Arc<dyn OutboundHandler> = Arc::new(
+            crate::app::pingora_bridge::PingoraPooledOutbound::new(
+                tag_str.clone(),
+                vec![outbound],
+                None,
+                128,
+                std::time::Duration::from_secs(60),
+            ),
+        );
+        self.outbounds.insert(tag_str, pooled);
         self
     }
 

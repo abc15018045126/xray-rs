@@ -4,11 +4,13 @@ pub mod uot;
 #[cfg(test)]
 pub mod handler_test;
 
+use crate::app::pingora_bridge::PingoraPooledOutbound;
 use crate::common::errors::{Error, Result};
 use crate::features::outbound::{HandlerSelector, OutboundHandler, OutboundManager};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 pub use handler::DefaultOutboundHandler;
@@ -124,16 +126,23 @@ impl OutboundManager for DefaultOutboundManager {
 
     async fn add_handler(&self, handler: Arc<dyn OutboundHandler>) -> Result<()> {
         let tag = handler.tag().to_string();
+        let pooled: Arc<dyn OutboundHandler> = Arc::new(PingoraPooledOutbound::new(
+            tag.clone(),
+            vec![handler],
+            None,
+            128,
+            Duration::from_secs(60),
+        ));
         if tag.is_empty() {
             let mut untagged = self.untagged_handlers.write().await;
-            untagged.push(handler);
+            untagged.push(pooled);
         } else {
             let mut order = self.tagged_order.write().await;
             if !order.contains(&tag) {
                 order.push(tag.clone());
             }
             let mut tagged = self.tagged_handlers.write().await;
-            tagged.insert(tag, handler);
+            tagged.insert(tag, pooled);
         }
         Ok(())
     }
