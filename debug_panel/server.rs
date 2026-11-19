@@ -391,23 +391,7 @@ async fn route(
         }
 
         ("GET", "/") => {
-            let html = r#"<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>xray-rs Debug Panel</title>
-<style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;padding:24px;line-height:1.6}
-a{color:#38bdf8}code{background:#1e293b;padding:2px 6px;border-radius:4px}</style></head>
-<body>
-<h1>xray-rs Debug Panel (debug_assertions only)</h1>
-<p>Dioxus 桌面面板启动命令: <code>cargo run --manifest-path debug_panel/dioxus_app/Cargo.toml</code></p>
-<h2>极简 AI 接口</h2>
-<ul>
-<li><a href="/ai">/ai</a> - 接口说明</li>
-<li><a href="/ai/summary">/ai/summary</a> (或 <a href="/ai/summary?format=text">/ai/summary?format=text</a>) - 一键汇总</li>
-<li><a href="/ai/sites">/ai/sites</a> - 各网站连接数 / 复用数 / ms / 流量特征</li>
-<li><a href="/ai/resources">/ai/resources</a> - CPU% &amp; 内存 MB</li>
-<li><a href="/ai/bypass">/ai/bypass</a> - 直连内核不代理开关 (<code>?on=1</code> / <code>?off=1</code>)</li>
-<li><a href="/ai/probe?target=www.cloudflare.com">/ai/probe?target=www.cloudflare.com</a> - 直连探测正常流量特征</li>
-</ul>
-</body></html>"#;
+            let html = include_str!("dashboard.html");
             ("200 OK", "text/html; charset=utf-8", html.as_bytes().to_vec())
         }
 
