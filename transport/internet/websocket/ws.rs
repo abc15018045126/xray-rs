@@ -4,6 +4,7 @@
 use base64::Engine;
 use futures::{SinkExt, StreamExt};
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
@@ -125,13 +126,95 @@ impl WebSocketStream {
         if let Some(ed) = early_data
             && !ed.is_empty()
         {
+            // Official Xray-core / CF Worker servers accept Early Data in `Sec-WebSocket-Protocol`
+            // and reply `101 Switching Protocols` WITHOUT echoing `Sec-WebSocket-Protocol`.
+            // `tokio_tungstenite::client_async` strictly rejects that with
+            // `SubProtocol error: Server sent no subprotocol`, so perform the RFC 6455
+            // HTTP/1.1 Upgrade manually and wrap via `from_raw_socket`.
+            let path_and_query = req
+                .uri()
+                .path_and_query()
+                .map(|pq| pq.as_str())
+                .unwrap_or("/");
+            let host_val = req
+                .headers()
+                .get(tokio_tungstenite::tungstenite::http::header::HOST)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("localhost");
+            let ws_key = req
+                .headers()
+                .get(tokio_tungstenite::tungstenite::http::header::SEC_WEBSOCKET_KEY)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("dGhlIHNhbXBsZSBub25jZQ==");
             let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(ed);
-            if let Ok(val) = encoded.parse() {
-                req.headers_mut().insert(
-                    tokio_tungstenite::tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL,
-                    val,
-                );
+
+            let upgrade_req = format!(
+                "GET {} HTTP/1.1\r\nHost: {}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {}\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: {}\r\n\r\n",
+                path_and_query, host_val, ws_key, encoded
+            );
+
+            let mut stream = stream;
+            stream
+                .write_all(upgrade_req.as_bytes())
+                .await
+                .map_err(|e| Error::Protocol(format!("WebSocket early-data write failed: {}", e)))?;
+            stream
+                .flush()
+                .await
+                .map_err(|e| Error::Protocol(format!("WebSocket early-data flush failed: {}", e)))?;
+
+            let mut resp_buf = Vec::with_capacity(1024);
+            let mut tmp = [0u8; 512];
+            let hdr_end = loop {
+                let n = stream.read(&mut tmp).await.map_err(|e| {
+                    Error::Protocol(format!("WebSocket early-data read failed: {}", e))
+                })?;
+                if n == 0 {
+                    return Err(Error::Protocol(
+                        "WebSocket early-data handshake EOF before 101".into(),
+                    ));
+                }
+                resp_buf.extend_from_slice(&tmp[..n]);
+                if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    break pos + 4;
+                }
+                if resp_buf.len() > 16384 {
+                    return Err(Error::Protocol(
+                        "WebSocket early-data response header too large".into(),
+                    ));
+                }
+            };
+
+            let status_line = String::from_utf8_lossy(&resp_buf[..hdr_end])
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string();
+            if !status_line.contains(" 101 ") && !status_line.ends_with(" 101") {
+                return Err(Error::Protocol(format!(
+                    "WebSocket early-data handshake rejected: {}",
+                    status_line
+                )));
             }
+
+            let leftover = resp_buf[hdr_end..].to_vec();
+            let raw_stream: BoxStream = if leftover.is_empty() {
+                stream
+            } else {
+                Box::pin(PrefixedStream {
+                    prefix: leftover,
+                    offset: 0,
+                    inner: stream,
+                })
+            };
+
+            let ws_stream = tokio_tungstenite::WebSocketStream::from_raw_socket(
+                raw_stream,
+                tokio_tungstenite::tungstenite::protocol::Role::Client,
+                None,
+            )
+            .await;
+            return Ok(bridge_ws_stream(ws_stream, heartbeat_period));
         }
 
         let (ws_stream, _) = client_async(req, stream)
@@ -147,6 +230,53 @@ impl WebSocketStream {
             .map_err(|e| Error::Protocol(format!("WebSocket server accept failed: {}", e)))?;
 
         Ok(bridge_ws_stream(ws_stream, 0))
+    }
+}
+
+pub struct PrefixedStream {
+    prefix: Vec<u8>,
+    offset: usize,
+    inner: BoxStream,
+}
+
+impl tokio::io::AsyncRead for PrefixedStream {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        if self.offset < self.prefix.len() {
+            let rem = &self.prefix[self.offset..];
+            let to_copy = rem.len().min(buf.remaining());
+            buf.put_slice(&rem[..to_copy]);
+            self.offset += to_copy;
+            return std::task::Poll::Ready(Ok(()));
+        }
+        std::pin::Pin::new(&mut self.inner).poll_read(cx, buf)
+    }
+}
+
+impl tokio::io::AsyncWrite for PrefixedStream {
+    fn poll_write(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::pin::Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::pin::Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 }
 
