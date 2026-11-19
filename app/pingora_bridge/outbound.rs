@@ -40,12 +40,12 @@ impl PingoraPooledOutbound {
         &self.pool
     }
 
-    fn pick_upstream_index(&self) -> usize {
+    fn pick_upstream_index(&self, key: &[u8]) -> usize {
         if self.upstreams.len() <= 1 {
             return 0;
         }
         if let Some(lb) = &self.balancer
-            && let Some(idx) = lb.select_index()
+            && let Some(idx) = lb.select_index_for_key(key)
             && idx < self.upstreams.len()
         {
             return idx;
@@ -78,7 +78,11 @@ impl OutboundHandler for PingoraPooledOutbound {
             )));
         }
 
-        let start = self.pick_upstream_index();
+        let target_key = session
+            .sniffed_domain
+            .clone()
+            .unwrap_or_else(|| session.destination.address.to_string());
+        let start = self.pick_upstream_index(target_key.as_bytes());
         let mut last_err = None;
         for offset in 0..self.upstreams.len() {
             let idx = (start + offset) % self.upstreams.len();

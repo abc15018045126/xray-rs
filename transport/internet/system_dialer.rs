@@ -165,23 +165,7 @@ impl SystemDialerTrait for DefaultSystemDialer {
             }
         }
 
-        #[cfg(target_os = "windows")]
-        {
-            let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let stream =
-                crate::proxy::tun::socket_helpers::new_tcp_stream(target_addr, iface.as_ref())
-                    .await
-                    .map_err(Error::Io)?;
-            let _ = stream.set_nodelay(true);
-            return Ok(Box::pin(stream));
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            let stream = TcpStream::connect(target_addr).await.map_err(Error::Io)?;
-            let _ = stream.set_nodelay(true);
-            Ok(Box::pin(stream))
-        }
+        crate::app::pingora_bridge::PingoraCoreConnector::dial_tcp(target_addr).await
     }
 
     fn dest_ip_address(&self) -> Option<IpAddr> {

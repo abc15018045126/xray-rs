@@ -40,11 +40,18 @@ impl PingClient {
             format!("{}:80", host)
         };
 
-        let conn_res =
-            tokio::time::timeout(self.timeout, tokio::net::TcpStream::connect(&target_addr)).await;
+        let dest = match target_addr.parse::<crate::common::net::Destination>() {
+            Ok(d) => d,
+            Err(e) => return (RTT_FAILED, Err(e)),
+        };
+        let conn_res = pingora_timeout::timeout(
+            self.timeout,
+            crate::transport::internet::TcpDialer::dial(&dest),
+        )
+        .await;
         match conn_res {
             Ok(Ok(_stream)) => (start.elapsed(), Ok(())),
-            Ok(Err(e)) => (RTT_FAILED, Err(Error::Io(e))),
+            Ok(Err(e)) => (RTT_FAILED, Err(e)),
             Err(_) => (RTT_FAILED, Err(Error::Timeout)),
         }
     }

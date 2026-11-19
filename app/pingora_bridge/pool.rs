@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pingora_load_balancing::selection::RoundRobin;
+use pingora_load_balancing::selection::consistent::KetamaHashing;
 use pingora_load_balancing::{Backend, Backends, LoadBalancer, discovery};
 use pingora_pool::{ConnectionMeta, ConnectionPool};
 
@@ -52,16 +53,21 @@ impl PingoraStreamPool {
     }
 }
 
-/// Cloudflare `pingora-load-balancing` wrapper for multi-upstream RoundRobin + health failover
-/// (e.g. balancing across multiple Worker endpoints `a1`..`a4` or multiple VLESS `vnext` targets).
+enum BalancerInner {
+    RoundRobin(LoadBalancer<RoundRobin>),
+    Ketama(LoadBalancer<KetamaHashing>),
+}
+
+/// Cloudflare `pingora-load-balancing` wrapper supporting both `RoundRobin` and
+/// `pingora-ketama` consistent hashing (so the same target domain sticks to the same
+/// Worker / upstream node without IP hopping, while automatically failing over on errors).
 pub struct PingoraUpstreamBalancer {
-    lb: LoadBalancer<RoundRobin>,
+    inner: BalancerInner,
     labels: Vec<String>,
 }
 
 impl PingoraUpstreamBalancer {
-    /// Builds a `RoundRobin` load balancer from `SocketAddr` endpoints.
-    pub fn from_addrs(addrs: &[SocketAddr]) -> Result<Self> {
+    fn build_backends_from_addrs(addrs: &[SocketAddr]) -> Result<(Backends, Vec<String>)> {
         let mut set = BTreeSet::new();
         let mut labels = Vec::with_capacity(addrs.len());
         for addr in addrs {
@@ -71,14 +77,10 @@ impl PingoraUpstreamBalancer {
             })?);
             labels.push(s);
         }
-        let backends = Backends::new(discovery::Static::new(set));
-        let lb = LoadBalancer::from_backends(backends);
-        let _ = futures::executor::block_on(lb.update());
-        Ok(Self { lb, labels })
+        Ok((Backends::new(discovery::Static::new(set)), labels))
     }
 
-    /// Builds a `RoundRobin` load balancer for `count` arbitrary upstreams (supports both domains & IPs).
-    pub fn from_labels(labels: Vec<String>) -> Result<Self> {
+    fn build_backends_from_labels(labels: Vec<String>) -> Result<(Backends, Vec<String>)> {
         let mut set = BTreeSet::new();
         for (idx, _label) in labels.iter().enumerate() {
             let synthetic = format!("127.0.0.1:{}", 10000 + (idx % 50000));
@@ -86,20 +88,64 @@ impl PingoraUpstreamBalancer {
                 Error::Config(format!("Invalid synthetic backend {}: {}", synthetic, e))
             })?);
         }
-        let backends = Backends::new(discovery::Static::new(set));
-        let lb = LoadBalancer::from_backends(backends);
+        Ok((Backends::new(discovery::Static::new(set)), labels))
+    }
+
+    /// Builds a `RoundRobin` load balancer from `SocketAddr` endpoints.
+    pub fn from_addrs(addrs: &[SocketAddr]) -> Result<Self> {
+        let (backends, labels) = Self::build_backends_from_addrs(addrs)?;
+        let lb = LoadBalancer::<RoundRobin>::from_backends(backends);
         let _ = futures::executor::block_on(lb.update());
-        Ok(Self { lb, labels })
+        Ok(Self {
+            inner: BalancerInner::RoundRobin(lb),
+            labels,
+        })
     }
 
-    /// Selects the next healthy backend using Pingora's `RoundRobin` algorithm.
+    /// Builds a `RoundRobin` load balancer for arbitrary upstreams (supports both domains & IPs).
+    pub fn from_labels(labels: Vec<String>) -> Result<Self> {
+        let (backends, labels) = Self::build_backends_from_labels(labels)?;
+        let lb = LoadBalancer::<RoundRobin>::from_backends(backends);
+        let _ = futures::executor::block_on(lb.update());
+        Ok(Self {
+            inner: BalancerInner::RoundRobin(lb),
+            labels,
+        })
+    }
+
+    /// Builds a `pingora-ketama` consistent-hashing load balancer so identical target domains
+    /// stick to the same upstream node (preventing session/IP hopping across Worker endpoints).
+    pub fn from_labels_ketama(labels: Vec<String>) -> Result<Self> {
+        let (backends, labels) = Self::build_backends_from_labels(labels)?;
+        let lb = LoadBalancer::<KetamaHashing>::from_backends(backends);
+        let _ = futures::executor::block_on(lb.update());
+        Ok(Self {
+            inner: BalancerInner::Ketama(lb),
+            labels,
+        })
+    }
+
+    /// Selects the next healthy backend using an empty key.
     pub fn select(&self) -> Option<Backend> {
-        self.lb.select(b"", 256)
+        self.select_with_key(b"")
     }
 
-    /// Selects the next upstream index (`0..labels.len()`) via Pingora `RoundRobin`.
+    /// Selects a healthy backend using `key` (used by Ketama consistent hashing).
+    pub fn select_with_key(&self, key: &[u8]) -> Option<Backend> {
+        match &self.inner {
+            BalancerInner::RoundRobin(lb) => lb.select(key, 256),
+            BalancerInner::Ketama(lb) => lb.select(key, 256),
+        }
+    }
+
+    /// Selects the next upstream index (`0..labels.len()`) using an empty key.
     pub fn select_index(&self) -> Option<usize> {
-        let backend = self.lb.select(b"", 256)?;
+        self.select_index_for_key(b"")
+    }
+
+    /// Selects the upstream index (`0..labels.len()`) for `key` (e.g. target domain bytes).
+    pub fn select_index_for_key(&self, key: &[u8]) -> Option<usize> {
+        let backend = self.select_with_key(key)?;
         let addr_str = backend.addr.to_string();
         if let Some(pos) = self.labels.iter().position(|l| l == &addr_str) {
             return Some(pos);

@@ -39,6 +39,17 @@ mod tests {
         let b1 = lb.select().expect("first backend");
         let b2 = lb.select().expect("second backend");
         assert_ne!(b1.addr, b2.addr, "RoundRobin should alternate backends");
+
+        // Verify pingora-ketama consistent hashing sticks identical domains to the same upstream
+        let ketama = PingoraUpstreamBalancer::from_labels_ketama(vec![
+            "worker-a1.dev:443".into(),
+            "worker-a2.dev:443".into(),
+            "worker-a3.dev:443".into(),
+        ])
+        .expect("Ketama LB init");
+        let k1 = ketama.select_index_for_key(b"www.google.com").unwrap();
+        let k2 = ketama.select_index_for_key(b"www.google.com").unwrap();
+        assert_eq!(k1, k2, "Ketama consistent hashing should stick same domain");
     }
 
     #[tokio::test]

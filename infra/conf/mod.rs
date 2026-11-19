@@ -338,6 +338,26 @@ fn parse_fragment_config(
     None
 }
 
+fn wrap_pingora_multi_outbound(
+    tag: &str,
+    handlers: Vec<Arc<dyn OutboundHandler>>,
+    labels: Vec<String>,
+) -> Result<Arc<dyn OutboundHandler>> {
+    if handlers.len() == 1 {
+        return Ok(handlers.into_iter().next().unwrap());
+    }
+    let lb = Arc::new(
+        crate::app::pingora_bridge::PingoraUpstreamBalancer::from_labels_ketama(labels)?,
+    );
+    Ok(Arc::new(crate::app::pingora_bridge::PingoraPooledOutbound::new(
+        tag,
+        handlers,
+        Some(lb),
+        32,
+        std::time::Duration::from_secs(60),
+    )))
+}
+
 pub struct BuiltConfig {
     pub inbounds: Vec<(SocketAddr, Arc<dyn InboundHandler>)>,
     pub tun_devices: Vec<Arc<p::tun::WindowsTunDevice>>,
@@ -514,68 +534,68 @@ impl Config {
                         vless_handlers.push(Arc::new(client));
                     }
 
-                    if vless_handlers.len() == 1 {
-                        vless_handlers.into_iter().next().unwrap()
-                    } else {
-                        let lb = Arc::new(
-                            crate::app::pingora_bridge::PingoraUpstreamBalancer::from_labels(
-                                lb_labels,
-                            )?,
-                        );
-                        Arc::new(crate::app::pingora_bridge::PingoraPooledOutbound::new(
-                            &tag,
-                            vless_handlers,
-                            Some(lb),
-                            32,
-                            std::time::Duration::from_secs(60),
-                        ))
-                    }
+                    wrap_pingora_multi_outbound(&tag, vless_handlers, lb_labels)?
                 }
                 "trojan" => {
                     let settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid Trojan outbound settings: {}", e)),
                         )?;
-                    let server = settings
-                        .servers
-                        .first()
-                        .ok_or_else(|| Error::Config("Trojan servers list is empty".into()))?;
-                    let password = server.password.clone().unwrap_or_default();
-                    let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
-                    let port_val = server.port.unwrap_or(443);
-                    let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                    if settings.servers.is_empty() {
+                        return Err(Error::Config("Trojan servers list is empty".into()));
+                    }
+                    let stream_settings = out_cfg.stream_settings;
+                    let mut handlers: Vec<Arc<dyn OutboundHandler>> =
+                        Vec::with_capacity(settings.servers.len());
+                    let mut labels = Vec::with_capacity(settings.servers.len());
 
-                    let mut tls_client = None;
-                    let mut tls_sni = None;
+                    for (idx, server) in settings.servers.iter().enumerate() {
+                        let password = server.password.clone().unwrap_or_default();
+                        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
+                        let port_val = server.port.unwrap_or(443);
+                        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                        let sub_tag = if settings.servers.len() == 1 {
+                            tag.clone()
+                        } else {
+                            format!("{}#{}", tag, idx)
+                        };
+                        labels.push(format!("{}:{}", addr_str, port_val));
 
-                    if let Some(stream_settings) = out_cfg.stream_settings
-                        && stream_settings.security.as_deref() == Some("tls")
-                    {
-                        let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
-                        let sni = tls_cfg
-                            .server_name
-                            .clone()
-                            .unwrap_or_else(|| addr_str.to_string());
-                        let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                        let alpn = tls_cfg
-                            .alpn
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|s| s.into_bytes())
-                            .collect();
-                        let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
-                        tls_client = Some(TlsClient::new_with_fingerprint(
-                            &sni,
-                            allow_insecure,
-                            alpn,
-                            fp,
-                        )?);
-                        tls_sni = Some(sni);
+                        let mut tls_client = None;
+                        let mut tls_sni = None;
+
+                        if let Some(ref stream_settings) = stream_settings
+                            && stream_settings.security.as_deref() == Some("tls")
+                        {
+                            let tls_cfg =
+                                stream_settings.tls_settings.clone().unwrap_or_default();
+                            let sni = tls_cfg
+                                .server_name
+                                .clone()
+                                .unwrap_or_else(|| addr_str.to_string());
+                            let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
+                            let alpn = tls_cfg
+                                .alpn
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|s| s.into_bytes())
+                                .collect();
+                            let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
+                            tls_client = Some(TlsClient::new_with_fingerprint(
+                                &sni,
+                                allow_insecure,
+                                alpn,
+                                fp,
+                            )?);
+                            tls_sni = Some(sni);
+                        }
+
+                        handlers.push(Arc::new(p::trojan::OutboundClient::new(
+                            &sub_tag, dest, password, tls_client, tls_sni,
+                        )));
                     }
 
-                    Arc::new(p::trojan::OutboundClient::new(
-                        &tag, dest, password, tls_client, tls_sni,
-                    ))
+                    wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "shadowsocks" => {
                     let settings: MultiServerSettings = serde_json::from_value(
@@ -584,88 +604,129 @@ impl Config {
                     .map_err(|e| {
                         Error::Config(format!("Invalid Shadowsocks outbound settings: {}", e))
                     })?;
-                    let server = settings
-                        .servers
-                        .first()
-                        .ok_or_else(|| Error::Config("Shadowsocks servers list is empty".into()))?;
-                    let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
-                    let port_val = server.port.unwrap_or(8388);
-                    let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
-                    let password = server.password.clone().unwrap_or_default();
-                    let method = server
-                        .method
-                        .clone()
-                        .unwrap_or_else(|| "aes-256-gcm".into());
+                    if settings.servers.is_empty() {
+                        return Err(Error::Config("Shadowsocks servers list is empty".into()));
+                    }
+                    let mut handlers: Vec<Arc<dyn OutboundHandler>> =
+                        Vec::with_capacity(settings.servers.len());
+                    let mut labels = Vec::with_capacity(settings.servers.len());
 
-                    Arc::new(p::shadowsocks::OutboundClient::new(
-                        &tag, dest, method, password,
-                    ))
+                    for (idx, server) in settings.servers.iter().enumerate() {
+                        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
+                        let port_val = server.port.unwrap_or(8388);
+                        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                        let password = server.password.clone().unwrap_or_default();
+                        let method = server
+                            .method
+                            .clone()
+                            .unwrap_or_else(|| "aes-256-gcm".into());
+                        let sub_tag = if settings.servers.len() == 1 {
+                            tag.clone()
+                        } else {
+                            format!("{}#{}", tag, idx)
+                        };
+                        labels.push(format!("{}:{}", addr_str, port_val));
+
+                        handlers.push(Arc::new(p::shadowsocks::OutboundClient::new(
+                            &sub_tag, dest, method, password,
+                        )));
+                    }
+
+                    wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "vmess" => {
                     let settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid VMess outbound settings: {}", e)),
                         )?;
-                    let server = settings
-                        .vnext
-                        .first()
-                        .ok_or_else(|| Error::Config("VMess vnext is empty".into()))?;
-                    let user = server
-                        .users
-                        .first()
-                        .ok_or_else(|| Error::Config("VMess users is empty".into()))?;
-                    let user_uuid = Uuid::from_str(&user.id)
-                        .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
-                    let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
-                    let port_val = server.port.unwrap_or(443);
-                    let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                    if settings.vnext.is_empty() {
+                        return Err(Error::Config("VMess vnext is empty".into()));
+                    }
+                    let stream_settings = out_cfg.stream_settings;
+                    let mut handlers: Vec<Arc<dyn OutboundHandler>> =
+                        Vec::with_capacity(settings.vnext.len());
+                    let mut labels = Vec::with_capacity(settings.vnext.len());
 
-                    let mut tls_client = None;
-                    let mut tls_sni = None;
+                    for (idx, server) in settings.vnext.iter().enumerate() {
+                        let user = server
+                            .users
+                            .first()
+                            .ok_or_else(|| Error::Config("VMess users is empty".into()))?;
+                        let user_uuid = Uuid::from_str(&user.id)
+                            .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
+                        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
+                        let port_val = server.port.unwrap_or(443);
+                        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                        let sub_tag = if settings.vnext.len() == 1 {
+                            tag.clone()
+                        } else {
+                            format!("{}#{}", tag, idx)
+                        };
+                        labels.push(format!("{}:{}", addr_str, port_val));
 
-                    if let Some(stream_settings) = out_cfg.stream_settings
-                        && stream_settings.security.as_deref() == Some("tls")
-                    {
-                        let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
-                        let sni = tls_cfg
-                            .server_name
-                            .clone()
-                            .unwrap_or_else(|| addr_str.to_string());
-                        let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                        let alpn = tls_cfg
-                            .alpn
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|s| s.into_bytes())
-                            .collect();
-                        let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
-                        tls_client = Some(TlsClient::new_with_fingerprint(
-                            &sni,
-                            allow_insecure,
-                            alpn,
-                            fp,
-                        )?);
-                        tls_sni = Some(sni);
+                        let mut tls_client = None;
+                        let mut tls_sni = None;
+
+                        if let Some(ref stream_settings) = stream_settings
+                            && stream_settings.security.as_deref() == Some("tls")
+                        {
+                            let tls_cfg =
+                                stream_settings.tls_settings.clone().unwrap_or_default();
+                            let sni = tls_cfg
+                                .server_name
+                                .clone()
+                                .unwrap_or_else(|| addr_str.to_string());
+                            let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
+                            let alpn = tls_cfg
+                                .alpn
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|s| s.into_bytes())
+                                .collect();
+                            let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
+                            tls_client = Some(TlsClient::new_with_fingerprint(
+                                &sni,
+                                allow_insecure,
+                                alpn,
+                                fp,
+                            )?);
+                            tls_sni = Some(sni);
+                        }
+
+                        handlers.push(Arc::new(p::vmess::OutboundClient::new(
+                            &sub_tag, dest, user_uuid, tls_client, tls_sni,
+                        )));
                     }
 
-                    Arc::new(p::vmess::OutboundClient::new(
-                        &tag, dest, user_uuid, tls_client, tls_sni,
-                    ))
+                    wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "socks" => {
                     let settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid SOCKS outbound settings: {}", e)),
                         )?;
-                    let server = settings
-                        .servers
-                        .first()
-                        .ok_or_else(|| Error::Config("SOCKS servers list is empty".into()))?;
-                    let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
-                    let port_val = server.port.unwrap_or(1080);
-                    let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                    if settings.servers.is_empty() {
+                        return Err(Error::Config("SOCKS servers list is empty".into()));
+                    }
+                    let mut handlers: Vec<Arc<dyn OutboundHandler>> =
+                        Vec::with_capacity(settings.servers.len());
+                    let mut labels = Vec::with_capacity(settings.servers.len());
 
-                    Arc::new(p::socks::Client::new(&tag, dest))
+                    for (idx, server) in settings.servers.iter().enumerate() {
+                        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
+                        let port_val = server.port.unwrap_or(1080);
+                        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                        let sub_tag = if settings.servers.len() == 1 {
+                            tag.clone()
+                        } else {
+                            format!("{}#{}", tag, idx)
+                        };
+                        labels.push(format!("{}:{}", addr_str, port_val));
+
+                        handlers.push(Arc::new(p::socks::Client::new(&sub_tag, dest)));
+                    }
+
+                    wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "dns" => Arc::new(p::DnsOutbound::new(tag.clone(), dns_client.clone())),
                 other => {
