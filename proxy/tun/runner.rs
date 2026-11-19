@@ -131,6 +131,9 @@ impl TunRunner {
                             Ok(stream) => {
                                 match stream {
                                     IpStackStream::Tcp(tcp) => {
+                                        if should_drop_tun_addr(tcp.local_addr().ip(), tcp.peer_addr().ip()) {
+                                            continue;
+                                        }
                                         let dest = Destination {
                                             network: Network::Tcp,
                                             address: Address::ip(tcp.peer_addr().ip()),
@@ -149,6 +152,9 @@ impl TunRunner {
                                         });
                                     }
                                     IpStackStream::Udp(udp) => {
+                                        if should_drop_tun_addr(udp.local_addr().ip(), udp.peer_addr().ip()) {
+                                            continue;
+                                        }
                                         let dest = Destination {
                                             network: Network::Udp,
                                             address: Address::ip(udp.peer_addr().ip()),
@@ -184,4 +190,19 @@ impl TunRunner {
 
         Ok(handle)
     }
+}
+
+/// Aligns with official Xray-core `proxy/tun/stack.go` (`input`) and `tun_windows_wfp.go`:
+/// drop loopback, unspecified, multicast (`224.0.0.0/4`, `ff00::/8`), and broadcast (`255.255.255.255`)
+/// at TUN ingress before creating dispatcher sessions.
+fn should_drop_tun_addr(src: std::net::IpAddr, dst: std::net::IpAddr) -> bool {
+    if src.is_loopback()
+        || dst.is_loopback()
+        || dst.is_unspecified()
+        || src.is_multicast()
+        || dst.is_multicast()
+    {
+        return true;
+    }
+    matches!(dst, std::net::IpAddr::V4(v4) if v4.is_broadcast())
 }
