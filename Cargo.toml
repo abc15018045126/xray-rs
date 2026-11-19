@@ -1,6 +1,6 @@
 [package]
 name = "xray-rs"
-version = "3.0.2"
+version = "3.0.3"
 edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 description = "High-performance Rust implementation of Xray-core with XTLS Vision, Reality, and TUN support."
