@@ -383,118 +383,153 @@ impl Config {
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid VLESS outbound settings: {}", e)),
                         )?;
-                    let server = settings
-                        .vnext
-                        .first()
-                        .ok_or_else(|| Error::Config("VLESS vnext is empty".into()))?;
-                    let user = server
-                        .users
-                        .first()
-                        .ok_or_else(|| Error::Config("VLESS users is empty".into()))?;
-                    let user_uuid = Uuid::from_str(&user.id)
-                        .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
+                    if settings.vnext.is_empty() {
+                        return Err(Error::Config("VLESS vnext is empty".into()));
+                    }
 
-                    let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
-                    let port_val = server.port.unwrap_or(443);
-                    let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                    let stream_settings = out_cfg.stream_settings;
+                    let mut vless_handlers: Vec<Arc<dyn OutboundHandler>> =
+                        Vec::with_capacity(settings.vnext.len());
+                    let mut lb_labels: Vec<String> = Vec::with_capacity(settings.vnext.len());
 
-                    let mut tls_client = None;
-                    let mut tls_sni = None;
-                    let mut ws_path = None;
-                    let mut ws_host = None;
-                    let mut ws_headers = HashMap::new();
-                    let mut ws_heartbeat = 0u32;
-                    let mut fragment_cfg = None;
+                    for (v_idx, server) in settings.vnext.iter().enumerate() {
+                        let user = server
+                            .users
+                            .first()
+                            .ok_or_else(|| Error::Config("VLESS users is empty".into()))?;
+                        let user_uuid = Uuid::from_str(&user.id)
+                            .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
 
-                    if let Some(stream_settings) = out_cfg.stream_settings {
-                        if let Some(ref fm) = stream_settings.finalmask {
-                            fragment_cfg = parse_fragment_config(fm);
-                        }
+                        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
+                        let port_val = server.port.unwrap_or(443);
+                        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+                        let sub_tag = if settings.vnext.len() == 1 {
+                            tag.clone()
+                        } else {
+                            format!("{}#{}", tag, v_idx)
+                        };
+                        lb_labels.push(format!("{}:{}", addr_str, port_val));
 
-                        let is_ws = stream_settings.network.as_deref() == Some("ws")
-                            || stream_settings.ws_settings.is_some();
-                        if is_ws {
-                            let ws_cfg = stream_settings.ws_settings.as_ref();
-                            ws_heartbeat = ws_cfg.and_then(|w| w.heartbeat_period).unwrap_or(0);
-                            let raw_path = ws_cfg.and_then(|w| w.path.as_deref()).unwrap_or("/");
-                            let clean_path = if raw_path.trim().is_empty() {
-                                "/"
-                            } else {
-                                raw_path.trim()
-                            };
-                            ws_path = Some(clean_path.to_string());
+                        let mut tls_client = None;
+                        let mut tls_sni = None;
+                        let mut ws_path = None;
+                        let mut ws_host = None;
+                        let mut ws_headers = HashMap::new();
+                        let mut ws_heartbeat = 0u32;
+                        let mut fragment_cfg = None;
 
-                            if let Some(w) = ws_cfg {
-                                if let Some(h) = &w.host
-                                    && !h.trim().is_empty()
-                                {
-                                    ws_host = Some(h.trim().to_string());
-                                }
-                                if let Some(headers) = &w.headers {
-                                    ws_headers = headers.clone();
-                                    if ws_host.is_none() {
-                                        for (k, v) in headers {
-                                            if k.eq_ignore_ascii_case("host") && !v.trim().is_empty() {
-                                                ws_host = Some(v.trim().to_string());
-                                                break;
+                        if let Some(ref stream_settings) = stream_settings {
+                            if let Some(ref fm) = stream_settings.finalmask {
+                                fragment_cfg = parse_fragment_config(fm);
+                            }
+
+                            let is_ws = stream_settings.network.as_deref() == Some("ws")
+                                || stream_settings.ws_settings.is_some();
+                            if is_ws {
+                                let ws_cfg = stream_settings.ws_settings.as_ref();
+                                ws_heartbeat = ws_cfg.and_then(|w| w.heartbeat_period).unwrap_or(0);
+                                let raw_path =
+                                    ws_cfg.and_then(|w| w.path.as_deref()).unwrap_or("/");
+                                let clean_path = if raw_path.trim().is_empty() {
+                                    "/"
+                                } else {
+                                    raw_path.trim()
+                                };
+                                ws_path = Some(clean_path.to_string());
+
+                                if let Some(w) = ws_cfg {
+                                    if let Some(h) = &w.host
+                                        && !h.trim().is_empty()
+                                    {
+                                        ws_host = Some(h.trim().to_string());
+                                    }
+                                    if let Some(headers) = &w.headers {
+                                        ws_headers = headers.clone();
+                                        if ws_host.is_none() {
+                                            for (k, v) in headers {
+                                                if k.eq_ignore_ascii_case("host")
+                                                    && !v.trim().is_empty()
+                                                {
+                                                    ws_host = Some(v.trim().to_string());
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        if stream_settings.security.as_deref() == Some("tls") {
-                            let tls_cfg = stream_settings.tls_settings.unwrap_or_default();
-                            let clean_server_name =
-                                tls_cfg.server_name.filter(|s| !s.trim().is_empty());
-                            let clean_ws_host = ws_host.clone().filter(|s| !s.trim().is_empty());
-                            let sni = clean_server_name
-                                .or(clean_ws_host)
-                                .unwrap_or_else(|| addr_str.to_string());
-                            let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                            let alpn = tls_cfg
-                                .alpn
-                                .unwrap_or_default()
-                                .into_iter()
-                                .map(|s| s.into_bytes())
-                                .collect();
-                            let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
-                            tls_client = Some(TlsClient::new_with_fingerprint(
-                                &sni,
-                                allow_insecure,
-                                alpn,
-                                fp,
-                            )?);
-                            tls_sni = Some(sni.clone());
+                            if stream_settings.security.as_deref() == Some("tls") {
+                                let tls_cfg =
+                                    stream_settings.tls_settings.clone().unwrap_or_default();
+                                let clean_server_name =
+                                    tls_cfg.server_name.filter(|s| !s.trim().is_empty());
+                                let clean_ws_host =
+                                    ws_host.clone().filter(|s| !s.trim().is_empty());
+                                let sni = clean_server_name
+                                    .or(clean_ws_host)
+                                    .unwrap_or_else(|| addr_str.to_string());
+                                let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
+                                let alpn = tls_cfg
+                                    .alpn
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .map(|s| s.into_bytes())
+                                    .collect();
+                                let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
+                                tls_client = Some(TlsClient::new_with_fingerprint(
+                                    &sni,
+                                    allow_insecure,
+                                    alpn,
+                                    fp,
+                                )?);
+                                tls_sni = Some(sni.clone());
 
-                            if ws_host.is_none() {
-                                ws_host = Some(sni);
+                                if ws_host.is_none() {
+                                    ws_host = Some(sni);
+                                }
+                            }
+
+                            if is_ws && ws_host.is_none() {
+                                ws_host = tls_sni.clone().or_else(|| Some(addr_str.to_string()));
                             }
                         }
 
-                        if is_ws && ws_host.is_none() {
-                            ws_host = tls_sni.clone().or_else(|| Some(addr_str.to_string()));
+                        let mut client = p::vless::OutboundClient::new(
+                            &sub_tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
+                        )
+                        .with_ws_headers(ws_headers)
+                        .with_ws_heartbeat(ws_heartbeat);
+                        if let Some(ref flow) = user.flow
+                            && !flow.is_empty()
+                        {
+                            client = client.with_flow(flow.clone());
                         }
+                        if user.testpre > 0 {
+                            client = client.with_testpre(user.testpre);
+                        }
+                        if let Some(f_cfg) = fragment_cfg {
+                            client = client.with_fragment(f_cfg);
+                        }
+                        vless_handlers.push(Arc::new(client));
                     }
 
-                    let mut client = p::vless::OutboundClient::new(
-                        &tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
-                    )
-                    .with_ws_headers(ws_headers)
-                    .with_ws_heartbeat(ws_heartbeat);
-                    if let Some(ref flow) = user.flow
-                        && !flow.is_empty()
-                    {
-                        client = client.with_flow(flow.clone());
+                    if vless_handlers.len() == 1 {
+                        vless_handlers.into_iter().next().unwrap()
+                    } else {
+                        let lb = Arc::new(
+                            crate::app::pingora_bridge::PingoraUpstreamBalancer::from_labels(
+                                lb_labels,
+                            )?,
+                        );
+                        Arc::new(crate::app::pingora_bridge::PingoraPooledOutbound::new(
+                            &tag,
+                            vless_handlers,
+                            Some(lb),
+                            32,
+                            std::time::Duration::from_secs(60),
+                        ))
                     }
-                    if user.testpre > 0 {
-                        client = client.with_testpre(user.testpre);
-                    }
-                    if let Some(f_cfg) = fragment_cfg {
-                        client = client.with_fragment(f_cfg);
-                    }
-                    Arc::new(client)
                 }
                 "trojan" => {
                     let settings: MultiServerSettings =

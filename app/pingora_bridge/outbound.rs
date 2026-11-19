@@ -45,14 +45,10 @@ impl PingoraPooledOutbound {
             return 0;
         }
         if let Some(lb) = &self.balancer
-            && let Some(backend) = lb.select()
+            && let Some(idx) = lb.select_index()
+            && idx < self.upstreams.len()
         {
-            let addr_str = backend.addr.to_string();
-            for (idx, h) in self.upstreams.iter().enumerate() {
-                if h.tag().contains(&addr_str) {
-                    return idx;
-                }
-            }
+            return idx;
         }
         0
     }

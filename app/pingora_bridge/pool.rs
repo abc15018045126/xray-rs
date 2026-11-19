@@ -46,36 +46,74 @@ impl PingoraStreamPool {
         tokio::spawn(async move {
             tokio::select! {
                 _ = eviction_fut => {}
-                _ = tokio::time::sleep(timeout) => {}
+                _ = pingora_timeout::sleep(timeout) => {}
             }
         });
     }
 }
 
 /// Cloudflare `pingora-load-balancing` wrapper for multi-upstream RoundRobin + health failover
-/// (e.g. balancing across multiple Worker endpoints `a1`..`a4`).
+/// (e.g. balancing across multiple Worker endpoints `a1`..`a4` or multiple VLESS `vnext` targets).
 pub struct PingoraUpstreamBalancer {
     lb: LoadBalancer<RoundRobin>,
+    labels: Vec<String>,
 }
 
 impl PingoraUpstreamBalancer {
     /// Builds a `RoundRobin` load balancer from `SocketAddr` endpoints.
     pub fn from_addrs(addrs: &[SocketAddr]) -> Result<Self> {
         let mut set = BTreeSet::new();
+        let mut labels = Vec::with_capacity(addrs.len());
         for addr in addrs {
-            set.insert(Backend::new(&addr.to_string()).map_err(|e| {
+            let s = addr.to_string();
+            set.insert(Backend::new(&s).map_err(|e| {
                 Error::Config(format!("Invalid backend address {}: {}", addr, e))
+            })?);
+            labels.push(s);
+        }
+        let backends = Backends::new(discovery::Static::new(set));
+        let lb = LoadBalancer::from_backends(backends);
+        let _ = futures::executor::block_on(lb.update());
+        Ok(Self { lb, labels })
+    }
+
+    /// Builds a `RoundRobin` load balancer for `count` arbitrary upstreams (supports both domains & IPs).
+    pub fn from_labels(labels: Vec<String>) -> Result<Self> {
+        let mut set = BTreeSet::new();
+        for (idx, _label) in labels.iter().enumerate() {
+            let synthetic = format!("127.0.0.1:{}", 10000 + (idx % 50000));
+            set.insert(Backend::new(&synthetic).map_err(|e| {
+                Error::Config(format!("Invalid synthetic backend {}: {}", synthetic, e))
             })?);
         }
         let backends = Backends::new(discovery::Static::new(set));
         let lb = LoadBalancer::from_backends(backends);
-        // Populate initial backend selection table synchronously
         let _ = futures::executor::block_on(lb.update());
-        Ok(Self { lb })
+        Ok(Self { lb, labels })
     }
 
     /// Selects the next healthy backend using Pingora's `RoundRobin` algorithm.
     pub fn select(&self) -> Option<Backend> {
         self.lb.select(b"", 256)
+    }
+
+    /// Selects the next upstream index (`0..labels.len()`) via Pingora `RoundRobin`.
+    pub fn select_index(&self) -> Option<usize> {
+        let backend = self.lb.select(b"", 256)?;
+        let addr_str = backend.addr.to_string();
+        if let Some(pos) = self.labels.iter().position(|l| l == &addr_str) {
+            return Some(pos);
+        }
+        // Synthetic port mapping `127.0.0.1:(10000 + idx)`
+        if let Some(port_str) = addr_str.rsplit(':').next()
+            && let Ok(port) = port_str.parse::<usize>()
+            && port >= 10000
+        {
+            let idx = port - 10000;
+            if idx < self.labels.len() {
+                return Some(idx);
+            }
+        }
+        Some(0)
     }
 }

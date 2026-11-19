@@ -4,14 +4,16 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::sync::{Mutex, mpsc};
+use tokio::sync::{Notify, Semaphore};
 use uuid::Uuid;
 
-use crate::common::errors::Result;
+use crate::app::pingora_bridge::{PingoraStreamPool, pool_key};
+use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination, Network};
 use crate::common::protocol::{RequestCommand, SessionContext};
 use crate::features::outbound::OutboundHandler;
@@ -21,9 +23,20 @@ use crate::transport::internet::reality::RealityClient;
 use crate::transport::internet::websocket::{DelayDialConn, parse_ws_early_data};
 use crate::transport::internet::{TcpDialer, TlsClient, WebSocketStream};
 
-struct PreConn {
-    conn: BoxStream,
-    expire: Instant,
+struct PingoraPrePool {
+    pool: Arc<PingoraStreamPool>,
+    key: u64,
+    notify: Arc<Notify>,
+    refill_slots: Arc<Semaphore>,
+    closed: Arc<AtomicBool>,
+}
+
+impl Drop for PingoraPrePool {
+    fn drop(&mut self) {
+        self.closed.store(true, Ordering::SeqCst);
+        self.refill_slots.close();
+        self.notify.notify_waiters();
+    }
 }
 
 #[derive(Clone)]
@@ -46,6 +59,15 @@ impl DialParams {
     }
 
     async fn dial_and_handshake_with_ed(&self, early_data: Option<&[u8]>) -> Result<BoxStream> {
+        pingora_timeout::timeout(
+            Duration::from_secs(15),
+            self.dial_and_handshake_inner(early_data),
+        )
+        .await
+        .map_err(|_| Error::Protocol("VLESS outbound dial/handshake timed out (15s)".into()))?
+    }
+
+    async fn dial_and_handshake_inner(&self, early_data: Option<&[u8]>) -> Result<BoxStream> {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
 
         let tcp_stream: BoxStream = if let Some(ref f_cfg) = self.fragment_cfg {
@@ -137,7 +159,7 @@ pub struct Client {
     encryption: Option<String>,
     dial_params: DialParams,
     testpre: u32,
-    pre_conns: OnceLock<Mutex<mpsc::Receiver<PreConn>>>,
+    pre_conns: OnceLock<PingoraPrePool>,
 }
 
 impl Client {
@@ -222,49 +244,71 @@ impl Client {
         self
     }
 
-    fn init_pre_conns(&self) -> &Mutex<mpsc::Receiver<PreConn>> {
+    fn init_pre_conns(&self) -> &PingoraPrePool {
         self.pre_conns.get_or_init(|| {
             let cap = (self.testpre as usize).max(1);
-            let (tx, rx) = mpsc::channel::<PreConn>(cap);
+            let pool = Arc::new(PingoraStreamPool::new(cap, Duration::from_secs(120)));
+            let key = pool_key(&format!("{}:{}", self.tag, self.dial_params.server_addr));
+            let notify = Arc::new(Notify::new());
+            let refill_slots = Arc::new(Semaphore::new(cap));
+            let closed = Arc::new(AtomicBool::new(false));
+
             tracing::info!(
-                "VLESS outbound '{}': starting testpre transport pre-warm pool ({} workers)",
+                "VLESS outbound '{}': starting Pingora-backed testpre pre-warm pool ({} workers, 120s TTL)",
                 self.tag,
                 self.testpre
             );
+
             for _ in 0..self.testpre {
-                let tx_clone = tx.clone();
+                let pool_clone = pool.clone();
+                let notify_clone = notify.clone();
+                let slots_clone = refill_slots.clone();
+                let closed_clone = closed.clone();
                 let params = self.dial_params.clone();
                 let tag = self.tag.clone();
+
                 tokio::spawn(async move {
                     loop {
-                        if tx_clone.is_closed() {
+                        if closed_clone.load(Ordering::Relaxed) {
                             break;
                         }
+                        let Ok(permit) = slots_clone.acquire().await else {
+                            break;
+                        };
                         match params.dial_and_handshake().await {
                             Ok(conn) => {
-                                let item = PreConn {
-                                    conn,
-                                    expire: Instant::now() + Duration::from_secs(120),
-                                };
-                                if tx_clone.send(item).await.is_err() {
+                                if closed_clone.load(Ordering::Relaxed) {
                                     break;
                                 }
+                                // Hand ownership of the permit to the pooled connection;
+                                // `take_or_dial` releases a permit when consuming from `pingora-pool`.
+                                permit.forget();
+                                pool_clone.put(key, conn);
+                                notify_clone.notify_one();
                                 // Match official Xray-core 200ms pacing between pre-connect refills
-                                tokio::time::sleep(Duration::from_millis(200)).await;
+                                pingora_timeout::sleep(Duration::from_millis(200)).await;
                             }
                             Err(e) => {
+                                drop(permit);
                                 tracing::warn!(
                                     "VLESS '{}' testpre pre-connect failed: {}",
                                     tag,
                                     e
                                 );
-                                tokio::time::sleep(Duration::from_millis(500)).await;
+                                pingora_timeout::sleep(Duration::from_millis(500)).await;
                             }
                         }
                     }
                 });
             }
-            Mutex::new(rx)
+
+            PingoraPrePool {
+                pool,
+                key,
+                notify,
+                refill_slots,
+                closed,
+            }
         })
     }
 
@@ -280,29 +324,40 @@ impl Client {
         }
 
         if self.testpre > 0 {
-            let rx_mutex = self.init_pre_conns();
-            let mut rx = rx_mutex.lock().await;
-            // Match official Xray-core `proxy/vless/outbound/outbound.go`:
-            // wait on `<-h.preConns` for a valid (non-expired) pre-warmed connection
-            // rather than `try_recv()` falling through to a duplicate dial.
-            while let Some(pre) = rx.recv().await {
-                if Instant::now() < pre.expire {
-                    #[cfg(debug_assertions)]
-                    {
-                        let host = session
-                            .sniffed_domain
-                            .clone()
-                            .unwrap_or_else(|| session.destination.address.to_string());
-                        crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
-                    }
-                    let _ = session;
-                    return Ok(pre.conn);
+            let pre_pool = self.init_pre_conns();
+            // Fast path: take an already-warmed connection from Cloudflare `pingora-pool` (0ms)
+            if let Some(conn) = pre_pool.pool.get(pre_pool.key) {
+                pre_pool.refill_slots.add_permits(1);
+                #[cfg(debug_assertions)]
+                {
+                    let host = session
+                        .sniffed_domain
+                        .clone()
+                        .unwrap_or_else(|| session.destination.address.to_string());
+                    crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
                 }
-                // Expired pre-warmed connection: drop it and wait for the next one
+                let _ = session;
+                return Ok(conn);
             }
-            return Err(crate::common::errors::Error::Other(
-                "closed handler".into(),
-            ));
+            // Wait briefly for an in-flight pre-warm worker before falling back to a direct dial
+            let notified = pre_pool.notify.notified();
+            if pingora_timeout::timeout(Duration::from_millis(500), notified)
+                .await
+                .is_ok()
+                && let Some(conn) = pre_pool.pool.get(pre_pool.key)
+            {
+                pre_pool.refill_slots.add_permits(1);
+                #[cfg(debug_assertions)]
+                {
+                    let host = session
+                        .sniffed_domain
+                        .clone()
+                        .unwrap_or_else(|| session.destination.address.to_string());
+                    crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
+                }
+                let _ = session;
+                return Ok(conn);
+            }
         }
 
         self.dial_params.dial_and_handshake().await

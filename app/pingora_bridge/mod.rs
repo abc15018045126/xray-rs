@@ -1,7 +1,9 @@
+pub mod core_gateway;
 pub mod inbound;
 pub mod outbound;
 pub mod pool;
 
+pub use core_gateway::{PingoraCoreConnector, PingoraInboundApp, spawn_pingora_inbound};
 pub use inbound::PingoraHttpInbound;
 pub use outbound::PingoraPooledOutbound;
 pub use pool::{PingoraStreamPool, PingoraUpstreamBalancer, pool_key};
@@ -104,5 +106,64 @@ mod tests {
             client_task.await.unwrap();
         }
         println!("[BENCH] pingora-http x50 CONNECT roundtrips: {:?}", start.elapsed());
+    }
+
+    #[tokio::test]
+    async fn test_pingora_core_inbound_to_outbound_e2e() {
+        use crate::app::dispatcher::DefaultDispatcher;
+        use crate::app::router::Router;
+        use crate::features::outbound::OutboundHandler;
+        use crate::proxy::freedom::Handler as FreedomHandler;
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        // 1. Target echo server
+        let echo_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let echo_addr = echo_listener.local_addr().unwrap();
+        let echo_task = tokio::spawn(async move {
+            let (mut s, _) = echo_listener.accept().await.unwrap();
+            let mut buf = [0u8; 64];
+            let n = s.read(&mut buf).await.unwrap();
+            s.write_all(&buf[..n]).await.unwrap();
+            s.flush().await.unwrap();
+        });
+
+        // 2. Pick a free local port for Pingora-core inbound service
+        let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let inbound_addr = probe.local_addr().unwrap();
+        drop(probe);
+
+        let mut outbounds: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
+        outbounds.insert("direct".to_string(), Arc::new(FreedomHandler::new("direct")));
+        let dispatcher = Arc::new(
+            DefaultDispatcher::new(outbounds, Arc::new(Router::new(Vec::new(), Some("direct".into()))))
+                .with_default_outbound("direct"),
+        );
+        let inbound_handler = Arc::new(PingoraHttpInbound::new("pg-core-in"));
+
+        let inbound_task = spawn_pingora_inbound(inbound_addr, inbound_handler, dispatcher)
+            .expect("Pingora-core inbound should spawn");
+
+        // Give Pingora listener a brief moment to bind
+        tokio::time::sleep(Duration::from_millis(80)).await;
+
+        // 3. Connect through Pingora-core Inbound -> Dispatcher -> Freedom -> PingoraCoreConnector Outbound -> Echo
+        let mut client = PingoraCoreConnector::dial_tcp(inbound_addr)
+            .await
+            .expect("PingoraCoreConnector dial to inbound");
+        let req = format!("CONNECT {} HTTP/1.1\r\nHost: {}\r\n\r\n", echo_addr, echo_addr);
+        client.write_all(req.as_bytes()).await.unwrap();
+        let mut hdr = [0u8; 128];
+        let hn = client.read(&mut hdr).await.unwrap();
+        assert!(String::from_utf8_lossy(&hdr[..hn]).contains("200"));
+
+        client.write_all(b"hello-pingora-core").await.unwrap();
+        client.flush().await.unwrap();
+        let mut reply = [0u8; 64];
+        let rn = client.read(&mut reply).await.unwrap();
+        assert_eq!(&reply[..rn], b"hello-pingora-core");
+
+        inbound_task.abort();
+        echo_task.await.unwrap();
     }
 }

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::timeout;
+use pingora_timeout::timeout;
 use tracing::{debug, info, warn};
 
 use crate::app::dispatcher::sniffer::{SniffResult, Sniffer};
