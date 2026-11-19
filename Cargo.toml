@@ -5,7 +5,6 @@ edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 description = "High-performance Rust implementation of Xray-core with XTLS Vision, Reality, and TUN support."
 repository = "https://github.com/abc15018045126/xray-rs"
-homepage = "https://github.com/abc15018045126/xray-rs"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["xray", "vless", "vision", "reality", "tun"]

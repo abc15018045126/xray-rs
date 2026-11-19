@@ -693,7 +693,7 @@ mod app {
             });
         };
 
-        let mut fetch_ai_text = move |endpoint: &'static str| {
+        let fetch_ai_text = move |endpoint: &'static str| {
             let base = api_url.read().trim_end_matches('/').to_string();
             spawn(async move {
                 let client = reqwest::Client::new();
