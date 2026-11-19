@@ -228,7 +228,7 @@ impl AsyncWrite for DelayDialWsStream {
                             w.wake();
                         }
                         if was_ed {
-                            return Poll::Ready(Ok(n));
+                            return Poll::Ready(Ok(n.min(buf.len())));
                         }
                         // Payload exceeded max_ed: fall through to write `buf` on connected stream
                     }
@@ -539,7 +539,8 @@ impl VlessStream {
                     )));
                 }
                 Poll::Ready(Ok(n)) => {
-                    self.pending_write.drain(..n);
+                    let drain_n = n.min(self.pending_write.len());
+                    self.pending_write.drain(..drain_n);
                 }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
@@ -699,7 +700,19 @@ impl AsyncWrite for VlessStream {
                 Poll::Ready(Ok(payload.len()))
             }
             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+            Poll::Pending => {
+                // Commit the coalesced frame (header + payload) into pending_write so
+                // `header_flush_timer` in `poll_read` cannot promote a separate smaller
+                // header slice while an async dial (e.g. WS Early Data) is in flight.
+                if self.pending_header.is_some() {
+                    self.pending_header = None;
+                    self.header_flush_timer = None;
+                    self.pending_write = frame;
+                    Poll::Ready(Ok(payload.len()))
+                } else {
+                    Poll::Pending
+                }
+            }
         }
     }
 
