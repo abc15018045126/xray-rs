@@ -2,13 +2,12 @@
 // 1:1 Rust implementation corresponding to Go proxy\vless\outbound\outbound.go
 
 use async_trait::async_trait;
-use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{Mutex, mpsc};
 use uuid::Uuid;
 
 use crate::common::errors::Result;
@@ -18,44 +17,12 @@ use crate::features::outbound::OutboundHandler;
 use crate::proxy::vless::encoding::{Addons, RequestHeader};
 use crate::proxy::vless::flow::{FLOW_VISION, VisionStream};
 use crate::transport::internet::reality::RealityClient;
+use crate::transport::internet::websocket::{DelayDialConn, parse_ws_early_data};
 use crate::transport::internet::{TcpDialer, TlsClient, WebSocketStream};
 
 struct PreConn {
     conn: BoxStream,
     expire: Instant,
-}
-
-/// Parse `?ed=<N>` from a WebSocket path (matching official Xray-core),
-/// returning `(cleaned_path, max_early_data)`.
-fn parse_ws_early_data(raw_path: &str) -> (String, usize) {
-    let Some((base, query)) = raw_path.split_once('?') else {
-        return (raw_path.to_string(), 0);
-    };
-    let mut ed = 0usize;
-    let mut kept = Vec::new();
-    for pair in query.split('&') {
-        if pair.is_empty() {
-            continue;
-        }
-        if let Some((k, v)) = pair.split_once('=')
-            && k == "ed"
-            && let Ok(n) = v.parse::<usize>()
-        {
-            ed = n;
-            continue;
-        }
-        kept.push(pair);
-    }
-    let clean = if kept.is_empty() {
-        if base.is_empty() {
-            "/".to_string()
-        } else {
-            base.to_string()
-        }
-    } else {
-        format!("{}?{}", base, kept.join("&"))
-    };
-    (clean, ed)
 }
 
 #[derive(Clone)]
@@ -138,146 +105,6 @@ impl DialParams {
         };
 
         Ok(stream)
-    }
-}
-
-/// 1:1 Rust port of official Xray-core `transport/internet/websocket/dialer.go` (`delayDialConn`).
-/// Defers the WebSocket handshake until the first `poll_write`, embedding the coalesced
-/// VLESS header + first payload (up to `max_ed` bytes) into `Sec-WebSocket-Protocol` (0-RTT).
-enum DelayDialState {
-    Idle,
-    Dialing {
-        rx: oneshot::Receiver<Result<BoxStream>>,
-        sent_as_ed: bool,
-        ed_len: usize,
-    },
-    Connected(BoxStream),
-    Closed,
-}
-
-struct DelayDialWsStream {
-    params: DialParams,
-    max_ed: usize,
-    state: DelayDialState,
-    read_waker: Option<Waker>,
-}
-
-impl DelayDialWsStream {
-    fn new(params: DialParams, max_ed: usize) -> Self {
-        Self {
-            params,
-            max_ed,
-            state: DelayDialState::Idle,
-            read_waker: None,
-        }
-    }
-}
-
-impl AsyncRead for DelayDialWsStream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        match &mut self.state {
-            DelayDialState::Connected(stream) => Pin::new(stream).poll_read(cx, buf),
-            DelayDialState::Closed => Poll::Ready(Ok(())),
-            DelayDialState::Idle | DelayDialState::Dialing { .. } => {
-                self.read_waker = Some(cx.waker().clone());
-                Poll::Pending
-            }
-        }
-    }
-}
-
-impl AsyncWrite for DelayDialWsStream {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        loop {
-            match &mut self.state {
-                DelayDialState::Idle => {
-                    let use_ed = !buf.is_empty() && buf.len() <= self.max_ed;
-                    let ed_bytes = if use_ed { Some(buf.to_vec()) } else { None };
-                    let ed_len = buf.len();
-                    let params = self.params.clone();
-                    let (tx, rx) = oneshot::channel();
-                    tokio::spawn(async move {
-                        let res = params.dial_and_handshake_with_ed(ed_bytes.as_deref()).await;
-                        let _ = tx.send(res);
-                    });
-                    self.state = DelayDialState::Dialing {
-                        rx,
-                        sent_as_ed: use_ed,
-                        ed_len,
-                    };
-                }
-                DelayDialState::Dialing {
-                    rx,
-                    sent_as_ed,
-                    ed_len,
-                } => match Pin::new(rx).poll(cx) {
-                    Poll::Pending => return Poll::Pending,
-                    Poll::Ready(Ok(Ok(stream))) => {
-                        let was_ed = *sent_as_ed;
-                        let n = *ed_len;
-                        self.state = DelayDialState::Connected(stream);
-                        if let Some(w) = self.read_waker.take() {
-                            w.wake();
-                        }
-                        if was_ed {
-                            return Poll::Ready(Ok(n.min(buf.len())));
-                        }
-                        // Payload exceeded max_ed: fall through to write `buf` on connected stream
-                    }
-                    Poll::Ready(Ok(Err(e))) => {
-                        self.state = DelayDialState::Closed;
-                        if let Some(w) = self.read_waker.take() {
-                            w.wake();
-                        }
-                        return Poll::Ready(Err(std::io::Error::other(e.to_string())));
-                    }
-                    Poll::Ready(Err(_)) => {
-                        self.state = DelayDialState::Closed;
-                        if let Some(w) = self.read_waker.take() {
-                            w.wake();
-                        }
-                        return Poll::Ready(Err(std::io::Error::other(
-                            "WebSocket early-data dial task cancelled",
-                        )));
-                    }
-                },
-                DelayDialState::Connected(stream) => return Pin::new(stream).poll_write(cx, buf),
-                DelayDialState::Closed => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::BrokenPipe,
-                        "delayDialConn closed",
-                    )));
-                }
-            }
-        }
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        match &mut self.state {
-            DelayDialState::Connected(stream) => Pin::new(stream).poll_flush(cx),
-            _ => Poll::Ready(Ok(())),
-        }
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        match &mut self.state {
-            DelayDialState::Connected(stream) => Pin::new(stream).poll_shutdown(cx),
-            _ => {
-                self.state = DelayDialState::Closed;
-                if let Some(w) = self.read_waker.take() {
-                    w.wake();
-                }
-                Poll::Ready(Ok(()))
-            }
-        }
     }
 }
 
@@ -414,12 +241,14 @@ impl Client {
     }
 
     async fn take_or_dial(&self, session: &SessionContext) -> Result<BoxStream> {
-        // Official Xray-core WS Early Data (`?ed=N`): defer WS handshake until first write
+        // Official Xray-core WS Early Data (`?ed=N`): delegate to `transport/internet/websocket/dialer.rs::DelayDialConn`
         if self.dial_params.ws_ed > 0 && self.testpre == 0 {
-            return Ok(Box::pin(DelayDialWsStream::new(
-                self.dial_params.clone(),
-                self.dial_params.ws_ed,
-            )));
+            let params = self.dial_params.clone();
+            let dial_fn: crate::transport::internet::websocket::DialWsFn = Arc::new(move |ed| {
+                let p = params.clone();
+                Box::pin(async move { p.dial_and_handshake_with_ed(ed.as_deref()).await })
+            });
+            return Ok(Box::pin(DelayDialConn::new(dial_fn, self.dial_params.ws_ed)));
         }
 
         if self.testpre > 0 {

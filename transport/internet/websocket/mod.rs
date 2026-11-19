@@ -9,6 +9,6 @@ pub mod ws_test;
 
 pub use config::WebSocketConfig;
 pub use connection::WebSocketConnection;
-pub use dialer::WebSocketDialer;
+pub use dialer::{DelayDialConn, DialWsFn, WebSocketDialer, parse_ws_early_data};
 pub use hub::WebSocketHub;
 pub use ws::WebSocketStream;

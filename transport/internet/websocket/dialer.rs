@@ -1,11 +1,195 @@
 // Module: transport\internet\websocket\dialer.rs
 // 1:1 Rust implementation corresponding to Go transport\internet\websocket\dialer.go
 
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll, Waker};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::sync::oneshot;
+
 use super::config::WebSocketConfig;
 use super::ws::WebSocketStream;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::transport::internet::tcp::TcpDialer;
+
+/// Parse `?ed=<N>` from a WebSocket path (matching official Xray-core),
+/// returning `(cleaned_path, max_early_data)`.
+pub fn parse_ws_early_data(raw_path: &str) -> (String, usize) {
+    let Some((base, query)) = raw_path.split_once('?') else {
+        return (raw_path.to_string(), 0);
+    };
+    let mut ed = 0usize;
+    let mut kept = Vec::new();
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            continue;
+        }
+        if let Some((k, v)) = pair.split_once('=')
+            && k == "ed"
+            && let Ok(n) = v.parse::<usize>()
+        {
+            ed = n;
+            continue;
+        }
+        kept.push(pair);
+    }
+    let clean = if kept.is_empty() {
+        if base.is_empty() {
+            "/".to_string()
+        } else {
+            base.to_string()
+        }
+    } else {
+        format!("{}?{}", base, kept.join("&"))
+    };
+    (clean, ed)
+}
+
+/// Callback type for deferred WebSocket dialing with optional early data bytes.
+pub type DialWsFn =
+    Arc<dyn Fn(Option<Vec<u8>>) -> Pin<Box<dyn Future<Output = Result<BoxStream>> + Send>> + Send + Sync>;
+
+/// 1:1 Rust port of official Xray-core `transport/internet/websocket/dialer.go` (`delayDialConn`).
+/// Defers the WebSocket handshake until the first `poll_write`, embedding the first write
+/// (up to `max_ed` bytes) into `Sec-WebSocket-Protocol` (0-RTT).
+enum DelayDialState {
+    Idle,
+    Dialing {
+        rx: oneshot::Receiver<Result<BoxStream>>,
+        sent_as_ed: bool,
+        ed_len: usize,
+    },
+    Connected(BoxStream),
+    Closed,
+}
+
+pub struct DelayDialConn {
+    dial_fn: DialWsFn,
+    max_ed: usize,
+    state: DelayDialState,
+    read_waker: Option<Waker>,
+}
+
+impl DelayDialConn {
+    pub fn new(dial_fn: DialWsFn, max_ed: usize) -> Self {
+        Self {
+            dial_fn,
+            max_ed,
+            state: DelayDialState::Idle,
+            read_waker: None,
+        }
+    }
+}
+
+impl AsyncRead for DelayDialConn {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match &mut self.state {
+            DelayDialState::Connected(stream) => Pin::new(stream).poll_read(cx, buf),
+            DelayDialState::Closed => Poll::Ready(Ok(())),
+            DelayDialState::Idle | DelayDialState::Dialing { .. } => {
+                self.read_waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }
+}
+
+impl AsyncWrite for DelayDialConn {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::io::Result<usize>> {
+        loop {
+            match &mut self.state {
+                DelayDialState::Idle => {
+                    let use_ed = !buf.is_empty() && buf.len() <= self.max_ed;
+                    let ed_bytes = if use_ed { Some(buf.to_vec()) } else { None };
+                    let ed_len = buf.len();
+                    let dial_fn = self.dial_fn.clone();
+                    let (tx, rx) = oneshot::channel();
+                    tokio::spawn(async move {
+                        let res = dial_fn(ed_bytes).await;
+                        let _ = tx.send(res);
+                    });
+                    self.state = DelayDialState::Dialing {
+                        rx,
+                        sent_as_ed: use_ed,
+                        ed_len,
+                    };
+                }
+                DelayDialState::Dialing {
+                    rx,
+                    sent_as_ed,
+                    ed_len,
+                } => match Pin::new(rx).poll(cx) {
+                    Poll::Pending => return Poll::Pending,
+                    Poll::Ready(Ok(Ok(stream))) => {
+                        let was_ed = *sent_as_ed;
+                        let n = *ed_len;
+                        self.state = DelayDialState::Connected(stream);
+                        if let Some(w) = self.read_waker.take() {
+                            w.wake();
+                        }
+                        if was_ed {
+                            return Poll::Ready(Ok(n.min(buf.len())));
+                        }
+                        // Payload exceeded max_ed: fall through to write `buf` on connected stream
+                    }
+                    Poll::Ready(Ok(Err(e))) => {
+                        self.state = DelayDialState::Closed;
+                        if let Some(w) = self.read_waker.take() {
+                            w.wake();
+                        }
+                        return Poll::Ready(Err(std::io::Error::other(e.to_string())));
+                    }
+                    Poll::Ready(Err(_)) => {
+                        self.state = DelayDialState::Closed;
+                        if let Some(w) = self.read_waker.take() {
+                            w.wake();
+                        }
+                        return Poll::Ready(Err(std::io::Error::other(
+                            "WebSocket early-data dial task cancelled",
+                        )));
+                    }
+                },
+                DelayDialState::Connected(stream) => return Pin::new(stream).poll_write(cx, buf),
+                DelayDialState::Closed => {
+                    return Poll::Ready(Err(std::io::Error::new(
+                        std::io::ErrorKind::BrokenPipe,
+                        "delayDialConn closed",
+                    )));
+                }
+            }
+        }
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut self.state {
+            DelayDialState::Connected(stream) => Pin::new(stream).poll_flush(cx),
+            _ => Poll::Ready(Ok(())),
+        }
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        match &mut self.state {
+            DelayDialState::Connected(stream) => Pin::new(stream).poll_shutdown(cx),
+            _ => {
+                self.state = DelayDialState::Closed;
+                if let Some(w) = self.read_waker.take() {
+                    w.wake();
+                }
+                Poll::Ready(Ok(()))
+            }
+        }
+    }
+}
 
 pub struct WebSocketDialer;
 
