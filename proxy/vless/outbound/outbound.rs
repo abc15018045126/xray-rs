@@ -2,6 +2,7 @@
 // 1:1 Rust implementation corresponding to Go proxy\vless\outbound\outbound.go
 
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
@@ -33,6 +34,7 @@ struct DialParams {
     reality_client: Option<Arc<RealityClient>>,
     ws_path: Option<String>,
     ws_host: Option<String>,
+    ws_headers: HashMap<String, String>,
     ws_heartbeat: u32,
     ws_ed: usize,
     fragment_cfg: Option<crate::transport::internet::finalmask::fragment::Config>,
@@ -104,9 +106,14 @@ impl DialParams {
             let ws_url = format!("{}://{}{}", scheme, dest_host, path);
             #[cfg(debug_assertions)]
             let _t0 = std::time::Instant::now();
-            let s = WebSocketStream::client_handshake_with_options(
+            let s = WebSocketStream::client_handshake_with_headers(
                 &ws_url,
                 Some(host_hdr),
+                if self.ws_headers.is_empty() {
+                    None
+                } else {
+                    Some(&self.ws_headers)
+                },
                 stream,
                 self.ws_heartbeat,
                 early_data,
@@ -162,6 +169,7 @@ impl Client {
                 reality_client: None,
                 ws_path: clean_ws_path,
                 ws_host,
+                ws_headers: HashMap::new(),
                 ws_heartbeat: 0,
                 ws_ed,
                 fragment_cfg: None,
@@ -169,6 +177,11 @@ impl Client {
             testpre: 0,
             pre_conns: OnceLock::new(),
         }
+    }
+
+    pub fn with_ws_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.dial_params.ws_headers = headers;
+        self
     }
 
     pub fn with_ws_heartbeat(mut self, secs: u32) -> Self {
@@ -269,7 +282,10 @@ impl Client {
         if self.testpre > 0 {
             let rx_mutex = self.init_pre_conns();
             let mut rx = rx_mutex.lock().await;
-            while let Ok(pre) = rx.try_recv() {
+            // Match official Xray-core `proxy/vless/outbound/outbound.go`:
+            // wait on `<-h.preConns` for a valid (non-expired) pre-warmed connection
+            // rather than `try_recv()` falling through to a duplicate dial.
+            while let Some(pre) = rx.recv().await {
                 if Instant::now() < pre.expire {
                     #[cfg(debug_assertions)]
                     {
@@ -282,9 +298,11 @@ impl Client {
                     let _ = session;
                     return Ok(pre.conn);
                 }
-                // Expired pre-warmed connection: drop it and check the next one
+                // Expired pre-warmed connection: drop it and wait for the next one
             }
-            drop(rx);
+            return Err(crate::common::errors::Error::Other(
+                "closed handler".into(),
+            ));
         }
 
         self.dial_params.dial_and_handshake().await

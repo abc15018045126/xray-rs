@@ -402,6 +402,7 @@ impl Config {
                     let mut tls_sni = None;
                     let mut ws_path = None;
                     let mut ws_host = None;
+                    let mut ws_headers = HashMap::new();
                     let mut ws_heartbeat = 0u32;
                     let mut fragment_cfg = None;
 
@@ -429,13 +430,14 @@ impl Config {
                                 {
                                     ws_host = Some(h.trim().to_string());
                                 }
-                                if ws_host.is_none()
-                                    && let Some(headers) = &w.headers
-                                {
-                                    for (k, v) in headers {
-                                        if k.eq_ignore_ascii_case("host") && !v.trim().is_empty() {
-                                            ws_host = Some(v.trim().to_string());
-                                            break;
+                                if let Some(headers) = &w.headers {
+                                    ws_headers = headers.clone();
+                                    if ws_host.is_none() {
+                                        for (k, v) in headers {
+                                            if k.eq_ignore_ascii_case("host") && !v.trim().is_empty() {
+                                                ws_host = Some(v.trim().to_string());
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -479,6 +481,7 @@ impl Config {
                     let mut client = p::vless::OutboundClient::new(
                         &tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
                     )
+                    .with_ws_headers(ws_headers)
                     .with_ws_heartbeat(ws_heartbeat);
                     if let Some(ref flow) = user.flow
                         && !flow.is_empty()

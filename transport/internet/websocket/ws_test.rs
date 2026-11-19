@@ -204,4 +204,57 @@ mod tests {
 
         server_task.await.unwrap();
     }
+
+    #[tokio::test]
+    async fn test_ws_coalesced_large_first_frame_single_binary_message() {
+        use super::super::ws::WebSocketStream;
+        use crate::proxy::vless::outbound::VlessStream;
+        use futures::{SinkExt, StreamExt};
+        use tokio::net::TcpListener;
+        use tokio_tungstenite::accept_async;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let header = b"\x00\x11\x22\x33\x44".to_vec();
+        let payload = vec![0xABu8; 8192]; // > 4096 bytes
+        let expected_len = header.len() + payload.len();
+
+        let server_task = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let ws = accept_async(tcp).await.expect("WS server accept failed");
+            let (mut ws_tx, mut ws_rx) = ws.split();
+
+            // Must arrive as a SINGLE WebSocket Binary frame (not split at 4KB)
+            let first_frame = match ws_rx.next().await.unwrap().unwrap() {
+                Message::Binary(b) => b,
+                other => panic!("Expected binary frame, got {:?}", other),
+            };
+            assert_eq!(first_frame.len(), expected_len);
+            assert_eq!(&first_frame[..5], b"\x00\x11\x22\x33\x44");
+            assert!(first_frame[5..].iter().all(|&b| b == 0xAB));
+
+            ws_tx
+                .send(Message::Binary(b"\x00\x00OK".to_vec()))
+                .await
+                .unwrap();
+        });
+
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let url = format!("ws://{}/", addr);
+        let ws_client = WebSocketStream::client_handshake(&url, Some("localhost"), Box::pin(tcp))
+            .await
+            .unwrap();
+
+        let mut vless = VlessStream::with_pending_header(ws_client, false, header);
+        vless.write_all(&payload).await.unwrap();
+        vless.flush().await.unwrap();
+
+        let mut resp = [0u8; 16];
+        let n = vless.read(&mut resp).await.unwrap();
+        assert_eq!(&resp[..n], b"OK");
+
+        server_task.await.unwrap();
+    }
 }
