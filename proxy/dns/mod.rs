@@ -4,12 +4,25 @@ pub mod dns;
 #[cfg(test)]
 pub mod dns_test;
 
-use crate::app::dns::DnsClient;
-use crate::common::errors::Result;
-use crate::common::net::Destination;
 use std::net::IpAddr;
 use std::sync::Arc;
+use std::time::Duration;
+
+use async_trait::async_trait;
+use hickory_proto::op::{Message, OpCode, ResponseCode};
+use hickory_proto::rr::rdata::{A, AAAA};
+use hickory_proto::rr::{RData, Record, RecordType};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::time::timeout;
+
+use crate::app::dns::DnsClient;
+use crate::common::errors::Result;
+use crate::common::net::{BoxStream, Destination, Network};
+use crate::common::protocol::SessionContext;
+use crate::features::dns::IPOption;
+use crate::features::outbound::OutboundHandler;
+
+const DNS_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct DefaultDnsHandler {
     pub tag: String,
@@ -21,11 +34,7 @@ impl DefaultDnsHandler {
     }
 }
 
-use crate::common::net::BoxStream;
-use crate::common::protocol::SessionContext;
-use crate::features::outbound::OutboundHandler;
-use async_trait::async_trait;
-
+/// 1:1 Rust port of official Xray-core `proxy/dns/dns.go` (`handleIPQuery` + `rejectNonIPQuery`).
 #[derive(Clone)]
 pub struct DnsOutbound {
     pub tag: String,
@@ -37,72 +46,137 @@ impl DnsOutbound {
         Self { tag, dns_client }
     }
 
-    pub async fn process<S>(&self, mut stream: S, _dest: Destination) -> Result<()>
+    /// Build a DNS wire-format response matching `Xray-core/proxy/dns/dns.go`.
+    async fn handle_dns_message(&self, raw_query: &[u8]) -> Option<Vec<u8>> {
+        let req = Message::from_vec(raw_query).ok()?;
+        let q = req.queries.first()?.clone();
+        let domain = q.name().to_utf8();
+        let clean_domain = domain.trim_end_matches('.');
+        if clean_domain.is_empty() {
+            return None;
+        }
+        let qtype = q.query_type();
+
+        let mut resp = Message::response(req.metadata.id, OpCode::Query);
+        resp.metadata.authoritative = true;
+        resp.metadata.recursion_desired = true;
+        resp.metadata.recursion_available = true;
+        resp.queries.push(q.clone());
+
+        match qtype {
+            RecordType::A => {
+                let opt = IPOption {
+                    ipv4_enable: true,
+                    ipv6_enable: false,
+                    fake_enable: true,
+                };
+                match self
+                    .dns_client
+                    .lookup_ip_with_option(clean_domain, opt)
+                    .await
+                {
+                    Ok((ips, ttl)) => {
+                        let ttl = ttl.max(1);
+                        resp.metadata.response_code = ResponseCode::NoError;
+                        for ip in ips {
+                            if let IpAddr::V4(v4) = ip {
+                                resp.answers.push(Record::from_rdata(
+                                    q.name().clone(),
+                                    ttl,
+                                    RData::A(A(v4)),
+                                ));
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        resp.metadata.response_code = ResponseCode::ServFail;
+                    }
+                }
+            }
+            RecordType::AAAA => {
+                let opt = IPOption {
+                    ipv4_enable: false,
+                    ipv6_enable: true,
+                    fake_enable: true,
+                };
+                match self
+                    .dns_client
+                    .lookup_ip_with_option(clean_domain, opt)
+                    .await
+                {
+                    Ok((ips, ttl)) => {
+                        let ttl = ttl.max(1);
+                        resp.metadata.response_code = ResponseCode::NoError;
+                        for ip in ips {
+                            if let IpAddr::V6(v6) = ip {
+                                resp.answers.push(Record::from_rdata(
+                                    q.name().clone(),
+                                    ttl,
+                                    RData::AAAA(AAAA(v6)),
+                                ));
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        // Empty NoError allows dual-stack clients to immediately use IPv4
+                        resp.metadata.response_code = ResponseCode::NoError;
+                    }
+                }
+            }
+            _ => {
+                // Non-IP queries (HTTPS/SVCB/TXT/etc.): reply immediately with empty NoError
+                // (mirrors official Xray-core `rejectNonIPQuery` so clients never stall)
+                resp.metadata.response_code = ResponseCode::NoError;
+            }
+        }
+
+        resp.to_vec().ok()
+    }
+
+    pub async fn process<S>(&self, mut stream: S, dest: Destination) -> Result<()>
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
-        let mut query = vec![0u8; 512];
-        let n = stream.read(&mut query).await?;
-        if n == 0 {
-            return Ok(());
-        }
+        let is_tcp = dest.network == Network::Tcp;
+        let mut buf = vec![0u8; 4096];
 
-        // Basic DNS query parsing: skip header (12 bytes) and extract query domain
-        if n > 12 {
-            let mut pos = 12;
-            let mut domain_parts = Vec::new();
-            while pos < n && query[pos] != 0 {
-                let len = query[pos] as usize;
-                pos += 1;
-                if pos + len <= n {
-                    if let Ok(part) = std::str::from_utf8(&query[pos..pos + len]) {
-                        domain_parts.push(part);
+        loop {
+            let query_bytes: Vec<u8> = if is_tcp {
+                // RFC 1035 TCP DNS: 2-byte big-endian length prefix
+                let mut len_buf = [0u8; 2];
+                match timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut len_buf)).await {
+                    Ok(Ok(_)) => {
+                        let msg_len = u16::from_be_bytes(len_buf) as usize;
+                        if msg_len == 0 || msg_len > 65535 {
+                            break;
+                        }
+                        let mut msg = vec![0u8; msg_len];
+                        match timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut msg)).await {
+                            Ok(Ok(_)) => msg,
+                            _ => break,
+                        }
                     }
-                    pos += len;
-                } else {
+                    _ => break,
+                }
+            } else {
+                match timeout(DNS_IDLE_TIMEOUT, stream.read(&mut buf)).await {
+                    Ok(Ok(0)) | Err(_) => break,
+                    Ok(Ok(n)) => buf[..n].to_vec(),
+                    Ok(Err(_)) => break,
+                }
+            };
+
+            if let Some(resp_bytes) = self.handle_dns_message(&query_bytes).await {
+                if is_tcp {
+                    let len_prefix = (resp_bytes.len() as u16).to_be_bytes();
+                    if stream.write_all(&len_prefix).await.is_err() {
+                        break;
+                    }
+                }
+                if stream.write_all(&resp_bytes).await.is_err() {
                     break;
                 }
-            }
-
-            let domain = domain_parts.join(".");
-            if !domain.is_empty()
-                && let Ok(ips) = self.dns_client.lookup_ip(&domain).await
-                && let Some(ip) = ips.first()
-            {
-                let mut response = query[0..(pos + 5).min(n)].to_vec();
-                // Set QR flag to 1 (response)
-                if response.len() >= 4 {
-                    response[2] |= 0x80;
-                    response[3] |= 0x80;
-                }
-                if response.len() >= 8 {
-                    // Set Answer count = 1
-                    response[6] = 0;
-                    response[7] = 1;
-                }
-
-                // Answer RR: pointer to name (0xc00c)
-                response.extend_from_slice(&[0xc0, 0x0c]);
-                match ip {
-                    IpAddr::V4(v4) => {
-                        response.extend_from_slice(&[0x00, 0x01]); // Type A
-                        response.extend_from_slice(&[0x00, 0x01]); // Class IN
-                        response.extend_from_slice(&[0x00, 0x00, 0x00, 0x3c]); // TTL 60s
-                        response.extend_from_slice(&[0x00, 0x04]); // Data len 4
-                        response.extend_from_slice(&v4.octets());
-                    }
-                    IpAddr::V6(v6) => {
-                        response.extend_from_slice(&[0x00, 0x1c]); // Type AAAA
-                        response.extend_from_slice(&[0x00, 0x01]); // Class IN
-                        response.extend_from_slice(&[0x00, 0x00, 0x00, 0x3c]); // TTL 60s
-                        response.extend_from_slice(&[0x00, 0x10]); // Data len 16
-                        response.extend_from_slice(&v6.octets());
-                    }
-                }
-
-                stream.write_all(&response).await?;
-                stream.flush().await?;
-                return Ok(());
+                let _ = stream.flush().await;
             }
         }
 
@@ -117,7 +191,7 @@ impl OutboundHandler for DnsOutbound {
     }
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
-        let (client_io, server_io) = tokio::io::duplex(4096);
+        let (client_io, server_io) = tokio::io::duplex(8192);
         let handler = self.clone();
         let dest = session.destination.clone();
         tokio::spawn(async move {
