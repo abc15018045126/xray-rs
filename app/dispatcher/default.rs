@@ -406,6 +406,7 @@ impl DefaultDispatcher {
                 warn!("Failed to forward initial sniffed payload: {}", e);
                 return Err(Error::Io(e));
             }
+            let _ = outbound_stream.flush().await;
         }
 
         // 5. User traffic & stats accounting setup
@@ -612,6 +613,10 @@ where
                     );
                 }
                 if let Err(e) = writer.write_all(&buf[..n]).await {
+                    let _ = writer.shutdown().await;
+                    return Err(e);
+                }
+                if let Err(e) = writer.flush().await {
                     let _ = writer.shutdown().await;
                     return Err(e);
                 }

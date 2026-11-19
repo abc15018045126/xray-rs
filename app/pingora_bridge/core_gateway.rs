@@ -14,6 +14,7 @@ use std::sync::{Arc, LazyLock};
 use async_trait::async_trait;
 use pingora_core::apps::ServerApp;
 use pingora_core::connectors::{ConnectorOptions, L4Connect, TransportConnector};
+use pingora_core::listeners::{L4BufferSettings, ListenerConfig};
 use pingora_core::protocols::l4::socket::SocketAddr as PingoraSocketAddr;
 use pingora_core::protocols::l4::stream::Stream as PingoraL4Stream;
 use pingora_core::protocols::Stream as PingoraStream;
@@ -166,7 +167,11 @@ pub fn spawn_pingora_inbound(
     let tag = handler.tag().to_string();
     let app = PingoraInboundApp::new(handler, dispatcher);
     let mut service = PingoraListeningService::new(format!("xray-inbound-{}", tag), app);
-    service.add_tcp(&addr.to_string());
+    // Disable Pingora's 1460B default L4 write BufWriter so small TLS/HTTP packets are
+    // forwarded immediately with zero buffering delay (transparent L4 proxy semantics).
+    service.add_listener(
+        ListenerConfig::tcp(addr.to_string()).l4_buffer(L4BufferSettings::unbuffered()),
+    );
 
     info!(
         "Inbound [{}] listening on {} (powered by pingora-core)",
