@@ -5,10 +5,162 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::RwLock;
 
+use crate::debug_panel::capture::{FlowRecord, SizeBuckets};
 use crate::debug_panel::probe::DirectProbeResult;
 
 const MAX_RECENT_PROBES: usize = 20;
 const MAX_RECENT_EVENTS: usize = 50;
+const MAX_LATENCY_SAMPLES: usize = 200;
+
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+fn percentile(samples: &VecDeque<f64>, p: f64) -> f64 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let mut sorted: Vec<f64> = samples.iter().copied().collect();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let idx = ((sorted.len() as f64 - 1.0) * p).round() as usize;
+    round2(sorted[idx.min(sorted.len() - 1)])
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModeStats {
+    pub established: u64,
+    pub reused: u64,
+    pub failed: u64,
+    pub reuse_rate_pct: f64,
+    pub avg_connect_ms: f64,
+    pub p50_connect_ms: f64,
+    pub p95_connect_ms: f64,
+    pub max_connect_ms: f64,
+    pub avg_ttfb_ms: f64,
+    pub p95_ttfb_ms: f64,
+    pub avg_duration_ms: f64,
+    pub uplink_bytes: u64,
+    pub downlink_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sample_fingerprint: Option<String>,
+    pub size_buckets: SizeBuckets,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ModeStatsInner {
+    established: u64,
+    reused: u64,
+    failed: u64,
+    connect_ms_sum: f64,
+    connect_ms_count: u64,
+    max_connect_ms: f64,
+    connect_samples: VecDeque<f64>,
+    ttfb_ms_sum: f64,
+    ttfb_ms_count: u64,
+    ttfb_samples: VecDeque<f64>,
+    duration_ms_sum: f64,
+    duration_ms_count: u64,
+    uplink_bytes: u64,
+    downlink_bytes: u64,
+    sample_fingerprint: Option<String>,
+    size_buckets: SizeBuckets,
+}
+
+impl ModeStatsInner {
+    fn push_connect(&mut self, ms: f64, reused: bool) {
+        if reused {
+            self.reused += 1;
+        } else {
+            self.established += 1;
+        }
+        self.connect_ms_sum += ms;
+        self.connect_ms_count += 1;
+        if ms > self.max_connect_ms {
+            self.max_connect_ms = ms;
+        }
+        if self.connect_samples.len() >= MAX_LATENCY_SAMPLES {
+            self.connect_samples.pop_front();
+        }
+        self.connect_samples.push_back(ms);
+    }
+
+    fn push_ttfb(&mut self, ms: f64) {
+        self.ttfb_ms_sum += ms;
+        self.ttfb_ms_count += 1;
+        if self.ttfb_samples.len() >= MAX_LATENCY_SAMPLES {
+            self.ttfb_samples.pop_front();
+        }
+        self.ttfb_samples.push_back(ms);
+    }
+
+    fn push_end(&mut self, uplink: u64, downlink: u64, duration_ms: f64, flow: Option<&FlowRecord>) {
+        self.uplink_bytes += uplink;
+        self.downlink_bytes += downlink;
+        self.duration_ms_sum += duration_ms;
+        self.duration_ms_count += 1;
+        if let Some(f) = flow {
+            if !f.first_n_sizes.is_empty() {
+                self.sample_fingerprint = Some(f.fingerprint.clone());
+            }
+            self.size_buckets.tiny_lt_100 += f.size_buckets.tiny_lt_100;
+            self.size_buckets.small_100_512 += f.size_buckets.small_100_512;
+            self.size_buckets.medium_512_1400 += f.size_buckets.medium_512_1400;
+            self.size_buckets.large_gt_1400 += f.size_buckets.large_gt_1400;
+        }
+    }
+
+    fn to_public(&self) -> ModeStats {
+        let total = self.established + self.reused;
+        let reuse_rate_pct = if total > 0 {
+            round2((self.reused as f64 / total as f64) * 100.0)
+        } else {
+            0.0
+        };
+        let avg_connect_ms = if self.connect_ms_count > 0 {
+            round2(self.connect_ms_sum / self.connect_ms_count as f64)
+        } else {
+            0.0
+        };
+        let avg_ttfb_ms = if self.ttfb_ms_count > 0 {
+            round2(self.ttfb_ms_sum / self.ttfb_ms_count as f64)
+        } else {
+            0.0
+        };
+        let avg_duration_ms = if self.duration_ms_count > 0 {
+            round2(self.duration_ms_sum / self.duration_ms_count as f64)
+        } else {
+            0.0
+        };
+        ModeStats {
+            established: self.established,
+            reused: self.reused,
+            failed: self.failed,
+            reuse_rate_pct,
+            avg_connect_ms,
+            p50_connect_ms: percentile(&self.connect_samples, 0.50),
+            p95_connect_ms: percentile(&self.connect_samples, 0.95),
+            max_connect_ms: round2(self.max_connect_ms),
+            avg_ttfb_ms,
+            p95_ttfb_ms: percentile(&self.ttfb_samples, 0.95),
+            avg_duration_ms,
+            uplink_bytes: self.uplink_bytes,
+            downlink_bytes: self.downlink_bytes,
+            sample_fingerprint: self.sample_fingerprint.clone(),
+            size_buckets: self.size_buckets.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SiteCompare {
+    pub host: String,
+    pub has_both: bool,
+    pub direct: ModeStats,
+    pub proxy: ModeStats,
+    pub delta_avg_connect_ms: f64,
+    pub delta_p95_connect_ms: f64,
+    pub delta_avg_ttfb_ms: f64,
+}
 
 /// Extracted traffic features from the initial client payload (normal/direct or proxied).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -250,13 +402,20 @@ pub struct SiteMetrics {
     pub bypassed_count: u64,
     pub proxied_count: u64,
     pub avg_connect_ms: f64,
+    pub p50_connect_ms: f64,
+    pub p95_connect_ms: f64,
     pub min_connect_ms: f64,
     pub max_connect_ms: f64,
     pub last_connect_ms: f64,
+    pub avg_ttfb_ms: f64,
+    pub p95_ttfb_ms: f64,
+    pub avg_duration_ms: f64,
     pub uplink_bytes: u64,
     pub downlink_bytes: u64,
     pub last_outbound: String,
     pub last_protocol: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_traffic_features: Option<TrafficFeatures>,
     pub last_seen_ms: u64,
@@ -276,11 +435,20 @@ struct SiteMetricsInner {
     min_connect_ms: f64,
     max_connect_ms: f64,
     last_connect_ms: f64,
+    connect_samples: VecDeque<f64>,
+    ttfb_ms_sum: f64,
+    ttfb_ms_count: u64,
+    ttfb_samples: VecDeque<f64>,
+    duration_ms_sum: f64,
+    duration_ms_count: u64,
     uplink_bytes: u64,
     downlink_bytes: u64,
     last_outbound: String,
     last_protocol: String,
+    last_fingerprint: Option<String>,
     last_traffic_features: Option<TrafficFeatures>,
+    direct_mode: ModeStatsInner,
+    proxy_mode: ModeStatsInner,
     last_seen_ms: u64,
 }
 
@@ -299,11 +467,20 @@ impl SiteMetricsInner {
             min_connect_ms: f64::MAX,
             max_connect_ms: 0.0,
             last_connect_ms: 0.0,
+            connect_samples: VecDeque::with_capacity(MAX_LATENCY_SAMPLES),
+            ttfb_ms_sum: 0.0,
+            ttfb_ms_count: 0,
+            ttfb_samples: VecDeque::with_capacity(MAX_LATENCY_SAMPLES),
+            duration_ms_sum: 0.0,
+            duration_ms_count: 0,
             uplink_bytes: 0,
             downlink_bytes: 0,
             last_outbound: String::new(),
             last_protocol: "unknown".into(),
+            last_fingerprint: None,
             last_traffic_features: None,
+            direct_mode: ModeStatsInner::default(),
+            proxy_mode: ModeStatsInner::default(),
             last_seen_ms: now_epoch_ms(),
         }
     }
@@ -311,17 +488,27 @@ impl SiteMetricsInner {
     fn to_public(&self) -> SiteMetrics {
         let total = self.established + self.reused;
         let reuse_rate_pct = if total > 0 {
-            ((self.reused as f64 / total as f64) * 10000.0).round() / 100.0
+            round2((self.reused as f64 / total as f64) * 100.0)
         } else {
             0.0
         };
         let avg_connect_ms = if self.connect_ms_count > 0 {
-            ((self.connect_ms_sum / self.connect_ms_count as f64) * 100.0).round() / 100.0
+            round2(self.connect_ms_sum / self.connect_ms_count as f64)
         } else {
             0.0
         };
         let min_connect_ms = if self.connect_ms_count > 0 {
-            (self.min_connect_ms * 100.0).round() / 100.0
+            round2(self.min_connect_ms)
+        } else {
+            0.0
+        };
+        let avg_ttfb_ms = if self.ttfb_ms_count > 0 {
+            round2(self.ttfb_ms_sum / self.ttfb_ms_count as f64)
+        } else {
+            0.0
+        };
+        let avg_duration_ms = if self.duration_ms_count > 0 {
+            round2(self.duration_ms_sum / self.duration_ms_count as f64)
         } else {
             0.0
         };
@@ -336,15 +523,36 @@ impl SiteMetricsInner {
             bypassed_count: self.bypassed_count,
             proxied_count: self.proxied_count,
             avg_connect_ms,
+            p50_connect_ms: percentile(&self.connect_samples, 0.50),
+            p95_connect_ms: percentile(&self.connect_samples, 0.95),
             min_connect_ms,
-            max_connect_ms: (self.max_connect_ms * 100.0).round() / 100.0,
-            last_connect_ms: (self.last_connect_ms * 100.0).round() / 100.0,
+            max_connect_ms: round2(self.max_connect_ms),
+            last_connect_ms: round2(self.last_connect_ms),
+            avg_ttfb_ms,
+            p95_ttfb_ms: percentile(&self.ttfb_samples, 0.95),
+            avg_duration_ms,
             uplink_bytes: self.uplink_bytes,
             downlink_bytes: self.downlink_bytes,
             last_outbound: self.last_outbound.clone(),
             last_protocol: self.last_protocol.clone(),
+            last_fingerprint: self.last_fingerprint.clone(),
             last_traffic_features: self.last_traffic_features.clone(),
             last_seen_ms: self.last_seen_ms,
+        }
+    }
+
+    fn to_compare(&self) -> SiteCompare {
+        let direct = self.direct_mode.to_public();
+        let proxy = self.proxy_mode.to_public();
+        let has_both = (direct.established + direct.reused) > 0 && (proxy.established + proxy.reused) > 0;
+        SiteCompare {
+            host: self.host.clone(),
+            has_both,
+            delta_avg_connect_ms: round2(proxy.avg_connect_ms - direct.avg_connect_ms),
+            delta_p95_connect_ms: round2(proxy.p95_connect_ms - direct.p95_connect_ms),
+            delta_avg_ttfb_ms: round2(proxy.avg_ttfb_ms - direct.avg_ttfb_ms),
+            direct,
+            proxy,
         }
     }
 }
@@ -490,8 +698,10 @@ impl DebugMetricsStore {
             entry.active += 1;
             if bypassed {
                 entry.bypassed_count += 1;
+                entry.direct_mode.push_connect(connect_ms, reused);
             } else {
                 entry.proxied_count += 1;
+                entry.proxy_mode.push_connect(connect_ms, reused);
             }
             entry.connect_ms_sum += connect_ms;
             entry.connect_ms_count += 1;
@@ -501,6 +711,10 @@ impl DebugMetricsStore {
             if connect_ms > entry.max_connect_ms {
                 entry.max_connect_ms = connect_ms;
             }
+            if entry.connect_samples.len() >= MAX_LATENCY_SAMPLES {
+                entry.connect_samples.pop_front();
+            }
+            entry.connect_samples.push_back(connect_ms);
             entry.last_connect_ms = connect_ms;
             entry.last_outbound = outbound.to_string();
             if let Some(f) = features {
@@ -539,6 +753,11 @@ impl DebugMetricsStore {
                 .entry(host_key.clone())
                 .or_insert_with(|| SiteMetricsInner::new(host_key.clone()));
             entry.failed += 1;
+            if bypassed {
+                entry.direct_mode.failed += 1;
+            } else {
+                entry.proxy_mode.failed += 1;
+            }
             entry.last_outbound = outbound.to_string();
             entry.last_seen_ms = now;
         }
@@ -566,16 +785,81 @@ impl DebugMetricsStore {
         entry.last_seen_ms = now_epoch_ms();
     }
 
-    /// Record connection completion and transferred bytes.
-    pub fn record_connect_end(&self, host: &str, uplink: u64, downlink: u64) {
+    /// Record time-to-first-byte (TTFB ms) from server for a connection.
+    pub fn record_ttfb(&self, host: &str, bypassed: bool, ttfb_ms: f64) {
+        let host_key = normalize_host(host);
+        let mut sites = self.sites.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(entry) = sites.get_mut(&host_key) {
+            entry.ttfb_ms_sum += ttfb_ms;
+            entry.ttfb_ms_count += 1;
+            if entry.ttfb_samples.len() >= MAX_LATENCY_SAMPLES {
+                entry.ttfb_samples.pop_front();
+            }
+            entry.ttfb_samples.push_back(ttfb_ms);
+            if bypassed {
+                entry.direct_mode.push_ttfb(ttfb_ms);
+            } else {
+                entry.proxy_mode.push_ttfb(ttfb_ms);
+            }
+        }
+    }
+
+    /// Record connection completion, transferred bytes, duration, and optional flow fingerprint.
+    pub fn record_connect_end(
+        &self,
+        host: &str,
+        bypassed: bool,
+        uplink: u64,
+        downlink: u64,
+        duration_ms: f64,
+        flow: Option<FlowRecord>,
+    ) {
         let host_key = normalize_host(host);
         let mut sites = self.sites.write().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = sites.get_mut(&host_key) {
             entry.active = entry.active.saturating_sub(1);
             entry.uplink_bytes += uplink;
             entry.downlink_bytes += downlink;
+            entry.duration_ms_sum += duration_ms;
+            entry.duration_ms_count += 1;
+            if let Some(ref f) = flow
+                && !f.first_n_sizes.is_empty()
+            {
+                entry.last_fingerprint = Some(f.fingerprint.clone());
+            }
+            if bypassed {
+                entry
+                    .direct_mode
+                    .push_end(uplink, downlink, duration_ms, flow.as_ref());
+            } else {
+                entry
+                    .proxy_mode
+                    .push_end(uplink, downlink, duration_ms, flow.as_ref());
+            }
             entry.last_seen_ms = now_epoch_ms();
         }
+    }
+
+    /// Direct vs Proxy A/B comparison across sites (prioritizing sites that have BOTH direct & proxy data).
+    pub fn compare(&self, host_filter: Option<&str>) -> Vec<SiteCompare> {
+        let sites = self.sites.read().unwrap_or_else(|e| e.into_inner());
+        let filter_lc = host_filter.map(|s| s.to_ascii_lowercase());
+        let mut list: Vec<SiteCompare> = sites
+            .values()
+            .filter(|s| match &filter_lc {
+                Some(f) if !f.is_empty() => s.host.to_ascii_lowercase().contains(f),
+                _ => true,
+            })
+            .map(|s| s.to_compare())
+            .collect();
+        list.sort_by(|a, b| {
+            b.has_both.cmp(&a.has_both).then_with(|| {
+                let ta = a.direct.established + a.proxy.established;
+                let tb = b.direct.established + b.proxy.established;
+                tb.cmp(&ta)
+            })
+        });
+        list
     }
 
     pub fn record_probe(&self, probe: DirectProbeResult) {
@@ -600,6 +884,23 @@ impl DebugMetricsStore {
                 }
                 if ms > entry.max_connect_ms {
                     entry.max_connect_ms = ms;
+                }
+                if entry.connect_samples.len() >= MAX_LATENCY_SAMPLES {
+                    entry.connect_samples.pop_front();
+                }
+                entry.connect_samples.push_back(ms);
+                entry.direct_mode.push_connect(ms, false);
+                if probe.reuse_succeeded {
+                    entry.direct_mode.reused += 1;
+                }
+                if probe.first_request_ms > 0.0 {
+                    entry.ttfb_ms_sum += probe.first_request_ms;
+                    entry.ttfb_ms_count += 1;
+                    if entry.ttfb_samples.len() >= MAX_LATENCY_SAMPLES {
+                        entry.ttfb_samples.pop_front();
+                    }
+                    entry.ttfb_samples.push_back(probe.first_request_ms);
+                    entry.direct_mode.push_ttfb(probe.first_request_ms);
                 }
                 entry.last_connect_ms = ms;
                 entry.last_outbound = "debug-direct-probe".into();

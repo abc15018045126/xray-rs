@@ -10,9 +10,75 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #0b1120;
       color: #e2e8f0;
-      padding: 16px 20px;
       font-size: 13px;
       line-height: 1.5;
+      display: flex;
+      min-height: 100vh;
+    }
+    /* Left Vertical Sidebar */
+    .sidebar {
+      width: 210px;
+      flex-shrink: 0;
+      background: #070c18;
+      border-right: 1px solid #1e293b;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+    .brand {
+      font-size: 15px;
+      font-weight: 700;
+      color: #f8fafc;
+      padding: 4px 8px 12px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 6px;
+    }
+    .brand-sub { font-size: 11px; color: #64748b; font-weight: 500; margin-top: 2px; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 10px;
+      border-radius: 8px;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      background: transparent;
+      text-align: left;
+      width: 100%;
+    }
+    .nav-item:hover { background: #111827; color: #e2e8f0; }
+    .nav-item.active {
+      background: #172554;
+      color: #93c5fd;
+      border-color: #1d4ed8;
+    }
+    .nav-pill {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #1e293b;
+      color: #cbd5e1;
+    }
+    .sidebar-foot {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid #1e293b;
+      font-size: 11px;
+      color: #64748b;
+    }
+    /* Main content area */
+    .main {
+      flex: 1;
+      padding: 16px 22px;
+      min-width: 0;
+      overflow-x: hidden;
     }
     .header {
       display: flex;
@@ -39,7 +105,7 @@
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .grid-kpi {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
       gap: 12px;
       margin-bottom: 16px;
     }
@@ -111,170 +177,336 @@
       color: #cbd5e1;
       white-space: pre-wrap;
       overflow-x: auto;
-      max-height: 240px;
+      max-height: 260px;
       overflow-y: auto;
     }
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
-    .hidden { display: none; }
+    @media (max-width: 960px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; }
+      .split { grid-template-columns: 1fr; }
+    }
+    .hidden { display: none !important; }
+    .pos { color: #f87171; }
+    .neg { color: #34d399; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="title">
-      <span>xray-rs Debug Panel</span>
-      <span class="badge badge-info">Web · 与 Dioxus 同步</span>
-      <span id="connBadge" class="badge badge-err">连接中...</span>
-      <span id="bypassTopBadge" class="badge badge-warn hidden">直连内核模式已开启 (不代理)</span>
+  <!-- Left Vertical Navigation -->
+  <aside class="sidebar">
+    <div class="brand">
+      xray-rs Debug
+      <div class="brand-sub">抓包分析 · 统计 · AI</div>
     </div>
-    <div class="row">
-      <button class="btn-ghost" onclick="resetMetrics()">清空统计</button>
+    <button class="nav-item active" data-tab="home" onclick="switchTab('home')">
+      <span>主页总览</span>
+      <span id="navSitesCnt" class="nav-pill">0</span>
+    </button>
+    <button class="nav-item" data-tab="compare" onclick="switchTab('compare')">
+      <span>直连 vs 代理对比</span>
+      <span id="navCompareCnt" class="nav-pill">0</span>
+    </button>
+    <button class="nav-item" data-tab="flows" onclick="switchTab('flows')">
+      <span>流指纹与抓包</span>
+      <span id="navFlowCnt" class="nav-pill">0</span>
+    </button>
+    <button class="nav-item" data-tab="latency" onclick="switchTab('latency')">
+      <span>延迟 / TTFB 分布</span>
+      <span class="nav-pill">P95</span>
+    </button>
+    <button class="nav-item" data-tab="ai" onclick="switchTab('ai')">
+      <span>AI 极简接口</span>
+      <span class="nav-pill">API</span>
+    </button>
+    <div class="sidebar-foot">
+      <div id="sidePid">PID: -</div>
+      <div id="sideCpuMem">CPU - · MEM -</div>
     </div>
-  </div>
+  </aside>
 
-  <div id="errBanner" class="card hidden" style="border-color:#7f1d1d;background:#1c1014;color:#fca5a5;"></div>
-
-  <!-- KPI Cards -->
-  <div class="grid-kpi">
-    <div class="card" style="margin-bottom:0;">
-      <div class="kpi-label">CPU 占用</div>
-      <div id="kpiCpu" class="kpi-val">0.00%</div>
-      <div id="kpiCpuSub" class="kpi-sub">-</div>
-    </div>
-    <div class="card" style="margin-bottom:0;">
-      <div class="kpi-label">内存占用 (RSS)</div>
-      <div id="kpiMem" class="kpi-val">0.00 MB</div>
-      <div id="kpiMemSub" class="kpi-sub">-</div>
-    </div>
-    <div class="card" style="margin-bottom:0;">
-      <div class="kpi-label">新建连接 / 活跃</div>
-      <div id="kpiNew" class="kpi-val">0 / 0</div>
-      <div id="kpiNewSub" class="kpi-sub">-</div>
-    </div>
-    <div class="card" style="margin-bottom:0;">
-      <div class="kpi-label">连接复用 (Reuse)</div>
-      <div id="kpiReuse" class="kpi-val">0 (0.0%)</div>
-      <div id="kpiReuseSub" class="kpi-sub">-</div>
-    </div>
-    <div class="card" style="margin-bottom:0;">
-      <div class="kpi-label">平均建连耗时</div>
-      <div id="kpiMs" class="kpi-val">0.00 ms</div>
-      <div id="kpiMsSub" class="kpi-sub">-</div>
-    </div>
-  </div>
-
-  <!-- Split Row -->
-  <div class="split">
-    <!-- Direct Kernel Bypass -->
-    <div class="card">
-      <div class="card-title">
-        <span>直接过内核不代理 (实时流量特征观察)</span>
-        <span id="bypassBadge" class="badge badge-ghost">正常代理路由</span>
-      </div>
-      <p style="color:#94a3b8;margin-bottom:10px;font-size:12px;">
-        点击按钮后，xray-rs 内核分发器将跳过代理出站，直接经由操作系统内核 TCP 直连目标，同时抓取正常流量特征 (TLS 版本 / SNI / ALPN / ClientHello 长度 / HTTP 头)。
-      </p>
-      <div class="row" style="margin-bottom:10px;">
-        <button id="btnBypass" class="btn-success" onclick="toggleBypass()">开启直连内核 (不代理)</button>
-        <input id="bypassDomains" placeholder="可选域名白名单，逗号分隔 (留空=全部直连)" style="flex:1;min-width:200px;" />
-        <button class="btn-ghost" onclick="applyDomains()">应用域名</button>
-      </div>
-      <div id="bypassScope" class="mono" style="color:#64748b;">当前作用域: 全部流量</div>
-    </div>
-
-    <!-- Direct Probe -->
-    <div class="card">
-      <div class="card-title">
-        <span>一键直连内核探测 (正常流量特征 + 复用测试)</span>
-        <span class="badge badge-info">DNS / TCP / TLS / Keep-Alive</span>
-      </div>
-      <div class="row" style="margin-bottom:10px;">
-        <input id="probeTarget" value="www.cloudflare.com" placeholder="例如 www.cloudflare.com 或 https://github.com" style="flex:1;" />
-        <button id="btnProbe" class="btn-primary" onclick="runProbe()">直连内核探测</button>
-      </div>
-      <div id="probeOutput" class="pre-box hidden"></div>
-      <div id="probeHint" style="color:#64748b;font-size:12px;">点击「直连内核探测」立即绕过代理测试任意网站的正常流量特征与连接复用耗时。</div>
-    </div>
-  </div>
-
-  <!-- Sites Table -->
-  <div class="card">
-    <div class="card-title">
-      <span id="sitesTitle">各网站连接数 / 复用数 / 耗时 / 流量特征 (0)</span>
-      <input id="hostFilter" placeholder="按域名过滤..." style="width:220px;" oninput="renderSites()" />
-    </div>
-    <div id="sitesEmpty" style="color:#64748b;padding:12px 0;">暂无网站连接记录。浏览网页或点击上方「直连内核探测」后将实时显示。</div>
-    <div id="sitesTableWrap" class="hidden" style="overflow-x:auto;max-height:360px;overflow-y:auto;">
-      <table>
-        <thead>
-          <tr>
-            <th>网站 (Host)</th>
-            <th>新建连接</th>
-            <th>复用 (复用率)</th>
-            <th>活跃</th>
-            <th>建连耗时 (ms)</th>
-            <th>流量 (↑ / ↓)</th>
-            <th>出站 / 直连次数</th>
-            <th>流量特征 (正常/嗅探)</th>
-          </tr>
-        </thead>
-        <tbody id="sitesBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Wireshark Packet Capture -->
-  <div class="card">
-    <div class="card-title">
-      <div class="row">
-        <span>Wireshark 风格实时抓包 (无需 Npcap · 支持导出 .pcap)</span>
-        <span id="capBadge" class="badge badge-info">已缓冲 0 包</span>
+  <!-- Main Workspace -->
+  <main class="main">
+    <div class="header">
+      <div class="title">
+        <span id="pageTitle">主页总览</span>
+        <span class="badge badge-info">Web · 与 Dioxus 同步</span>
+        <span id="connBadge" class="badge badge-err">连接中...</span>
+        <span id="bypassTopBadge" class="badge badge-warn hidden">直连内核模式已开启 (不代理)</span>
       </div>
       <div class="row">
-        <button id="btnCapture" class="btn-success" onclick="toggleCapture()">开启抓包</button>
-        <a class="btn btn-primary" href="/ai/capture.pcap" download="xray_capture.pcap">导出 .pcap (Wireshark)</a>
-        <button class="btn-ghost" onclick="clearCapture()">清空包</button>
+        <button id="topBypassBtn" class="btn-success" onclick="toggleBypass()">开启直连内核</button>
+        <button id="topCapBtn" class="btn-ghost" onclick="toggleCapture()">开启抓包</button>
+        <button class="btn-ghost" onclick="resetMetrics()">清空统计</button>
       </div>
     </div>
-    <div id="capStats" class="mono" style="color:#94a3b8;margin-bottom:8px;">-</div>
-    <div id="pktEmpty" style="color:#64748b;padding:8px 0;">点击「开启抓包」后，经过 xray-rs 内核的每个数据包（直连或代理）都会按 Wireshark 格式实时显示，点击任意行可查看 Hex/ASCII 十六进制负载。</div>
-    <div id="pktTableWrap" class="hidden" style="max-height:240px;overflow-y:auto;border:1px solid #1e293b;border-radius:6px;">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>方向</th>
-            <th>网站</th>
-            <th>协议</th>
-            <th>长度</th>
-            <th>出站</th>
-            <th>Info (L7 解析)</th>
-          </tr>
-        </thead>
-        <tbody id="pktBody"></tbody>
-      </table>
-    </div>
-    <div id="hexPanel" class="hidden" style="margin-top:10px;">
-      <div id="hexMeta" class="mono" style="color:#94a3b8;margin-bottom:4px;"></div>
-      <div id="hexContent" class="pre-box"></div>
-    </div>
-  </div>
 
-  <!-- AI Interface Card -->
-  <div class="card">
-    <div class="card-title">
-      <span>极简 AI 接口 (给 AI Agent 直接调用)</span>
-      <button class="btn-ghost" onclick="fetchAiText()">预览 AI 极简文本输出</button>
-    </div>
-    <div class="mono" style="color:#94a3b8;margin-bottom:8px;">
-      GET /ai/summary?format=text &nbsp;|&nbsp; GET /ai/sites &nbsp;|&nbsp; GET /ai/bypass?on=1 &nbsp;|&nbsp; GET /ai/capture?on=1 &nbsp;|&nbsp; GET /ai/packets?format=text &nbsp;|&nbsp; GET /ai/capture.pcap
-    </div>
-    <div id="aiTextBox" class="pre-box hidden"></div>
-  </div>
+    <div id="errBanner" class="card hidden" style="border-color:#7f1d1d;background:#1c1014;color:#fca5a5;"></div>
+
+    <!-- ==================== TAB 1: HOME ==================== -->
+    <section id="tab-home">
+      <div class="grid-kpi">
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">CPU 占用</div>
+          <div id="kpiCpu" class="kpi-val">0.00%</div>
+          <div id="kpiCpuSub" class="kpi-sub">-</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">内存占用 (RSS)</div>
+          <div id="kpiMem" class="kpi-val">0.00 MB</div>
+          <div id="kpiMemSub" class="kpi-sub">-</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">新建连接 / 活跃</div>
+          <div id="kpiNew" class="kpi-val">0 / 0</div>
+          <div id="kpiNewSub" class="kpi-sub">-</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">连接复用 (Reuse)</div>
+          <div id="kpiReuse" class="kpi-val">0 (0.0%)</div>
+          <div id="kpiReuseSub" class="kpi-sub">-</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">平均建连耗时</div>
+          <div id="kpiMs" class="kpi-val">0.00 ms</div>
+          <div id="kpiMsSub" class="kpi-sub">-</div>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <div class="card-title">
+            <span>直接过内核不代理 (实时流量特征观察)</span>
+            <span id="bypassBadge" class="badge badge-ghost">正常代理路由</span>
+          </div>
+          <p style="color:#94a3b8;margin-bottom:10px;font-size:12px;">
+            点击按钮后，xray-rs 内核分发器将跳过代理出站，直接经由操作系统内核 TCP 直连目标，同时抓取正常流量特征与前 N 包指纹，方便与代理流量做 A/B 对比。
+          </p>
+          <div class="row" style="margin-bottom:10px;">
+            <button id="btnBypass" class="btn-success" onclick="toggleBypass()">开启直连内核 (不代理)</button>
+            <input id="bypassDomains" placeholder="可选域名白名单，逗号分隔 (留空=全部直连)" style="flex:1;min-width:190px;" />
+            <button class="btn-ghost" onclick="applyDomains()">应用域名</button>
+          </div>
+          <div id="bypassScope" class="mono" style="color:#64748b;">当前作用域: 全部流量</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>一键直连内核探测 (正常流量特征 + 复用测试)</span>
+            <span class="badge badge-info">DNS / TCP / TLS / Keep-Alive</span>
+          </div>
+          <div class="row" style="margin-bottom:10px;">
+            <input id="probeTarget" value="www.cloudflare.com" placeholder="例如 www.cloudflare.com 或 https://github.com" style="flex:1;" />
+            <button id="btnProbe" class="btn-primary" onclick="runProbe()">直连内核探测</button>
+          </div>
+          <div id="probeOutput" class="pre-box hidden"></div>
+          <div id="probeHint" style="color:#64748b;font-size:12px;">点击「直连内核探测」立即绕过代理测试任意网站的正常流量特征与连接复用耗时。</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span id="sitesTitle">各网站连接数 / 复用数 / 耗时 / 流量特征 (0)</span>
+          <input id="hostFilter" placeholder="按域名过滤..." style="width:220px;" oninput="renderSites()" />
+        </div>
+        <div id="sitesEmpty" style="color:#64748b;padding:12px 0;">暂无网站连接记录。浏览网页或点击上方「直连内核探测」后将实时显示。</div>
+        <div id="sitesTableWrap" class="hidden" style="overflow-x:auto;max-height:380px;overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>网站 (Host)</th>
+                <th>新建 / 复用</th>
+                <th>活跃</th>
+                <th>建连 avg / p95</th>
+                <th>首包 TTFB</th>
+                <th>流量 (↑ / ↓)</th>
+                <th>出站 / 直连次数</th>
+                <th>前 N 包指纹 / 流量特征</th>
+              </tr>
+            </thead>
+            <tbody id="sitesBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: A/B COMPARE ==================== -->
+    <section id="tab-compare" class="hidden">
+      <div class="card">
+        <div class="card-title">
+          <span>直连正常流量 vs 代理流量 同站自动 A/B 对比</span>
+          <div class="row">
+            <input id="compareFilter" placeholder="按域名过滤..." style="width:200px;" oninput="renderCompare()" />
+            <button class="btn-ghost" onclick="pollCompare()">立即刷新</button>
+          </div>
+        </div>
+        <p style="color:#94a3b8;margin-bottom:10px;font-size:12px;">
+          先在代理模式下访问目标网站，再点击顶部「开启直连内核」访问同一网站，下方会自动按同一域名并排对比建连耗时、P50/P95、TTFB、复用率以及前 N 包长度序列指纹。
+        </p>
+        <div id="compareEmpty" style="color:#64748b;padding:12px 0;">暂无对比数据。</div>
+        <div id="compareWrap" class="hidden" style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>网站 (Host)</th>
+                <th>直连 (建连 avg/p95 · TTFB · 复用)</th>
+                <th>代理 (建连 avg/p95 · TTFB · 复用)</th>
+                <th>差值 (代理 - 直连)</th>
+                <th>前 N 包指纹对比 (直连 vs 代理)</th>
+              </tr>
+            </thead>
+            <tbody id="compareBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: FLOWS & PACKETS ==================== -->
+    <section id="tab-flows" class="hidden">
+      <div class="card">
+        <div class="card-title">
+          <span>连接流指纹列表 (conn_id · 前 N 包带符号长度序列 · 同流包间隔 IAT)</span>
+          <input id="flowFilter" placeholder="按域名过滤流..." style="width:200px;" oninput="renderFlows()" />
+        </div>
+        <div id="flowsEmpty" style="color:#64748b;padding:8px 0;">暂无连接流记录。</div>
+        <div id="flowsWrap" class="hidden" style="max-height:240px;overflow-y:auto;border:1px solid #1e293b;border-radius:6px;">
+          <table>
+            <thead>
+              <tr>
+                <th>conn_id</th>
+                <th>网站</th>
+                <th>模式 / 出站</th>
+                <th>包数</th>
+                <th>平均 / 最大 IAT</th>
+                <th>流量 (C->S / S->C)</th>
+                <th>前 N 包带符号长度指纹 (+上行 / -下行)</th>
+              </tr>
+            </thead>
+            <tbody id="flowsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <div class="row">
+            <span>Wireshark 风格逐包抓包 (conn_id · iat_ms · 导出 .pcap)</span>
+            <span id="capBadge" class="badge badge-info">已缓冲 0 包</span>
+          </div>
+          <div class="row">
+            <button id="btnCapture" class="btn-success" onclick="toggleCapture()">开启抓包</button>
+            <a class="btn btn-primary" href="/ai/capture.pcap" download="xray_capture.pcap">导出 .pcap (Wireshark)</a>
+            <button class="btn-ghost" onclick="clearCapture()">清空包</button>
+          </div>
+        </div>
+        <div id="capStats" class="mono" style="color:#94a3b8;margin-bottom:8px;">-</div>
+        <div id="pktEmpty" style="color:#64748b;padding:8px 0;">点击「开启抓包」后，每个数据包都会带 conn_id 和同流包间隔 iat_ms 实时显示，点击任意行查看 Hex/ASCII 负载。</div>
+        <div id="pktTableWrap" class="hidden" style="max-height:260px;overflow-y:auto;border:1px solid #1e293b;border-radius:6px;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>conn_id</th>
+                <th>IAT (ms)</th>
+                <th>方向</th>
+                <th>网站</th>
+                <th>协议</th>
+                <th>长度</th>
+                <th>出站</th>
+                <th>Info (L7 解析)</th>
+              </tr>
+            </thead>
+            <tbody id="pktBody"></tbody>
+          </table>
+        </div>
+        <div id="hexPanel" class="hidden" style="margin-top:10px;">
+          <div id="hexMeta" class="mono" style="color:#94a3b8;margin-bottom:4px;"></div>
+          <div id="hexContent" class="pre-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: LATENCY & TTFB ==================== -->
+    <section id="tab-latency" class="hidden">
+      <div class="card">
+        <div class="card-title">
+          <span>各网站延迟分位 (P50 / P95 / Max)、首包 TTFB 与平均连接存活时长</span>
+          <input id="latFilter" placeholder="按域名过滤..." style="width:200px;" oninput="renderLatency()" />
+        </div>
+        <div id="latEmpty" style="color:#64748b;padding:12px 0;">暂无延迟分布数据。</div>
+        <div id="latWrap" class="hidden" style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>网站 (Host)</th>
+                <th>新建 / 复用 (复用率)</th>
+                <th>建连 Avg</th>
+                <th>建连 P50</th>
+                <th>建连 P95</th>
+                <th>建连 Max</th>
+                <th>TTFB Avg</th>
+                <th>TTFB P95</th>
+                <th>平均存活时长</th>
+              </tr>
+            </thead>
+            <tbody id="latBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: AI API ==================== -->
+    <section id="tab-ai" class="hidden">
+      <div class="card">
+        <div class="card-title">
+          <span>极简 AI 接口 (给 AI Agent 单次调用)</span>
+          <div class="row">
+            <button class="btn-primary" onclick="fetchAi('/ai/summary?format=text')">预览 Summary 文本</button>
+            <button class="btn-ghost" onclick="fetchAi('/ai/compare?format=text')">预览 A/B 对比文本</button>
+            <button class="btn-ghost" onclick="fetchAi('/ai/flows?format=text&limit=30')">预览流指纹文本</button>
+            <button class="btn-ghost" onclick="fetchAi('/ai/packets?format=text&limit=30')">预览抓包文本</button>
+          </div>
+        </div>
+        <div class="mono" style="color:#94a3b8;margin-bottom:10px;line-height:1.9;">
+          • <code>GET /ai/summary?format=text</code> — 全局资源 + 连接复用 + 抓包总览（最省 Token）<br/>
+          • <code>GET /ai/compare?host=xxx&amp;format=text</code> — 直连 vs 代理同站自动 A/B 对比（P50/P95/TTFB/前 N 包指纹）<br/>
+          • <code>GET /ai/flows?host=xxx&amp;format=text</code> — 每条连接的 conn_id、IAT ms 与前 N 包长度序列指纹<br/>
+          • <code>GET /ai/packets?host=xxx&amp;format=text</code> — Wireshark 逐包摘要（含 conn_id 与 iat_ms）<br/>
+          • <code>GET /ai/capture.pcap</code> — 下载标准 Wireshark `.pcap` 文件<br/>
+          • <code>GET /ai/bypass?on=1</code> / <code>?off=1</code> · <code>GET /ai/capture?on=1</code> / <code>?off=1</code> · <code>GET /ai/probe?target=www.cloudflare.com</code>
+        </div>
+        <div id="aiTextBox" class="pre-box">点击上方按钮预览对应 AI 文本接口的实时输出...</div>
+      </div>
+    </section>
+  </main>
 
   <script>
+    let currentTab = 'home';
     let latestSummary = null;
     let latestPackets = [];
+    let latestFlows = [];
+    let latestCompare = [];
+
+    const TAB_TITLES = {
+      home: '主页总览',
+      compare: '直连 vs 代理对比 (A/B)',
+      flows: '流指纹与 Wireshark 抓包',
+      latency: '延迟分位 (P50/P95) 与 TTFB 分布',
+      ai: '极简 AI 接口'
+    };
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('pageTitle').textContent = TAB_TITLES[tab] || tab;
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.tab === tab);
+      });
+      ['home', 'compare', 'flows', 'latency', 'ai'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+      });
+      if (tab === 'compare') pollCompare();
+      if (tab === 'flows') pollFlows();
+      if (tab === 'latency') renderLatency();
+    }
 
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -286,6 +518,13 @@
       if (b >= 1048576) return (b / 1048576).toFixed(2) + ' MB';
       if (b >= 1024) return (b / 1024).toFixed(1) + ' KB';
       return b + ' B';
+    }
+
+    function fmtDur(ms) {
+      ms = Number(ms || 0);
+      if (ms >= 60000) return (ms / 60000).toFixed(1) + ' min';
+      if (ms >= 1000) return (ms / 1000).toFixed(2) + ' s';
+      return ms.toFixed(0) + ' ms';
     }
 
     function parseDomainsInput() {
@@ -302,16 +541,21 @@
         document.getElementById('errBanner').classList.add('hidden');
         renderSummary(d);
 
-        if (d.capture && (d.capture.enabled || d.capture.packet_count > 0)) {
-          const pr = await fetch('/ai/packets?limit=80');
-          if (pr.ok) {
-            latestPackets = await pr.json();
+        if (currentTab === 'compare') pollCompare();
+        if (currentTab === 'flows') {
+          pollFlows();
+          if (d.capture && (d.capture.enabled || d.capture.packet_count > 0)) {
+            const pr = await fetch('/ai/packets?limit=80');
+            if (pr.ok) {
+              latestPackets = await pr.json();
+              renderPackets();
+            }
+          } else if (latestPackets.length > 0) {
+            latestPackets = [];
             renderPackets();
           }
-        } else if (latestPackets.length > 0) {
-          latestPackets = [];
-          renderPackets();
         }
+        if (currentTab === 'latency') renderLatency();
       } catch (e) {
         const badge = document.getElementById('connBadge');
         badge.className = 'badge badge-err';
@@ -322,17 +566,52 @@
       }
     }
 
+    async function pollCompare() {
+      try {
+        const res = await fetch('/ai/compare');
+        if (res.ok) {
+          latestCompare = await res.json();
+          const bothCnt = latestCompare.filter(c => c.has_both).length;
+          document.getElementById('navCompareCnt').textContent = bothCnt || latestCompare.length;
+          renderCompare();
+        }
+      } catch (_) {}
+    }
+
+    async function pollFlows() {
+      try {
+        const res = await fetch('/ai/flows?limit=80');
+        if (res.ok) {
+          latestFlows = await res.json();
+          renderFlows();
+        }
+      } catch (_) {}
+    }
+
     function renderSummary(d) {
       const r = d.resources || {};
       const t = d.totals || {};
       const b = d.bypass || { enabled: false, domains: [] };
-      const c = d.capture || { enabled: false, packet_count: 0, max_packets: 500, size_buckets: {} };
+      const c = d.capture || { enabled: false, packet_count: 0, flow_count: 0, max_packets: 500, size_buckets: {} };
 
       const conn = document.getElementById('connBadge');
       conn.className = 'badge badge-ok';
       conn.textContent = '已连接 PID ' + (r.pid || 0);
 
+      document.getElementById('sidePid').textContent = 'PID: ' + (r.pid || '-');
+      document.getElementById('sideCpuMem').textContent = `CPU ${(r.cpu_percent || 0).toFixed(1)}% · ${(r.memory_rss_mb || 0).toFixed(1)} MB`;
+      document.getElementById('navSitesCnt').textContent = t.total_sites || 0;
+      document.getElementById('navFlowCnt').textContent = c.flow_count || 0;
+
       document.getElementById('bypassTopBadge').classList.toggle('hidden', !b.enabled);
+
+      const topB = document.getElementById('topBypassBtn');
+      topB.className = b.enabled ? 'btn-warn' : 'btn-success';
+      topB.textContent = b.enabled ? '关闭直连内核' : '开启直连内核';
+
+      const topC = document.getElementById('topCapBtn');
+      topC.className = c.enabled ? 'btn-danger' : 'btn-ghost';
+      topC.textContent = c.enabled ? `停止抓包 (${c.packet_count})` : '开启抓包';
 
       document.getElementById('kpiCpu').textContent = (r.cpu_percent || 0).toFixed(2) + '%';
       document.getElementById('kpiCpuSub').textContent = `${r.cpu_cores || 0} 核心 · 运行 ${r.uptime_secs || 0}s`;
@@ -345,7 +624,6 @@
       document.getElementById('kpiMs').textContent = (t.avg_connect_ms || 0).toFixed(2) + ' ms';
       document.getElementById('kpiMsSub').textContent = `↑ ${fmtBytes(t.total_uplink_bytes)} · ↓ ${fmtBytes(t.total_downlink_bytes)}`;
 
-      // Bypass UI
       const bBadge = document.getElementById('bypassBadge');
       const bBtn = document.getElementById('btnBypass');
       if (b.enabled) {
@@ -362,7 +640,6 @@
       document.getElementById('bypassScope').textContent =
         (b.domains && b.domains.length) ? ('当前仅直连域名: ' + b.domains.join(', ')) : '当前作用域: 全部流量';
 
-      // Latest probe
       if (d.recent_probes && d.recent_probes.length > 0) {
         const p = d.recent_probes[0];
         document.getElementById('probeHint').classList.add('hidden');
@@ -379,7 +656,6 @@
           (p.error ? ('\n错误: ' + p.error) : '');
       }
 
-      // Capture status
       const capBadge = document.getElementById('capBadge');
       const capBtn = document.getElementById('btnCapture');
       if (c.enabled) {
@@ -408,18 +684,75 @@
       document.getElementById('sitesEmpty').classList.toggle('hidden', list.length > 0);
       document.getElementById('sitesTableWrap').classList.toggle('hidden', list.length === 0);
 
-      const tbody = document.getElementById('sitesBody');
-      tbody.innerHTML = list.map(s => {
+      document.getElementById('sitesBody').innerHTML = list.map(s => {
         const feat = (s.last_traffic_features && s.last_traffic_features.summary) || s.last_protocol || '-';
+        const fp = s.last_fingerprint ? `<div style="color:#fcd34d;font-size:10px;">FP: ${esc(s.last_fingerprint)}</div>` : '';
         return `<tr>
           <td class="mono" style="color:#f8fafc;font-weight:600;">${esc(s.host)}</td>
-          <td>${s.established}</td>
-          <td><span style="color:#34d399;font-weight:600;">${s.reused}</span> <span style="color:#64748b;">(${(s.reuse_rate_pct || 0).toFixed(1)}%)</span></td>
+          <td class="mono">${s.established} / <span style="color:#34d399;font-weight:600;">${s.reused}</span> <span style="color:#64748b;">(${(s.reuse_rate_pct || 0).toFixed(0)}%)</span></td>
           <td>${s.active}</td>
-          <td class="mono">${(s.avg_connect_ms || 0).toFixed(1)} ms<div style="color:#64748b;font-size:10px;">min ${(s.min_connect_ms || 0).toFixed(1)} / max ${(s.max_connect_ms || 0).toFixed(1)}</div></td>
+          <td class="mono">${(s.avg_connect_ms || 0).toFixed(1)} / ${(s.p95_connect_ms || 0).toFixed(1)} ms</td>
+          <td class="mono">${(s.avg_ttfb_ms || 0).toFixed(1)} ms</td>
           <td class="mono">↑ ${fmtBytes(s.uplink_bytes)} / ↓ ${fmtBytes(s.downlink_bytes)}</td>
           <td class="mono">${esc(s.last_outbound)}<div style="color:#64748b;font-size:10px;">直连:${s.bypassed_count} 代理:${s.proxied_count}</div></td>
-          <td class="mono" style="color:#93c5fd;max-width:340px;word-break:break-all;">${esc(feat)}</td>
+          <td class="mono" style="color:#93c5fd;max-width:340px;word-break:break-all;">${fp}${esc(feat)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderCompare() {
+      const f = document.getElementById('compareFilter').value.trim().toLowerCase();
+      const list = f ? latestCompare.filter(c => c.host.toLowerCase().includes(f)) : latestCompare;
+      document.getElementById('compareEmpty').classList.toggle('hidden', list.length > 0);
+      document.getElementById('compareWrap').classList.toggle('hidden', list.length === 0);
+
+      document.getElementById('compareBody').innerHTML = list.map(c => {
+        const d = c.direct || {};
+        const p = c.proxy || {};
+        const badge = c.has_both ? '<span class="badge badge-ok" style="margin-left:6px;">可对比</span>' : '';
+        const dCls = c.delta_avg_connect_ms > 0 ? 'pos' : 'neg';
+        const tCls = c.delta_avg_ttfb_ms > 0 ? 'pos' : 'neg';
+        return `<tr>
+          <td class="mono" style="color:#f8fafc;font-weight:600;">${esc(c.host)}${badge}</td>
+          <td class="mono">
+            新:${d.established || 0} 复:${d.reused || 0} (${(d.reuse_rate_pct || 0).toFixed(0)}%)<br/>
+            avg ${(d.avg_connect_ms || 0).toFixed(1)} / p95 ${(d.p95_connect_ms || 0).toFixed(1)} ms<br/>
+            TTFB ${(d.avg_ttfb_ms || 0).toFixed(1)} ms · 存活 ${fmtDur(d.avg_duration_ms)}
+          </td>
+          <td class="mono">
+            新:${p.established || 0} 复:${p.reused || 0} (${(p.reuse_rate_pct || 0).toFixed(0)}%)<br/>
+            avg ${(p.avg_connect_ms || 0).toFixed(1)} / p95 ${(p.p95_connect_ms || 0).toFixed(1)} ms<br/>
+            TTFB ${(p.avg_ttfb_ms || 0).toFixed(1)} ms · 存活 ${fmtDur(p.avg_duration_ms)}
+          </td>
+          <td class="mono">
+            建连: <span class="${dCls}">${c.delta_avg_connect_ms >= 0 ? '+' : ''}${(c.delta_avg_connect_ms || 0).toFixed(1)} ms</span><br/>
+            P95: ${(c.delta_p95_connect_ms >= 0 ? '+' : '')}${(c.delta_p95_connect_ms || 0).toFixed(1)} ms<br/>
+            TTFB: <span class="${tCls}">${c.delta_avg_ttfb_ms >= 0 ? '+' : ''}${(c.delta_avg_ttfb_ms || 0).toFixed(1)} ms</span>
+          </td>
+          <td class="mono" style="max-width:340px;word-break:break-all;">
+            <div style="color:#fcd34d;">直连: ${esc(d.sample_fingerprint || '-')}</div>
+            <div style="color:#93c5fd;">代理: ${esc(p.sample_fingerprint || '-')}</div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderFlows() {
+      const f = document.getElementById('flowFilter').value.trim().toLowerCase();
+      const list = f ? latestFlows.filter(x => x.host.toLowerCase().includes(f)) : latestFlows;
+      document.getElementById('flowsEmpty').classList.toggle('hidden', list.length > 0);
+      document.getElementById('flowsWrap').classList.toggle('hidden', list.length === 0);
+
+      document.getElementById('flowsBody').innerHTML = list.map(fl => {
+        const modeTag = fl.bypassed ? `<span style="color:#fcd34d;">直连(${esc(fl.outbound)})</span>` : esc(fl.outbound);
+        return `<tr>
+          <td class="mono" style="color:#38bdf8;">#${fl.conn_id}</td>
+          <td class="mono" style="color:#f8fafc;">${esc(fl.host)}</td>
+          <td class="mono">${modeTag}</td>
+          <td class="mono">${fl.packet_count}</td>
+          <td class="mono">${(fl.avg_iat_ms || 0).toFixed(1)} / ${(fl.max_iat_ms || 0).toFixed(1)} ms</td>
+          <td class="mono">↑ ${fmtBytes(fl.c2s_bytes)} / ↓ ${fmtBytes(fl.s2c_bytes)}</td>
+          <td class="mono" style="color:#fcd34d;max-width:360px;word-break:break-all;">${esc(fl.fingerprint)}</td>
         </tr>`;
       }).join('');
     }
@@ -427,12 +760,13 @@
     function renderPackets() {
       document.getElementById('pktEmpty').classList.toggle('hidden', latestPackets.length > 0);
       document.getElementById('pktTableWrap').classList.toggle('hidden', latestPackets.length === 0);
-      const tbody = document.getElementById('pktBody');
-      tbody.innerHTML = latestPackets.map((p, idx) => {
+      document.getElementById('pktBody').innerHTML = latestPackets.map((p, idx) => {
         const dirColor = p.direction === 'C->S' ? '#38bdf8' : '#a78bfa';
         const outColor = p.bypassed ? '#fcd34d' : '#94a3b8';
         return `<tr style="cursor:pointer;" onclick="selectPacket(${idx})">
           <td class="mono">${p.seq}</td>
+          <td class="mono" style="color:#38bdf8;">#${p.conn_id}</td>
+          <td class="mono" style="color:#94a3b8;">+${(p.iat_ms || 0).toFixed(1)}</td>
           <td class="mono" style="color:${dirColor};">${esc(p.direction)}</td>
           <td class="mono">${esc(p.host)}</td>
           <td class="mono">${esc(p.protocol)}</td>
@@ -448,8 +782,28 @@
       if (!p) return;
       document.getElementById('hexPanel').classList.remove('hidden');
       document.getElementById('hexMeta').textContent =
-        `Packet #${p.seq} | ${p.src} -> ${p.dst} (${p.direction}) | ${p.protocol} | ${p.length} B (展示前 ${Math.min(p.captured_len, 256)} B)`;
+        `Packet #${p.seq} | conn_id=#${p.conn_id} | iat=+${(p.iat_ms || 0).toFixed(2)}ms | ${p.src} -> ${p.dst} (${p.direction}) | ${p.protocol} | ${p.length} B`;
       document.getElementById('hexContent').textContent = p.hex_dump || '';
+    }
+
+    function renderLatency() {
+      const sites = (latestSummary && latestSummary.sites) || [];
+      const f = document.getElementById('latFilter').value.trim().toLowerCase();
+      const list = f ? sites.filter(s => s.host.toLowerCase().includes(f)) : sites;
+      document.getElementById('latEmpty').classList.toggle('hidden', list.length > 0);
+      document.getElementById('latWrap').classList.toggle('hidden', list.length === 0);
+
+      document.getElementById('latBody').innerHTML = list.map(s => `<tr>
+        <td class="mono" style="color:#f8fafc;font-weight:600;">${esc(s.host)}</td>
+        <td class="mono">${s.established} / <span style="color:#34d399;">${s.reused}</span> (${(s.reuse_rate_pct || 0).toFixed(1)}%)</td>
+        <td class="mono">${(s.avg_connect_ms || 0).toFixed(1)} ms</td>
+        <td class="mono">${(s.p50_connect_ms || 0).toFixed(1)} ms</td>
+        <td class="mono" style="color:#fcd34d;font-weight:600;">${(s.p95_connect_ms || 0).toFixed(1)} ms</td>
+        <td class="mono">${(s.max_connect_ms || 0).toFixed(1)} ms</td>
+        <td class="mono" style="color:#38bdf8;">${(s.avg_ttfb_ms || 0).toFixed(1)} ms</td>
+        <td class="mono" style="color:#38bdf8;">${(s.p95_ttfb_ms || 0).toFixed(1)} ms</td>
+        <td class="mono">${fmtDur(s.avg_duration_ms)}</td>
+      </tr>`).join('');
     }
 
     async function toggleBypass() {
@@ -513,12 +867,11 @@
       poll();
     }
 
-    async function fetchAiText() {
-      const res = await fetch('/ai/summary?format=text');
-      const txt = await res.text();
+    async function fetchAi(endpoint) {
       const box = document.getElementById('aiTextBox');
-      box.textContent = txt;
-      box.classList.remove('hidden');
+      box.textContent = '加载中...';
+      const res = await fetch(endpoint);
+      box.textContent = await res.text();
     }
 
     poll();

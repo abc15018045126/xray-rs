@@ -13,10 +13,10 @@ pub mod server;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-pub use capture::{CaptureStatus, CapturedPacket, Direction, PacketCaptureStore};
+pub use capture::{CaptureStatus, CapturedPacket, Direction, FlowRecord, PacketCaptureStore, SizeBuckets};
 pub use metrics::{
-    ConnectionEvent, DebugMetricsStore, DirectBypassConfig, SiteMetrics, TotalsSummary,
-    TrafficFeatures, inspect_initial_payload,
+    ConnectionEvent, DebugMetricsStore, DirectBypassConfig, ModeStats, SiteCompare, SiteMetrics,
+    TotalsSummary, TrafficFeatures, inspect_initial_payload,
 };
 pub use probe::{DirectProbeResult, run_direct_probe};
 pub use resources::{ResourceMonitor, ResourceReport, ResourceSnapshot};
@@ -94,14 +94,18 @@ mod tests {
 
         let store = DebugMetricsStore::new();
         store.record_connect_start("example.com", "proxy", false, false, 12.5, Some(feat));
+        store.record_ttfb("example.com", false, 35.0);
         store.record_pool_reuse("example.com", "proxy");
-        store.record_connect_end("example.com", 1024, 4096);
+        store.record_connect_end("example.com", false, 1024, 4096, 150.0, None);
 
         let sites = store.sites(Some("example"));
         assert_eq!(sites.len(), 1);
         assert_eq!(sites[0].established, 1);
         assert_eq!(sites[0].reused, 1);
         assert_eq!(sites[0].reuse_rate_pct, 50.0);
+        assert_eq!(sites[0].p50_connect_ms, 12.5);
+        assert_eq!(sites[0].avg_ttfb_ms, 35.0);
+        assert_eq!(sites[0].avg_duration_ms, 150.0);
         assert_eq!(sites[0].active, 0);
         assert_eq!(sites[0].uplink_bytes, 1024);
         assert_eq!(sites[0].downlink_bytes, 4096);
@@ -122,8 +126,10 @@ mod tests {
         assert!(!cap.is_enabled());
         cap.set_enabled(true);
 
+        let cid = cap.next_conn_id();
         let req = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
         cap.record_chunk(
+            cid,
             "example.com",
             "127.0.0.1:51234",
             "example.com:80",
@@ -134,6 +140,7 @@ mod tests {
         );
         let resp = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
         cap.record_chunk(
+            cid,
             "example.com",
             "127.0.0.1:51234",
             "example.com:80",
@@ -145,11 +152,14 @@ mod tests {
 
         let pkts = cap.packets(Some("example"), 10);
         assert_eq!(pkts.len(), 2);
+        assert_eq!(pkts[0].conn_id, cid);
         assert_eq!(pkts[0].protocol, "HTTP");
         assert_eq!(pkts[1].protocol, "HTTP");
 
+        let flow = cap.flow_snapshot(cid).expect("flow should exist");
+        assert_eq!(flow.first_n_sizes, vec![req.len() as i64, -(resp.len() as i64)]);
+
         let pcap = cap.export_pcap(None);
-        // PCAP magic (little-endian 0xa1b2c3d4) + 24B global header + 2 packet records
         assert!(pcap.len() > 24 + 32);
         assert_eq!(&pcap[0..4], &0xa1b2c3d4u32.to_le_bytes());
     }

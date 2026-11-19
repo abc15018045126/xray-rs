@@ -151,7 +151,9 @@ async fn route(
                     "GET /ai/probe?target=example.com": "Run direct kernel probe (no proxy) to inspect normal traffic features & connection reuse.",
                     "POST /ai/probe": "Run direct kernel probe. JSON: {\"target\": \"example.com\"} or query ?target=example.com.",
                     "GET/POST /ai/capture": "Wireshark-style packet capture status/toggle (?on=1 / ?off=1 or JSON {\"enabled\": true}).",
-                    "GET /ai/packets": "List captured packets with L7 info & Hex/ASCII dump (?host=xxx&limit=50&format=text).",
+                    "GET /ai/packets": "List captured packets with conn_id, iat_ms, L7 info & Hex/ASCII dump (?host=xxx&limit=50&format=text).",
+                    "GET /ai/flows": "Per-connection flows with First-N signed packet-size fingerprints ([+517, -1420, ...]) & IAT ms (?host=xxx&limit=50&format=text).",
+                    "GET /ai/compare": "Direct vs Proxy A/B comparison per host (connect p50/p95, TTFB, reuse, First-N fingerprint). Optional ?host=xxx&format=text.",
                     "GET /ai/capture.pcap": "Download standard Wireshark .pcap file (?host=xxx).",
                     "POST /ai/capture/clear": "Clear captured packet buffer.",
                     "POST /ai/reset": "Reset all site metrics, events, and probe history."
@@ -283,8 +285,10 @@ async fn route(
                 let mut out = String::new();
                 for p in &pkts {
                     out.push_str(&format!(
-                        "#{} [{}] {} {} {}B out={} | {}\n",
+                        "#{} conn={} +iat={:.1}ms [{}] {} {} {}B out={} | {}\n",
                         p.seq,
+                        p.conn_id,
+                        p.iat_ms,
                         p.direction.as_str(),
                         p.host,
                         p.protocol,
@@ -296,6 +300,76 @@ async fn route(
                 ("200 OK", "text/plain; charset=utf-8", out.into_bytes())
             } else {
                 json_ok(&pkts)
+            }
+        }
+
+        ("GET", "/ai/flows") => {
+            let host_filter = query.get("host").map(|s| s.as_str());
+            let limit = query
+                .get("limit")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(80)
+                .min(200);
+            let flows = capture().flows(host_filter, limit);
+            if query.get("format").map(|s| s.as_str()) == Some("text") {
+                let mut out = String::new();
+                for f in &flows {
+                    out.push_str(&format!(
+                        "conn={} host={} out={} bypass={} pkts={} avg_iat={:.1}ms firstN={}\n",
+                        f.conn_id,
+                        f.host,
+                        f.outbound,
+                        f.bypassed,
+                        f.packet_count,
+                        f.avg_iat_ms,
+                        f.fingerprint
+                    ));
+                }
+                ("200 OK", "text/plain; charset=utf-8", out.into_bytes())
+            } else {
+                json_ok(&flows)
+            }
+        }
+
+        ("GET", "/ai/compare") => {
+            let host_filter = query.get("host").map(|s| s.as_str());
+            let list = metrics().compare(host_filter);
+            if query.get("format").map(|s| s.as_str()) == Some("text") {
+                let mut out = String::new();
+                for c in &list {
+                    out.push_str(&format!(
+                        "HOST: {} (both={})\n  DIRECT: new={} reuse={}({:.1}%) avg={:.1}ms p50={:.1}ms p95={:.1}ms ttfb={:.1}ms dur={:.0}ms fp={}\n  PROXY:  new={} reuse={}({:.1}%) avg={:.1}ms p50={:.1}ms p95={:.1}ms ttfb={:.1}ms dur={:.0}ms fp={}\n  DELTA(proxy-direct): avg={:+.1}ms p95={:+.1}ms ttfb={:+.1}ms\n",
+                        c.host,
+                        c.has_both,
+                        c.direct.established,
+                        c.direct.reused,
+                        c.direct.reuse_rate_pct,
+                        c.direct.avg_connect_ms,
+                        c.direct.p50_connect_ms,
+                        c.direct.p95_connect_ms,
+                        c.direct.avg_ttfb_ms,
+                        c.direct.avg_duration_ms,
+                        c.direct.sample_fingerprint.as_deref().unwrap_or("-"),
+                        c.proxy.established,
+                        c.proxy.reused,
+                        c.proxy.reuse_rate_pct,
+                        c.proxy.avg_connect_ms,
+                        c.proxy.p50_connect_ms,
+                        c.proxy.p95_connect_ms,
+                        c.proxy.avg_ttfb_ms,
+                        c.proxy.avg_duration_ms,
+                        c.proxy.sample_fingerprint.as_deref().unwrap_or("-"),
+                        c.delta_avg_connect_ms,
+                        c.delta_p95_connect_ms,
+                        c.delta_avg_ttfb_ms,
+                    ));
+                }
+                if out.is_empty() {
+                    out.push_str("No site comparison data yet.\n");
+                }
+                ("200 OK", "text/plain; charset=utf-8", out.into_bytes())
+            } else {
+                json_ok(&list)
             }
         }
 

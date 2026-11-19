@@ -46,7 +46,9 @@ cargo run --manifest-path debug_panel/dioxus_app/Cargo.toml
 | `GET/POST /ai/bypass` | 开启/关闭**直连内核不代理** | `curl "http://127.0.0.1:19876/ai/bypass?on=1"` 或 `?off=1` 或 `?on=1&domains=github.com` |
 | `GET/POST /ai/probe` | **直连内核探测**网站正常流量特征 + 连接复用测试 | `curl "http://127.0.0.1:19876/ai/probe?target=www.cloudflare.com"` |
 | `GET/POST /ai/capture` | **Wireshark 风格抓包开关** | `curl "http://127.0.0.1:19876/ai/capture?on=1"`（关闭用 `?off=1`） |
-| `GET /ai/packets` | 查看抓到的包（L7 解析 + Hex/ASCII，支持 `?host=xxx&limit=50&format=text`） | `curl "http://127.0.0.1:19876/ai/packets?format=text"` |
+| `GET /ai/packets` | 查看抓到的包（含 `conn_id`、`iat_ms`、L7 解析 + Hex/ASCII，支持 `?host=xxx&limit=50&format=text`） | `curl "http://127.0.0.1:19876/ai/packets?format=text"` |
+| `GET /ai/flows` | 查看连接流指纹（`conn_id`、同流包间隔 `avg/max iat_ms`、前 N 包带符号长度序列 `[+517, -1420, ...]`） | `curl "http://127.0.0.1:19876/ai/flows?format=text"` |
+| `GET /ai/compare` | **直连 vs 代理同站自动 A/B 对比**（P50/P95、TTFB、复用率、前 N 包指纹对比） | `curl "http://127.0.0.1:19876/ai/compare?format=text"` |
 | `GET /ai/capture.pcap` | **导出标准 `.pcap` 文件**（可直接用 Wireshark 打开） | `curl -o xray_capture.pcap http://127.0.0.1:19876/ai/capture.pcap` |
 | `POST /ai/capture/clear` | 清空抓包缓冲 | `curl -X POST http://127.0.0.1:19876/ai/capture/clear` |
 | `POST /ai/reset` | 清空统计数据 | `curl -X POST http://127.0.0.1:19876/ai/reset` |

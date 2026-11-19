@@ -340,6 +340,9 @@ impl DefaultDispatcher {
         };
 
         #[cfg(debug_assertions)]
+        let debug_conn_id = crate::debug_panel::capture().next_conn_id();
+
+        #[cfg(debug_assertions)]
         crate::debug_panel::metrics().record_connect_start(
             &debug_host,
             &outbound_tag,
@@ -354,13 +357,14 @@ impl DefaultDispatcher {
         let initial_len = initial_payload.len();
         if !initial_payload.is_empty() {
             #[cfg(debug_assertions)]
-            if crate::debug_panel::capture().is_enabled() {
+            {
                 let src_str = session
                     .source
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| "127.0.0.1:0".into());
                 let dst_str = session.destination.to_string();
                 crate::debug_panel::capture().record_chunk(
+                    debug_conn_id,
                     &debug_host,
                     &src_str,
                     &dst_str,
@@ -372,7 +376,14 @@ impl DefaultDispatcher {
             }
             if let Err(e) = outbound_stream.write_all(&initial_payload).await {
                 #[cfg(debug_assertions)]
-                crate::debug_panel::metrics().record_connect_end(&debug_host, 0, 0);
+                crate::debug_panel::metrics().record_connect_end(
+                    &debug_host,
+                    debug_bypass,
+                    0,
+                    0,
+                    debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                    crate::debug_panel::capture().flow_snapshot(debug_conn_id),
+                );
                 warn!("Failed to forward initial sniffed payload: {}", e);
                 return Err(Error::Io(e));
             }
@@ -431,6 +442,7 @@ impl DefaultDispatcher {
         // 6. Bidirectional streaming (aligned with Xray-core CancelAfterInactivity using policy ConnectionIdle)
         #[cfg(debug_assertions)]
         let debug_tap = Some(DebugTapMeta {
+            conn_id: debug_conn_id,
             host: debug_host.clone(),
             src: session
                 .source
@@ -439,6 +451,7 @@ impl DefaultDispatcher {
             dst: session.destination.to_string(),
             outbound: outbound_tag.clone(),
             bypassed: debug_bypass,
+            connect_start: debug_connect_start,
         });
 
         #[cfg(debug_assertions)]
@@ -468,8 +481,11 @@ impl DefaultDispatcher {
                 #[cfg(debug_assertions)]
                 crate::debug_panel::metrics().record_connect_end(
                     &debug_host,
+                    debug_bypass,
                     total_uplink.max(0) as u64,
                     from_server,
+                    debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                    crate::debug_panel::capture().flow_snapshot(debug_conn_id),
                 );
                 debug!(
                     "Connection closed for {}: client->server {} bytes, server->client {} bytes",
@@ -478,7 +494,14 @@ impl DefaultDispatcher {
             }
             Err(e) => {
                 #[cfg(debug_assertions)]
-                crate::debug_panel::metrics().record_connect_end(&debug_host, initial_len as u64, 0);
+                crate::debug_panel::metrics().record_connect_end(
+                    &debug_host,
+                    debug_bypass,
+                    initial_len as u64,
+                    0,
+                    debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                    crate::debug_panel::capture().flow_snapshot(debug_conn_id),
+                );
                 debug!("Stream relay ended for {}: {}", session.destination, e);
             }
         }
@@ -515,11 +538,13 @@ impl DispatcherFeature for DefaultDispatcher {
 #[cfg(debug_assertions)]
 #[derive(Clone)]
 struct DebugTapMeta {
+    conn_id: u64,
     host: String,
     src: String,
     dst: String,
     outbound: String,
     bypassed: bool,
+    connect_start: std::time::Instant,
 }
 
 async fn copy_one_dir<R, W>(
@@ -534,6 +559,8 @@ where
 {
     let mut buf = vec![0u8; 32768];
     let mut total = 0u64;
+    #[cfg(debug_assertions)]
+    let mut ttfb_recorded = false;
     loop {
         match reader.read(&mut buf).await {
             Ok(0) => {
@@ -545,10 +572,17 @@ where
                 total += n as u64;
                 let _ = activity_tx.try_send(());
                 #[cfg(debug_assertions)]
-                if let Some((ref meta, dir)) = tap
-                    && crate::debug_panel::capture().is_enabled()
-                {
+                if let Some((ref meta, dir)) = tap {
+                    if !ttfb_recorded && dir == crate::debug_panel::Direction::ServerToClient {
+                        ttfb_recorded = true;
+                        crate::debug_panel::metrics().record_ttfb(
+                            &meta.host,
+                            meta.bypassed,
+                            meta.connect_start.elapsed().as_secs_f64() * 1000.0,
+                        );
+                    }
                     crate::debug_panel::capture().record_chunk(
+                        meta.conn_id,
                         &meta.host,
                         &meta.src,
                         &meta.dst,
