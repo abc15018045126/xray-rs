@@ -37,11 +37,18 @@ impl DomainMatcher {
         match self {
             DomainMatcher::Exact(pattern) => d == *pattern,
             DomainMatcher::Suffix(pattern) => {
-                d == *pattern || d.ends_with(&format!(".{}", pattern))
+                d == *pattern
+                    || (d.len() > pattern.len()
+                        && d.ends_with(pattern.as_str())
+                        && d.as_bytes()[d.len() - pattern.len() - 1] == b'.')
             }
-            DomainMatcher::Keyword(pattern) => d.contains(pattern),
+            DomainMatcher::Keyword(pattern) => d.contains(pattern.as_str()),
             DomainMatcher::Plain(pattern) => {
-                d == *pattern || d.ends_with(&format!(".{}", pattern)) || d.contains(pattern)
+                d == *pattern
+                    || (d.len() > pattern.len()
+                        && d.ends_with(pattern.as_str())
+                        && d.as_bytes()[d.len() - pattern.len() - 1] == b'.')
+                    || d.contains(pattern.as_str())
             }
             DomainMatcher::GeoSite(group) => GLOBAL_GEO_DB.match_geosite(group, &d),
         }

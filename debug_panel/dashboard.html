@@ -214,6 +214,10 @@
       <span>延迟 / TTFB 分布</span>
       <span class="nav-pill">P95</span>
     </button>
+    <button class="nav-item" data-tab="cpu" onclick="switchTab('cpu')">
+      <span>CPU 消耗归因</span>
+      <span id="navCpuPill" class="nav-pill">0%</span>
+    </button>
     <button class="nav-item" data-tab="ai" onclick="switchTab('ai')">
       <span>AI 极简接口</span>
       <span class="nav-pill">API</span>
@@ -454,13 +458,128 @@
       </div>
     </section>
 
-    <!-- ==================== TAB 5: AI API ==================== -->
+    <!-- ==================== TAB 5: CPU ATTRIBUTION ==================== -->
+    <section id="tab-cpu" class="hidden">
+      <div class="grid-kpi">
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">进程 CPU (实时 / 累计均 / 最高)</div>
+          <div id="cpuTotalVal" class="kpi-val">0.00%</div>
+          <div id="cpuTotalSub" class="kpi-sub">-</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">用户态 CPU (TLS/加密/路由)</div>
+          <div id="cpuUserVal" class="kpi-val" style="color:#38bdf8;">0.00%</div>
+          <div id="cpuUserSub" class="kpi-sub">累计均 0.00% · 最高 0.00%</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">内核态 CPU (TUN/Socket)</div>
+          <div id="cpuKernelVal" class="kpi-val" style="color:#fcd34d;">0.00%</div>
+          <div id="cpuKernelSub" class="kpi-sub">累计均 0.00% · 最高 0.00%</div>
+        </div>
+        <div class="card" style="margin-bottom:0;">
+          <div class="kpi-label">进程活跃线程</div>
+          <div id="cpuThreadsVal" class="kpi-val">0</div>
+          <div class="kpi-sub">按累计平均 CPU% 降序</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>各功能模块耗时归因 (直接看是哪个业务模块在耗)</span>
+          <button class="btn-ghost" onclick="pollCpu()">立即刷新</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>功能模块</th>
+                <th>调用次数</th>
+                <th>累计耗时</th>
+                <th>累计占比%</th>
+                <th>平均单次</th>
+                <th>最高单次</th>
+              </tr>
+            </thead>
+            <tbody id="cpuStagesBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>出站分流负载分布 (proxy / direct / block)</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>出站 (Outbound)</th>
+                <th>涉及站点数</th>
+                <th>累计建连</th>
+                <th>当前活跃</th>
+                <th>上行流量</th>
+                <th>下行流量</th>
+                <th>平均建连耗时</th>
+              </tr>
+            </thead>
+            <tbody id="cpuOutboundBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>线程级 CPU 实时消耗排行 (Windows 真实线程采样)</span>
+          <span class="badge badge-info">每秒刷新</span>
+        </div>
+        <div style="overflow-x:auto;max-height:340px;overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>TID</th>
+                <th>线程名</th>
+                <th>实时 CPU%</th>
+                <th>累计平均 CPU%</th>
+                <th>历史最高 CPU%</th>
+                <th>累计占比%</th>
+                <th>用户% / 内核%</th>
+              </tr>
+            </thead>
+            <tbody id="cpuThreadsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Top 热点域名 / IP 负载榜 (按活跃连接与建连频次)</span>
+        </div>
+        <div style="overflow-x:auto;max-height:320px;overflow-y:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>域名 / IP</th>
+                <th>出站</th>
+                <th>活跃连接</th>
+                <th>累计新建</th>
+                <th>平均建连</th>
+                <th>总流量 (↑ / ↓)</th>
+              </tr>
+            </thead>
+            <tbody id="cpuTopHostsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 6: AI API ==================== -->
     <section id="tab-ai" class="hidden">
       <div class="card">
         <div class="card-title">
           <span>极简 AI 接口 (给 AI Agent 单次调用)</span>
           <div class="row">
             <button class="btn-primary" onclick="fetchAi('/ai/summary?format=text')">预览 Summary 文本</button>
+            <button class="btn-ghost" onclick="fetchAi('/ai/cpu?format=text')">预览 CPU 归因文本</button>
             <button class="btn-ghost" onclick="fetchAi('/ai/compare?format=text')">预览 A/B 对比文本</button>
             <button class="btn-ghost" onclick="fetchAi('/ai/flows?format=text&limit=30')">预览流指纹文本</button>
             <button class="btn-ghost" onclick="fetchAi('/ai/packets?format=text&limit=30')">预览抓包文本</button>
@@ -468,6 +587,7 @@
         </div>
         <div class="mono" style="color:#94a3b8;margin-bottom:10px;line-height:1.9;">
           • <code>GET /ai/summary?format=text</code> — 全局资源 + 连接复用 + 抓包总览（最省 Token）<br/>
+          • <code>GET /ai/cpu?format=text</code> — CPU 归因（用户态/内核态拆解 + 线程级排行 + 出站负载）<br/>
           • <code>GET /ai/compare?host=xxx&amp;format=text</code> — 直连 vs 代理同站自动 A/B 对比（P50/P95/TTFB/前 N 包指纹）<br/>
           • <code>GET /ai/flows?host=xxx&amp;format=text</code> — 每条连接的 conn_id、IAT ms 与前 N 包长度序列指纹<br/>
           • <code>GET /ai/packets?host=xxx&amp;format=text</code> — Wireshark 逐包摘要（含 conn_id 与 iat_ms）<br/>
@@ -491,6 +611,7 @@
       compare: '直连 vs 代理对比 (A/B)',
       flows: '流指纹与 Wireshark 抓包',
       latency: '延迟分位 (P50/P95) 与 TTFB 分布',
+      cpu: 'CPU 消耗归因 (线程 / 内核态 / 出站 / 热点站点)',
       ai: '极简 AI 接口'
     };
 
@@ -500,12 +621,13 @@
       document.querySelectorAll('.nav-item').forEach(el => {
         el.classList.toggle('active', el.dataset.tab === tab);
       });
-      ['home', 'compare', 'flows', 'latency', 'ai'].forEach(t => {
+      ['home', 'compare', 'flows', 'latency', 'cpu', 'ai'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
       });
       if (tab === 'compare') pollCompare();
       if (tab === 'flows') pollFlows();
       if (tab === 'latency') renderLatency();
+      if (tab === 'cpu') pollCpu();
     }
 
     function esc(s) {
@@ -556,6 +678,7 @@
           }
         }
         if (currentTab === 'latency') renderLatency();
+        if (currentTab === 'cpu') pollCpu();
       } catch (e) {
         const badge = document.getElementById('connBadge');
         badge.className = 'badge badge-err';
@@ -588,6 +711,95 @@
       } catch (_) {}
     }
 
+    async function pollCpu() {
+      try {
+        const res = await fetch('/ai/cpu');
+        if (!res.ok) return;
+        const d = await res.json();
+        const cur = d.current || {};
+        document.getElementById('cpuTotalVal').textContent = `${(cur.cpu_percent || 0).toFixed(2)}%`;
+        document.getElementById('cpuTotalSub').textContent = `累计均 ${(cur.avg_cpu_percent || 0).toFixed(2)}% · 最高 ${(cur.peak_cpu_percent || 0).toFixed(2)}% · 运行 ${cur.uptime_secs || 0}s`;
+        document.getElementById('cpuUserVal').textContent = (cur.user_cpu_percent || 0).toFixed(2) + '%';
+        document.getElementById('cpuUserSub').textContent = `累计均 ${(cur.avg_user_cpu_percent || 0).toFixed(2)}% · 最高 ${(cur.peak_user_cpu_percent || 0).toFixed(2)}%`;
+        document.getElementById('cpuKernelVal').textContent = (cur.kernel_cpu_percent || 0).toFixed(2) + '%';
+        document.getElementById('cpuKernelSub').textContent = `累计均 ${(cur.avg_kernel_cpu_percent || 0).toFixed(2)}% · 最高 ${(cur.peak_kernel_cpu_percent || 0).toFixed(2)}%`;
+        document.getElementById('cpuThreadsVal').textContent = cur.thread_count || (d.threads ? d.threads.length : 0);
+
+        const stBody = document.getElementById('cpuStagesBody');
+        const stages = d.stages || [];
+        stBody.innerHTML = stages.length ? stages.map(st => {
+          const share = Number(st.share_percent || 0);
+          const barW = Math.min(100, share);
+          const barColor = share >= 40 ? '#ef4444' : share >= 15 ? '#f59e0b' : '#38bdf8';
+          return `<tr>
+            <td style="color:#f8fafc;font-weight:600;">${esc(st.name)}</td>
+            <td class="mono">${st.calls}</td>
+            <td class="mono" style="color:${barColor};font-weight:700;">${(st.total_ms || 0).toFixed(1)} ms</td>
+            <td class="mono">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="min-width:44px;color:#38bdf8;">${share.toFixed(1)}%</span>
+                <div style="flex:1;height:6px;background:#1e293b;border-radius:3px;min-width:60px;">
+                  <div style="width:${barW}%;height:100%;background:${barColor};border-radius:3px;"></div>
+                </div>
+              </div>
+            </td>
+            <td class="mono">${(st.avg_ms || 0).toFixed(2)} ms</td>
+            <td class="mono" style="color:#f87171;">${(st.max_ms || 0).toFixed(2)} ms</td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="6" style="color:#64748b;">暂无模块统计</td></tr>';
+
+        const obBody = document.getElementById('cpuOutboundBody');
+        const obs = d.outbounds || [];
+        obBody.innerHTML = obs.length ? obs.map(o => `<tr>
+          <td><span class="badge ${o.outbound === 'direct' ? 'badge-ok' : o.outbound === 'block' ? 'badge-err' : 'badge-info'}">${esc(o.outbound)}</span></td>
+          <td class="mono">${o.sites}</td>
+          <td class="mono" style="font-weight:600;">${o.established}</td>
+          <td class="mono" style="color:#38bdf8;">${o.active}</td>
+          <td class="mono">${fmtBytes(o.uplink_bytes)}</td>
+          <td class="mono">${fmtBytes(o.downlink_bytes)}</td>
+          <td class="mono">${(o.avg_connect_ms || 0).toFixed(1)} ms</td>
+        </tr>`).join('') : '<tr><td colspan="7" style="color:#64748b;">暂无出站记录</td></tr>';
+
+        const thBody = document.getElementById('cpuThreadsBody');
+        const threads = d.threads || [];
+        thBody.innerHTML = threads.length ? threads.map(th => {
+          const pct = Number(th.cpu_percent || 0);
+          const avg = Number(th.avg_cpu_percent || 0);
+          const peak = Number(th.peak_cpu_percent || 0);
+          const share = Number(th.cpu_share_percent || 0);
+          const barW = Math.min(100, share);
+          const barColor = peak >= 1.0 ? '#ef4444' : avg >= 0.2 ? '#f59e0b' : '#38bdf8';
+          return `<tr>
+            <td class="mono" style="color:#94a3b8;">${th.tid}</td>
+            <td class="mono" style="color:#f8fafc;font-weight:600;">${esc(th.name)}</td>
+            <td class="mono" style="color:#cbd5e1;">${pct.toFixed(2)}%</td>
+            <td class="mono" style="color:${barColor};font-weight:700;">${avg.toFixed(2)}%</td>
+            <td class="mono" style="color:#f87171;font-weight:700;">${peak.toFixed(2)}%</td>
+            <td class="mono">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="min-width:44px;color:#38bdf8;">${share.toFixed(1)}%</span>
+                <div style="flex:1;height:6px;background:#1e293b;border-radius:3px;min-width:60px;">
+                  <div style="width:${barW}%;height:100%;background:${barColor};border-radius:3px;"></div>
+                </div>
+              </div>
+            </td>
+            <td class="mono"><span style="color:#38bdf8;">${(th.user_cpu_percent || 0).toFixed(2)}%</span> / <span style="color:#fcd34d;">${(th.kernel_cpu_percent || 0).toFixed(2)}%</span></td>
+          </tr>`;
+        }).join('') : '<tr><td colspan="7" style="color:#64748b;">采样中...</td></tr>';
+
+        const hostBody = document.getElementById('cpuTopHostsBody');
+        const hosts = d.top_hosts || [];
+        hostBody.innerHTML = hosts.length ? hosts.map(h => `<tr>
+          <td class="mono" style="color:#f8fafc;">${esc(h.host)}</td>
+          <td><span class="badge ${h.last_outbound === 'direct' ? 'badge-ok' : h.last_outbound === 'block' ? 'badge-err' : 'badge-info'}">${esc(h.last_outbound || '-')}</span></td>
+          <td class="mono" style="color:#38bdf8;font-weight:700;">${h.active}</td>
+          <td class="mono">${h.established}</td>
+          <td class="mono">${(h.avg_connect_ms || 0).toFixed(1)} ms</td>
+          <td class="mono">↑ ${fmtBytes(h.uplink_bytes)} / ↓ ${fmtBytes(h.downlink_bytes)}</td>
+        </tr>`).join('') : '<tr><td colspan="6" style="color:#64748b;">暂无热点站点</td></tr>';
+      } catch (_) {}
+    }
+
     function renderSummary(d) {
       const r = d.resources || {};
       const t = d.totals || {};
@@ -602,6 +814,7 @@
       document.getElementById('sideCpuMem').textContent = `CPU ${(r.cpu_percent || 0).toFixed(1)}% · ${(r.memory_rss_mb || 0).toFixed(1)} MB`;
       document.getElementById('navSitesCnt').textContent = t.total_sites || 0;
       document.getElementById('navFlowCnt').textContent = c.flow_count || 0;
+      document.getElementById('navCpuPill').textContent = (r.cpu_percent || 0).toFixed(1) + '%';
 
       document.getElementById('bypassTopBadge').classList.toggle('hidden', !b.enabled);
 
@@ -614,7 +827,7 @@
       topC.textContent = c.enabled ? `停止抓包 (${c.packet_count})` : '开启抓包';
 
       document.getElementById('kpiCpu').textContent = (r.cpu_percent || 0).toFixed(2) + '%';
-      document.getElementById('kpiCpuSub').textContent = `${r.cpu_cores || 0} 核心 · 运行 ${r.uptime_secs || 0}s`;
+      document.getElementById('kpiCpuSub').textContent = `累计均 ${(r.avg_cpu_percent || 0).toFixed(2)}% · 最高 ${(r.peak_cpu_percent || 0).toFixed(2)}% · ${r.thread_count || 0} 线程`;
       document.getElementById('kpiMem').textContent = (r.memory_rss_mb || 0).toFixed(2) + ' MB';
       document.getElementById('kpiMemSub').textContent = `私有 ${(r.memory_private_mb || 0).toFixed(1)} MB · 峰值 ${(r.memory_peak_mb || 0).toFixed(1)} MB`;
       document.getElementById('kpiNew').textContent = `${t.total_established || 0} / ${t.total_active || 0}`;

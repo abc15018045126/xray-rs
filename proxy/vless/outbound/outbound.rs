@@ -68,12 +68,22 @@ impl DialParams {
         // 1. Optional TLS or Reality Layer
         let stream = if let Some(reality) = &self.reality_client {
             if let Some(tls) = &self.tls_client {
-                tls.connect(&reality.server_name, tcp_stream).await?
+                #[cfg(debug_assertions)]
+                let _t0 = std::time::Instant::now();
+                let s = tls.connect(&reality.server_name, tcp_stream).await?;
+                #[cfg(debug_assertions)]
+                crate::debug_panel::record_stage("VLESS TLS 握手 (Reality)", _t0.elapsed());
+                s
             } else {
                 tcp_stream
             }
         } else if let Some(tls) = &self.tls_client {
-            tls.connect(sni, tcp_stream).await?
+            #[cfg(debug_assertions)]
+            let _t0 = std::time::Instant::now();
+            let s = tls.connect(sni, tcp_stream).await?;
+            #[cfg(debug_assertions)]
+            crate::debug_panel::record_stage("VLESS TLS 握手 (Rustls)", _t0.elapsed());
+            s
         } else {
             tcp_stream
         };
@@ -92,14 +102,19 @@ impl DialParams {
                 "ws"
             };
             let ws_url = format!("{}://{}{}", scheme, dest_host, path);
-            WebSocketStream::client_handshake_with_options(
+            #[cfg(debug_assertions)]
+            let _t0 = std::time::Instant::now();
+            let s = WebSocketStream::client_handshake_with_options(
                 &ws_url,
                 Some(host_hdr),
                 stream,
                 self.ws_heartbeat,
                 early_data,
             )
-            .await?
+            .await?;
+            #[cfg(debug_assertions)]
+            crate::debug_panel::record_stage("VLESS WS 升级 (WebSocket)", _t0.elapsed());
+            s
         } else {
             stream
         };

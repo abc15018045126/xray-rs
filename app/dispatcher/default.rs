@@ -271,11 +271,16 @@ impl DefaultDispatcher {
                 let outbound_tag = if let Some(forced) = &session.forced_outbound_tag {
                     forced.clone()
                 } else if let Some(router) = &self.router {
-                    router
+                    #[cfg(debug_assertions)]
+                    let _rt0 = std::time::Instant::now();
+                    let picked = router
                         .pick_outbound(&session)
                         .map(|s| s.to_string())
                         .or_else(|| self.default_outbound_tag.clone())
-                        .ok_or_else(|| Error::NotFound("No matching outbound route found".into()))?
+                        .ok_or_else(|| Error::NotFound("No matching outbound route found".into()));
+                    #[cfg(debug_assertions)]
+                    crate::debug_panel::record_stage("路由/Geo分流 (router)", _rt0.elapsed());
+                    picked?
                 } else if let Some(def_tag) = &self.default_outbound_tag {
                     def_tag.clone()
                 } else if let Some(first_tag) = self.outbounds.keys().next() {
@@ -317,9 +322,23 @@ impl DefaultDispatcher {
                 );
 
                 // 3. Connect to outbound
+                #[cfg(debug_assertions)]
+                let _ct0 = std::time::Instant::now();
                 let stream = match outbound.connect(&session).await {
-                    Ok(stream) => stream,
+                    Ok(stream) => {
+                        #[cfg(debug_assertions)]
+                        crate::debug_panel::record_stage(
+                            "出站建连握手 (TLS/WS/VLESS)",
+                            _ct0.elapsed(),
+                        );
+                        stream
+                    }
                     Err(e) => {
+                        #[cfg(debug_assertions)]
+                        crate::debug_panel::record_stage(
+                            "出站建连握手 (TLS/WS/VLESS)",
+                            _ct0.elapsed(),
+                        );
                         #[cfg(debug_assertions)]
                         crate::debug_panel::metrics().record_connect_failed(
                             &debug_host,

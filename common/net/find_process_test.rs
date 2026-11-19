@@ -5,7 +5,15 @@ mod tests {
     use crate::app::router::condition::Rule;
     use crate::common::net::{Address, Destination, ProcessFinder};
     use crate::common::protocol::SessionContext;
-    use std::net::{Ipv4Addr, TcpListener};
+    use std::net::{Ipv4Addr, TcpListener, TcpStream};
+
+    fn make_established_pair() -> (TcpListener, TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind test TCP socket");
+        let addr = listener.local_addr().expect("Failed to get listener addr");
+        let client = TcpStream::connect(addr).expect("Failed to connect test TCP socket");
+        let (server, _) = listener.accept().expect("Failed to accept test TCP socket");
+        (listener, client, server)
+    }
 
     #[test]
     fn test_find_process_current_pid() {
@@ -22,8 +30,8 @@ mod tests {
 
     #[test]
     fn test_find_process_by_listening_tcp_socket() {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind test TCP socket");
-        let local_addr = listener.local_addr().expect("Failed to get local addr");
+        let (_listener, client, _server) = make_established_pair();
+        let local_addr = client.local_addr().expect("Failed to get local addr");
 
         #[cfg(target_os = "windows")]
         {
@@ -44,8 +52,8 @@ mod tests {
 
     #[test]
     fn test_rule_matches_process_self() {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind test socket");
-        let local_addr = listener.local_addr().expect("Failed to get local addr");
+        let (_listener, client, _server) = make_established_pair();
+        let local_addr = client.local_addr().expect("Failed to get local addr");
 
         let mut rule = Rule::new("direct");
         rule.process = vec!["self/".into(), "xray.exe".into(), "v2ray.exe".into()];

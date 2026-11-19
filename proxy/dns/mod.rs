@@ -166,7 +166,12 @@ impl DnsOutbound {
                 }
             };
 
-            if let Some(resp_bytes) = self.handle_dns_message(&query_bytes).await {
+            #[cfg(debug_assertions)]
+            let _dt0 = std::time::Instant::now();
+            let resp_opt = self.handle_dns_message(&query_bytes).await;
+            #[cfg(debug_assertions)]
+            crate::debug_panel::record_stage("DNS 解析 (proxy/dns)", _dt0.elapsed());
+            if let Some(resp_bytes) = resp_opt {
                 if is_tcp {
                     let len_prefix = (resp_bytes.len() as u16).to_be_bytes();
                     if stream.write_all(&len_prefix).await.is_err() {

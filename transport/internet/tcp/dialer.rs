@@ -18,29 +18,43 @@ impl TcpDialer {
             match &dest.address {
                 crate::common::net::Address::Ipv4(ip) => {
                     let addr = SocketAddr::new(std::net::IpAddr::V4(*ip), dest.port);
+                    #[cfg(debug_assertions)]
+                    let _t0 = std::time::Instant::now();
                     let stream =
                         crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
                             .await
                             .map_err(Error::Io)?;
+                    #[cfg(debug_assertions)]
+                    crate::debug_panel::record_stage("TCP 建连 (IPv4 connect)", _t0.elapsed());
                     let _ = stream.set_nodelay(true);
                     Ok(Box::pin(stream))
                 }
                 crate::common::net::Address::Ipv6(ip) => {
                     let addr = SocketAddr::new(std::net::IpAddr::V6(*ip), dest.port);
+                    #[cfg(debug_assertions)]
+                    let _t0 = std::time::Instant::now();
                     let stream =
                         crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
                             .await
                             .map_err(Error::Io)?;
+                    #[cfg(debug_assertions)]
+                    crate::debug_panel::record_stage("TCP 建连 (IPv6 connect)", _t0.elapsed());
                     let _ = stream.set_nodelay(true);
                     Ok(Box::pin(stream))
                 }
                 crate::common::net::Address::Domain(domain) => {
                     let addr_str = format!("{}:{}", domain, dest.port);
+                    #[cfg(debug_assertions)]
+                    let _dt0 = std::time::Instant::now();
                     let addrs = tokio::net::lookup_host(&addr_str)
                         .await
                         .map_err(Error::Io)?;
+                    #[cfg(debug_assertions)]
+                    crate::debug_panel::record_stage("TCP 域名解析 (lookup_host)", _dt0.elapsed());
                     let mut last_err = None;
                     for addr in addrs {
+                        #[cfg(debug_assertions)]
+                        let _ct0 = std::time::Instant::now();
                         match crate::proxy::tun::socket_helpers::new_tcp_stream(
                             addr,
                             iface.as_ref(),
@@ -48,10 +62,28 @@ impl TcpDialer {
                         .await
                         {
                             Ok(stream) => {
+                                #[cfg(debug_assertions)]
+                                crate::debug_panel::record_stage(
+                                    if addr.is_ipv6() {
+                                        "TCP 建连 (域名->IPv6)"
+                                    } else {
+                                        "TCP 建连 (域名->IPv4)"
+                                    },
+                                    _ct0.elapsed(),
+                                );
                                 let _ = stream.set_nodelay(true);
                                 return Ok(Box::pin(stream));
                             }
                             Err(e) => {
+                                #[cfg(debug_assertions)]
+                                crate::debug_panel::record_stage(
+                                    if addr.is_ipv6() {
+                                        "TCP 建连失败 (IPv6 超时/拒绝)"
+                                    } else {
+                                        "TCP 建连失败 (IPv4 超时/拒绝)"
+                                    },
+                                    _ct0.elapsed(),
+                                );
                                 last_err = Some(e);
                             }
                         }

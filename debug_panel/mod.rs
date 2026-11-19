@@ -19,7 +19,10 @@ pub use metrics::{
     TotalsSummary, TrafficFeatures, inspect_initial_payload,
 };
 pub use probe::{DirectProbeResult, run_direct_probe};
-pub use resources::{ResourceMonitor, ResourceReport, ResourceSnapshot};
+pub use resources::{
+    ResourceMonitor, ResourceReport, ResourceSnapshot, StageStats, ThreadCpuInfo, record_stage,
+    stage_stats_snapshot,
+};
 
 pub const DEFAULT_DEBUG_ADDR: &str = "127.0.0.1:19876";
 
@@ -41,7 +44,7 @@ pub fn capture() -> &'static PacketCaptureStore {
 }
 
 pub fn resources_snapshot() -> ResourceSnapshot {
-    resources().sample()
+    resources().latest()
 }
 
 /// Returns true if direct kernel bypass (no-proxy) mode is active for `host`.

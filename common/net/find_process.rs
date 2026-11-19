@@ -32,15 +32,18 @@ impl ProcessFinder {
     }
 
     pub fn find_process_by_socket(src: SocketAddr, is_tcp: bool) -> Result<Option<ProcessInfo>> {
+        #[cfg(debug_assertions)]
+        let _t0 = std::time::Instant::now();
         #[cfg(target_os = "windows")]
-        {
-            Ok(windows_impl::find_process(is_tcp, src))
-        }
+        let res = Ok(windows_impl::find_process(is_tcp, src));
         #[cfg(not(target_os = "windows"))]
-        {
+        let res = {
             let _ = (src, is_tcp);
             Ok(None)
-        }
+        };
+        #[cfg(debug_assertions)]
+        crate::debug_panel::record_stage("进程查表 (find_process)", _t0.elapsed());
+        res
     }
 }
 
@@ -51,7 +54,8 @@ pub mod windows_impl {
     use std::net::{IpAddr, SocketAddr};
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, GetExtendedUdpTable, TCP_TABLE_OWNER_PID_ALL, UDP_TABLE_OWNER_PID,
+        GetExtendedTcpTable, GetExtendedUdpTable, TCP_TABLE_OWNER_PID_CONNECTIONS,
+        UDP_TABLE_OWNER_PID,
     };
     use windows::Win32::System::Threading::{
         OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -79,9 +83,19 @@ pub mod windows_impl {
     }
 
     fn search_tcp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
+        // Align 1:1 with official Xray-core `common/net/find_process_windows.go`:
+        // use `TCP_TABLE_OWNER_PID_CONNECTIONS` (class 4) instead of `ALL` (class 5)
+        // so LISTEN / TIME_WAIT / CLOSED sockets are excluded, and match `MIB_TCP_STATE_ESTAB` (5).
         let mut size: u32 = 0;
         unsafe {
-            let _ = GetExtendedTcpTable(None, &mut size, false, family, TCP_TABLE_OWNER_PID_ALL, 0);
+            let _ = GetExtendedTcpTable(
+                None,
+                &mut size,
+                false,
+                family,
+                TCP_TABLE_OWNER_PID_CONNECTIONS,
+                0,
+            );
         }
         if size == 0 {
             return None;
@@ -94,7 +108,7 @@ pub mod windows_impl {
                 &mut size,
                 false,
                 family,
-                TCP_TABLE_OWNER_PID_ALL,
+                TCP_TABLE_OWNER_PID_CONNECTIONS,
                 0,
             )
         };
@@ -103,7 +117,7 @@ pub mod windows_impl {
         }
 
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
-        let (item_size, port_offset, ip_offset, ip_len, pid_offset, _state_offset) =
+        let (item_size, port_offset, ip_offset, ip_len, pid_offset, state_offset) =
             if family == AF_INET {
                 // MIB_TCPROW_OWNER_PID:
                 // dwState (0), dwLocalAddr (4), dwLocalPort (8), dwRemoteAddr (12), dwRemotePort (16), dwOwningPid (20)
@@ -122,6 +136,12 @@ pub mod windows_impl {
                 break;
             }
             let row = &buf[start..end];
+
+            // MIB_TCP_STATE_ESTAB = 5 (matching official Xray-core find_process_windows.go:143)
+            let tcp_state = u32::from_ne_bytes(row[state_offset..state_offset + 4].try_into().ok()?);
+            if tcp_state != 5 {
+                continue;
+            }
 
             let row_port = u16::from_be_bytes([row[port_offset], row[port_offset + 1]]);
             if row_port != port {

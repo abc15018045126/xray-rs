@@ -58,6 +58,7 @@ enum DelayDialState {
     Idle,
     Dialing {
         rx: oneshot::Receiver<Result<BoxStream>>,
+        handle: tokio::task::JoinHandle<()>,
         sent_as_ed: bool,
         ed_len: usize,
     },
@@ -126,12 +127,13 @@ impl AsyncWrite for DelayDialConn {
                     let ed_len = buf.len();
                     let dial_fn = self.dial_fn.clone();
                     let (tx, rx) = oneshot::channel();
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         let res = dial_fn(ed_bytes).await;
                         let _ = tx.send(res);
                     });
                     self.state = DelayDialState::Dialing {
                         rx,
+                        handle,
                         sent_as_ed: use_ed,
                         ed_len,
                     };
@@ -140,6 +142,7 @@ impl AsyncWrite for DelayDialConn {
                     rx,
                     sent_as_ed,
                     ed_len,
+                    ..
                 } => match Pin::new(rx).poll(cx) {
                     Poll::Pending => {
                         self.register_waker(cx.waker());
@@ -189,11 +192,25 @@ impl AsyncWrite for DelayDialConn {
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut self.state {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_shutdown(cx),
+            DelayDialState::Dialing { handle, .. } => {
+                handle.abort();
+                self.state = DelayDialState::Closed;
+                self.wake_all();
+                Poll::Ready(Ok(()))
+            }
             _ => {
                 self.state = DelayDialState::Closed;
                 self.wake_all();
                 Poll::Ready(Ok(()))
             }
+        }
+    }
+}
+
+impl Drop for DelayDialConn {
+    fn drop(&mut self) {
+        if let DelayDialState::Dialing { handle, .. } = &self.state {
+            handle.abort();
         }
     }
 }

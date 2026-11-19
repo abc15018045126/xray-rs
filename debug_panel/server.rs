@@ -143,7 +143,8 @@ async fn route(
                 "endpoints": {
                     "GET /ai/summary": "Full snapshot (CPU, Mem, bypass state, totals, per-site connections/reuse/ms, recent probes). Add ?format=text for compact plain text.",
                     "GET /ai/sites": "Per-website connection stats (established, reused, active, reuse_rate_pct, connect_ms, traffic_features). Optional ?host=<substr>.",
-                    "GET /ai/resources": "Process CPU %, Memory RSS/Private/Peak MB, and 60-sample history.",
+                    "GET /ai/resources": "Process CPU %, Kernel/User split, per-thread CPU, Memory RSS/Private/Peak MB, and 60-sample history.",
+                    "GET /ai/cpu": "CPU attribution breakdown: kernel vs user CPU%, per-thread CPU%, per-outbound load, and top active/busy hosts (?format=text).",
                     "GET /ai/events": "Recent connection events (last 50).",
                     "GET /ai/probes": "Recent direct kernel probe results (last 20).",
                     "GET /ai/bypass": "Get direct kernel bypass state. Shortcut: ?on=1 or ?off=1&domains=a.com,b.com.",
@@ -181,6 +182,113 @@ async fn route(
         ("GET", "/ai/resources") => {
             let report: ResourceReport = resources().report();
             json_ok(&report)
+        }
+
+        ("GET", "/ai/cpu") => {
+            let report: ResourceReport = resources().report();
+            let sites = metrics().sites(None);
+
+            // Aggregate load by outbound (proxy / direct / block / dns)
+            #[derive(Serialize)]
+            struct OutboundLoad {
+                outbound: String,
+                sites: usize,
+                established: u64,
+                active: u64,
+                uplink_bytes: u64,
+                downlink_bytes: u64,
+                avg_connect_ms: f64,
+            }
+            let mut ob_map: HashMap<String, (usize, u64, u64, u64, u64, f64)> = HashMap::new();
+            for s in &sites {
+                let key = if s.last_outbound.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    s.last_outbound.clone()
+                };
+                let e = ob_map.entry(key).or_insert((0, 0, 0, 0, 0, 0.0));
+                e.0 += 1;
+                e.1 += s.established;
+                e.2 += s.active;
+                e.3 += s.uplink_bytes;
+                e.4 += s.downlink_bytes;
+                e.5 += s.avg_connect_ms * (s.established as f64);
+            }
+            let mut outbounds: Vec<OutboundLoad> = ob_map
+                .into_iter()
+                .map(|(outbound, (sc, est, act, up, down, ms_sum))| OutboundLoad {
+                    outbound,
+                    sites: sc,
+                    established: est,
+                    active: act,
+                    uplink_bytes: up,
+                    downlink_bytes: down,
+                    avg_connect_ms: if est > 0 {
+                        ((ms_sum / est as f64) * 100.0).round() / 100.0
+                    } else {
+                        0.0
+                    },
+                })
+                .collect();
+            outbounds.sort_by(|a, b| b.established.cmp(&a.established));
+
+            let mut top_hosts = sites;
+            top_hosts.sort_by(|a, b| {
+                let sa = a.active * 10 + a.established;
+                let sb = b.active * 10 + b.established;
+                sb.cmp(&sa)
+                    .then_with(|| (b.uplink_bytes + b.downlink_bytes).cmp(&(a.uplink_bytes + a.downlink_bytes)))
+            });
+            top_hosts.truncate(20);
+
+            let stages = crate::debug_panel::stage_stats_snapshot();
+
+            if query.get("format").map(|s| s.as_str()) == Some("text") {
+                let mut out = format!(
+                    "CPU BREAKDOWN | live={:.2}% avg={:.2}% peak={:.2}% | user(live={:.2}% avg={:.2}% peak={:.2}%) | kernel(live={:.2}% avg={:.2}% peak={:.2}%) | threads={} | MEM={:.2}MB\nSTAGES:\n",
+                    report.current.cpu_percent,
+                    report.current.avg_cpu_percent,
+                    report.current.peak_cpu_percent,
+                    report.current.user_cpu_percent,
+                    report.current.avg_user_cpu_percent,
+                    report.current.peak_user_cpu_percent,
+                    report.current.kernel_cpu_percent,
+                    report.current.avg_kernel_cpu_percent,
+                    report.current.peak_kernel_cpu_percent,
+                    report.current.thread_count,
+                    report.current.memory_rss_mb
+                );
+                for st in &stages {
+                    out.push_str(&format!(
+                        "  - {} | calls={} total={:.1}ms ({:.1}%) avg={:.2}ms max={:.2}ms\n",
+                        st.name, st.calls, st.total_ms, st.share_percent, st.avg_ms, st.max_ms
+                    ));
+                }
+                out.push_str("OUTBOUNDS:\n");
+                for o in &outbounds {
+                    out.push_str(&format!(
+                        "  - {} | sites={} new={} active={} up={}B down={}B avg_ms={:.1}ms\n",
+                        o.outbound, o.sites, o.established, o.active, o.uplink_bytes, o.downlink_bytes, o.avg_connect_ms
+                    ));
+                }
+                out.push_str("TOP THREADS (sorted by cumulative avg CPU%):\n");
+                for t in report.threads.iter().take(15) {
+                    out.push_str(&format!(
+                        "  - tid={} name={} live={:.2}% avg={:.2}% peak={:.2}% share={:.1}% (user={:.2}% kernel={:.2}%)\n",
+                        t.tid, t.name, t.cpu_percent, t.avg_cpu_percent, t.peak_cpu_percent, t.cpu_share_percent, t.user_cpu_percent, t.kernel_cpu_percent
+                    ));
+                }
+                ("200 OK", "text/plain; charset=utf-8", out.into_bytes())
+            } else {
+                let payload = serde_json::json!({
+                    "current": report.current,
+                    "stages": stages,
+                    "threads": report.threads,
+                    "outbounds": outbounds,
+                    "top_hosts": top_hosts,
+                });
+                json_ok(&payload)
+            }
         }
 
         ("GET", "/ai/events") => {
