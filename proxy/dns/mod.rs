@@ -13,7 +13,7 @@ use hickory_proto::op::{Message, OpCode, ResponseCode};
 use hickory_proto::rr::rdata::{A, AAAA};
 use hickory_proto::rr::{RData, Record, RecordType};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::time::timeout;
+use pingora_timeout::timeout;
 
 use crate::app::dns::DnsClient;
 use crate::common::errors::Result;

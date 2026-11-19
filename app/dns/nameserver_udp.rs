@@ -73,7 +73,7 @@ impl NameServer for UdpNameServer {
         socket.send(&query_a).await.map_err(Error::Io)?;
 
         let mut buf = vec![0u8; 2048];
-        let n = tokio::time::timeout(self.timeout, socket.recv(&mut buf))
+        let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut buf))
             .await
             .map_err(|_| Error::Timeout)?
             .map_err(Error::Io)?;

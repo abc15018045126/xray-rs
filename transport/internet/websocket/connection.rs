@@ -66,7 +66,7 @@ pub(crate) fn bridge_ws_stream(
                                 code: CloseCode::Normal,
                                 reason: "".into(),
                             };
-                            let _ = tokio::time::timeout(
+                            let _ = pingora_timeout::timeout(
                                 Duration::from_secs(5),
                                 ws_sink.send(Message::Close(Some(close_frame))),
                             )

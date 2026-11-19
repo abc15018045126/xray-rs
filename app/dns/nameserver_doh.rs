@@ -93,58 +93,42 @@ impl DohNameServer {
         let clean = domain.trim_end_matches('.');
         let query = build_dns_query_typed(clean, 1);
 
-        #[cfg(target_os = "windows")]
-        let tcp_stream = {
-            let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let addrs = tokio::net::lookup_host(format!("{}:{}", host, port))
-                .await
-                .map_err(Error::Io)?;
-            let mut last_err = None;
-            let mut stream_opt = None;
-            for addr in addrs {
-                match tokio::time::timeout(
-                    self.timeout,
-                    crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()),
-                )
-                .await
-                {
-                    Ok(Ok(s)) => {
-                        stream_opt = Some(s);
-                        break;
-                    }
-                    Ok(Err(e)) => last_err = Some(e),
-                    Err(_) => return Err(Error::Timeout),
+        let addrs = tokio::net::lookup_host(format!("{}:{}", host, port))
+            .await
+            .map_err(Error::Io)?;
+        let mut last_err = None;
+        let mut stream_opt = None;
+        for addr in addrs {
+            match pingora_timeout::timeout(
+                self.timeout,
+                crate::app::pingora_bridge::PingoraCoreConnector::dial_tcp(addr),
+            )
+            .await
+            {
+                Ok(Ok(s)) => {
+                    stream_opt = Some(s);
+                    break;
                 }
+                Ok(Err(e)) => last_err = Some(e),
+                Err(_) => return Err(Error::Timeout),
             }
-            stream_opt.ok_or_else(|| {
-                Error::Io(last_err.unwrap_or_else(|| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        format!("Failed to connect to {}:{}", host, port),
-                    )
-                }))
-            })?
-        };
-
-        #[cfg(not(target_os = "windows"))]
-        let tcp_stream = tokio::time::timeout(
-            self.timeout,
-            TcpStream::connect(format!("{}:{}", host, port)),
-        )
-        .await
-        .map_err(|_| Error::Timeout)?
-        .map_err(Error::Io)?;
+        }
+        let tcp_stream = stream_opt.ok_or_else(|| {
+            last_err.unwrap_or_else(|| {
+                Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Failed to connect to {}:{}", host, port),
+                ))
+            })
+        })?;
 
         let mut stream: crate::common::net::BoxStream = if is_https {
             let tls_client = TlsClient::new(&host, true, vec![b"http/1.1".to_vec()])?;
-            tokio::time::timeout(
-                self.timeout,
-                tls_client.connect(&host, Box::pin(tcp_stream)),
-            )
-            .await
-            .map_err(|_| Error::Timeout)??
+            pingora_timeout::timeout(self.timeout, tls_client.connect(&host, tcp_stream))
+                .await
+                .map_err(|_| Error::Timeout)??
         } else {
-            Box::pin(tcp_stream)
+            tcp_stream
         };
 
         let req = format!(
@@ -164,7 +148,7 @@ impl DohNameServer {
         let mut content_len = None;
 
         while buf.len() < 65536 {
-            let n = tokio::time::timeout(self.timeout, stream.read(&mut chunk))
+            let n = pingora_timeout::timeout(self.timeout, stream.read(&mut chunk))
                 .await
                 .map_err(|_| Error::Timeout)?
                 .map_err(Error::Io)?;
