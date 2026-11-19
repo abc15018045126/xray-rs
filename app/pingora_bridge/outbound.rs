@@ -67,6 +67,11 @@ impl OutboundHandler for PingoraPooledOutbound {
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let key = pool_key(&format!("{}:{}", self.tag, session.destination));
         if let Some(reused) = self.pool.get(key) {
+            #[cfg(debug_assertions)]
+            crate::debug_panel::metrics().record_pool_reuse(
+                &session.destination.address.to_string(),
+                &self.tag,
+            );
             return Ok(reused);
         }
 

@@ -1,0 +1,156 @@
+//! Debug-only telemetry, direct kernel bypass, traffic feature inspector,
+//! and ultra-simple AI API for `xray-rs`.
+//!
+//! This entire module is gated behind `#[cfg(debug_assertions)]` in `src/lib.rs`,
+//! so it has ZERO runtime or binary overhead in `--release` builds.
+
+pub mod capture;
+pub mod metrics;
+pub mod probe;
+pub mod resources;
+pub mod server;
+
+use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+pub use capture::{CaptureStatus, CapturedPacket, Direction, PacketCaptureStore};
+pub use metrics::{
+    ConnectionEvent, DebugMetricsStore, DirectBypassConfig, SiteMetrics, TotalsSummary,
+    TrafficFeatures, inspect_initial_payload,
+};
+pub use probe::{DirectProbeResult, run_direct_probe};
+pub use resources::{ResourceMonitor, ResourceReport, ResourceSnapshot};
+
+pub const DEFAULT_DEBUG_ADDR: &str = "127.0.0.1:19876";
+
+static METRICS: OnceLock<DebugMetricsStore> = OnceLock::new();
+static RESOURCES: OnceLock<ResourceMonitor> = OnceLock::new();
+static CAPTURE: OnceLock<PacketCaptureStore> = OnceLock::new();
+static SERVER_STARTED: AtomicBool = AtomicBool::new(false);
+
+pub fn metrics() -> &'static DebugMetricsStore {
+    METRICS.get_or_init(DebugMetricsStore::new)
+}
+
+pub fn resources() -> &'static ResourceMonitor {
+    RESOURCES.get_or_init(ResourceMonitor::new)
+}
+
+pub fn capture() -> &'static PacketCaptureStore {
+    CAPTURE.get_or_init(PacketCaptureStore::new)
+}
+
+pub fn resources_snapshot() -> ResourceSnapshot {
+    resources().sample()
+}
+
+/// Returns true if direct kernel bypass (no-proxy) mode is active for `host`.
+pub fn should_bypass_direct(host: &str) -> bool {
+    metrics().should_bypass(host)
+}
+
+/// Start the debug HTTP + AI API server once (idempotent).
+/// Bind address can be overridden via `XRAY_DEBUG_ADDR` env var (default `127.0.0.1:19876`).
+pub fn start_debug_server() -> Option<tokio::task::JoinHandle<()>> {
+    if SERVER_STARTED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return None;
+    }
+    let addr = std::env::var("XRAY_DEBUG_ADDR").unwrap_or_else(|_| DEFAULT_DEBUG_ADDR.to_string());
+    Some(server::spawn_server(addr))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bypass_domain_matching() {
+        let store = DebugMetricsStore::new();
+        assert!(!store.should_bypass("example.com"));
+
+        store.set_bypass(true, Some(vec!["cloudflare.com".into()]));
+        assert!(store.should_bypass("cloudflare.com"));
+        assert!(store.should_bypass("www.cloudflare.com"));
+        assert!(!store.should_bypass("github.com"));
+
+        // Empty domain list with enabled=true bypasses everything
+        store.set_bypass(true, Some(vec![]));
+        assert!(store.should_bypass("github.com"));
+
+        store.set_bypass(false, None);
+        assert!(!store.should_bypass("github.com"));
+    }
+
+    #[test]
+    fn test_http_feature_inspection_and_metrics() {
+        let req = b"GET /index.html HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test-agent\r\n\r\n";
+        let feat = inspect_initial_payload(req);
+        assert_eq!(feat.protocol, "http");
+        assert_eq!(feat.http_method.as_deref(), Some("GET"));
+        assert_eq!(feat.http_host.as_deref(), Some("example.com"));
+
+        let store = DebugMetricsStore::new();
+        store.record_connect_start("example.com", "proxy", false, false, 12.5, Some(feat));
+        store.record_pool_reuse("example.com", "proxy");
+        store.record_connect_end("example.com", 1024, 4096);
+
+        let sites = store.sites(Some("example"));
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].established, 1);
+        assert_eq!(sites[0].reused, 1);
+        assert_eq!(sites[0].reuse_rate_pct, 50.0);
+        assert_eq!(sites[0].active, 0);
+        assert_eq!(sites[0].uplink_bytes, 1024);
+        assert_eq!(sites[0].downlink_bytes, 4096);
+    }
+
+    #[test]
+    fn test_resource_monitor_snapshot() {
+        let mon = ResourceMonitor::new();
+        let snap = mon.sample();
+        assert!(snap.pid > 0);
+        assert!(snap.cpu_cores >= 1);
+        assert!(snap.memory_rss_mb >= 0.0);
+    }
+
+    #[test]
+    fn test_packet_capture_and_pcap_export() {
+        let cap = PacketCaptureStore::new();
+        assert!(!cap.is_enabled());
+        cap.set_enabled(true);
+
+        let req = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+        cap.record_chunk(
+            "example.com",
+            "127.0.0.1:51234",
+            "example.com:80",
+            Direction::ClientToServer,
+            "debug-direct-bypass",
+            true,
+            req,
+        );
+        let resp = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+        cap.record_chunk(
+            "example.com",
+            "127.0.0.1:51234",
+            "example.com:80",
+            Direction::ServerToClient,
+            "debug-direct-bypass",
+            true,
+            resp,
+        );
+
+        let pkts = cap.packets(Some("example"), 10);
+        assert_eq!(pkts.len(), 2);
+        assert_eq!(pkts[0].protocol, "HTTP");
+        assert_eq!(pkts[1].protocol, "HTTP");
+
+        let pcap = cap.export_pcap(None);
+        // PCAP magic (little-endian 0xa1b2c3d4) + 24B global header + 2 packet records
+        assert!(pcap.len() > 24 + 32);
+        assert_eq!(&pcap[0..4], &0xa1b2c3d4u32.to_le_bytes());
+    }
+}

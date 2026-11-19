@@ -27,3 +27,7 @@ pub mod testing;
 
 #[path = "../main/mod.rs"]
 pub mod main;
+
+#[cfg(debug_assertions)]
+#[path = "../debug_panel/mod.rs"]
+pub mod debug_panel;

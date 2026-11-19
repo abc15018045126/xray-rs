@@ -1,4 +1,5 @@
 /target
+debug_panel/dioxus_app/target/
 **/*.rs.bk
 *.log
 *.exe

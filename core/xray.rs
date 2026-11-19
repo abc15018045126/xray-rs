@@ -70,6 +70,10 @@ impl Instance {
             let task = dev.start(self.dispatcher.clone()).await?;
             tasks.push(task);
         }
+        #[cfg(debug_assertions)]
+        if let Some(debug_task) = crate::debug_panel::start_debug_server() {
+            tasks.push(debug_task);
+        }
         Ok(tasks)
     }
 

@@ -1,0 +1,12 @@
+[package]
+name = "xray-debug-panel"
+version = "0.1.0"
+edition = "2024"
+description = "Debug-only Dioxus UI for xray-rs connection reuse, CPU/memory, direct kernel bypass, and AI telemetry"
+
+[dependencies]
+dioxus = { version = "0.7.10", features = ["desktop"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.40", features = ["time", "rt-multi-thread"] }

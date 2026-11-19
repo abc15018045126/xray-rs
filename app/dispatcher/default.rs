@@ -201,73 +201,181 @@ impl DefaultDispatcher {
         }
 
         // 2. Detour / Outbound selection
-        let outbound_tag = if let Some(forced) = &session.forced_outbound_tag {
-            forced.clone()
-        } else if let Some(router) = &self.router {
-            router
-                .pick_outbound(&session)
-                .map(|s| s.to_string())
-                .or_else(|| self.default_outbound_tag.clone())
-                .ok_or_else(|| Error::NotFound("No matching outbound route found".into()))?
-        } else if let Some(def_tag) = &self.default_outbound_tag {
-            def_tag.clone()
-        } else if let Some(first_tag) = self.outbounds.keys().next() {
-            first_tag.clone()
-        } else {
-            return Err(Error::NotFound("No outbound handlers configured".into()));
-        };
+        #[cfg(debug_assertions)]
+        let debug_host = session
+            .sniffed_domain
+            .clone()
+            .unwrap_or_else(|| session.destination.address.to_string());
 
-        session.outbound_tag = Some(outbound_tag.clone());
+        #[cfg(debug_assertions)]
+        let debug_bypass = crate::debug_panel::should_bypass_direct(&debug_host);
 
-        let outbound = if let Some(om) = &self.outbound_manager {
-            if let Some(h) = om.get_handler(&outbound_tag).await {
-                h
-            } else {
-                self.outbounds
-                    .get(&outbound_tag)
-                    .ok_or_else(|| {
-                        Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag))
-                    })?
-                    .clone()
+        #[cfg(debug_assertions)]
+        if debug_bypass && initial_payload.is_empty() {
+            let mut peek_buf = [0u8; 2048];
+            if let Ok(Ok(n)) =
+                timeout(Duration::from_millis(80), inbound_stream.read(&mut peek_buf)).await
+                && n > 0
+            {
+                initial_payload.extend_from_slice(&peek_buf[..n]);
             }
+        }
+
+        #[cfg(debug_assertions)]
+        let debug_features = if !initial_payload.is_empty() {
+            Some(crate::debug_panel::inspect_initial_payload(&initial_payload))
         } else {
-            self.outbounds
-                .get(&outbound_tag)
-                .ok_or_else(|| {
-                    Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag))
-                })?
-                .clone()
+            None
         };
 
-        info!(
-            "Dispatching [{}] -> [{}] via tag '{}'",
-            session
-                .source
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "unknown".into()),
-            session.destination,
-            outbound_tag
-        );
+        #[cfg(debug_assertions)]
+        let debug_connect_start = std::time::Instant::now();
 
-        // 3. Connect to outbound
-        let mut outbound_stream = match outbound.connect(&session).await {
-            Ok(stream) => stream,
-            Err(e) => {
-                warn!(
-                    "Failed to establish outbound connection for {}: {}",
-                    session.destination, e
+        let (outbound_tag, mut outbound_stream) = {
+            #[cfg(debug_assertions)]
+            let bypass_now = debug_bypass;
+            #[cfg(not(debug_assertions))]
+            let bypass_now = false;
+
+            if bypass_now {
+                let tag = "debug-direct-bypass".to_string();
+                session.outbound_tag = Some(tag.clone());
+                info!(
+                    "[DEBUG DIRECT BYPASS] [{}] -> [{}] (kernel direct, no proxy)",
+                    session
+                        .source
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "unknown".into()),
+                    session.destination
                 );
-                return Err(e);
+                let stream = match crate::transport::internet::TcpDialer::dial(&session.destination).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        #[cfg(debug_assertions)]
+                        crate::debug_panel::metrics().record_connect_failed(
+                            &debug_host,
+                            &tag,
+                            true,
+                            debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                            &e.to_string(),
+                        );
+                        warn!(
+                            "[DEBUG DIRECT BYPASS] Failed direct kernel connect for {}: {}",
+                            session.destination, e
+                        );
+                        return Err(e);
+                    }
+                };
+                (tag, stream)
+            } else {
+                let outbound_tag = if let Some(forced) = &session.forced_outbound_tag {
+                    forced.clone()
+                } else if let Some(router) = &self.router {
+                    router
+                        .pick_outbound(&session)
+                        .map(|s| s.to_string())
+                        .or_else(|| self.default_outbound_tag.clone())
+                        .ok_or_else(|| Error::NotFound("No matching outbound route found".into()))?
+                } else if let Some(def_tag) = &self.default_outbound_tag {
+                    def_tag.clone()
+                } else if let Some(first_tag) = self.outbounds.keys().next() {
+                    first_tag.clone()
+                } else {
+                    return Err(Error::NotFound("No outbound handlers configured".into()));
+                };
+
+                session.outbound_tag = Some(outbound_tag.clone());
+
+                let outbound = if let Some(om) = &self.outbound_manager {
+                    if let Some(h) = om.get_handler(&outbound_tag).await {
+                        h
+                    } else {
+                        self.outbounds
+                            .get(&outbound_tag)
+                            .ok_or_else(|| {
+                                Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag))
+                            })?
+                            .clone()
+                    }
+                } else {
+                    self.outbounds
+                        .get(&outbound_tag)
+                        .ok_or_else(|| {
+                            Error::NotFound(format!("Outbound handler '{}' not found", outbound_tag))
+                        })?
+                        .clone()
+                };
+
+                info!(
+                    "Dispatching [{}] -> [{}] via tag '{}'",
+                    session
+                        .source
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "unknown".into()),
+                    session.destination,
+                    outbound_tag
+                );
+
+                // 3. Connect to outbound
+                let stream = match outbound.connect(&session).await {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        #[cfg(debug_assertions)]
+                        crate::debug_panel::metrics().record_connect_failed(
+                            &debug_host,
+                            &outbound_tag,
+                            false,
+                            debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                            &e.to_string(),
+                        );
+                        warn!(
+                            "Failed to establish outbound connection for {}: {}",
+                            session.destination, e
+                        );
+                        return Err(e);
+                    }
+                };
+                (outbound_tag, stream)
             }
         };
+
+        #[cfg(debug_assertions)]
+        crate::debug_panel::metrics().record_connect_start(
+            &debug_host,
+            &outbound_tag,
+            debug_bypass,
+            false,
+            debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+            debug_features,
+        );
+        let _ = &outbound_tag;
 
         // 4. Flush any initial payload buffered during sniffing
         let initial_len = initial_payload.len();
-        if !initial_payload.is_empty()
-            && let Err(e) = outbound_stream.write_all(&initial_payload).await
-        {
-            warn!("Failed to forward initial sniffed payload: {}", e);
-            return Err(Error::Io(e));
+        if !initial_payload.is_empty() {
+            #[cfg(debug_assertions)]
+            if crate::debug_panel::capture().is_enabled() {
+                let src_str = session
+                    .source
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "127.0.0.1:0".into());
+                let dst_str = session.destination.to_string();
+                crate::debug_panel::capture().record_chunk(
+                    &debug_host,
+                    &src_str,
+                    &dst_str,
+                    crate::debug_panel::Direction::ClientToServer,
+                    &outbound_tag,
+                    debug_bypass,
+                    &initial_payload,
+                );
+            }
+            if let Err(e) = outbound_stream.write_all(&initial_payload).await {
+                #[cfg(debug_assertions)]
+                crate::debug_panel::metrics().record_connect_end(&debug_host, 0, 0);
+                warn!("Failed to forward initial sniffed payload: {}", e);
+                return Err(Error::Io(e));
+            }
         }
 
         // 5. User traffic & stats accounting setup
@@ -321,6 +429,28 @@ impl DefaultDispatcher {
         };
 
         // 6. Bidirectional streaming (aligned with Xray-core CancelAfterInactivity using policy ConnectionIdle)
+        #[cfg(debug_assertions)]
+        let debug_tap = Some(DebugTapMeta {
+            host: debug_host.clone(),
+            src: session
+                .source
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "127.0.0.1:0".into()),
+            dst: session.destination.to_string(),
+            outbound: outbound_tag.clone(),
+            bypassed: debug_bypass,
+        });
+
+        #[cfg(debug_assertions)]
+        let result = copy_bidirectional_with_timeout(
+            &mut inbound_stream,
+            &mut outbound_stream,
+            conn_idle,
+            debug_tap,
+        )
+        .await;
+
+        #[cfg(not(debug_assertions))]
         let result =
             copy_bidirectional_with_timeout(&mut inbound_stream, &mut outbound_stream, conn_idle)
                 .await;
@@ -335,12 +465,20 @@ impl DefaultDispatcher {
                 if let Some(c) = &downlink_counter {
                     c.add(from_server as i64);
                 }
+                #[cfg(debug_assertions)]
+                crate::debug_panel::metrics().record_connect_end(
+                    &debug_host,
+                    total_uplink.max(0) as u64,
+                    from_server,
+                );
                 debug!(
                     "Connection closed for {}: client->server {} bytes, server->client {} bytes",
                     session.destination, total_uplink, from_server
                 );
             }
             Err(e) => {
+                #[cfg(debug_assertions)]
+                crate::debug_panel::metrics().record_connect_end(&debug_host, initial_len as u64, 0);
                 debug!("Stream relay ended for {}: {}", session.destination, e);
             }
         }
@@ -374,10 +512,21 @@ impl DispatcherFeature for DefaultDispatcher {
     }
 }
 
+#[cfg(debug_assertions)]
+#[derive(Clone)]
+struct DebugTapMeta {
+    host: String,
+    src: String,
+    dst: String,
+    outbound: String,
+    bypassed: bool,
+}
+
 async fn copy_one_dir<R, W>(
     mut reader: R,
     mut writer: W,
     activity_tx: tokio::sync::mpsc::Sender<()>,
+    #[cfg(debug_assertions)] tap: Option<(DebugTapMeta, crate::debug_panel::Direction)>,
 ) -> std::io::Result<u64>
 where
     R: tokio::io::AsyncRead + Unpin,
@@ -395,6 +544,20 @@ where
             Ok(n) => {
                 total += n as u64;
                 let _ = activity_tx.try_send(());
+                #[cfg(debug_assertions)]
+                if let Some((ref meta, dir)) = tap
+                    && crate::debug_panel::capture().is_enabled()
+                {
+                    crate::debug_panel::capture().record_chunk(
+                        &meta.host,
+                        &meta.src,
+                        &meta.dst,
+                        dir,
+                        &meta.outbound,
+                        meta.bypassed,
+                        &buf[..n],
+                    );
+                }
                 if let Err(e) = writer.write_all(&buf[..n]).await {
                     let _ = writer.shutdown().await;
                     return Err(e);
@@ -420,6 +583,7 @@ async fn copy_bidirectional_with_timeout<A, B>(
     a: &mut A,
     b: &mut B,
     idle_timeout: Duration,
+    #[cfg(debug_assertions)] tap: Option<DebugTapMeta>,
 ) -> std::io::Result<(u64, u64)>
 where
     A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + ?Sized,
@@ -461,7 +625,21 @@ where
 
     tokio::select! {
         (res_a, res_b) = async {
+            #[cfg(debug_assertions)]
+            let (tap_a, tap_b) = match tap {
+                Some(m) => (
+                    Some((m.clone(), crate::debug_panel::Direction::ClientToServer)),
+                    Some((m, crate::debug_panel::Direction::ServerToClient)),
+                ),
+                None => (None, None),
+            };
+            #[cfg(debug_assertions)]
+            let fut_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx, tap_a);
+            #[cfg(debug_assertions)]
+            let fut_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, tap_b);
+            #[cfg(not(debug_assertions))]
             let fut_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx);
+            #[cfg(not(debug_assertions))]
             let fut_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b);
             tokio::join!(fut_a, fut_b)
         } => {
