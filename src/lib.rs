@@ -22,6 +22,7 @@ pub mod infra;
 #[path = "../core/mod.rs"]
 pub mod core;
 
+#[cfg(test)]
 #[path = "../testing/mod.rs"]
 pub mod testing;
 
