@@ -3,10 +3,11 @@
 
 use async_trait::async_trait;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::sync::{Mutex, mpsc};
 use uuid::Uuid;
 
 use crate::common::errors::Result;
@@ -18,12 +19,14 @@ use crate::proxy::vless::flow::{FLOW_VISION, VisionStream};
 use crate::transport::internet::reality::RealityClient;
 use crate::transport::internet::{TcpDialer, TlsClient, WebSocketStream};
 
-pub struct Client {
-    tag: String,
+struct PreConn {
+    conn: BoxStream,
+    expire: Instant,
+}
+
+#[derive(Clone)]
+struct DialParams {
     server_addr: Destination,
-    user_id: Uuid,
-    flow: Option<String>,
-    encryption: Option<String>,
     tls_client: Option<Arc<TlsClient>>,
     tls_sni: Option<String>,
     reality_client: Option<Arc<RealityClient>>,
@@ -33,60 +36,7 @@ pub struct Client {
     fragment_cfg: Option<crate::transport::internet::finalmask::fragment::Config>,
 }
 
-impl Client {
-    pub fn new(
-        tag: impl Into<String>,
-        server_addr: Destination,
-        user_id: Uuid,
-        tls_client: Option<TlsClient>,
-        tls_sni: Option<String>,
-        ws_path: Option<String>,
-        ws_host: Option<String>,
-    ) -> Self {
-        Self {
-            tag: tag.into(),
-            server_addr,
-            user_id,
-            flow: None,
-            encryption: None,
-            tls_client: tls_client.map(Arc::new),
-            tls_sni,
-            reality_client: None,
-            ws_path,
-            ws_host,
-            ws_heartbeat: 0,
-            fragment_cfg: None,
-        }
-    }
-
-    pub fn with_ws_heartbeat(mut self, secs: u32) -> Self {
-        self.ws_heartbeat = secs;
-        self
-    }
-
-    pub fn with_fragment(
-        mut self,
-        cfg: crate::transport::internet::finalmask::fragment::Config,
-    ) -> Self {
-        self.fragment_cfg = Some(cfg);
-        self
-    }
-
-    pub fn with_flow(mut self, flow: impl Into<String>) -> Self {
-        self.flow = Some(flow.into());
-        self
-    }
-
-    pub fn with_encryption(mut self, enc: impl Into<String>) -> Self {
-        self.encryption = Some(enc.into());
-        self
-    }
-
-    pub fn with_reality(mut self, client: RealityClient) -> Self {
-        self.reality_client = Some(Arc::new(client));
-        self
-    }
-
+impl DialParams {
     async fn dial_and_handshake(&self) -> Result<BoxStream> {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
 
@@ -152,6 +102,156 @@ impl Client {
     }
 }
 
+pub struct Client {
+    tag: String,
+    user_id: Uuid,
+    flow: Option<String>,
+    encryption: Option<String>,
+    dial_params: DialParams,
+    testpre: u32,
+    pre_conns: OnceLock<Mutex<mpsc::Receiver<PreConn>>>,
+}
+
+impl Client {
+    pub fn new(
+        tag: impl Into<String>,
+        server_addr: Destination,
+        user_id: Uuid,
+        tls_client: Option<TlsClient>,
+        tls_sni: Option<String>,
+        ws_path: Option<String>,
+        ws_host: Option<String>,
+    ) -> Self {
+        Self {
+            tag: tag.into(),
+            user_id,
+            flow: None,
+            encryption: None,
+            dial_params: DialParams {
+                server_addr,
+                tls_client: tls_client.map(Arc::new),
+                tls_sni,
+                reality_client: None,
+                ws_path,
+                ws_host,
+                ws_heartbeat: 0,
+                fragment_cfg: None,
+            },
+            testpre: 0,
+            pre_conns: OnceLock::new(),
+        }
+    }
+
+    pub fn with_ws_heartbeat(mut self, secs: u32) -> Self {
+        self.dial_params.ws_heartbeat = secs;
+        self
+    }
+
+    pub fn with_fragment(
+        mut self,
+        cfg: crate::transport::internet::finalmask::fragment::Config,
+    ) -> Self {
+        self.dial_params.fragment_cfg = Some(cfg);
+        self
+    }
+
+    pub fn with_flow(mut self, flow: impl Into<String>) -> Self {
+        self.flow = Some(flow.into());
+        self
+    }
+
+    pub fn with_encryption(mut self, enc: impl Into<String>) -> Self {
+        self.encryption = Some(enc.into());
+        self
+    }
+
+    pub fn with_reality(mut self, client: RealityClient) -> Self {
+        self.dial_params.reality_client = Some(Arc::new(client));
+        self
+    }
+
+    /// Official Xray-core `testpre`: pre-warm `count` transport connections (TCP+TLS+WS)
+    /// in background tasks with a 2-minute expiration, matching `proxy/vless/outbound/outbound.go`.
+    pub fn with_testpre(mut self, count: u32) -> Self {
+        self.testpre = count;
+        if count > 0 && tokio::runtime::Handle::try_current().is_ok() {
+            let _ = self.init_pre_conns();
+        }
+        self
+    }
+
+    fn init_pre_conns(&self) -> &Mutex<mpsc::Receiver<PreConn>> {
+        self.pre_conns.get_or_init(|| {
+            let cap = (self.testpre as usize).max(1);
+            let (tx, rx) = mpsc::channel::<PreConn>(cap);
+            tracing::info!(
+                "VLESS outbound '{}': starting testpre transport pre-warm pool ({} workers)",
+                self.tag,
+                self.testpre
+            );
+            for _ in 0..self.testpre {
+                let tx_clone = tx.clone();
+                let params = self.dial_params.clone();
+                let tag = self.tag.clone();
+                tokio::spawn(async move {
+                    loop {
+                        if tx_clone.is_closed() {
+                            break;
+                        }
+                        match params.dial_and_handshake().await {
+                            Ok(conn) => {
+                                let item = PreConn {
+                                    conn,
+                                    expire: Instant::now() + Duration::from_secs(120),
+                                };
+                                if tx_clone.send(item).await.is_err() {
+                                    break;
+                                }
+                                // Match official Xray-core 200ms pacing between pre-connect refills
+                                tokio::time::sleep(Duration::from_millis(200)).await;
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    "VLESS '{}' testpre pre-connect failed: {}",
+                                    tag,
+                                    e
+                                );
+                                tokio::time::sleep(Duration::from_millis(500)).await;
+                            }
+                        }
+                    }
+                });
+            }
+            Mutex::new(rx)
+        })
+    }
+
+    async fn take_or_dial(&self, session: &SessionContext) -> Result<BoxStream> {
+        if self.testpre > 0 {
+            let rx_mutex = self.init_pre_conns();
+            let mut rx = rx_mutex.lock().await;
+            while let Ok(pre) = rx.try_recv() {
+                if Instant::now() < pre.expire {
+                    #[cfg(debug_assertions)]
+                    {
+                        let host = session
+                            .sniffed_domain
+                            .clone()
+                            .unwrap_or_else(|| session.destination.address.to_string());
+                        crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
+                    }
+                    let _ = session;
+                    return Ok(pre.conn);
+                }
+                // Expired pre-warmed connection: drop it and check the next one
+            }
+            drop(rx);
+        }
+
+        self.dial_params.dial_and_handshake().await
+    }
+}
+
 #[async_trait]
 impl OutboundHandler for Client {
     fn tag(&self) -> &str {
@@ -159,7 +259,7 @@ impl OutboundHandler for Client {
     }
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
-        let stream = self.dial_and_handshake().await?;
+        let stream = self.take_or_dial(session).await?;
 
         // 3. VLESS Protocol Layer: Build Request Header with Addons (coalesced with first payload)
         let command = match session.destination.network {

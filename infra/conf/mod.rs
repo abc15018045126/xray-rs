@@ -251,6 +251,10 @@ pub struct UserConfig {
     pub password: Option<String>,
     #[serde(default)]
     pub level: Option<u32>,
+    #[serde(default)]
+    pub flow: Option<String>,
+    #[serde(default)]
+    pub testpre: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -476,6 +480,14 @@ impl Config {
                         &tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
                     )
                     .with_ws_heartbeat(ws_heartbeat);
+                    if let Some(ref flow) = user.flow
+                        && !flow.is_empty()
+                    {
+                        client = client.with_flow(flow.clone());
+                    }
+                    if user.testpre > 0 {
+                        client = client.with_testpre(user.testpre);
+                    }
                     if let Some(f_cfg) = fragment_cfg {
                         client = client.with_fragment(f_cfg);
                     }

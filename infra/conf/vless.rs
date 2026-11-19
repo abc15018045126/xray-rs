@@ -14,6 +14,8 @@ pub struct VlessClient {
     pub level: Option<u32>,
     #[serde(default)]
     pub encryption: Option<String>,
+    #[serde(default)]
+    pub testpre: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,4 +68,6 @@ pub struct VlessOutboundConfig {
     pub flow: Option<String>,
     #[serde(default)]
     pub encryption: Option<String>,
+    #[serde(default)]
+    pub testpre: u32,
 }
