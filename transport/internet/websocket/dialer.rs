@@ -69,7 +69,7 @@ pub struct DelayDialConn {
     dial_fn: DialWsFn,
     max_ed: usize,
     state: DelayDialState,
-    read_waker: Option<Waker>,
+    wakers: Vec<Waker>,
 }
 
 impl DelayDialConn {
@@ -78,7 +78,19 @@ impl DelayDialConn {
             dial_fn,
             max_ed,
             state: DelayDialState::Idle,
-            read_waker: None,
+            wakers: Vec::new(),
+        }
+    }
+
+    fn register_waker(&mut self, waker: &Waker) {
+        if !self.wakers.iter().any(|w| w.will_wake(waker)) {
+            self.wakers.push(waker.clone());
+        }
+    }
+
+    fn wake_all(&mut self) {
+        for w in self.wakers.drain(..) {
+            w.wake();
         }
     }
 }
@@ -93,7 +105,7 @@ impl AsyncRead for DelayDialConn {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_read(cx, buf),
             DelayDialState::Closed => Poll::Ready(Ok(())),
             DelayDialState::Idle | DelayDialState::Dialing { .. } => {
-                self.read_waker = Some(cx.waker().clone());
+                self.register_waker(cx.waker());
                 Poll::Pending
             }
         }
@@ -129,14 +141,15 @@ impl AsyncWrite for DelayDialConn {
                     sent_as_ed,
                     ed_len,
                 } => match Pin::new(rx).poll(cx) {
-                    Poll::Pending => return Poll::Pending,
+                    Poll::Pending => {
+                        self.register_waker(cx.waker());
+                        return Poll::Pending;
+                    }
                     Poll::Ready(Ok(Ok(stream))) => {
                         let was_ed = *sent_as_ed;
                         let n = *ed_len;
                         self.state = DelayDialState::Connected(stream);
-                        if let Some(w) = self.read_waker.take() {
-                            w.wake();
-                        }
+                        self.wake_all();
                         if was_ed {
                             return Poll::Ready(Ok(n.min(buf.len())));
                         }
@@ -144,16 +157,12 @@ impl AsyncWrite for DelayDialConn {
                     }
                     Poll::Ready(Ok(Err(e))) => {
                         self.state = DelayDialState::Closed;
-                        if let Some(w) = self.read_waker.take() {
-                            w.wake();
-                        }
+                        self.wake_all();
                         return Poll::Ready(Err(std::io::Error::other(e.to_string())));
                     }
                     Poll::Ready(Err(_)) => {
                         self.state = DelayDialState::Closed;
-                        if let Some(w) = self.read_waker.take() {
-                            w.wake();
-                        }
+                        self.wake_all();
                         return Poll::Ready(Err(std::io::Error::other(
                             "WebSocket early-data dial task cancelled",
                         )));
@@ -182,9 +191,7 @@ impl AsyncWrite for DelayDialConn {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_shutdown(cx),
             _ => {
                 self.state = DelayDialState::Closed;
-                if let Some(w) = self.read_waker.take() {
-                    w.wake();
-                }
+                self.wake_all();
                 Poll::Ready(Ok(()))
             }
         }
