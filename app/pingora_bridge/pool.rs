@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use pingora_load_balancing::selection::RoundRobin;
@@ -23,6 +24,7 @@ pub fn pool_key(label: &str) -> u64 {
 pub struct PingoraStreamPool {
     pool: Arc<ConnectionPool<BoxStream>>,
     idle_timeout: Duration,
+    next_id: AtomicUsize,
 }
 
 impl PingoraStreamPool {
@@ -31,6 +33,7 @@ impl PingoraStreamPool {
         Self {
             pool: Arc::new(ConnectionPool::new(capacity)),
             idle_timeout,
+            next_id: AtomicUsize::new(1),
         }
     }
 
@@ -41,7 +44,8 @@ impl PingoraStreamPool {
 
     /// Returns an idle stream into the pool and spawns its Pingora eviction watcher.
     pub fn put(&self, key: u64, stream: BoxStream) {
-        let meta = ConnectionMeta::new(key, 0);
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let meta = ConnectionMeta::new(key, id);
         let (_idle_remover, eviction_fut) = self.pool.put(&meta, stream);
         let timeout = self.idle_timeout;
         tokio::spawn(async move {
