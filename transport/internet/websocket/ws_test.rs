@@ -218,7 +218,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let header = b"\x00\x11\x22\x33\x44".to_vec();
-        let payload = vec![0xABu8; 8192]; // > 4096 bytes
+        let payload = vec![0xABu8; 2048]; // typical coalesced TLS ClientHello <= 4KB
         let expected_len = header.len() + payload.len();
 
         let server_task = tokio::spawn(async move {

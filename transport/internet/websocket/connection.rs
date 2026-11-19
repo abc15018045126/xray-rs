@@ -45,10 +45,10 @@ pub(crate) fn bridge_ws_stream(
 
     tokio::spawn(async move {
         use tokio::io::AsyncReadExt;
-        // Match Xray-core websocket/connection.go (`Write` sends the full slice as a single
-        // BinaryMessage) and the 64KB duplex pipe so coalesced `[VLESS header + first payload]`
-        // writes > 4KB are never split into multiple WebSocket frames.
-        let mut buf = vec![0u8; 64 * 1024];
+        // Match Xray-core `transport/internet/websocket/dialer.go` (`WriteBufferSize: 4 * 1024`):
+        // 4KB fits coalesced `[VLESS header + TLS ClientHello]` in a single WS Binary frame
+        // while keeping frame sizes optimal for Cloudflare Workers / edge proxies.
+        let mut buf = [0u8; 4096];
         let mut heartbeat = if heartbeat_period > 0 {
             let mut iv = tokio::time::interval(Duration::from_secs(heartbeat_period as u64));
             iv.tick().await; // consume immediate first tick
