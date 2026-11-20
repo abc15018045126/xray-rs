@@ -42,17 +42,39 @@ impl PingoraStreamPool {
         self.pool.get(&key)
     }
 
-    /// Returns an idle stream into the pool and spawns its Pingora eviction watcher.
+    /// Returns an idle stream into the pool and spawns Pingora's built-in `idle_timeout` watcher.
     pub fn put(&self, key: u64, stream: BoxStream) {
+        self.put_inner(key, stream, None);
+    }
+
+    /// Returns an idle stream into the pool while tying a `tokio::sync::OwnedSemaphorePermit`
+    /// to its lifetime in Pingora's `idle_timeout` watcher. Whether the stream is consumed via
+    /// `get()`, evicted by LRU, or expires after `idle_timeout`, the permit is released exactly once.
+    pub fn put_with_permit(
+        &self,
+        key: u64,
+        stream: BoxStream,
+        permit: tokio::sync::OwnedSemaphorePermit,
+    ) {
+        self.put_inner(key, stream, Some(permit));
+    }
+
+    fn put_inner(
+        &self,
+        key: u64,
+        stream: BoxStream,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    ) {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let meta = ConnectionMeta::new(key, id);
-        let (_idle_remover, eviction_fut) = self.pool.put(&meta, stream);
+        let (notify_evicted, watch_use) = self.pool.put(&meta, stream);
+        let pool = self.pool.clone();
         let timeout = self.idle_timeout;
         tokio::spawn(async move {
-            tokio::select! {
-                _ = eviction_fut => {}
-                _ = pingora_timeout::sleep(timeout) => {}
-            }
+            let _permit = permit;
+            let (_close_tx, close_rx) = tokio::sync::watch::channel(false);
+            pool.idle_timeout(&meta, Some(timeout), notify_evicted, close_rx, watch_use)
+                .await;
         });
     }
 }

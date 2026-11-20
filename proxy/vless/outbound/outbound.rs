@@ -272,7 +272,7 @@ impl Client {
                         if closed_clone.load(Ordering::Relaxed) {
                             break;
                         }
-                        let Ok(permit) = slots_clone.acquire().await else {
+                        let Ok(permit) = slots_clone.clone().acquire_owned().await else {
                             break;
                         };
                         match params.dial_and_handshake().await {
@@ -280,10 +280,10 @@ impl Client {
                                 if closed_clone.load(Ordering::Relaxed) {
                                     break;
                                 }
-                                // Hand ownership of the permit to the pooled connection;
-                                // `take_or_dial` releases a permit when consuming from `pingora-pool`.
-                                permit.forget();
-                                pool_clone.put(key, conn);
+                                // Tie the semaphore permit to the connection's lifetime inside
+                                // `pingora-pool::idle_timeout`: released automatically on reuse,
+                                // LRU eviction, or 120s idle expiration (zero leak).
+                                pool_clone.put_with_permit(key, conn, permit);
                                 notify_clone.notify_one();
                                 // Match official Xray-core 200ms pacing between pre-connect refills
                                 pingora_timeout::sleep(Duration::from_millis(200)).await;
@@ -327,7 +327,6 @@ impl Client {
             let pre_pool = self.init_pre_conns();
             // Fast path: take an already-warmed connection from Cloudflare `pingora-pool` (0ms)
             if let Some(conn) = pre_pool.pool.get(pre_pool.key) {
-                pre_pool.refill_slots.add_permits(1);
                 #[cfg(debug_assertions)]
                 {
                     let host = session
@@ -346,7 +345,6 @@ impl Client {
                 .is_ok()
                 && let Some(conn) = pre_pool.pool.get(pre_pool.key)
             {
-                pre_pool.refill_slots.add_permits(1);
                 #[cfg(debug_assertions)]
                 {
                     let host = session

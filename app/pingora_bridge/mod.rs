@@ -27,6 +27,24 @@ mod tests {
         pool.put(key, Box::pin(a));
         assert!(pool.get(key).is_some(), "Expected pooled stream to be returned");
         assert!(pool.get(key).is_none(), "Expected pool to be empty after get");
+
+        // Verify idle_timeout actively evicts expired streams AND releases the semaphore permit
+        let short_pool = PingoraStreamPool::new(4, Duration::from_millis(60));
+        let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let permit = sem.clone().acquire_owned().await.unwrap();
+        let (c, _d) = tokio::io::duplex(1024);
+        short_pool.put_with_permit(key, Box::pin(c), permit);
+        assert_eq!(sem.available_permits(), 0);
+        tokio::time::sleep(Duration::from_millis(140)).await;
+        assert!(
+            short_pool.get(key).is_none(),
+            "Expired stream should be actively removed by pingora-pool::idle_timeout"
+        );
+        assert_eq!(
+            sem.available_permits(),
+            1,
+            "Semaphore permit must be released automatically on idle expiration"
+        );
     }
 
     #[tokio::test]
