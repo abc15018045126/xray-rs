@@ -3,12 +3,35 @@ use super::platform::must_bind_socket_on_interface;
 use crate::proxy::tun::OutboundInterface;
 
 use socket2::TcpKeepalive;
+use std::sync::{Arc, RwLock};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{
     net::{TcpSocket, TcpStream, UdpSocket},
     time::timeout,
 };
 use tracing::{debug, error, trace};
+
+/// Callback type for Android `VpnService.protect(fd)` so outbound sockets bypass the VPN TUN.
+pub type AndroidProtectFn = Arc<dyn Fn(i32) -> bool + Send + Sync>;
+
+static ANDROID_PROTECT_FN: RwLock<Option<AndroidProtectFn>> = RwLock::new(None);
+
+/// Registers (or clears with `None`) the Android socket protector callback (`VpnService.protect(fd)`).
+pub fn register_android_protect_fn(protector: Option<AndroidProtectFn>) {
+    if let Ok(mut guard) = ANDROID_PROTECT_FN.write() {
+        *guard = protector;
+    }
+}
+
+/// Protects a raw outbound socket descriptor on Android via the registered `VpnService.protect(fd)`.
+pub fn protect_android_socket(fd: i32) -> bool {
+    if let Ok(guard) = ANDROID_PROTECT_FN.read()
+        && let Some(ref f) = *guard
+    {
+        return f(fd);
+    }
+    true
+}
 
 pub fn apply_tcp_options(s: &TcpStream) -> std::io::Result<()> {
     #[cfg(not(target_os = "windows"))]
@@ -48,6 +71,12 @@ pub async fn new_tcp_stream(
         ),
     };
     debug!("created tcp socket for {}", endpoint);
+
+    #[cfg(target_os = "android")]
+    if !endpoint.ip().is_loopback() {
+        use std::os::fd::AsRawFd;
+        protect_android_socket(socket.as_raw_fd());
+    }
 
     if !cfg!(target_os = "android")
         && !endpoint.ip().is_loopback()
@@ -95,6 +124,12 @@ pub async fn new_udp_socket(
         ),
     };
     debug!("created udp socket");
+
+    #[cfg(target_os = "android")]
+    {
+        use std::os::fd::AsRawFd;
+        protect_android_socket(socket.as_raw_fd());
+    }
 
     if !cfg!(target_os = "android") {
         let dst_is_loopback = family_hint.map(|a| a.ip().is_loopback()).unwrap_or(false);

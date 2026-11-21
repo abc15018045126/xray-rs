@@ -72,8 +72,11 @@ pingora-load-balancing = { version = "0.9.1", features = ["rustls"] }
 hickory-resolver = { version = "0.26", features = ["system-config", "tokio", "https-ring", "tls-ring", "webpki-roots"] }
 hickory-proto = "0.26"
 
-[target.'cfg(not(windows))'.dependencies]
+[target.'cfg(all(not(windows), not(target_os = "android")))'.dependencies]
 tun = { version = "0.8.14", features = ["async"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 wintun = { package = "wintun-rs", version = "0.0.6" }

@@ -46,7 +46,7 @@ impl L4Connect for TunAwareL4Connect {
             )
         })?;
 
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "android"))]
         let tcp = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
             crate::proxy::tun::socket_helpers::new_tcp_stream(inet, iface.as_ref())
@@ -54,13 +54,13 @@ impl L4Connect for TunAwareL4Connect {
                 .map_err(|e| {
                     pingora_core::Error::because(
                         pingora_core::ConnectError,
-                        format!("Windows physical-interface TCP connect to {} failed", inet),
+                        format!("TUN-safe TCP connect to {} failed", inet),
                         e,
                     )
                 })?
         };
 
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
         let tcp = tokio::net::TcpStream::connect(inet).await.map_err(|e| {
             pingora_core::Error::because(
                 pingora_core::ConnectError,

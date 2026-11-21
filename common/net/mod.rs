@@ -2,6 +2,7 @@ pub mod address;
 pub mod cnc;
 pub mod destination;
 pub mod find_process;
+pub mod find_process_android;
 pub mod find_process_linux;
 pub mod find_process_others;
 pub mod find_process_windows;

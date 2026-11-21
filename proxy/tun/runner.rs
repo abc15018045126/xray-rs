@@ -80,7 +80,12 @@ impl TunRunner {
             dev
         };
 
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(target_os = "android")]
+        let device = {
+            super::tun_android::AndroidTunDevice::from_env()?
+        };
+
+        #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
         let device = {
             let mut tun_cfg = tun::Configuration::default();
             tun_cfg.tun_name(&tun_name).mtu(mtu);
@@ -96,8 +101,8 @@ impl TunRunner {
             })?
         };
 
-
-        // Configure system routing table
+        // Configure system routing table (Android VpnService manages routes externally)
+        #[cfg(not(target_os = "android"))]
         if let Err(e) = routes::maybe_add_routes(&cfg, &tun_name) {
             error!("failed to configure routes for {}: {}", tun_name, e);
         }
