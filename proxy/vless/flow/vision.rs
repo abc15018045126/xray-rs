@@ -87,6 +87,9 @@ pub struct VisionStream<S> {
     inner: S,
     pub context: VisionContext,
     is_inbound: bool,
+    read_direct: bool,
+    write_direct: bool,
+    write_uuid_sent: bool,
     read_buf: Vec<u8>,
     write_buf: Vec<u8>,
 }
@@ -97,6 +100,9 @@ impl<S> VisionStream<S> {
             inner,
             context,
             is_inbound,
+            read_direct: false,
+            write_direct: false,
+            write_uuid_sent: false,
             read_buf: Vec::with_capacity(4096),
             write_buf: Vec::with_capacity(4096),
         }
@@ -129,8 +135,8 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
             return Poll::Ready(Ok(()));
         }
 
-        // If direct copy mode has been established, bypass XTLS Vision framing completely
-        if self.context.is_direct_copy() {
+        // If direct copy mode has been established for this read direction, bypass framing
+        if self.read_direct || self.context.is_direct_copy() {
             return Pin::new(&mut self.inner).poll_read(cx, buf);
         }
 
@@ -143,26 +149,42 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                     return Poll::Ready(Ok(()));
                 }
 
-                let unpadded = {
+                let (unpadded, switch_direct) = {
                     let mut state = self.context.traffic_state.lock().unwrap();
                     let is_uplink = self.is_inbound;
                     let data = xtls_unpadding(filled, &mut state, is_uplink);
 
-                    // Check if direct copy triggered
+                    // Official Xray Vision: both COMMAND_PADDING_DIRECT (2) and
+                    // COMMAND_PADDING_END (1) end padding on this direction when remaining == 0.
                     let should_direct = if is_uplink {
-                        state.inbound.current_command == (COMMAND_PADDING_DIRECT as i32)
-                            || state.inbound.uplink_reader_direct_copy
+                        (state.inbound.current_command == (COMMAND_PADDING_DIRECT as i32)
+                            || state.inbound.current_command == (COMMAND_PADDING_END as i32)
+                            || state.inbound.uplink_reader_direct_copy)
+                            && state.inbound.remaining_content <= 0
+                            && state.inbound.remaining_padding <= 0
                     } else {
-                        state.outbound.current_command == (COMMAND_PADDING_DIRECT as i32)
-                            || state.outbound.downlink_reader_direct_copy
+                        (state.outbound.current_command == (COMMAND_PADDING_DIRECT as i32)
+                            || state.outbound.current_command == (COMMAND_PADDING_END as i32)
+                            || state.outbound.downlink_reader_direct_copy)
+                            && state.outbound.remaining_content <= 0
+                            && state.outbound.remaining_padding <= 0
                     };
 
-                    if should_direct {
+                    (data, should_direct)
+                };
+
+                if switch_direct {
+                    self.read_direct = true;
+                    if self.write_direct {
                         self.context.set_direct_copy(true);
                     }
+                }
 
-                    data
-                };
+                if unpadded.is_empty() {
+                    // Pure padding frame consumed; poll again for actual payload
+                    cx.waker().wake_by_ref();
+                    return Poll::Pending;
+                }
 
                 let to_write = std::cmp::min(buf.remaining(), unpadded.len());
                 buf.put_slice(&unpadded[..to_write]);
@@ -185,11 +207,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
 
-        // If direct copy mode is on, write directly with 0 overhead
-        if this.context.is_direct_copy() {
-            return Pin::new(&mut this.inner).poll_write(cx, buf);
-        }
-
         // First flush any previously buffered write data
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
@@ -201,7 +218,12 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
             }
         }
 
-        let padded_frame = {
+        // If direct copy / padding-end mode is on for writes, write directly with 0 overhead
+        if this.write_direct || this.context.is_direct_copy() {
+            return Pin::new(&mut this.inner).poll_write(cx, buf);
+        }
+
+        let (padded_frame, switch_direct) = {
             let mut state = this.context.traffic_state.lock().unwrap();
             xtls_filter_tls(buf, &mut state);
 
@@ -213,15 +235,24 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
                 COMMAND_PADDING_CONTINUE
             };
 
-            let uuid = state.user_uuid.clone();
-            let frame = xtls_padding(Some(buf), command, Some(&uuid), true, None);
+            // Official Xray Vision: include 16-byte user UUID ONLY on the first padded write
+            let uuid_opt = if !this.write_uuid_sent {
+                this.write_uuid_sent = true;
+                Some(state.user_uuid.clone())
+            } else {
+                None
+            };
+            let frame = xtls_padding(Some(buf), command, uuid_opt.as_deref(), true, None);
+            let done = command == COMMAND_PADDING_DIRECT || command == COMMAND_PADDING_END;
+            (frame, done)
+        };
 
-            if command == COMMAND_PADDING_DIRECT {
+        if switch_direct {
+            this.write_direct = true;
+            if this.read_direct {
                 this.context.set_direct_copy(true);
             }
-
-            frame
-        };
+        }
 
         match Pin::new(&mut this.inner).poll_write(cx, &padded_frame) {
             Poll::Ready(Ok(n)) => {

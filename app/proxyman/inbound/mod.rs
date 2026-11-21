@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub use worker::InboundWorker;
+pub use worker::{InboundWorker, StreamInboundHandler};
 
 pub struct DefaultInboundManager {
     tagged_handlers: RwLock<HashMap<String, Arc<dyn InboundHandler>>>,

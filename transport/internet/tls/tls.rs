@@ -200,18 +200,60 @@ impl TlsServer {
         let key = rustls_pki_types::PrivateKeyDer::Pkcs8(
             rustls_pki_types::PrivatePkcs8KeyDer::from(key_der),
         );
+        Self::from_der_with_alpn(certs, key, Vec::new())
+    }
 
+    pub fn from_der_with_alpn(
+        certs: Vec<CertificateDer<'static>>,
+        key: rustls_pki_types::PrivateKeyDer<'static>,
+        alpn: Vec<Vec<u8>>,
+    ) -> Result<Self> {
         let provider = rustls::crypto::ring::default_provider();
-        let config = ServerConfig::builder_with_provider(Arc::new(provider))
+        let mut config = ServerConfig::builder_with_provider(Arc::new(provider))
             .with_safe_default_protocol_versions()
             .map_err(|e| Error::Protocol(format!("TLS server protocol error: {}", e)))?
             .with_no_client_auth()
             .with_single_cert(certs, key)
             .map_err(|e| Error::Protocol(format!("TLS server single cert error: {}", e)))?;
 
+        if !alpn.is_empty() {
+            config.alpn_protocols = alpn;
+        }
+
         Ok(Self {
             acceptor: TlsAcceptor::from(Arc::new(config)),
         })
+    }
+
+    pub fn from_pem(cert_pem: &[u8], key_pem: &[u8], alpn: Vec<Vec<u8>>) -> Result<Self> {
+        use rustls_pki_types::pem::PemObject;
+
+        let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(cert_pem)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|e| Error::Config(format!("Failed to parse TLS certificate PEM: {}", e)))?;
+        if certs.is_empty() {
+            return Err(Error::Config(
+                "No valid certificates found in TLS certificate PEM".into(),
+            ));
+        }
+
+        let key = rustls_pki_types::PrivateKeyDer::from_pem_slice(key_pem)
+            .map_err(|e| Error::Config(format!("Failed to parse TLS private key PEM: {}", e)))?;
+
+        Self::from_der_with_alpn(certs, key, alpn)
+    }
+
+    pub fn from_pem_files(cert_path: &str, key_path: &str, alpn: Vec<Vec<u8>>) -> Result<Self> {
+        let cert_pem = std::fs::read(cert_path).map_err(|e| {
+            Error::Config(format!(
+                "Failed to read TLS certificateFile '{}': {}",
+                cert_path, e
+            ))
+        })?;
+        let key_pem = std::fs::read(key_path).map_err(|e| {
+            Error::Config(format!("Failed to read TLS keyFile '{}': {}", key_path, e))
+        })?;
+        Self::from_pem(&cert_pem, &key_pem, alpn)
     }
 
     pub async fn accept(&self, stream: BoxStream) -> Result<BoxStream> {

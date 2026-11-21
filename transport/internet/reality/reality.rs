@@ -3,15 +3,43 @@
 
 use super::config::RealityConfig;
 use crate::common::errors::{Error, Result};
+use crate::common::net::BoxStream;
+use crate::transport::internet::tls::TlsServer;
+use crate::transport::internet::websocket::ws::PrefixedStream;
 use aes_gcm::{
     Aes256Gcm, Nonce,
     aead::{Aead, KeyInit, Payload},
 };
+use base64::Engine;
 use hkdf::Hkdf;
 use sha2::Sha256;
 use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
+
+/// Decodes a 32-byte X25519 key in either official Xray base64url (no-pad/padded) or hex format.
+pub fn decode_reality_key32(raw: &str) -> Result<[u8; 32]> {
+    let trimmed = raw.trim();
+    let bytes = if trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
+        hex::decode(trimmed)
+            .map_err(|e| Error::Config(format!("Invalid REALITY hex key: {}", e)))?
+    } else {
+        base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(trimmed.trim_end_matches('='))
+            .or_else(|_| base64::engine::general_purpose::STANDARD.decode(trimmed))
+            .map_err(|e| Error::Config(format!("Invalid REALITY key (base64url/hex): {}", e)))?
+    };
+    if bytes.len() != 32 {
+        return Err(Error::Config(format!(
+            "REALITY key must be 32 bytes, got {}",
+            bytes.len()
+        )));
+    }
+    let mut arr = [0u8; 32];
+    arr.copy_from_slice(&bytes);
+    Ok(arr)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RealityAuthSession {
@@ -113,6 +141,122 @@ pub struct RealityServer {
     pub server_names: HashSet<String>,
     pub short_ids: HashSet<Vec<u8>>,
     pub private_key: Option<StaticSecret>,
+    pub dest: Option<String>,
+    pub max_time_diff_sec: u32,
+}
+
+struct ParsedClientHello {
+    client_random: [u8; 32],
+    session_id: [u8; 32],
+    client_pub: [u8; 32],
+    sni: String,
+    aad_zeroed_handshake: Vec<u8>,
+}
+
+/// Parses a raw TLS ClientHello record (`record[0] == 0x16`) to extract the fields
+/// required for REALITY authentication: random, 32-byte session_id, SNI, X25519 key_share,
+/// and the handshake bytes with session_id zeroed for AAD.
+fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
+    if record.len() < 5 + 4 + 2 + 32 + 1 || record[0] != 0x16 {
+        return None;
+    }
+    let hs = &record[5..];
+    if hs.first().copied()? != 0x01 {
+        return None;
+    }
+    let hs_len = ((hs[1] as usize) << 16) | ((hs[2] as usize) << 8) | (hs[3] as usize);
+    if hs.len() < 4 + hs_len {
+        return None;
+    }
+    let body = &hs[4..4 + hs_len];
+    // legacy_version (2) + random (32) + session_id_len (1)
+    if body.len() < 35 {
+        return None;
+    }
+    let mut client_random = [0u8; 32];
+    client_random.copy_from_slice(&body[2..34]);
+
+    let sid_len = body[34] as usize;
+    if sid_len != 32 || body.len() < 35 + sid_len {
+        return None;
+    }
+    let sid_start_in_hs = 4 + 35;
+    let mut session_id = [0u8; 32];
+    session_id.copy_from_slice(&body[35..35 + 32]);
+
+    let mut aad_zeroed_handshake = hs[..4 + hs_len].to_vec();
+    for b in &mut aad_zeroed_handshake[sid_start_in_hs..sid_start_in_hs + 32] {
+        *b = 0;
+    }
+
+    let mut pos = 35 + sid_len;
+    if pos + 2 > body.len() {
+        return None;
+    }
+    let cs_len = u16::from_be_bytes([body[pos], body[pos + 1]]) as usize;
+    pos += 2 + cs_len;
+    if pos + 1 > body.len() {
+        return None;
+    }
+    let comp_len = body[pos] as usize;
+    pos += 1 + comp_len;
+    if pos + 2 > body.len() {
+        return None;
+    }
+    let ext_total = u16::from_be_bytes([body[pos], body[pos + 1]]) as usize;
+    pos += 2;
+    let ext_end = (pos + ext_total).min(body.len());
+
+    let mut sni = String::new();
+    let mut client_pub: Option<[u8; 32]> = None;
+
+    while pos + 4 <= ext_end {
+        let ext_type = u16::from_be_bytes([body[pos], body[pos + 1]]);
+        let ext_len = u16::from_be_bytes([body[pos + 2], body[pos + 3]]) as usize;
+        pos += 4;
+        if pos + ext_len > ext_end {
+            break;
+        }
+        let ext_data = &body[pos..pos + ext_len];
+        pos += ext_len;
+
+        // SNI extension (0x0000)
+        if ext_type == 0x0000 && ext_data.len() >= 5 {
+            let name_len = u16::from_be_bytes([ext_data[3], ext_data[4]]) as usize;
+            if ext_data.len() >= 5 + name_len {
+                sni = String::from_utf8_lossy(&ext_data[5..5 + name_len]).to_string();
+            }
+        }
+        // key_share extension (0x0033): look for X25519 (0x001d, 32 bytes)
+        if ext_type == 0x0033 && ext_data.len() >= 2 {
+            let shares_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
+            let mut sp = 2usize;
+            let sp_end = (2 + shares_len).min(ext_data.len());
+            while sp + 4 <= sp_end {
+                let group = u16::from_be_bytes([ext_data[sp], ext_data[sp + 1]]);
+                let klen = u16::from_be_bytes([ext_data[sp + 2], ext_data[sp + 3]]) as usize;
+                sp += 4;
+                if sp + klen > sp_end {
+                    break;
+                }
+                if group == 0x001d && klen == 32 {
+                    let mut pk = [0u8; 32];
+                    pk.copy_from_slice(&ext_data[sp..sp + 32]);
+                    client_pub = Some(pk);
+                    break;
+                }
+                sp += klen;
+            }
+        }
+    }
+
+    Some(ParsedClientHello {
+        client_random,
+        session_id,
+        client_pub: client_pub?,
+        sni,
+        aad_zeroed_handshake,
+    })
 }
 
 impl RealityServer {
@@ -127,26 +271,105 @@ impl RealityServer {
         }
 
         let private_key = if let Some(pk_str) = &config.private_key {
-            if let Ok(bytes) = hex::decode(pk_str) {
-                if bytes.len() == 32 {
-                    let mut arr = [0u8; 32];
-                    arr.copy_from_slice(&bytes);
-                    Some(StaticSecret::from(arr))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            Some(StaticSecret::from(decode_reality_key32(pk_str)?))
         } else {
             None
+        };
+
+        let max_time_diff_sec = match config.max_time_diff {
+            Some(0) | None => 60,
+            Some(ms) if ms > 1000 => (ms / 1000) as u32,
+            Some(s) => s as u32,
         };
 
         Ok(Self {
             server_names,
             short_ids,
             private_key,
+            dest: config.dest.clone(),
+            max_time_diff_sec,
         })
+    }
+
+    /// Server-side REALITY accept aligned with official Xray-core `reality/reality.go`:
+    /// - Reads the initial TLS ClientHello record.
+    /// - If SNI + X25519 + AEAD SessionID + ShortID authenticate, terminates TLS and returns `Ok(Some(stream))`.
+    /// - Otherwise, transparently mirrors the raw ClientHello and bidirectional traffic to `dest`, returning `Ok(None)`.
+    pub async fn accept(&self, mut stream: BoxStream) -> Result<Option<BoxStream>> {
+        let mut hdr = [0u8; 5];
+        if stream.read_exact(&mut hdr).await.is_err() {
+            return Ok(None);
+        }
+        let rec_len = u16::from_be_bytes([hdr[3], hdr[4]]) as usize;
+        if hdr[0] != 0x16 || rec_len == 0 || rec_len > 16384 {
+            let mut initial = hdr.to_vec();
+            return self.mirror_to_dest(&mut initial, stream).await;
+        }
+
+        let mut record = vec![0u8; 5 + rec_len];
+        record[..5].copy_from_slice(&hdr);
+        if stream.read_exact(&mut record[5..]).await.is_err() {
+            return Ok(None);
+        }
+
+        let auth_sni = parse_tls_client_hello(&record).and_then(|parsed| {
+            if !self.validate_server_name(&parsed.sni) {
+                return None;
+            }
+            self.verify_client_hello(
+                &parsed.client_pub,
+                &parsed.client_random,
+                &parsed.session_id,
+                &parsed.aad_zeroed_handshake,
+                self.max_time_diff_sec,
+            )
+            .ok()
+            .map(|_| parsed.sni)
+        });
+
+        if let Some(sni) = auth_sni {
+            let cert_name = if sni.is_empty() {
+                "localhost".to_string()
+            } else {
+                sni
+            };
+            let ck = rcgen::generate_simple_self_signed(vec![cert_name])
+                .map_err(|e| Error::Protocol(format!("REALITY temp cert generation failed: {}", e)))?;
+            let tls_server = TlsServer::from_pem(
+                ck.cert.pem().as_bytes(),
+                ck.key_pair.serialize_pem().as_bytes(),
+                vec![b"h2".to_vec(), b"http/1.1".to_vec()],
+            )?;
+            let replayed: BoxStream = Box::pin(PrefixedStream {
+                prefix: record,
+                offset: 0,
+                inner: stream,
+            });
+            let tls_stream = tls_server.accept(replayed).await?;
+            Ok(Some(tls_stream))
+        } else {
+            self.mirror_to_dest(&mut record, stream).await
+        }
+    }
+
+    async fn mirror_to_dest(
+        &self,
+        initial_bytes: &mut [u8],
+        mut client: BoxStream,
+    ) -> Result<Option<BoxStream>> {
+        let Some(ref dest) = self.dest else {
+            return Err(Error::AuthFailed(
+                "REALITY authentication failed and no fallback dest configured".into(),
+            ));
+        };
+        if let Ok(mut target) = tokio::net::TcpStream::connect(dest.as_str()).await {
+            let _ = target.set_nodelay(true);
+            if target.write_all(initial_bytes).await.is_ok() {
+                let _ = target.flush().await;
+                let _ = tokio::io::copy_bidirectional(&mut client, &mut target).await;
+            }
+        }
+        Ok(None)
     }
 
     pub fn validate_short_id(&self, short_id: &[u8]) -> bool {
@@ -226,14 +449,8 @@ pub struct RealityClient {
 }
 
 impl RealityClient {
-    pub fn new(server_name: &str, public_key_hex: &str, short_id_hex: &str) -> Result<Self> {
-        let pk_bytes = hex::decode(public_key_hex)
-            .map_err(|e| Error::Config(format!("Invalid REALITY public key hex: {}", e)))?;
-        if pk_bytes.len() != 32 {
-            return Err(Error::Config("REALITY public key must be 32 bytes".into()));
-        }
-        let mut arr = [0u8; 32];
-        arr.copy_from_slice(&pk_bytes);
+    pub fn new(server_name: &str, public_key_str: &str, short_id_hex: &str) -> Result<Self> {
+        let arr = decode_reality_key32(public_key_str)?;
         let public_key = PublicKey::from(arr);
 
         let short_id = hex::decode(short_id_hex).unwrap_or_default();

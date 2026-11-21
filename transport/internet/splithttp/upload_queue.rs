@@ -5,7 +5,7 @@ use crate::common::errors::{Error, Result};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Packet {
@@ -36,6 +36,7 @@ pub struct UploadQueueInner {
 #[derive(Clone)]
 pub struct UploadQueue {
     inner: Arc<Mutex<UploadQueueInner>>,
+    notify: Arc<Notify>,
 }
 
 impl UploadQueue {
@@ -47,6 +48,7 @@ impl UploadQueue {
                 closed: false,
                 max_packets,
             })),
+            notify: Arc::new(Notify::new()),
         }
     }
 
@@ -59,6 +61,8 @@ impl UploadQueue {
             return Err(Error::Protocol("packet queue is too large".into()));
         }
         inner.heap.push(Packet { payload, seq });
+        drop(inner);
+        self.notify.notify_waiters();
         Ok(())
     }
 
@@ -115,9 +119,29 @@ impl UploadQueue {
         Ok(written)
     }
 
+    /// Blocking pop aligned with official Xray-core `upload_queue.go`: waits until the
+    /// next in-order packet arrives or the queue is closed.
+    pub async fn pop_wait(&self) -> Option<Vec<u8>> {
+        let mut buf = vec![0u8; 65535];
+        loop {
+            let notified = self.notify.notified();
+            let n = self.read(&mut buf).await.ok()?;
+            if n > 0 {
+                buf.truncate(n);
+                return Some(buf);
+            }
+            if self.is_closed().await {
+                return None;
+            }
+            notified.await;
+        }
+    }
+
     pub async fn close(&self) {
         let mut inner = self.inner.lock().await;
         inner.closed = true;
+        drop(inner);
+        self.notify.notify_waiters();
     }
 
     pub async fn is_closed(&self) -> bool {

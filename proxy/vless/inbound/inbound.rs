@@ -5,7 +5,10 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, ReadBuf};
 use uuid::Uuid;
 
 use crate::common::errors::{Error, Result};
@@ -15,8 +18,35 @@ use crate::features::inbound::{InboundHandler, InboundResult};
 use crate::features::policy::PolicyManager;
 use crate::features::stats::StatsManagerTrait;
 use crate::proxy::vless::encoding::{RequestHeader, ResponseHeader};
-use crate::proxy::vless::flow::FLOW_VISION;
+use crate::proxy::vless::flow::{FLOW_VISION, FLOW_VISION_UDP443, VisionContext, VisionStream};
 use crate::proxy::vless::validator::{MemoryValidator, Validator};
+use crate::transport::internet::websocket::ws::PrefixedStream;
+
+/// Captures every byte read during VLESS header decoding so that on decode/auth failure
+/// the exact original probe bytes can be replayed untouched to a configured `fallback` target,
+/// matching official Xray-core `proxy/vless/inbound/inbound.go`.
+struct RecordingReader<'a, R> {
+    inner: &'a mut R,
+    recorded: Vec<u8>,
+}
+
+impl<'a, R: AsyncRead + Unpin> AsyncRead for RecordingReader<'a, R> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let poll = Pin::new(&mut *self.inner).poll_read(cx, buf);
+        if let Poll::Ready(Ok(())) = &poll {
+            let filled = buf.filled();
+            if filled.len() > before {
+                self.recorded.extend_from_slice(&filled[before..]);
+            }
+        }
+        poll
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fallback {
@@ -133,18 +163,40 @@ impl InboundHandler for Handler {
         mut stream: BoxStream,
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
-        // 1. Decode VLESS request header
-        let req_result = RequestHeader::decode(&mut stream).await;
+        // 1. Decode VLESS request header while recording bytes for lossless fallback replay
+        let (req_result, recorded) = {
+            let mut rec = RecordingReader {
+                inner: &mut stream,
+                recorded: Vec::with_capacity(64),
+            };
+            let res = RequestHeader::decode(&mut rec).await;
+            (res, rec.recorded)
+        };
+
+        let replay_stream = |prefix: Vec<u8>, inner: BoxStream| -> BoxStream {
+            if prefix.is_empty() {
+                inner
+            } else {
+                Box::pin(PrefixedStream {
+                    prefix,
+                    offset: 0,
+                    inner,
+                })
+            }
+        };
 
         let req = match req_result {
             Ok(r) => r,
             Err(e) => {
-                // If fallback is configured, check if we can route to fallback
+                // Replay exact probe bytes to fallback destination (aligned with Xray-core)
                 if let Some(fb) = self.match_fallback("", "", "") {
                     let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
                     let mut session = SessionContext::new(&self.tag, fallback_dest);
                     session.source = Some(remote_addr);
-                    return Ok(InboundResult { stream, session });
+                    return Ok(InboundResult {
+                        stream: replay_stream(recorded, stream),
+                        session,
+                    });
                 }
                 return Err(e);
             }
@@ -159,7 +211,10 @@ impl InboundHandler for Handler {
                         let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
                         let mut session = SessionContext::new(&self.tag, fallback_dest);
                         session.source = Some(remote_addr);
-                        return Ok(InboundResult { stream, session });
+                        return Ok(InboundResult {
+                            stream: replay_stream(recorded, stream),
+                            session,
+                        });
                     }
                     return Err(Error::AuthFailed(format!(
                         "Unauthorized VLESS user UUID: {}",
@@ -191,12 +246,24 @@ impl InboundHandler for Handler {
             session.user = Some(User::new(req.user_id));
         }
 
-        // 5. Flow inspection (XTLS-Vision)
-        if req.addons.flow == FLOW_VISION {
+        // 5. Flow wrapping (XTLS-Vision) aligned with official Xray-core proxy/vless/inbound/inbound.go
+        let is_vision =
+            req.addons.flow == FLOW_VISION || req.addons.flow == FLOW_VISION_UDP443;
+        let final_stream: BoxStream = if is_vision {
             session.sniffed_protocol = Some("tls".into());
-        }
+            Box::pin(VisionStream::new(
+                stream,
+                VisionContext::new(req.user_id.into_bytes().to_vec(), false),
+                true,
+            ))
+        } else {
+            stream
+        };
 
-        Ok(InboundResult { stream, session })
+        Ok(InboundResult {
+            stream: final_stream,
+            session,
+        })
     }
 }
 

@@ -28,7 +28,7 @@ pub use config::SplitHttpConfig;
 pub use connection::{SplitConn, SplitHttpConnection};
 pub use dialer::SplitHttpDialer;
 pub use h1_conn::H1Conn;
-pub use hub::SplitHttpHub;
+pub use hub::{SplitHttpHub, SplitHttpServer};
 pub use mux::SplitHttpMux;
 pub use splithttp::PROTOCOL_NAME;
 pub use upload_queue::UploadQueue;

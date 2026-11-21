@@ -34,8 +34,26 @@ impl SystemListener {
         Self::listen_tcp(addr, None).await
     }
 
-    pub async fn listen_tcp(addr: SocketAddr, _sockopt: Option<&SocketOptions>) -> Result<Self> {
-        let listener = TcpListener::bind(addr).await.map_err(Error::Io)?;
+    pub async fn listen_tcp(addr: SocketAddr, sockopt: Option<&SocketOptions>) -> Result<Self> {
+        let domain = if addr.is_ipv6() {
+            socket2::Domain::IPV6
+        } else {
+            socket2::Domain::IPV4
+        };
+        let socket =
+            socket2::Socket::new(domain, socket2::Type::STREAM, Some(socket2::Protocol::TCP))
+                .map_err(Error::Io)?;
+        let _ = socket.set_reuse_address(true);
+        if let Some(opts) = sockopt {
+            crate::transport::internet::sockopt_linux::apply_inbound_socket_options(
+                &addr, &socket, opts,
+            )?;
+        }
+        socket.bind(&addr.into()).map_err(Error::Io)?;
+        socket.listen(1024).map_err(Error::Io)?;
+        socket.set_nonblocking(true).map_err(Error::Io)?;
+        let std_listener: std::net::TcpListener = socket.into();
+        let listener = TcpListener::from_std(std_listener).map_err(Error::Io)?;
         Ok(Self {
             listener,
             controllers: Arc::new(RwLock::new(Vec::new())),

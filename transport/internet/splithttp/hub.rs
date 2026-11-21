@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::sync::{Mutex, mpsc};
 
 pub struct HttpSession {
@@ -25,89 +25,50 @@ impl HttpSession {
     }
 }
 
-pub struct SplitHttpHub {
-    local_addr: SocketAddr,
+/// Reusable XHTTP / SplitHTTP server-side session demultiplexer that operates on any
+/// `BoxStream` (raw TCP, TLS, or Pingora L4 stream), aligned with `splithttp/hub.go`.
+pub struct SplitHttpServer {
     config: SplitHttpConfig,
     sessions: Arc<Mutex<HashMap<String, Arc<HttpSession>>>>,
-    conn_rx: Arc<Mutex<mpsc::Receiver<(BoxStream, SocketAddr)>>>,
 }
 
-impl SplitHttpHub {
-    pub async fn bind(addr: SocketAddr) -> Result<Self> {
-        Self::listen(addr, SplitHttpConfig::default()).await
-    }
-
-    pub async fn listen(addr: SocketAddr, config: SplitHttpConfig) -> Result<Self> {
-        let listener = TcpListener::bind(addr).await?;
-        let local_addr = listener.local_addr()?;
-        let sessions = Arc::new(Mutex::new(HashMap::new()));
-        let (conn_tx, conn_rx) = mpsc::channel(64);
-
-        let sessions_clone = Arc::clone(&sessions);
-        let config_clone = config.clone();
-
-        tokio::spawn(async move {
-            loop {
-                let (stream, remote_addr) = match listener.accept().await {
-                    Ok(res) => res,
-                    Err(_) => break,
-                };
-
-                let sessions_inner = Arc::clone(&sessions_clone);
-                let config_inner = config_clone.clone();
-                let tx_inner = conn_tx.clone();
-
-                tokio::spawn(async move {
-                    let _ = Self::handle_connection(
-                        stream,
-                        remote_addr,
-                        config_inner,
-                        sessions_inner,
-                        tx_inner,
-                    )
-                    .await;
-                });
-            }
-        });
-
-        Ok(Self {
-            local_addr,
+impl SplitHttpServer {
+    pub fn new(config: SplitHttpConfig) -> Self {
+        Self {
             config,
-            sessions,
-            conn_rx: Arc::new(Mutex::new(conn_rx)),
-        })
-    }
-
-    pub fn sessions(&self) -> &Arc<Mutex<HashMap<String, Arc<HttpSession>>>> {
-        &self.sessions
-    }
-
-    pub fn local_addr(&self) -> Result<SocketAddr> {
-        Ok(self.local_addr)
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     pub fn config(&self) -> &SplitHttpConfig {
         &self.config
     }
 
-    pub async fn accept(&self) -> Result<(BoxStream, SocketAddr)> {
-        let mut guard = self.conn_rx.lock().await;
-        guard.recv().await.ok_or(Error::Closed)
+    /// Handles an incoming HTTP/1.1 connection on an XHTTP inbound:
+    /// - `POST` (uplink packet): pushes body into the session's `UploadQueue`, replies `200 OK`,
+    ///   and returns `Ok(None)`.
+    /// - `GET` (downlink stream): writes streaming `200 OK` headers and returns `Ok(Some(SplitConn))`
+    ///   ready to be handed to the protocol `InboundHandler` (e.g. VLESS).
+    pub async fn accept_stream(
+        &self,
+        stream: BoxStream,
+        remote_addr: SocketAddr,
+    ) -> Result<Option<BoxStream>> {
+        Self::handle_stream(stream, remote_addr, &self.config, &self.sessions).await
     }
 
-    async fn handle_connection(
-        mut stream: TcpStream,
+    async fn handle_stream(
+        mut stream: BoxStream,
         remote_addr: SocketAddr,
-        config: SplitHttpConfig,
-        sessions: Arc<Mutex<HashMap<String, Arc<HttpSession>>>>,
-        conn_tx: mpsc::Sender<(BoxStream, SocketAddr)>,
-    ) -> Result<()> {
+        config: &SplitHttpConfig,
+        sessions: &Arc<Mutex<HashMap<String, Arc<HttpSession>>>>,
+    ) -> Result<Option<BoxStream>> {
         let mut header_buf = [0u8; 4096];
         let mut n_read = 0;
         let header_end = loop {
             let n = stream.read(&mut header_buf[n_read..]).await?;
             if n == 0 {
-                return Ok(());
+                return Ok(None);
             }
             n_read += n;
             if let Some(pos) = header_buf[..n_read]
@@ -120,7 +81,7 @@ impl SplitHttpHub {
                 let _ = stream
                     .write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n")
                     .await;
-                return Ok(());
+                return Ok(None);
             }
         };
 
@@ -130,13 +91,12 @@ impl SplitHttpHub {
         let parts: Vec<&str> = request_line.split_whitespace().collect();
         if parts.len() < 2 {
             let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\n\r\n").await;
-            return Ok(());
+            return Ok(None);
         }
 
         let method = parts[0];
         let req_uri = parts[1];
 
-        // Parse headers
         let mut headers = HashMap::new();
         for line in lines {
             if let Some((k, v)) = line.split_once(':') {
@@ -144,23 +104,23 @@ impl SplitHttpHub {
             }
         }
 
-        // Host validation
         if !config.host.is_empty()
             && let Some(host_val) = headers.get("host")
-            && !host_val.eq_ignore_ascii_case(&config.host)
         {
-            let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await;
-            return Ok(());
+            let got_bare = host_val.split(':').next().unwrap_or(host_val);
+            let exp_bare = config.host.split(':').next().unwrap_or(&config.host);
+            if !got_bare.eq_ignore_ascii_case(exp_bare) {
+                let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await;
+                return Ok(None);
+            }
         }
 
-        // Path validation
         let norm_path = config.get_normalized_path();
         if !req_uri.starts_with(&norm_path) {
             let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await;
-            return Ok(());
+            return Ok(None);
         }
 
-        // Extract session ID and sequence
         let uri_parts: Vec<&str> = req_uri.splitn(2, '?').collect();
         let pure_path = uri_parts[0];
         let query_str = if uri_parts.len() > 1 {
@@ -205,7 +165,6 @@ impl SplitHttpHub {
         }
 
         if method == "POST" || !seq_str.is_empty() {
-            // Uplink packet handling
             let content_len: usize = headers
                 .get("content-length")
                 .and_then(|v| v.parse().ok())
@@ -240,15 +199,13 @@ impl SplitHttpHub {
 
             let _ = session.upload_queue.push(body_bytes, seq).await;
 
-            // Respond 200 OK
             let resp = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nCache-Control: no-store\r\n\r\n";
             stream.write_all(resp.as_bytes()).await?;
             stream.flush().await?;
-            return Ok(());
+            return Ok(None);
         }
 
         if method == "GET" {
-            // Downlink stream handling
             let session = {
                 let mut map = sessions.lock().await;
                 map.entry(session_id.clone())
@@ -260,7 +217,6 @@ impl SplitHttpHub {
                     .clone()
             };
 
-            // Write 200 OK HTTP stream headers
             let resp_headers = "HTTP/1.1 200 OK\r\n\
                 Content-Type: application/octet-stream\r\n\
                 X-Accel-Buffering: no\r\n\
@@ -269,21 +225,19 @@ impl SplitHttpHub {
             stream.flush().await?;
 
             let (down_tx, mut down_rx) = tokio::io::duplex(64 * 1024);
+            let (stream_read, mut stream_write) = tokio::io::split(stream);
 
-            let (tcp_read, mut tcp_write) = stream.into_split();
-            let _ = tcp_read; // Keep reader alive
-
-            // Background task: take data written to down_tx and send to client
             tokio::spawn(async move {
+                let _keep_read = stream_read;
                 let mut buf = [0u8; 8192];
                 loop {
                     match down_rx.read(&mut buf).await {
                         Ok(0) => break,
                         Ok(n) => {
-                            if tcp_write.write_all(&buf[..n]).await.is_err() {
+                            if stream_write.write_all(&buf[..n]).await.is_err() {
                                 break;
                             }
-                            if tcp_write.flush().await.is_err() {
+                            if stream_write.flush().await.is_err() {
                                 break;
                             }
                         }
@@ -292,14 +246,13 @@ impl SplitHttpHub {
                 }
             });
 
-            // For reading client upload data from upload_queue
             let (q_tx, q_rx) = tokio::io::duplex(64 * 1024);
             let uq = session.upload_queue.clone();
 
             tokio::spawn(async move {
                 let mut writer = q_tx;
                 loop {
-                    match uq.pop().await {
+                    match uq.pop_wait().await {
                         Some(data) => {
                             if writer.write_all(&data).await.is_err() {
                                 break;
@@ -321,10 +274,83 @@ impl SplitHttpHub {
                 None,
             );
 
-            let _ = conn_tx.send((Box::pin(conn), remote_addr)).await;
+            return Ok(Some(Box::pin(conn)));
         }
 
-        Ok(())
+        Ok(None)
+    }
+}
+
+pub struct SplitHttpHub {
+    local_addr: SocketAddr,
+    config: SplitHttpConfig,
+    sessions: Arc<Mutex<HashMap<String, Arc<HttpSession>>>>,
+    conn_rx: Arc<Mutex<mpsc::Receiver<(BoxStream, SocketAddr)>>>,
+}
+
+impl SplitHttpHub {
+    pub async fn bind(addr: SocketAddr) -> Result<Self> {
+        Self::listen(addr, SplitHttpConfig::default()).await
+    }
+
+    pub async fn listen(addr: SocketAddr, config: SplitHttpConfig) -> Result<Self> {
+        let listener = TcpListener::bind(addr).await?;
+        let local_addr = listener.local_addr()?;
+        let sessions = Arc::new(Mutex::new(HashMap::new()));
+        let (conn_tx, conn_rx) = mpsc::channel(64);
+
+        let sessions_clone = Arc::clone(&sessions);
+        let config_clone = config.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let (stream, remote_addr) = match listener.accept().await {
+                    Ok(res) => res,
+                    Err(_) => break,
+                };
+
+                let sessions_inner = Arc::clone(&sessions_clone);
+                let config_inner = config_clone.clone();
+                let tx_inner = conn_tx.clone();
+
+                tokio::spawn(async move {
+                    if let Ok(Some(conn)) = SplitHttpServer::handle_stream(
+                        Box::pin(stream),
+                        remote_addr,
+                        &config_inner,
+                        &sessions_inner,
+                    )
+                    .await
+                    {
+                        let _ = tx_inner.send((conn, remote_addr)).await;
+                    }
+                });
+            }
+        });
+
+        Ok(Self {
+            local_addr,
+            config,
+            sessions,
+            conn_rx: Arc::new(Mutex::new(conn_rx)),
+        })
+    }
+
+    pub fn sessions(&self) -> &Arc<Mutex<HashMap<String, Arc<HttpSession>>>> {
+        &self.sessions
+    }
+
+    pub fn local_addr(&self) -> Result<SocketAddr> {
+        Ok(self.local_addr)
+    }
+
+    pub fn config(&self) -> &SplitHttpConfig {
+        &self.config
+    }
+
+    pub async fn accept(&self) -> Result<(BoxStream, SocketAddr)> {
+        let mut guard = self.conn_rx.lock().await;
+        guard.recv().await.ok_or(Error::Closed)
     }
 }
 

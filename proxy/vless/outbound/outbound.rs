@@ -62,6 +62,10 @@ struct DialParams {
     ws_headers: HashMap<String, String>,
     ws_heartbeat: u32,
     ws_ed: usize,
+    httpupgrade_path: Option<String>,
+    httpupgrade_host: Option<String>,
+    httpupgrade_headers: HashMap<String, String>,
+    splithttp_cfg: Option<crate::transport::internet::SplitHttpConfig>,
     fragment_cfg: Option<crate::transport::internet::finalmask::fragment::Config>,
 }
 
@@ -97,6 +101,29 @@ impl DialParams {
         early_data: Option<&[u8]>,
         #[cfg(debug_assertions)] trace_ctx: Option<(u64, std::time::Instant)>,
     ) -> Result<BoxStream> {
+        if let Some(ref xhttp_cfg) = self.splithttp_cfg {
+            let mut client =
+                crate::transport::internet::splithttp::client::DefaultDialerClient::new(
+                    xhttp_cfg.clone(),
+                    self.server_addr.clone(),
+                    "1.1",
+                );
+            if let Some(ref tls) = self.tls_client {
+                let sni = self
+                    .tls_sni
+                    .clone()
+                    .unwrap_or_else(|| self.server_addr.address.to_string());
+                client = client.with_tls(tls.clone(), sni);
+            }
+            let dialer =
+                crate::transport::internet::splithttp::dialer::SplitHttpDialer::new(
+                    xhttp_cfg.clone(),
+                );
+            return dialer
+                .dial_with_client(Arc::new(client), &self.server_addr)
+                .await;
+        }
+
         #[cfg(debug_assertions)]
         let _tcp_t0 = std::time::Instant::now();
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
@@ -177,8 +204,17 @@ impl DialParams {
             tcp_stream
         };
 
-        // 2. Optional WebSocket Layer
-        let stream = if let Some(path) = &self.ws_path {
+        // 2. Optional HttpUpgrade or WebSocket Layer
+        let stream = if let Some(ref hu_path) = self.httpupgrade_path {
+            let host_hdr = self.httpupgrade_host.as_deref().unwrap_or(sni);
+            crate::transport::internet::httpupgrade::HttpUpgradeStream::client_handshake(
+                host_hdr,
+                hu_path,
+                stream,
+                &self.httpupgrade_headers,
+            )
+            .await?
+        } else if let Some(path) = &self.ws_path {
             let dest_host = match &self.server_addr.address {
                 crate::common::net::Address::Domain(d) => d.clone(),
                 crate::common::net::Address::Ipv4(ip) => ip.to_string(),
@@ -276,6 +312,10 @@ impl Client {
                 ws_headers: HashMap::new(),
                 ws_heartbeat: 0,
                 ws_ed,
+                httpupgrade_path: None,
+                httpupgrade_host: None,
+                httpupgrade_headers: HashMap::new(),
+                splithttp_cfg: None,
                 fragment_cfg: None,
             },
             testpre: 0,
@@ -295,6 +335,23 @@ impl Client {
 
     pub fn with_ws_heartbeat(mut self, secs: u32) -> Self {
         self.dial_params.ws_heartbeat = secs;
+        self
+    }
+
+    pub fn with_splithttp(mut self, cfg: crate::transport::internet::SplitHttpConfig) -> Self {
+        self.dial_params.splithttp_cfg = Some(cfg);
+        self
+    }
+
+    pub fn with_httpupgrade(
+        mut self,
+        path: String,
+        host: Option<String>,
+        headers: HashMap<String, String>,
+    ) -> Self {
+        self.dial_params.httpupgrade_path = Some(path);
+        self.dial_params.httpupgrade_host = host;
+        self.dial_params.httpupgrade_headers = headers;
         self
     }
 
@@ -540,14 +597,18 @@ impl OutboundHandler for Client {
             req.addons = Addons::new(flow.clone());
         }
         let header_bytes = req.encode_bytes();
-        let is_udp = command == RequestCommand::Udp && self.flow.as_deref() != Some(FLOW_VISION);
+        let is_vision = matches!(
+            self.flow.as_deref(),
+            Some(FLOW_VISION) | Some(crate::proxy::vless::flow::FLOW_VISION_UDP443)
+        );
+        let is_udp = command == RequestCommand::Udp && !is_vision;
 
         // 4. Wrap with non-blocking VlessStream (coalesces header, strips response header, frames UDP)
         let vless_stream: BoxStream =
             Box::pin(VlessStream::with_pending_header(stream, is_udp, header_bytes));
 
         // 5. Optional XTLS-Vision flow wrapping
-        let final_stream: BoxStream = if self.flow.as_deref() == Some(FLOW_VISION) {
+        let final_stream: BoxStream = if is_vision {
             Box::pin(VisionStream::new(
                 vless_stream,
                 crate::proxy::vless::flow::VisionContext::new(

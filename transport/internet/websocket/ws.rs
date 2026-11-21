@@ -205,4 +205,157 @@ impl WebSocketStream {
 
         Ok(bridge_ws_stream(ws_stream, 0))
     }
+
+    /// Server-side WebSocket handshake aligned with official Xray-core `websocket/hub.go`:
+    /// validates optional `path` and `Host`, computes RFC 6455 `Sec-WebSocket-Accept`,
+    /// and decodes optional `Sec-WebSocket-Protocol` early data (`?ed=...`) without echoing
+    /// the subprotocol header in the `101 Switching Protocols` response.
+    pub async fn server_handshake_with_config(
+        mut stream: BoxStream,
+        expected_path: Option<&str>,
+        expected_host: Option<&str>,
+    ) -> Result<BoxStream> {
+        use sha1::{Digest, Sha1};
+
+        let mut req_buf = Vec::with_capacity(2048);
+        let mut tmp = [0u8; 1024];
+        let hdr_end = loop {
+            let n = stream.read(&mut tmp).await.map_err(|e| {
+                Error::Protocol(format!("WebSocket server read upgrade failed: {}", e))
+            })?;
+            if n == 0 {
+                return Err(Error::Protocol(
+                    "WebSocket server EOF before upgrade header".into(),
+                ));
+            }
+            req_buf.extend_from_slice(&tmp[..n]);
+            if let Some(pos) = req_buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                break pos + 4;
+            }
+            if req_buf.len() > 32768 {
+                return Err(Error::Protocol(
+                    "WebSocket server upgrade header too large".into(),
+                ));
+            }
+        };
+
+        let mut headers = [httparse::EMPTY_HEADER; 64];
+        let mut req = httparse::Request::new(&mut headers);
+        match req.parse(&req_buf[..hdr_end]) {
+            Ok(httparse::Status::Complete(_)) => {}
+            _ => {
+                return Err(Error::Protocol(
+                    "Invalid HTTP request in WebSocket server handshake".into(),
+                ));
+            }
+        }
+
+        let raw_path = req.path.unwrap_or("/");
+        let clean_path = raw_path.split('?').next().unwrap_or(raw_path);
+        if let Some(exp_path) = expected_path
+            && !exp_path.is_empty()
+            && exp_path != "/"
+        {
+            let exp_clean = exp_path.split('?').next().unwrap_or(exp_path);
+            if clean_path != exp_clean {
+                let _ = stream
+                    .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    .await;
+                let _ = stream.flush().await;
+                return Err(Error::Protocol(format!(
+                    "WebSocket path mismatch: got '{}', expected '{}'",
+                    clean_path, exp_clean
+                )));
+            }
+        }
+
+        let mut ws_key: Option<String> = None;
+        let mut host_hdr: Option<String> = None;
+        let mut early_data_hdr: Option<String> = None;
+        for h in req.headers.iter() {
+            if h.name.eq_ignore_ascii_case("sec-websocket-key") {
+                ws_key = Some(String::from_utf8_lossy(h.value).trim().to_string());
+            } else if h.name.eq_ignore_ascii_case("host") {
+                host_hdr = Some(String::from_utf8_lossy(h.value).trim().to_string());
+            } else if h.name.eq_ignore_ascii_case("sec-websocket-protocol") {
+                early_data_hdr = Some(String::from_utf8_lossy(h.value).trim().to_string());
+            }
+        }
+
+        if let Some(exp_host) = expected_host
+            && !exp_host.is_empty()
+        {
+            let got_host = host_hdr.as_deref().unwrap_or("");
+            let got_bare = got_host.split(':').next().unwrap_or(got_host);
+            let exp_bare = exp_host.split(':').next().unwrap_or(exp_host);
+            if !got_bare.eq_ignore_ascii_case(exp_bare) {
+                let _ = stream
+                    .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    .await;
+                let _ = stream.flush().await;
+                return Err(Error::Protocol(format!(
+                    "WebSocket Host mismatch: got '{}', expected '{}'",
+                    got_host, exp_host
+                )));
+            }
+        }
+
+        let key = ws_key.ok_or_else(|| {
+            Error::Protocol("Missing Sec-WebSocket-Key in WebSocket upgrade request".into())
+        })?;
+
+        let mut sha1 = Sha1::new();
+        sha1.update(key.as_bytes());
+        sha1.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+        let accept_key = base64::engine::general_purpose::STANDARD.encode(sha1.finalize());
+
+        let resp = format!(
+            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n",
+            accept_key
+        );
+        stream
+            .write_all(resp.as_bytes())
+            .await
+            .map_err(|e| Error::Protocol(format!("WebSocket 101 write failed: {}", e)))?;
+        stream
+            .flush()
+            .await
+            .map_err(|e| Error::Protocol(format!("WebSocket 101 flush failed: {}", e)))?;
+
+        let leftover = req_buf[hdr_end..].to_vec();
+        let raw_stream: BoxStream = if leftover.is_empty() {
+            stream
+        } else {
+            Box::pin(PrefixedStream {
+                prefix: leftover,
+                offset: 0,
+                inner: stream,
+            })
+        };
+
+        let ws_stream = tokio_tungstenite::WebSocketStream::from_raw_socket(
+            raw_stream,
+            tokio_tungstenite::tungstenite::protocol::Role::Server,
+            None,
+        )
+        .await;
+        let bridged = bridge_ws_stream(ws_stream, 0);
+
+        if let Some(ed_raw) = early_data_hdr
+            && !ed_raw.is_empty()
+            && let Ok(ed_bytes) = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(ed_raw.trim_end_matches('='))
+                .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&ed_raw))
+                .or_else(|_| base64::engine::general_purpose::STANDARD.decode(&ed_raw))
+            && !ed_bytes.is_empty()
+        {
+            return Ok(Box::pin(PrefixedStream {
+                prefix: ed_bytes,
+                offset: 0,
+                inner: bridged,
+            }));
+        }
+
+        Ok(bridged)
+    }
 }

@@ -162,6 +162,12 @@ pub struct StreamSettingsConfig {
     pub reality_settings: Option<RealityConfig>,
     #[serde(default, rename = "wsSettings")]
     pub ws_settings: Option<WsSettingsConfig>,
+    #[serde(default, rename = "httpupgradeSettings")]
+    pub httpupgrade_settings: Option<WsSettingsConfig>,
+    #[serde(default, rename = "grpcSettings")]
+    pub grpc_settings: Option<serde_json::Value>,
+    #[serde(default, rename = "xhttpSettings", alias = "splithttpSettings")]
+    pub xhttp_settings: Option<crate::transport::internet::SplitHttpConfig>,
     #[serde(default)]
     pub finalmask: Option<FinalmaskConfigJson>,
 }
@@ -205,6 +211,18 @@ pub struct WsSettingsConfig {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TlsCertificateConfig {
+    #[serde(default, rename = "certificateFile")]
+    pub certificate_file: Option<String>,
+    #[serde(default, rename = "keyFile")]
+    pub key_file: Option<String>,
+    #[serde(default)]
+    pub certificate: Option<Vec<String>>,
+    #[serde(default)]
+    pub key: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TlsSettingsConfig {
     #[serde(default, rename = "serverName")]
     pub server_name: Option<String>,
@@ -214,6 +232,8 @@ pub struct TlsSettingsConfig {
     pub alpn: Option<Vec<String>>,
     #[serde(default)]
     pub fingerprint: Option<String>,
+    #[serde(default)]
+    pub certificates: Option<Vec<TlsCertificateConfig>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -287,6 +307,10 @@ pub struct MultiServerSettings {
     pub port: Option<u16>,
     #[serde(default)]
     pub network: Option<String>,
+    #[serde(default)]
+    pub decryption: Option<String>,
+    #[serde(default)]
+    pub fallbacks: Option<Vec<crate::proxy::vless::inbound::Fallback>>,
 }
 
 fn parse_fragment_config(
@@ -438,6 +462,13 @@ impl Config {
                         let mut ws_host = None;
                         let mut ws_headers = HashMap::new();
                         let mut ws_heartbeat = 0u32;
+                        let mut xhttp_cfg: Option<crate::transport::internet::SplitHttpConfig> =
+                            None;
+                        let mut httpupgrade_cfg: Option<(
+                            String,
+                            Option<String>,
+                            HashMap<String, String>,
+                        )> = None;
                         let mut fragment_cfg = None;
 
                         if let Some(ref stream_settings) = stream_settings {
@@ -445,8 +476,48 @@ impl Config {
                                 fragment_cfg = parse_fragment_config(fm);
                             }
 
-                            let is_ws = stream_settings.network.as_deref() == Some("ws")
-                                || stream_settings.ws_settings.is_some();
+                            let net_lower = stream_settings
+                                .network
+                                .as_deref()
+                                .unwrap_or("tcp")
+                                .to_ascii_lowercase();
+                            let is_xhttp = net_lower == "xhttp"
+                                || net_lower == "splithttp"
+                                || stream_settings.xhttp_settings.is_some();
+                            if is_xhttp {
+                                xhttp_cfg = Some(
+                                    stream_settings
+                                        .xhttp_settings
+                                        .clone()
+                                        .unwrap_or_default(),
+                                );
+                            }
+
+                            let is_httpupgrade = !is_xhttp
+                                && (net_lower == "httpupgrade"
+                                    || stream_settings.httpupgrade_settings.is_some());
+                            if is_httpupgrade {
+                                let hu = stream_settings.httpupgrade_settings.as_ref();
+                                let path = hu
+                                    .and_then(|h| h.path.as_deref())
+                                    .map(|p| p.trim())
+                                    .filter(|p| !p.is_empty())
+                                    .unwrap_or("/")
+                                    .to_string();
+                                let host = hu
+                                    .and_then(|h| h.host.clone())
+                                    .filter(|h| !h.trim().is_empty());
+                                let headers = hu
+                                    .and_then(|h| h.headers.clone())
+                                    .unwrap_or_default();
+                                httpupgrade_cfg = Some((path, host, headers));
+                            }
+
+                            let is_ws = !is_xhttp
+                                && !is_httpupgrade
+                                && (net_lower == "ws"
+                                    || net_lower == "websocket"
+                                    || stream_settings.ws_settings.is_some());
                             if is_ws {
                                 let ws_cfg = stream_settings.ws_settings.as_ref();
                                 ws_heartbeat = ws_cfg.and_then(|w| w.heartbeat_period).unwrap_or(0);
@@ -544,6 +615,12 @@ impl Config {
                         }
                         if let Some(f_cfg) = fragment_cfg {
                             client = client.with_fragment(f_cfg);
+                        }
+                        if let Some(x_cfg) = xhttp_cfg {
+                            client = client.with_splithttp(x_cfg);
+                        }
+                        if let Some((hu_path, hu_host, hu_headers)) = httpupgrade_cfg {
+                            client = client.with_httpupgrade(hu_path, hu_host, hu_headers);
                         }
                         vless_handlers.push(Arc::new(client));
                     }
@@ -889,7 +966,22 @@ impl Config {
                             .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
                         user_uuids.push(u);
                     }
-                    Arc::new(p::vless::InboundServer::new(&tag, user_uuids))
+                    if let Some(ref dec) = settings.decryption
+                        && !dec.is_empty()
+                        && !dec.eq_ignore_ascii_case("none")
+                    {
+                        return Err(Error::Config(format!(
+                            "VLESS inbound '{}' unsupported decryption '{}': only 'none' is supported",
+                            tag, dec
+                        )));
+                    }
+                    let mut server = p::vless::InboundServer::new(&tag, user_uuids);
+                    if let Some(fallbacks) = settings.fallbacks
+                        && !fallbacks.is_empty()
+                    {
+                        server = server.with_fallbacks(fallbacks);
+                    }
+                    Arc::new(server)
                 }
                 "trojan" => {
                     let settings: MultiServerSettings =
@@ -956,6 +1048,197 @@ impl Config {
                         other
                     )));
                 }
+            };
+
+            let sniffing_req = in_cfg.sniffing.as_ref().and_then(|v| {
+                let enabled = v.get("enabled").and_then(|b| b.as_bool()).unwrap_or(false);
+                if !enabled {
+                    return None;
+                }
+                let metadata_only = v
+                    .get("metadataOnly")
+                    .and_then(|b| b.as_bool())
+                    .unwrap_or(false);
+                let route_only = v.get("routeOnly").and_then(|b| b.as_bool()).unwrap_or(false);
+                let override_destination_for_protocol = v
+                    .get("destOverride")
+                    .and_then(|a| a.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let exclude_for_domain = v
+                    .get("domainsExcluded")
+                    .and_then(|a| a.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Some(crate::common::session::SniffingRequest {
+                    enabled,
+                    metadata_only,
+                    route_only,
+                    exclude_for_domain,
+                    override_destination_for_protocol,
+                })
+            });
+
+            let handler: Arc<dyn InboundHandler> = if let Some(ref stream_cfg) =
+                in_cfg.stream_settings
+            {
+                let security = stream_cfg
+                    .security
+                    .as_deref()
+                    .unwrap_or("none")
+                    .to_ascii_lowercase();
+                let network = stream_cfg
+                    .network
+                    .as_deref()
+                    .unwrap_or("tcp")
+                    .to_ascii_lowercase();
+
+                let tls_server = if security == "tls" {
+                    let tls_cfg = stream_cfg.tls_settings.as_ref().ok_or_else(|| {
+                        Error::Config(format!(
+                            "Inbound '{}' has security='tls' but missing tlsSettings",
+                            tag
+                        ))
+                    })?;
+                    let alpn: Vec<Vec<u8>> = tls_cfg
+                        .alpn
+                        .as_ref()
+                        .map(|list| list.iter().map(|s| s.as_bytes().to_vec()).collect())
+                        .unwrap_or_default();
+                    let cert_cfg = tls_cfg
+                        .certificates
+                        .as_ref()
+                        .and_then(|c| c.first())
+                        .ok_or_else(|| {
+                            Error::Config(format!(
+                                "Inbound '{}' has security='tls' but missing tlsSettings.certificates",
+                                tag
+                            ))
+                        })?;
+                    let srv = if let (Some(cert_file), Some(key_file)) = (
+                        cert_cfg.certificate_file.as_deref(),
+                        cert_cfg.key_file.as_deref(),
+                    ) {
+                        crate::transport::internet::TlsServer::from_pem_files(
+                            cert_file, key_file, alpn,
+                        )?
+                    } else if let (Some(cert_lines), Some(key_lines)) = (
+                        cert_cfg.certificate.as_ref(),
+                        cert_cfg.key.as_ref(),
+                    ) {
+                        let cert_pem = cert_lines.join("\n");
+                        let key_pem = key_lines.join("\n");
+                        crate::transport::internet::TlsServer::from_pem(
+                            cert_pem.as_bytes(),
+                            key_pem.as_bytes(),
+                            alpn,
+                        )?
+                    } else {
+                        return Err(Error::Config(format!(
+                            "Inbound '{}' tlsSettings.certificates requires certificateFile/keyFile or certificate/key",
+                            tag
+                        )));
+                    };
+                    Some(Arc::new(srv))
+                } else {
+                    None
+                };
+
+                let reality_server = if security == "reality" {
+                    let rc = stream_cfg.reality_settings.as_ref().ok_or_else(|| {
+                        Error::Config(format!(
+                            "Inbound '{}' has security='reality' but missing realitySettings",
+                            tag
+                        ))
+                    })?;
+                    Some(Arc::new(
+                        crate::transport::internet::reality::RealityServer::new(rc)?,
+                    ))
+                } else {
+                    None
+                };
+
+                let is_xhttp = network == "xhttp" || network == "splithttp";
+                let splithttp_server = if is_xhttp {
+                    let x_cfg = stream_cfg.xhttp_settings.clone().unwrap_or_default();
+                    Some(Arc::new(
+                        crate::transport::internet::splithttp::SplitHttpServer::new(x_cfg),
+                    ))
+                } else {
+                    None
+                };
+
+                let is_httpupgrade = !is_xhttp && network == "httpupgrade";
+                let httpupgrade_pair = if is_httpupgrade {
+                    let hu = stream_cfg.httpupgrade_settings.as_ref();
+                    let path = hu.and_then(|h| h.path.clone());
+                    let host = hu.and_then(|h| h.host.clone());
+                    Some((path, host))
+                } else {
+                    None
+                };
+
+                let is_ws = !is_xhttp && !is_httpupgrade && (network == "ws" || network == "websocket");
+                let (ws_path, ws_host) = if is_ws {
+                    let ws_cfg = stream_cfg.ws_settings.as_ref();
+                    let path = ws_cfg.and_then(|w| w.path.clone());
+                    let host = ws_cfg.and_then(|w| {
+                        w.host.clone().or_else(|| {
+                            w.headers.as_ref().and_then(|h| {
+                                h.iter()
+                                    .find(|(k, _)| k.eq_ignore_ascii_case("host"))
+                                    .map(|(_, v)| v.clone())
+                            })
+                        })
+                    });
+                    (path, host)
+                } else {
+                    (None, None)
+                };
+
+                if tls_server.is_some()
+                    || reality_server.is_some()
+                    || is_ws
+                    || httpupgrade_pair.is_some()
+                    || splithttp_server.is_some()
+                    || sniffing_req.is_some()
+                {
+                    let mut wrapped = crate::app::proxyman::inbound::StreamInboundHandler::new(
+                        handler, tls_server, is_ws, ws_path, ws_host,
+                    );
+                    if let Some(r_srv) = reality_server {
+                        wrapped = wrapped.with_reality(r_srv);
+                    }
+                    if let Some((hu_path, hu_host)) = httpupgrade_pair {
+                        wrapped = wrapped.with_httpupgrade(hu_path, hu_host);
+                    }
+                    if let Some(xhttp_srv) = splithttp_server {
+                        wrapped = wrapped.with_splithttp(xhttp_srv);
+                    }
+                    if let Some(sniff) = sniffing_req {
+                        wrapped = wrapped.with_sniffing(sniff);
+                    }
+                    Arc::new(wrapped)
+                } else {
+                    handler
+                }
+            } else if let Some(sniff) = sniffing_req {
+                Arc::new(
+                    crate::app::proxyman::inbound::StreamInboundHandler::new(
+                        handler, None, false, None, None,
+                    )
+                    .with_sniffing(sniff),
+                )
+            } else {
+                handler
             };
 
             inbounds.push((bind_addr, handler));

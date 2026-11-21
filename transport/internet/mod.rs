@@ -17,6 +17,7 @@ pub mod memory_settings;
 pub mod reality;
 pub mod sockopt;
 pub mod sockopt_freebsd;
+pub mod sockopt_linux;
 pub mod sockopt_other;
 pub mod splithttp;
 pub mod stat;

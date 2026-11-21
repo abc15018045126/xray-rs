@@ -132,6 +132,7 @@ impl ServerApp for PingoraInboundApp {
                     warn!("Dispatch error: {}", e);
                 }
             }
+            Err(Error::Closed) => {}
             Err(e) => {
                 warn!(
                     "[{}] Handshake failed from {}: {}",

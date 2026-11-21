@@ -11,7 +11,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use super::common::*;
 use super::config::SplitHttpConfig;
 use crate::common::errors::{Error, Result};
-use crate::common::net::Destination;
+use crate::common::net::{BoxStream, Destination};
+use crate::transport::internet::TlsClient;
 use crate::transport::internet::system_dialer::SystemDialer;
 
 #[async_trait]
@@ -44,6 +45,7 @@ pub struct DefaultDialerClient {
     pub dest: Destination,
     pub http_version: String,
     pub closed: Arc<AtomicBool>,
+    pub tls_client: Option<(Arc<TlsClient>, String)>,
 }
 
 impl DefaultDialerClient {
@@ -57,7 +59,25 @@ impl DefaultDialerClient {
             dest,
             http_version: http_version.into(),
             closed: Arc::new(AtomicBool::new(false)),
+            tls_client: None,
         }
+    }
+
+    pub fn with_tls(mut self, tls: Arc<TlsClient>, sni: impl Into<String>) -> Self {
+        self.tls_client = Some((tls, sni.into()));
+        self
+    }
+
+    async fn dial_stream(&self) -> Result<(BoxStream, Option<SocketAddr>, Option<SocketAddr>)> {
+        let tcp = SystemDialer::dial_tcp(&self.dest).await?;
+        let local_addr = tcp.local_addr().ok();
+        let remote_addr = tcp.peer_addr().ok();
+        let stream: BoxStream = if let Some((ref tls, ref sni)) = self.tls_client {
+            tls.connect(sni, Box::pin(tcp)).await?
+        } else {
+            Box::pin(tcp)
+        };
+        Ok((stream, local_addr, remote_addr))
     }
 }
 
@@ -69,7 +89,7 @@ impl DialerClient for DefaultDialerClient {
 
     async fn open_stream(
         &self,
-        url: &str,
+        _url: &str,
         session_id: &str,
         _body: Option<Pin<Box<dyn AsyncRead + Send + Sync>>>,
         upload_only: bool,
@@ -78,9 +98,7 @@ impl DialerClient for DefaultDialerClient {
         Option<SocketAddr>,
         Option<SocketAddr>,
     )> {
-        let mut stream = SystemDialer::dial_tcp(&self.dest).await?;
-        let local_addr = stream.local_addr().ok();
-        let remote_addr = stream.peer_addr().ok();
+        let (mut stream, local_addr, remote_addr) = self.dial_stream().await?;
 
         let method = if upload_only {
             self.transport_config.get_normalized_uplink_http_method()
@@ -97,10 +115,11 @@ impl DialerClient for DefaultDialerClient {
             norm_path
         };
 
+        let host_fallback = self.dest.address.to_string();
         let host = if !self.transport_config.host.is_empty() {
-            &self.transport_config.host
+            self.transport_config.host.as_str()
         } else {
-            url
+            host_fallback.as_str()
         };
 
         let mut req = format!(
@@ -168,7 +187,7 @@ impl DialerClient for DefaultDialerClient {
         seq_str: &str,
         payload: Vec<u8>,
     ) -> Result<()> {
-        let mut stream = SystemDialer::dial_tcp(&self.dest).await?;
+        let (mut stream, _, _) = self.dial_stream().await?;
         let norm_path = self.transport_config.get_normalized_path();
         let target_path = if !session_id.is_empty()
             && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH
