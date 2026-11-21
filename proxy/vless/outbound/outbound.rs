@@ -23,7 +23,7 @@ use crate::transport::internet::reality::RealityClient;
 use crate::transport::internet::websocket::{DelayDialConn, parse_ws_early_data};
 use crate::transport::internet::{TcpDialer, TlsClient, WebSocketStream};
 
-const DEFAULT_TESTPRE_IDLE_SECS: u32 = 55;
+const DEFAULT_TESTPRE_IDLE_SECS: u32 = 45;
 
 struct PingoraPrePool {
     pool: Arc<PingoraStreamPool>,

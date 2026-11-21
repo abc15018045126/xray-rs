@@ -539,7 +539,7 @@ impl Config {
                             }
                         };
                         if effective_testpre > 0 {
-                            let idle_secs = user.testpre_idle.unwrap_or(55);
+                            let idle_secs = user.testpre_idle.unwrap_or(45);
                             client = client.with_testpre_idle(effective_testpre, idle_secs);
                         }
                         if let Some(f_cfg) = fragment_cfg {
