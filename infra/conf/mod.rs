@@ -254,7 +254,9 @@ pub struct UserConfig {
     #[serde(default)]
     pub flow: Option<String>,
     #[serde(default)]
-    pub testpre: u32,
+    pub testpre: Option<u32>,
+    #[serde(default, rename = "testpreIdle")]
+    pub testpre_idle: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -515,6 +517,7 @@ impl Config {
                             }
                         }
 
+                        let is_ws_tls = ws_path.is_some() && tls_client.is_some();
                         let mut client = p::vless::OutboundClient::new(
                             &sub_tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
                         )
@@ -525,8 +528,19 @@ impl Config {
                         {
                             client = client.with_flow(flow.clone());
                         }
-                        if user.testpre > 0 {
-                            client = client.with_testpre(user.testpre);
+                        let effective_testpre = match user.testpre {
+                            Some(n) => n,
+                            None => {
+                                if is_ws_tls && !client.has_ws_early_data() {
+                                    3
+                                } else {
+                                    0
+                                }
+                            }
+                        };
+                        if effective_testpre > 0 {
+                            let idle_secs = user.testpre_idle.unwrap_or(55);
+                            client = client.with_testpre_idle(effective_testpre, idle_secs);
                         }
                         if let Some(f_cfg) = fragment_cfg {
                             client = client.with_fragment(f_cfg);

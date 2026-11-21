@@ -15,8 +15,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub use capture::{CaptureStatus, CapturedPacket, Direction, FlowRecord, PacketCaptureStore, SizeBuckets};
 pub use metrics::{
-    ConnectionEvent, DebugMetricsStore, DirectBypassConfig, ModeStats, SiteCompare, SiteMetrics,
-    TotalsSummary, TrafficFeatures, inspect_initial_payload,
+    ConnectionEvent, ConnectionTrace, DebugMetricsStore, DirectBypassConfig, ModeStats,
+    PageLoadRecord, SiteCompare, SiteMetrics, TotalsSummary, TraceStep, TrafficFeatures,
+    inspect_initial_payload,
 };
 pub use probe::{DirectProbeResult, run_direct_probe};
 pub use resources::{
@@ -112,6 +113,22 @@ mod tests {
         assert_eq!(sites[0].active, 0);
         assert_eq!(sites[0].uplink_bytes, 1024);
         assert_eq!(sites[0].downlink_bytes, 4096);
+
+        // Verify page load burst aggregation & CDN companion domain grouping
+        store.record_connect_start("www.youtube.com", "proxy", false, false, 120.0, None);
+        store.record_ttfb("www.youtube.com", false, 320.0);
+        store.record_connect_start("i.ytimg.com", "proxy", false, false, 140.0, None);
+        store.record_connect_end("i.ytimg.com", false, 512, 8192, 600.0, None);
+
+        let loads = store.page_loads(Some("youtube"));
+        assert_eq!(loads.len(), 1);
+        assert_eq!(loads[0].site, "youtube.com");
+        assert_eq!(loads[0].conn_count, 2);
+        assert_eq!(loads[0].first_connect_ms, 120.0);
+        assert_eq!(loads[0].first_byte_ms, 320.0);
+        assert!(loads[0].load_time_ms >= 320.0);
+        assert_eq!(loads[0].downlink_bytes, 8192);
+        assert_eq!(loads[0].hosts.len(), 2);
     }
 
     #[test]
@@ -165,5 +182,24 @@ mod tests {
         let pcap = cap.export_pcap(None);
         assert!(pcap.len() > 24 + 32);
         assert_eq!(&pcap[0..4], &0xa1b2c3d4u32.to_le_bytes());
+    }
+
+    #[test]
+    fn test_connection_trace_steps() {
+        let store = DebugMetricsStore::new();
+        let tid = store.start_trace("www.google.com", "www.google.com:443", "tun");
+        store.update_trace_meta(tid, Some("www.google.com"), Some("proxy"), Some("proxy"), Some(false));
+        store.add_trace_step(tid, "1. 本机嗅探 (Sniff)", 0.0, 1.2, "proto=tls SNI=www.google.com");
+        store.add_trace_step(tid, "3. 外层 TCP 建连 (RTT 1)", 1.5, 310.0, "server=cf:443");
+        store.add_trace_step(tid, "4. 外层 TLS 握手 (RTT 2)", 311.5, 305.0, "SNI=worker.dev");
+        store.add_trace_step(tid, "5. WS 升级握手 (RTT 3)", 616.5, 312.0, "wss://worker.dev/");
+        store.add_trace_step(tid, "7. 首包穿透 -> 目标首响应 (TTFB)", 929.0, 420.0, "收到首包 1400B");
+        store.finish_trace(tid, 1349.0, None);
+
+        let list = store.traces(Some("google"), 10);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].status, "ok");
+        assert_eq!(list[0].steps.len(), 5);
+        assert_eq!(list[0].total_ms, 1349.0);
     }
 }

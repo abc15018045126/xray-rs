@@ -4,10 +4,10 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::{Notify, Semaphore};
 use uuid::Uuid;
@@ -23,19 +23,31 @@ use crate::transport::internet::reality::RealityClient;
 use crate::transport::internet::websocket::{DelayDialConn, parse_ws_early_data};
 use crate::transport::internet::{TcpDialer, TlsClient, WebSocketStream};
 
+const DEFAULT_TESTPRE_IDLE_SECS: u32 = 55;
+
 struct PingoraPrePool {
     pool: Arc<PingoraStreamPool>,
     key: u64,
-    notify: Arc<Notify>,
+    wake_refill: Arc<Notify>,
     refill_slots: Arc<Semaphore>,
     closed: Arc<AtomicBool>,
+    epoch: Instant,
+    last_activity_ms: Arc<AtomicU64>,
+}
+
+impl PingoraPrePool {
+    fn touch_activity(&self) {
+        let now_ms = self.epoch.elapsed().as_millis() as u64;
+        self.last_activity_ms.store(now_ms, Ordering::Relaxed);
+        self.wake_refill.notify_waiters();
+    }
 }
 
 impl Drop for PingoraPrePool {
     fn drop(&mut self) {
         self.closed.store(true, Ordering::SeqCst);
         self.refill_slots.close();
-        self.notify.notify_waiters();
+        self.wake_refill.notify_waiters();
     }
 }
 
@@ -55,20 +67,49 @@ struct DialParams {
 
 impl DialParams {
     async fn dial_and_handshake(&self) -> Result<BoxStream> {
-        self.dial_and_handshake_with_ed(None).await
+        self.dial_and_handshake_with_ed(
+            None,
+            #[cfg(debug_assertions)]
+            None,
+        )
+        .await
     }
 
-    async fn dial_and_handshake_with_ed(&self, early_data: Option<&[u8]>) -> Result<BoxStream> {
+    async fn dial_and_handshake_with_ed(
+        &self,
+        early_data: Option<&[u8]>,
+        #[cfg(debug_assertions)] trace_ctx: Option<(u64, std::time::Instant)>,
+    ) -> Result<BoxStream> {
         pingora_timeout::timeout(
             Duration::from_secs(15),
-            self.dial_and_handshake_inner(early_data),
+            self.dial_and_handshake_inner(
+                early_data,
+                #[cfg(debug_assertions)]
+                trace_ctx,
+            ),
         )
         .await
         .map_err(|_| Error::Protocol("VLESS outbound dial/handshake timed out (15s)".into()))?
     }
 
-    async fn dial_and_handshake_inner(&self, early_data: Option<&[u8]>) -> Result<BoxStream> {
+    async fn dial_and_handshake_inner(
+        &self,
+        early_data: Option<&[u8]>,
+        #[cfg(debug_assertions)] trace_ctx: Option<(u64, std::time::Instant)>,
+    ) -> Result<BoxStream> {
+        #[cfg(debug_assertions)]
+        let _tcp_t0 = std::time::Instant::now();
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
+        #[cfg(debug_assertions)]
+        if let Some((tid, origin)) = trace_ctx {
+            crate::debug_panel::metrics().add_trace_step(
+                tid,
+                "3. 外层 TCP 建连 (RTT 1)",
+                _tcp_t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
+                _tcp_t0.elapsed().as_secs_f64() * 1000.0,
+                format!("server={}", self.server_addr),
+            );
+        }
 
         let tcp_stream: BoxStream = if let Some(ref f_cfg) = self.fragment_cfg {
             Box::pin(
@@ -96,7 +137,19 @@ impl DialParams {
                 let _t0 = std::time::Instant::now();
                 let s = tls.connect(&reality.server_name, tcp_stream).await?;
                 #[cfg(debug_assertions)]
-                crate::debug_panel::record_stage("VLESS TLS 握手 (Reality)", _t0.elapsed());
+                {
+                    let elapsed = _t0.elapsed();
+                    crate::debug_panel::record_stage("VLESS TLS 握手 (Reality)", elapsed);
+                    if let Some((tid, origin)) = trace_ctx {
+                        crate::debug_panel::metrics().add_trace_step(
+                            tid,
+                            "4. 外层 TLS 握手 (RTT 2)",
+                            _t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
+                            elapsed.as_secs_f64() * 1000.0,
+                            format!("Reality SNI={}", reality.server_name),
+                        );
+                    }
+                }
                 s
             } else {
                 tcp_stream
@@ -106,7 +159,19 @@ impl DialParams {
             let _t0 = std::time::Instant::now();
             let s = tls.connect(sni, tcp_stream).await?;
             #[cfg(debug_assertions)]
-            crate::debug_panel::record_stage("VLESS TLS 握手 (Rustls)", _t0.elapsed());
+            {
+                let elapsed = _t0.elapsed();
+                crate::debug_panel::record_stage("VLESS TLS 握手 (Rustls)", elapsed);
+                if let Some((tid, origin)) = trace_ctx {
+                    crate::debug_panel::metrics().add_trace_step(
+                        tid,
+                        "4. 外层 TLS 握手 (RTT 2)",
+                        _t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
+                        elapsed.as_secs_f64() * 1000.0,
+                        format!("SNI={}", sni),
+                    );
+                }
+            }
             s
         } else {
             tcp_stream
@@ -142,7 +207,23 @@ impl DialParams {
             )
             .await?;
             #[cfg(debug_assertions)]
-            crate::debug_panel::record_stage("VLESS WS 升级 (WebSocket)", _t0.elapsed());
+            {
+                let elapsed = _t0.elapsed();
+                crate::debug_panel::record_stage("VLESS WS 升级 (WebSocket)", elapsed);
+                if let Some((tid, origin)) = trace_ctx {
+                    let ed_tag = match early_data {
+                        Some(ed) if !ed.is_empty() => format!(" (ed={}B)", ed.len()),
+                        _ => String::new(),
+                    };
+                    crate::debug_panel::metrics().add_trace_step(
+                        tid,
+                        "5. WS 升级握手 (RTT 3)",
+                        _t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
+                        elapsed.as_secs_f64() * 1000.0,
+                        format!("{}://{}{}{} Host={}", scheme, dest_host, path, ed_tag, host_hdr),
+                    );
+                }
+            }
             s
         } else {
             stream
@@ -159,6 +240,7 @@ pub struct Client {
     encryption: Option<String>,
     dial_params: DialParams,
     testpre: u32,
+    testpre_idle_secs: u32,
     pre_conns: OnceLock<PingoraPrePool>,
 }
 
@@ -197,8 +279,13 @@ impl Client {
                 fragment_cfg: None,
             },
             testpre: 0,
+            testpre_idle_secs: DEFAULT_TESTPRE_IDLE_SECS,
             pre_conns: OnceLock::new(),
         }
+    }
+
+    pub fn has_ws_early_data(&self) -> bool {
+        self.dial_params.ws_ed > 0
     }
 
     pub fn with_ws_headers(mut self, headers: HashMap<String, String>) -> Self {
@@ -234,10 +321,19 @@ impl Client {
         self
     }
 
-    /// Official Xray-core `testpre`: pre-warm `count` transport connections (TCP+TLS+WS)
-    /// in background tasks with a 2-minute expiration, matching `proxy/vless/outbound/outbound.go`.
-    pub fn with_testpre(mut self, count: u32) -> Self {
+    /// Pre-warm `count` transport connections (TCP+TLS+WS) in background tasks
+    /// with default 90s idle TTL & auto-sleep (`testpreIdle: 90`).
+    pub fn with_testpre(self, count: u32) -> Self {
+        self.with_testpre_idle(count, DEFAULT_TESTPRE_IDLE_SECS)
+    }
+
+    /// Pre-warm `count` transport connections with configurable `idle_secs`:
+    /// - `idle_secs > 0` (default 90): connections expire & close after `idle_secs`, and
+    ///   background refilling sleeps when no proxy request occurs for `idle_secs` (auto-wakes on next request).
+    /// - `idle_secs == 0`: classic Xray continuous pre-warm mode (120s TTL, no idle sleep).
+    pub fn with_testpre_idle(mut self, count: u32, idle_secs: u32) -> Self {
         self.testpre = count;
+        self.testpre_idle_secs = idle_secs;
         if count > 0 && tokio::runtime::Handle::try_current().is_ok() {
             let _ = self.init_pre_conns();
         }
@@ -247,23 +343,48 @@ impl Client {
     fn init_pre_conns(&self) -> &PingoraPrePool {
         self.pre_conns.get_or_init(|| {
             let cap = (self.testpre as usize).max(1);
-            let pool = Arc::new(PingoraStreamPool::new(cap, Duration::from_secs(120)));
+            let ttl_secs = if self.testpre_idle_secs == 0 {
+                120u64
+            } else {
+                self.testpre_idle_secs as u64
+            };
+            let idle_sleep_ms = if self.testpre_idle_secs == 0 {
+                0u64
+            } else {
+                (self.testpre_idle_secs as u64) * 1000
+            };
+            let pool = Arc::new(PingoraStreamPool::new(cap, Duration::from_secs(ttl_secs)));
             let key = pool_key(&format!("{}:{}", self.tag, self.dial_params.server_addr));
-            let notify = Arc::new(Notify::new());
+            let wake_refill = Arc::new(Notify::new());
             let refill_slots = Arc::new(Semaphore::new(cap));
             let closed = Arc::new(AtomicBool::new(false));
+            let epoch = Instant::now();
+            // Option B: mark startup as active so initial `testpre` connection(s) warm immediately;
+            // if unused for `idle_secs`, they expire and workers enter zero-traffic sleep.
+            let last_activity_ms = Arc::new(AtomicU64::new(0));
 
-            tracing::info!(
-                "VLESS outbound '{}': starting Pingora-backed testpre pre-warm pool ({} workers, 120s TTL)",
-                self.tag,
-                self.testpre
-            );
+            if idle_sleep_ms == 0 {
+                tracing::info!(
+                    "VLESS outbound '{}': starting Pingora testpre pool ({} workers, {}s TTL, continuous mode)",
+                    self.tag,
+                    self.testpre,
+                    ttl_secs
+                );
+            } else {
+                tracing::info!(
+                    "VLESS outbound '{}': starting Pingora testpre pool ({} workers, {}s TTL & auto-sleep)",
+                    self.tag,
+                    self.testpre,
+                    ttl_secs
+                );
+            }
 
             for _ in 0..self.testpre {
                 let pool_clone = pool.clone();
-                let notify_clone = notify.clone();
+                let wake_clone = wake_refill.clone();
                 let slots_clone = refill_slots.clone();
                 let closed_clone = closed.clone();
+                let last_act_clone = last_activity_ms.clone();
                 let params = self.dial_params.clone();
                 let tag = self.tag.clone();
 
@@ -272,20 +393,37 @@ impl Client {
                         if closed_clone.load(Ordering::Relaxed) {
                             break;
                         }
+                        if idle_sleep_ms > 0 {
+                            let now_ms = epoch.elapsed().as_millis() as u64;
+                            let last_ms = last_act_clone.load(Ordering::Relaxed);
+                            if now_ms.saturating_sub(last_ms) >= idle_sleep_ms {
+                                wake_clone.notified().await;
+                                continue;
+                            }
+                        }
                         let Ok(permit) = slots_clone.clone().acquire_owned().await else {
                             break;
                         };
+                        if closed_clone.load(Ordering::Relaxed) {
+                            drop(permit);
+                            break;
+                        }
+                        // Re-check after permit release (e.g. 90s idle expiry while user is away)
+                        if idle_sleep_ms > 0 {
+                            let now_ms = epoch.elapsed().as_millis() as u64;
+                            let last_ms = last_act_clone.load(Ordering::Relaxed);
+                            if now_ms.saturating_sub(last_ms) >= idle_sleep_ms {
+                                drop(permit);
+                                wake_clone.notified().await;
+                                continue;
+                            }
+                        }
                         match params.dial_and_handshake().await {
                             Ok(conn) => {
                                 if closed_clone.load(Ordering::Relaxed) {
                                     break;
                                 }
-                                // Tie the semaphore permit to the connection's lifetime inside
-                                // `pingora-pool::idle_timeout`: released automatically on reuse,
-                                // LRU eviction, or 120s idle expiration (zero leak).
                                 pool_clone.put_with_permit(key, conn, permit);
-                                notify_clone.notify_one();
-                                // Match official Xray-core 200ms pacing between pre-connect refills
                                 pingora_timeout::sleep(Duration::from_millis(200)).await;
                             }
                             Err(e) => {
@@ -305,27 +443,43 @@ impl Client {
             PingoraPrePool {
                 pool,
                 key,
-                notify,
+                wake_refill,
                 refill_slots,
                 closed,
+                epoch,
+                last_activity_ms,
             }
         })
     }
 
     async fn take_or_dial(&self, session: &SessionContext) -> Result<BoxStream> {
+        #[cfg(debug_assertions)]
+        let trace_ctx = session.debug_trace_id.zip(session.debug_trace_origin);
+
         // Official Xray-core WS Early Data (`?ed=N`): delegate to `transport/internet/websocket/dialer.rs::DelayDialConn`
         if self.dial_params.ws_ed > 0 && self.testpre == 0 {
             let params = self.dial_params.clone();
             let dial_fn: crate::transport::internet::websocket::DialWsFn = Arc::new(move |ed| {
                 let p = params.clone();
-                Box::pin(async move { p.dial_and_handshake_with_ed(ed.as_deref()).await })
+                #[cfg(debug_assertions)]
+                let tc = trace_ctx;
+                Box::pin(async move {
+                    p.dial_and_handshake_with_ed(
+                        ed.as_deref(),
+                        #[cfg(debug_assertions)]
+                        tc,
+                    )
+                    .await
+                })
             });
             return Ok(Box::pin(DelayDialConn::new(dial_fn, self.dial_params.ws_ed)));
         }
 
         if self.testpre > 0 {
             let pre_pool = self.init_pre_conns();
-            // Fast path: take an already-warmed connection from Cloudflare `pingora-pool` (0ms)
+            pre_pool.touch_activity();
+            // Fast path: take an already-warmed connection from Cloudflare `pingora-pool` (0ms).
+            // If the pool is momentarily empty, dial immediately without stalling behind a wait timeout.
             if let Some(conn) = pre_pool.pool.get(pre_pool.key) {
                 #[cfg(debug_assertions)]
                 {
@@ -334,31 +488,35 @@ impl Client {
                         .clone()
                         .unwrap_or_else(|| session.destination.address.to_string());
                     crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
-                }
-                let _ = session;
-                return Ok(conn);
-            }
-            // Wait briefly for an in-flight pre-warm worker before falling back to a direct dial
-            let notified = pre_pool.notify.notified();
-            if pingora_timeout::timeout(Duration::from_millis(500), notified)
-                .await
-                .is_ok()
-                && let Some(conn) = pre_pool.pool.get(pre_pool.key)
-            {
-                #[cfg(debug_assertions)]
-                {
-                    let host = session
-                        .sniffed_domain
-                        .clone()
-                        .unwrap_or_else(|| session.destination.address.to_string());
-                    crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
+                    if let Some((tid, origin)) = trace_ctx {
+                        crate::debug_panel::metrics().update_trace_meta(
+                            tid,
+                            None,
+                            None,
+                            None,
+                            Some(true),
+                        );
+                        crate::debug_panel::metrics().add_trace_step(
+                            tid,
+                            "3. 预热池复用 (Pingora Pool)",
+                            origin.elapsed().as_secs_f64() * 1000.0,
+                            0.0,
+                            "复用预热连接，跳过 TCP+TLS+WS 握手",
+                        );
+                    }
                 }
                 let _ = session;
                 return Ok(conn);
             }
         }
 
-        self.dial_params.dial_and_handshake().await
+        self.dial_params
+            .dial_and_handshake_with_ed(
+                None,
+                #[cfg(debug_assertions)]
+                trace_ctx,
+            )
+            .await
     }
 }
 
@@ -700,5 +858,55 @@ mod tests {
         assert_eq!(&buf[..n1], b"ack");
         let n2 = stream.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n2], b"ok");
+    }
+
+    #[tokio::test]
+    async fn test_vless_testpre_idle_auto_sleep_and_wake() {
+        use std::sync::atomic::AtomicUsize;
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let accepted_bg = accepted.clone();
+
+        let accept_task = tokio::spawn(async move {
+            loop {
+                if let Ok((_sock, _)) = listener.accept().await {
+                    accepted_bg.fetch_add(1, Ordering::SeqCst);
+                    tokio::spawn(async move {
+                        let _s = _sock;
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                    });
+                } else {
+                    break;
+                }
+            }
+        });
+
+        let dest = Destination::from_ip_port(addr.ip(), addr.port());
+        let client = Client::new("proxy", dest, Uuid::nil(), None, None, None, None)
+            .with_testpre_idle(1, 1);
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert_eq!(accepted.load(Ordering::SeqCst), 1);
+
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        assert_eq!(
+            accepted.load(Ordering::SeqCst),
+            1,
+            "worker must stay asleep while idle instead of redialing"
+        );
+
+        client.init_pre_conns().touch_activity();
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert_eq!(
+            accepted.load(Ordering::SeqCst),
+            2,
+            "worker must wake and refill on new activity"
+        );
+
+        drop(client);
+        accept_task.abort();
     }
 }

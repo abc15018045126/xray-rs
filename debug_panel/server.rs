@@ -143,6 +143,8 @@ async fn route(
                 "endpoints": {
                     "GET /ai/summary": "Full snapshot (CPU, Mem, bypass state, totals, per-site connections/reuse/ms, recent probes). Add ?format=text for compact plain text.",
                     "GET /ai/sites": "Per-website connection stats (established, reused, active, reuse_rate_pct, connect_ms, traffic_features). Optional ?host=<substr>.",
+                    "GET /ai/pageloads": "Per-website page open/load timing bursts (root site, first_connect_ms, first_byte_ms, load_time_ms, conn_count, failed_count, downlink_bytes). Optional ?host=<substr>&format=text.",
+                    "GET /ai/traces": "Per-connection step-by-step waterfall trace (Sniff -> Route -> TCP -> TLS -> WS -> Send First Packet -> TTFB) with exact offset_ms & duration_ms. Optional ?host=<substr>&limit=50&format=text.",
                     "GET /ai/resources": "Process CPU %, Kernel/User split, per-thread CPU, Memory RSS/Private/Peak MB, and 60-sample history.",
                     "GET /ai/cpu": "CPU attribution breakdown: kernel vs user CPU%, per-thread CPU%, per-outbound load, and top active/busy hosts (?format=text).",
                     "GET /ai/events": "Recent connection events (last 50).",
@@ -177,6 +179,41 @@ async fn route(
             let host_filter = query.get("host").map(|s| s.as_str());
             let sites = metrics().sites(host_filter);
             json_ok(&sites)
+        }
+
+        ("GET", "/ai/traces") => {
+            let host_filter = query.get("host").map(|s| s.as_str());
+            let limit = query
+                .get("limit")
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(50)
+                .clamp(1, 100);
+            let traces = metrics().traces(host_filter, limit);
+            if query.get("format").map(|s| s.as_str()) == Some("text") {
+                let mut out = format!(
+                    "CONNECTION TRACES ({} recent, newest first):\n",
+                    traces.len()
+                );
+                for t in &traces {
+                    let reuse_s = if t.reused { "|reused" } else { "" };
+                    out.push_str(&format!(
+                        "  #{} {} [{}|{}{}] total={:.1}ms ({})\n",
+                        t.id, t.host, t.outbound, t.status, reuse_s, t.total_ms, t.target
+                    ));
+                    for s in &t.steps {
+                        out.push_str(&format!(
+                            "      +{:>6.1}ms  {:>6.1}ms  {}  ({})\n",
+                            s.offset_ms, s.duration_ms, s.name, s.detail
+                        ));
+                    }
+                    if let Some(ref err) = t.error {
+                        out.push_str(&format!("      ERROR: {}\n", err));
+                    }
+                }
+                ("200 OK", "text/plain; charset=utf-8", out.into_bytes())
+            } else {
+                json_ok(&traces)
+            }
         }
 
         ("GET", "/ai/resources") => {
@@ -288,6 +325,33 @@ async fn route(
                     "top_hosts": top_hosts,
                 });
                 json_ok(&payload)
+            }
+        }
+
+        ("GET", "/ai/pageloads") => {
+            let filter = query.get("host").map(|s| s.as_str());
+            let loads = metrics().page_loads(filter);
+            if query.get("format").map(|s| s.as_str()) == Some("text") {
+                let mut out = format!("PAGE LOADS ({} visits, grouped by root site, 2.5s idle window):\n", loads.len());
+                for p in &loads {
+                    out.push_str(&format!(
+                        "  - {} [{}|{}] load={:.0}ms ({:.2}s) | ttfb={:.0}ms | conn1={:.0}ms | conns={} fail={} | down={}B | hosts={}\n",
+                        p.site,
+                        p.outbound,
+                        p.status,
+                        p.load_time_ms,
+                        p.load_time_ms / 1000.0,
+                        p.first_byte_ms,
+                        p.first_connect_ms,
+                        p.conn_count,
+                        p.failed_count,
+                        p.downlink_bytes,
+                        p.hosts.join(",")
+                    ));
+                }
+                ("200 OK", "text/plain; charset=utf-8", out.into_bytes())
+            } else {
+                json_ok(&loads)
             }
         }
 

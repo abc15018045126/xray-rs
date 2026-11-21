@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::debug_panel::capture::{FlowRecord, SizeBuckets};
 use crate::debug_panel::probe::DirectProbeResult;
@@ -11,6 +12,9 @@ use crate::debug_panel::probe::DirectProbeResult;
 const MAX_RECENT_PROBES: usize = 20;
 const MAX_RECENT_EVENTS: usize = 50;
 const MAX_LATENCY_SAMPLES: usize = 200;
+const MAX_PAGE_LOADS: usize = 60;
+const MAX_CONN_TRACES: usize = 100;
+const PAGE_LOAD_IDLE_GAP_MS: u64 = 2500;
 
 fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
@@ -617,11 +621,96 @@ pub struct TotalsSummary {
     pub total_downlink_bytes: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageLoadRecord {
+    pub site: String,
+    pub started_at_ms: u64,
+    pub first_connect_ms: f64,
+    pub first_byte_ms: f64,
+    pub load_time_ms: f64,
+    pub conn_count: u64,
+    pub failed_count: u64,
+    pub downlink_bytes: u64,
+    pub outbound: String,
+    pub bypassed: bool,
+    pub status: String,
+    pub hosts: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct PageLoadInner {
+    site: String,
+    started_at_ms: u64,
+    last_activity_ms: u64,
+    first_connect_ms: f64,
+    first_byte_ms: Option<f64>,
+    conn_count: u64,
+    failed_count: u64,
+    downlink_bytes: u64,
+    outbound: String,
+    bypassed: bool,
+    hosts: Vec<String>,
+}
+
+impl PageLoadInner {
+    fn to_public(&self, now_ms: u64) -> PageLoadRecord {
+        let is_done = now_ms.saturating_sub(self.last_activity_ms) >= PAGE_LOAD_IDLE_GAP_MS;
+        let span_ms = self.last_activity_ms.saturating_sub(self.started_at_ms) as f64;
+        let min_floor = self.first_byte_ms.unwrap_or(self.first_connect_ms);
+        let load_time_ms = round2(span_ms.max(min_floor));
+        PageLoadRecord {
+            site: self.site.clone(),
+            started_at_ms: self.started_at_ms,
+            first_connect_ms: round2(self.first_connect_ms),
+            first_byte_ms: round2(self.first_byte_ms.unwrap_or(0.0)),
+            load_time_ms,
+            conn_count: self.conn_count,
+            failed_count: self.failed_count,
+            downlink_bytes: self.downlink_bytes,
+            outbound: self.outbound.clone(),
+            bypassed: self.bypassed,
+            status: if is_done {
+                "done".into()
+            } else {
+                "loading".into()
+            },
+            hosts: self.hosts.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TraceStep {
+    pub name: String,
+    pub offset_ms: f64,
+    pub duration_ms: f64,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionTrace {
+    pub id: u64,
+    pub started_at_ms: u64,
+    pub host: String,
+    pub target: String,
+    pub inbound: String,
+    pub outbound: String,
+    pub mode: String,
+    pub reused: bool,
+    pub total_ms: f64,
+    pub status: String,
+    pub error: Option<String>,
+    pub steps: Vec<TraceStep>,
+}
+
 pub struct DebugMetricsStore {
     sites: RwLock<HashMap<String, SiteMetricsInner>>,
     bypass: RwLock<DirectBypassConfig>,
     recent_probes: RwLock<VecDeque<DirectProbeResult>>,
     recent_events: RwLock<VecDeque<ConnectionEvent>>,
+    page_loads: RwLock<VecDeque<PageLoadInner>>,
+    conn_traces: RwLock<VecDeque<ConnectionTrace>>,
+    next_trace_id: AtomicU64,
 }
 
 impl Default for DebugMetricsStore {
@@ -637,6 +726,9 @@ impl DebugMetricsStore {
             bypass: RwLock::new(DirectBypassConfig::default()),
             recent_probes: RwLock::new(VecDeque::with_capacity(MAX_RECENT_PROBES)),
             recent_events: RwLock::new(VecDeque::with_capacity(MAX_RECENT_EVENTS)),
+            page_loads: RwLock::new(VecDeque::with_capacity(MAX_PAGE_LOADS)),
+            conn_traces: RwLock::new(VecDeque::with_capacity(MAX_CONN_TRACES)),
+            next_trace_id: AtomicU64::new(1),
         }
     }
 
@@ -724,6 +816,8 @@ impl DebugMetricsStore {
             entry.last_seen_ms = now;
         }
 
+        self.update_page_load_start(&host_key, outbound, bypassed, connect_ms, now);
+
         self.push_event(ConnectionEvent {
             timestamp_ms: now,
             host: host_key,
@@ -761,6 +855,8 @@ impl DebugMetricsStore {
             entry.last_outbound = outbound.to_string();
             entry.last_seen_ms = now;
         }
+        self.update_page_load_fail(&host_key, outbound, bypassed, connect_ms, now);
+
         self.push_event(ConnectionEvent {
             timestamp_ms: now,
             host: host_key,
@@ -802,6 +898,7 @@ impl DebugMetricsStore {
                 entry.proxy_mode.push_ttfb(ttfb_ms);
             }
         }
+        self.update_page_load_ttfb(&host_key, ttfb_ms, now_epoch_ms());
     }
 
     /// Record connection completion, transferred bytes, duration, and optional flow fingerprint.
@@ -838,6 +935,7 @@ impl DebugMetricsStore {
             }
             entry.last_seen_ms = now_epoch_ms();
         }
+        self.update_page_load_end(&host_key, downlink, now_epoch_ms());
     }
 
     /// Direct vs Proxy A/B comparison across sites (prioritizing sites that have BOTH direct & proxy data).
@@ -1032,6 +1130,134 @@ impl DebugMetricsStore {
             .collect()
     }
 
+    pub fn page_loads(&self, host_filter: Option<&str>) -> Vec<PageLoadRecord> {
+        let now = now_epoch_ms();
+        let filter_lc = host_filter.map(|s| s.to_ascii_lowercase());
+        self.page_loads
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .rev()
+            .filter(|p| match &filter_lc {
+                Some(f) if !f.is_empty() => {
+                    p.site.to_ascii_lowercase().contains(f)
+                        || p.hosts.iter().any(|h| h.to_ascii_lowercase().contains(f))
+                }
+                _ => true,
+            })
+            .map(|p| p.to_public(now))
+            .collect()
+    }
+
+    fn update_page_load_start(
+        &self,
+        host: &str,
+        outbound: &str,
+        bypassed: bool,
+        connect_ms: f64,
+        now: u64,
+    ) {
+        let site = root_site(host);
+        let mut loads = self.page_loads.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(active) = loads
+            .iter_mut()
+            .rev()
+            .find(|p| p.site == site && now.saturating_sub(p.last_activity_ms) < PAGE_LOAD_IDLE_GAP_MS)
+        {
+            active.conn_count += 1;
+            active.last_activity_ms = now;
+            if active.hosts.len() < 6 && !active.hosts.iter().any(|h| h == host) {
+                active.hosts.push(host.to_string());
+            }
+            return;
+        }
+        if loads.len() >= MAX_PAGE_LOADS {
+            loads.pop_front();
+        }
+        let started_at_ms = now.saturating_sub(connect_ms.round() as u64);
+        loads.push_back(PageLoadInner {
+            site,
+            started_at_ms,
+            last_activity_ms: now,
+            first_connect_ms: connect_ms,
+            first_byte_ms: None,
+            conn_count: 1,
+            failed_count: 0,
+            downlink_bytes: 0,
+            outbound: outbound.to_string(),
+            bypassed,
+            hosts: vec![host.to_string()],
+        });
+    }
+
+    fn update_page_load_ttfb(&self, host: &str, ttfb_ms: f64, now: u64) {
+        let site = root_site(host);
+        let mut loads = self.page_loads.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(active) = loads
+            .iter_mut()
+            .rev()
+            .find(|p| p.site == site && now.saturating_sub(p.last_activity_ms) < PAGE_LOAD_IDLE_GAP_MS * 2)
+        {
+            if active.first_byte_ms.is_none() {
+                active.first_byte_ms = Some(ttfb_ms);
+            }
+            active.last_activity_ms = now;
+        }
+    }
+
+    fn update_page_load_fail(
+        &self,
+        host: &str,
+        outbound: &str,
+        bypassed: bool,
+        connect_ms: f64,
+        now: u64,
+    ) {
+        let site = root_site(host);
+        let mut loads = self.page_loads.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(active) = loads
+            .iter_mut()
+            .rev()
+            .find(|p| p.site == site && now.saturating_sub(p.last_activity_ms) < PAGE_LOAD_IDLE_GAP_MS)
+        {
+            active.failed_count += 1;
+            active.last_activity_ms = now;
+            return;
+        }
+        if loads.len() >= MAX_PAGE_LOADS {
+            loads.pop_front();
+        }
+        let started_at_ms = now.saturating_sub(connect_ms.round() as u64);
+        loads.push_back(PageLoadInner {
+            site,
+            started_at_ms,
+            last_activity_ms: now,
+            first_connect_ms: connect_ms,
+            first_byte_ms: None,
+            conn_count: 0,
+            failed_count: 1,
+            downlink_bytes: 0,
+            outbound: outbound.to_string(),
+            bypassed,
+            hosts: vec![host.to_string()],
+        });
+    }
+
+    fn update_page_load_end(&self, host: &str, downlink: u64, now: u64) {
+        let site = root_site(host);
+        let mut loads = self.page_loads.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(active) = loads
+            .iter_mut()
+            .rev()
+            .find(|p| p.site == site && now.saturating_sub(p.last_activity_ms) < PAGE_LOAD_IDLE_GAP_MS * 2)
+        {
+            active.downlink_bytes += downlink;
+            if downlink > 0 {
+                active.last_activity_ms = now;
+            }
+        }
+    }
+
     pub fn reset(&self) {
         self.sites.write().unwrap_or_else(|e| e.into_inner()).clear();
         self.recent_probes
@@ -1042,6 +1268,121 @@ impl DebugMetricsStore {
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .clear();
+        self.page_loads
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        self.conn_traces
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+    }
+
+    pub fn start_trace(&self, host: &str, target: &str, inbound: &str) -> u64 {
+        let id = self.next_trace_id.fetch_add(1, Ordering::Relaxed);
+        let trace = ConnectionTrace {
+            id,
+            started_at_ms: now_epoch_ms(),
+            host: normalize_host(host),
+            target: target.to_string(),
+            inbound: inbound.to_string(),
+            outbound: String::new(),
+            mode: "pending".into(),
+            reused: false,
+            total_ms: 0.0,
+            status: "active".into(),
+            error: None,
+            steps: Vec::with_capacity(8),
+        };
+        let mut traces = self.conn_traces.write().unwrap_or_else(|e| e.into_inner());
+        if traces.len() >= MAX_CONN_TRACES {
+            traces.pop_front();
+        }
+        traces.push_back(trace);
+        id
+    }
+
+    pub fn update_trace_meta(
+        &self,
+        trace_id: u64,
+        host: Option<&str>,
+        outbound: Option<&str>,
+        mode: Option<&str>,
+        reused: Option<bool>,
+    ) {
+        let mut traces = self.conn_traces.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = traces.iter_mut().rev().find(|t| t.id == trace_id) {
+            if let Some(h) = host {
+                t.host = normalize_host(h);
+            }
+            if let Some(o) = outbound {
+                t.outbound = o.to_string();
+            }
+            if let Some(m) = mode {
+                t.mode = m.to_string();
+            }
+            if let Some(r) = reused {
+                t.reused = r;
+            }
+        }
+    }
+
+    pub fn add_trace_step(
+        &self,
+        trace_id: u64,
+        name: &str,
+        offset_ms: f64,
+        duration_ms: f64,
+        detail: impl Into<String>,
+    ) {
+        let mut traces = self.conn_traces.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = traces.iter_mut().rev().find(|t| t.id == trace_id) {
+            let end = offset_ms + duration_ms;
+            if end > t.total_ms {
+                t.total_ms = round2(end);
+            }
+            t.steps.push(TraceStep {
+                name: name.to_string(),
+                offset_ms: round2(offset_ms),
+                duration_ms: round2(duration_ms),
+                detail: detail.into(),
+            });
+        }
+    }
+
+    pub fn finish_trace(&self, trace_id: u64, total_ms: f64, error: Option<&str>) {
+        let mut traces = self.conn_traces.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = traces.iter_mut().rev().find(|t| t.id == trace_id) {
+            if total_ms > t.total_ms {
+                t.total_ms = round2(total_ms);
+            }
+            if let Some(err) = error {
+                t.status = "failed".into();
+                t.error = Some(err.to_string());
+            } else if t.status == "active" {
+                t.status = "ok".into();
+            }
+        }
+    }
+
+    pub fn traces(&self, host_filter: Option<&str>, limit: usize) -> Vec<ConnectionTrace> {
+        let filter_lc = host_filter.map(|s| s.to_ascii_lowercase());
+        self.conn_traces
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .rev()
+            .filter(|t| match &filter_lc {
+                Some(f) if !f.is_empty() => {
+                    t.host.to_ascii_lowercase().contains(f)
+                        || t.target.to_ascii_lowercase().contains(f)
+                        || t.outbound.to_ascii_lowercase().contains(f)
+                }
+                _ => true,
+            })
+            .take(limit)
+            .cloned()
+            .collect()
     }
 
     fn push_event(&self, ev: ConnectionEvent) {
@@ -1082,6 +1423,43 @@ pub fn normalize_host(raw: &str) -> String {
     } else {
         host_port.to_ascii_lowercase()
     }
+}
+
+pub fn root_site(host: &str) -> String {
+    let h = normalize_host(host);
+    if h.parse::<std::net::IpAddr>().is_ok() {
+        return h;
+    }
+    // Group well-known CDN companion domains under their main website
+    if h.ends_with(".ytimg.com")
+        || h == "ytimg.com"
+        || h.ends_with(".googlevideo.com")
+        || h.ends_with(".ggpht.com")
+    {
+        return "youtube.com".into();
+    }
+    if h.ends_with(".twimg.com") || h == "twimg.com" || h.ends_with(".twitter.com") || h == "twitter.com" {
+        return "x.com".into();
+    }
+    if h.ends_with(".bdstatic.com") || h.ends_with(".bcebos.com") {
+        return "baidu.com".into();
+    }
+    if h.ends_with(".hdslb.com") || h.ends_with(".bilivideo.com") {
+        return "bilibili.com".into();
+    }
+    let parts: Vec<&str> = h.split('.').collect();
+    if parts.len() <= 2 {
+        return h;
+    }
+    let last2 = format!("{}.{}", parts[parts.len() - 2], parts[parts.len() - 1]);
+    if matches!(
+        last2.as_str(),
+        "com.cn" | "net.cn" | "org.cn" | "gov.cn" | "co.uk" | "co.jp" | "com.hk" | "com.tw"
+    ) && parts.len() >= 3
+    {
+        return format!("{}.{}", parts[parts.len() - 3], last2);
+    }
+    last2
 }
 
 fn now_epoch_ms() -> u64 {

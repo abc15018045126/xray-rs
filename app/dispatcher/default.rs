@@ -136,7 +136,27 @@ impl DefaultDispatcher {
     ) -> Result<()> {
         let mut initial_payload: Vec<u8> = Vec::new();
 
+        #[cfg(debug_assertions)]
+        let debug_trace_origin = std::time::Instant::now();
+        #[cfg(debug_assertions)]
+        let debug_trace_id = {
+            let init_host = session
+                .sniffed_domain
+                .clone()
+                .unwrap_or_else(|| session.destination.address.to_string());
+            let tid = crate::debug_panel::metrics().start_trace(
+                &init_host,
+                &session.destination.to_string(),
+                &session.inbound_tag,
+            );
+            session.debug_trace_id = Some(tid);
+            session.debug_trace_origin = Some(debug_trace_origin);
+            tid
+        };
+
         // 1. Sniffing phase if requested
+        #[cfg(debug_assertions)]
+        let _sniff_t0 = std::time::Instant::now();
         if let Some(sniff_req) = session.sniffing_request.clone()
             && sniff_req.enabled
         {
@@ -208,6 +228,22 @@ impl DefaultDispatcher {
             .unwrap_or_else(|| session.destination.address.to_string());
 
         #[cfg(debug_assertions)]
+        {
+            let sniff_detail = match (&session.sniffed_protocol, &session.sniffed_domain) {
+                (Some(p), Some(d)) => format!("proto={} SNI={} ({}B)", p, d, initial_payload.len()),
+                _ if !initial_payload.is_empty() => format!("已读首包 {}B (无 SNI)", initial_payload.len()),
+                _ => "未触发嗅探".into(),
+            };
+            crate::debug_panel::metrics().add_trace_step(
+                debug_trace_id,
+                "1. 本机嗅探 (Sniff)",
+                _sniff_t0.saturating_duration_since(debug_trace_origin).as_secs_f64() * 1000.0,
+                _sniff_t0.elapsed().as_secs_f64() * 1000.0,
+                sniff_detail,
+            );
+        }
+
+        #[cfg(debug_assertions)]
         let debug_bypass = crate::debug_panel::should_bypass_direct(&debug_host);
 
         #[cfg(debug_assertions)]
@@ -248,17 +284,45 @@ impl DefaultDispatcher {
                         .unwrap_or_else(|| "unknown".into()),
                     session.destination
                 );
+                #[cfg(debug_assertions)]
+                let _bypass_t0 = std::time::Instant::now();
+                #[cfg(debug_assertions)]
+                crate::debug_panel::metrics().update_trace_meta(
+                    debug_trace_id,
+                    Some(&debug_host),
+                    Some(&tag),
+                    Some("bypass"),
+                    None,
+                );
                 let stream = match crate::transport::internet::TcpDialer::dial(&session.destination).await {
-                    Ok(s) => s,
+                    Ok(s) => {
+                        #[cfg(debug_assertions)]
+                        crate::debug_panel::metrics().add_trace_step(
+                            debug_trace_id,
+                            "3. 内核直连 TCP 建连",
+                            _bypass_t0.saturating_duration_since(debug_trace_origin).as_secs_f64() * 1000.0,
+                            _bypass_t0.elapsed().as_secs_f64() * 1000.0,
+                            format!("target={}", session.destination),
+                        );
+                        s
+                    }
                     Err(e) => {
                         #[cfg(debug_assertions)]
-                        crate::debug_panel::metrics().record_connect_failed(
-                            &debug_host,
-                            &tag,
-                            true,
-                            debug_connect_start.elapsed().as_secs_f64() * 1000.0,
-                            &e.to_string(),
-                        );
+                        {
+                            let err_str = e.to_string();
+                            crate::debug_panel::metrics().record_connect_failed(
+                                &debug_host,
+                                &tag,
+                                true,
+                                debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                                &err_str,
+                            );
+                            crate::debug_panel::metrics().finish_trace(
+                                debug_trace_id,
+                                debug_trace_origin.elapsed().as_secs_f64() * 1000.0,
+                                Some(&err_str),
+                            );
+                        }
                         warn!(
                             "[DEBUG DIRECT BYPASS] Failed direct kernel connect for {}: {}",
                             session.destination, e
@@ -268,6 +332,8 @@ impl DefaultDispatcher {
                 };
                 (tag, stream)
             } else {
+                #[cfg(debug_assertions)]
+                let _route_t0 = std::time::Instant::now();
                 let outbound_tag = if let Some(forced) = &session.forced_outbound_tag {
                     forced.clone()
                 } else if let Some(router) = &self.router {
@@ -290,6 +356,30 @@ impl DefaultDispatcher {
                 };
 
                 session.outbound_tag = Some(outbound_tag.clone());
+
+                #[cfg(debug_assertions)]
+                {
+                    let mode_str = match outbound_tag.as_str() {
+                        "direct" | "freedom" => "direct",
+                        "block" | "blackhole" => "block",
+                        "dns" => "dns",
+                        _ => "proxy",
+                    };
+                    crate::debug_panel::metrics().update_trace_meta(
+                        debug_trace_id,
+                        Some(&debug_host),
+                        Some(&outbound_tag),
+                        Some(mode_str),
+                        None,
+                    );
+                    crate::debug_panel::metrics().add_trace_step(
+                        debug_trace_id,
+                        "2. 路由分流 (Route)",
+                        _route_t0.saturating_duration_since(debug_trace_origin).as_secs_f64() * 1000.0,
+                        _route_t0.elapsed().as_secs_f64() * 1000.0,
+                        format!("outbound={} ({})", outbound_tag, mode_str),
+                    );
+                }
 
                 let outbound = if let Some(om) = &self.outbound_manager {
                     if let Some(h) = om.get_handler(&outbound_tag).await {
@@ -327,26 +417,55 @@ impl DefaultDispatcher {
                 let stream = match outbound.connect(&session).await {
                     Ok(stream) => {
                         #[cfg(debug_assertions)]
-                        crate::debug_panel::record_stage(
-                            "出站建连握手 (TLS/WS/VLESS)",
-                            _ct0.elapsed(),
-                        );
+                        {
+                            let elapsed = _ct0.elapsed();
+                            crate::debug_panel::record_stage(
+                                "出站建连握手 (TLS/WS/VLESS)",
+                                elapsed,
+                            );
+                            if matches!(
+                                outbound_tag.as_str(),
+                                "direct" | "freedom" | "block" | "blackhole" | "dns"
+                            ) {
+                                let label = match outbound_tag.as_str() {
+                                    "block" | "blackhole" => "3. 规则拦截 (Blackhole)",
+                                    "dns" => "3. 内置 DNS 处理",
+                                    _ => "3. 直连 TCP 建连 (Direct)",
+                                };
+                                crate::debug_panel::metrics().add_trace_step(
+                                    debug_trace_id,
+                                    label,
+                                    _ct0.saturating_duration_since(debug_trace_origin)
+                                        .as_secs_f64()
+                                        * 1000.0,
+                                    elapsed.as_secs_f64() * 1000.0,
+                                    format!("target={}", session.destination),
+                                );
+                            }
+                        }
                         stream
                     }
                     Err(e) => {
                         #[cfg(debug_assertions)]
-                        crate::debug_panel::record_stage(
-                            "出站建连握手 (TLS/WS/VLESS)",
-                            _ct0.elapsed(),
-                        );
-                        #[cfg(debug_assertions)]
-                        crate::debug_panel::metrics().record_connect_failed(
-                            &debug_host,
-                            &outbound_tag,
-                            false,
-                            debug_connect_start.elapsed().as_secs_f64() * 1000.0,
-                            &e.to_string(),
-                        );
+                        {
+                            let err_str = e.to_string();
+                            crate::debug_panel::record_stage(
+                                "出站建连握手 (TLS/WS/VLESS)",
+                                _ct0.elapsed(),
+                            );
+                            crate::debug_panel::metrics().record_connect_failed(
+                                &debug_host,
+                                &outbound_tag,
+                                false,
+                                debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                                &err_str,
+                            );
+                            crate::debug_panel::metrics().finish_trace(
+                                debug_trace_id,
+                                debug_trace_origin.elapsed().as_secs_f64() * 1000.0,
+                                Some(&err_str),
+                            );
+                        }
                         warn!(
                             "Failed to establish outbound connection for {}: {}",
                             session.destination, e
@@ -393,18 +512,45 @@ impl DefaultDispatcher {
                     &initial_payload,
                 );
             }
+            #[cfg(debug_assertions)]
+            let _send0 = std::time::Instant::now();
             if let Err(e) = outbound_stream.write_all(&initial_payload).await {
                 #[cfg(debug_assertions)]
-                crate::debug_panel::metrics().record_connect_end(
-                    &debug_host,
-                    debug_bypass,
-                    0,
-                    0,
-                    debug_connect_start.elapsed().as_secs_f64() * 1000.0,
-                    crate::debug_panel::capture().flow_snapshot(debug_conn_id),
-                );
+                {
+                    let err_str = e.to_string();
+                    crate::debug_panel::metrics().record_connect_end(
+                        &debug_host,
+                        debug_bypass,
+                        0,
+                        0,
+                        debug_connect_start.elapsed().as_secs_f64() * 1000.0,
+                        crate::debug_panel::capture().flow_snapshot(debug_conn_id),
+                    );
+                    crate::debug_panel::metrics().finish_trace(
+                        debug_trace_id,
+                        debug_trace_origin.elapsed().as_secs_f64() * 1000.0,
+                        Some(&err_str),
+                    );
+                }
                 warn!("Failed to forward initial sniffed payload: {}", e);
                 return Err(Error::Io(e));
+            }
+            #[cfg(debug_assertions)]
+            {
+                let step_name = if debug_bypass
+                    || matches!(outbound_tag.as_str(), "direct" | "freedom")
+                {
+                    "4. 发送首包 (ClientHello/请求)"
+                } else {
+                    "6. 发送首包 (VLESS头+ClientHello)"
+                };
+                crate::debug_panel::metrics().add_trace_step(
+                    debug_trace_id,
+                    step_name,
+                    _send0.saturating_duration_since(debug_trace_origin).as_secs_f64() * 1000.0,
+                    _send0.elapsed().as_secs_f64() * 1000.0,
+                    format!("{} B", initial_payload.len()),
+                );
             }
         }
 
@@ -462,6 +608,9 @@ impl DefaultDispatcher {
         #[cfg(debug_assertions)]
         let debug_tap = Some(DebugTapMeta {
             conn_id: debug_conn_id,
+            trace_id: debug_trace_id,
+            trace_origin: debug_trace_origin,
+            after_send_offset_ms: debug_trace_origin.elapsed().as_secs_f64() * 1000.0,
             host: debug_host.clone(),
             src: session
                 .source
@@ -558,6 +707,9 @@ impl DispatcherFeature for DefaultDispatcher {
 #[derive(Clone)]
 struct DebugTapMeta {
     conn_id: u64,
+    trace_id: u64,
+    trace_origin: std::time::Instant,
+    after_send_offset_ms: f64,
     host: String,
     src: String,
     dst: String,
@@ -594,10 +746,32 @@ where
                 if let Some((ref meta, dir)) = tap {
                     if !ttfb_recorded && dir == crate::debug_panel::Direction::ServerToClient {
                         ttfb_recorded = true;
+                        let ttfb_ms = meta.connect_start.elapsed().as_secs_f64() * 1000.0;
+                        let total_from_origin = meta.trace_origin.elapsed().as_secs_f64() * 1000.0;
+                        let wait_ms = (total_from_origin - meta.after_send_offset_ms).max(0.0);
                         crate::debug_panel::metrics().record_ttfb(
                             &meta.host,
                             meta.bypassed,
-                            meta.connect_start.elapsed().as_secs_f64() * 1000.0,
+                            ttfb_ms,
+                        );
+                        let step_name = if meta.bypassed
+                            || matches!(meta.outbound.as_str(), "direct" | "freedom")
+                        {
+                            "5. 等待目标首响应 (TTFB)"
+                        } else {
+                            "7. 首包穿透 -> 目标首响应 (TTFB)"
+                        };
+                        crate::debug_panel::metrics().add_trace_step(
+                            meta.trace_id,
+                            step_name,
+                            meta.after_send_offset_ms,
+                            wait_ms,
+                            format!("收到首包 {}B (累计 {:.1}ms)", n, total_from_origin),
+                        );
+                        crate::debug_panel::metrics().finish_trace(
+                            meta.trace_id,
+                            total_from_origin,
+                            None,
                         );
                     }
                     crate::debug_panel::capture().record_chunk(

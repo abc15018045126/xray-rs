@@ -202,6 +202,14 @@
       <span>主页总览</span>
       <span id="navSitesCnt" class="nav-pill">0</span>
     </button>
+    <button class="nav-item" data-tab="pageloads" onclick="switchTab('pageloads')">
+      <span>网站打开耗时</span>
+      <span id="navPageLoadCnt" class="nav-pill">0</span>
+    </button>
+    <button class="nav-item" data-tab="traces" onclick="switchTab('traces')">
+      <span>连接流程耗时</span>
+      <span id="navTraceCnt" class="nav-pill">0</span>
+    </button>
     <button class="nav-item" data-tab="compare" onclick="switchTab('compare')">
       <span>直连 vs 代理对比</span>
       <span id="navCompareCnt" class="nav-pill">0</span>
@@ -329,6 +337,35 @@
             </thead>
             <tbody id="sitesBody"></tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 1.6: CONNECTION TRACES ==================== -->
+    <section id="tab-traces" class="hidden">
+      <div class="card">
+        <div class="card-title">
+          <span>单连接全链路发包流程（浏览器 · xray-rs · Cloudflare Worker · 目标网站）</span>
+          <div class="row">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#94a3b8;cursor:pointer;">
+              <input type="checkbox" id="traceShowLocal" onchange="renderTraces()" />
+              显示本机段 (浏览器↔xray-rs)
+            </label>
+            <input id="traceFilter" placeholder="按域名过滤 (如 google / youtube)..." style="width:200px;" oninput="renderTraces()" />
+            <select id="traceModeFilter" onchange="renderTraces()" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:12px;">
+              <option value="no_block" selected>隐藏 block</option>
+              <option value="all">全部连接</option>
+              <option value="proxy">仅代理 (proxy)</option>
+              <option value="direct">仅直连 (direct/bypass)</option>
+            </select>
+            <button class="btn-ghost" onclick="pollTraces()">立即刷新</button>
+          </div>
+        </div>
+        <p style="color:#94a3b8;margin-bottom:10px;font-size:12px;">
+          默认隐藏「浏览器 ↔ xray-rs (本机)」零延迟本机段，聚焦中间列<b>真正的网络 RTT</b>（外层 TCP RTT 1 → TLS RTT 2 → WS 升级 RTT 3）与右列<b>远端目标穿透/首包返回 (TTFB)</b>。仅 Debug 模式生效。
+        </p>
+        <div id="tracesList" style="display:flex;flex-direction:column;gap:12px;max-height:700px;overflow-y:auto;">
+          <div style="color:#64748b;text-align:center;padding:24px;">暂无连接链路追踪记录，访问任意网站后自动出现...</div>
         </div>
       </div>
     </section>
@@ -572,6 +609,39 @@
       </div>
     </section>
 
+    <!-- ==================== TAB: PAGE LOADS ==================== -->
+    <section id="tab-pageloads" class="hidden">
+      <div class="card">
+        <div class="card-title">
+          <span>网站打开耗时记录 (自动归拢同站子资源/CDN，静默 2.5s 视为本轮打开完成)</span>
+          <div class="row">
+            <input id="pageLoadFilter" placeholder="过滤网站 (如 youtube / x.com / bing)" oninput="renderPageLoads()" style="width:220px;" />
+            <button class="btn-ghost" onclick="pollPageLoads()">立即刷新</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>网站 (主域名)</th>
+                <th>状态</th>
+                <th>出站</th>
+                <th>打开总耗时</th>
+                <th>首包白屏 (TTFB)</th>
+                <th>首连握手</th>
+                <th>并发连接 / 失败</th>
+                <th>本次下载</th>
+                <th>涉及子域名</th>
+              </tr>
+            </thead>
+            <tbody id="pageLoadsBody">
+              <tr><td colspan="9" style="color:#64748b;text-align:center;padding:20px;">打开任意网站后自动记录耗时...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ==================== TAB 6: AI API ==================== -->
     <section id="tab-ai" class="hidden">
       <div class="card">
@@ -587,6 +657,8 @@
         </div>
         <div class="mono" style="color:#94a3b8;margin-bottom:10px;line-height:1.9;">
           • <code>GET /ai/summary?format=text</code> — 全局资源 + 连接复用 + 抓包总览（最省 Token）<br/>
+          • <code>GET /ai/traces?host=xxx&amp;format=text</code> — 单连接全链路每步耗时（嗅探 / 路由 / TCP / TLS / WS / 首包 / TTFB）<br/>
+          • <code>GET /ai/pageloads?host=xxx&amp;format=text</code> — 网站打开总耗时（按主站归拢）<br/>
           • <code>GET /ai/cpu?format=text</code> — CPU 归因（用户态/内核态拆解 + 线程级排行 + 出站负载）<br/>
           • <code>GET /ai/compare?host=xxx&amp;format=text</code> — 直连 vs 代理同站自动 A/B 对比（P50/P95/TTFB/前 N 包指纹）<br/>
           • <code>GET /ai/flows?host=xxx&amp;format=text</code> — 每条连接的 conn_id、IAT ms 与前 N 包长度序列指纹<br/>
@@ -605,9 +677,13 @@
     let latestPackets = [];
     let latestFlows = [];
     let latestCompare = [];
+    let latestPageLoads = [];
+    let latestTraces = [];
 
     const TAB_TITLES = {
       home: '主页总览',
+      pageloads: '网站打开耗时 (按主站归拢)',
+      traces: '连接流程耗时 (全链路每步瀑布图)',
       compare: '直连 vs 代理对比 (A/B)',
       flows: '流指纹与 Wireshark 抓包',
       latency: '延迟分位 (P50/P95) 与 TTFB 分布',
@@ -621,9 +697,11 @@
       document.querySelectorAll('.nav-item').forEach(el => {
         el.classList.toggle('active', el.dataset.tab === tab);
       });
-      ['home', 'compare', 'flows', 'latency', 'cpu', 'ai'].forEach(t => {
+      ['home', 'pageloads', 'traces', 'compare', 'flows', 'latency', 'cpu', 'ai'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
       });
+      if (tab === 'pageloads') pollPageLoads();
+      if (tab === 'traces') pollTraces();
       if (tab === 'compare') pollCompare();
       if (tab === 'flows') pollFlows();
       if (tab === 'latency') renderLatency();
@@ -663,6 +741,8 @@
         document.getElementById('errBanner').classList.add('hidden');
         renderSummary(d);
 
+        if (currentTab === 'pageloads') pollPageLoads();
+        if (currentTab === 'traces') pollTraces();
         if (currentTab === 'compare') pollCompare();
         if (currentTab === 'flows') {
           pollFlows();
@@ -687,6 +767,201 @@
         err.textContent = '连接失败: ' + e.message;
         err.classList.remove('hidden');
       }
+    }
+
+    async function pollPageLoads() {
+      try {
+        const res = await fetch('/ai/pageloads');
+        if (res.ok) {
+          latestPageLoads = await res.json();
+          document.getElementById('navPageLoadCnt').textContent = latestPageLoads.length;
+          renderPageLoads();
+        }
+      } catch (_) {}
+    }
+
+    async function pollTraces() {
+      try {
+        const res = await fetch('/ai/traces?limit=60');
+        if (res.ok) {
+          latestTraces = await res.json();
+          document.getElementById('navTraceCnt').textContent = latestTraces.length;
+          renderTraces();
+        }
+      } catch (_) {}
+    }
+
+    function stepBarColor(name) {
+      if (name.includes('TCP')) return '#38bdf8';
+      if (name.includes('TLS')) return '#a78bfa';
+      if (name.includes('WS')) return '#fbbf24';
+      if (name.includes('预热池')) return '#22d3ee';
+      if (name.includes('TTFB') || name.includes('首响应')) return '#34d399';
+      if (name.includes('发送首包')) return '#60a5fa';
+      if (name.includes('拦截')) return '#f87171';
+      return '#94a3b8';
+    }
+
+    function stepLane(name) {
+      if (name.includes('嗅探') || name.includes('Sniff') || name.includes('路由') || name.includes('Route')) return 'local';
+      if (name.includes('TTFB') || name.includes('首响应')) return 'remote';
+      return 'rtt';
+    }
+
+    function renderLaneSteps(steps, maxMs, emptyText) {
+      if (!steps.length) {
+        return '<div style="color:#475569;font-size:11px;padding:6px 0;">' + emptyText + '</div>';
+      }
+      return steps.map(s => {
+        const col = stepBarColor(s.name || '');
+        const pct = Math.max(4, Math.min(100, (Number(s.duration_ms || 0) / maxMs) * 100));
+        return '<div style="background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:6px 8px;margin-bottom:6px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12px;">'
+          +   '<span style="color:#e2e8f0;font-weight:600;">' + esc(s.name) + '</span>'
+          +   '<span class="mono" style="color:' + col + ';font-weight:700;white-space:nowrap;">' + Number(s.duration_ms || 0).toFixed(1) + ' ms</span>'
+          + '</div>'
+          + '<div style="height:5px;background:#1e293b;border-radius:3px;margin:5px 0 3px 0;overflow:hidden;">'
+          +   '<div style="width:' + pct.toFixed(1) + '%;height:100%;background:' + col + ';border-radius:3px;"></div>'
+          + '</div>'
+          + (s.detail ? '<div class="mono" style="color:#64748b;font-size:10px;word-break:break-all;">+' + Number(s.offset_ms || 0).toFixed(1) + 'ms · ' + esc(s.detail) + '</div>' : '')
+          + '</div>';
+      }).join('');
+    }
+
+    function renderTraces() {
+      const kw = (document.getElementById('traceFilter')?.value || '').trim().toLowerCase();
+      const mode = document.getElementById('traceModeFilter')?.value || 'no_block';
+      const showLocal = !!(document.getElementById('traceShowLocal')?.checked);
+      const box = document.getElementById('tracesList');
+      if (!box) return;
+      const rows = latestTraces.filter(t => {
+        if (mode === 'no_block' && t.mode === 'block') return false;
+        if (mode === 'proxy' && t.mode !== 'proxy') return false;
+        if (mode === 'direct' && t.mode !== 'direct' && t.mode !== 'bypass') return false;
+        if (!kw) return true;
+        return (t.host || '').toLowerCase().includes(kw)
+          || (t.target || '').toLowerCase().includes(kw)
+          || (t.outbound || '').toLowerCase().includes(kw);
+      });
+      if (rows.length === 0) {
+        box.innerHTML = '<div style="color:#64748b;text-align:center;padding:24px;">暂无匹配的连接流程记录</div>';
+        return;
+      }
+      box.innerHTML = rows.map(t => {
+        const maxMs = Math.max(Number(t.total_ms || 0), 1);
+        const stBadge = t.status === 'failed'
+          ? '<span class="badge badge-err">失败</span>'
+          : (t.status === 'ok' ? '<span class="badge badge-ok">已通</span>' : '<span class="badge badge-warn">进行中</span>');
+        const isDirect = t.mode === 'direct' || t.mode === 'bypass';
+        const modeBadge = isDirect
+          ? '<span class="badge badge-ok">' + esc(t.outbound || t.mode) + '</span>'
+          : (t.mode === 'block'
+            ? '<span class="badge badge-err">block</span>'
+            : '<span class="badge badge-info">' + esc(t.outbound || 'proxy') + (t.reused ? ' · 复用' : '') + '</span>');
+        const totalColor = t.total_ms >= 2500 ? '#f87171' : (t.total_ms >= 1000 ? '#fcd34d' : '#34d399');
+
+        const localSteps = [];
+        const rttSteps = [];
+        const remoteSteps = [];
+        (t.steps || []).forEach(s => {
+          const lane = stepLane(s.name || '');
+          if (lane === 'local') localSteps.push(s);
+          else if (lane === 'remote') remoteSteps.push(s);
+          else rttSteps.push(s);
+        });
+
+        const localSum = localSteps.reduce((a, s) => a + Number(s.duration_ms || 0), 0);
+        const rttSum = rttSteps.reduce((a, s) => a + Number(s.duration_ms || 0), 0);
+        const remoteSum = remoteSteps.reduce((a, s) => a + Number(s.duration_ms || 0), 0);
+
+        const midNodeLabel = isDirect ? '直连出口' : 'Cloudflare Worker';
+        const col2Title = isDirect ? '真正的 RTT (xray-rs ↔ 目标建连)' : '真正的 RTT (xray-rs ↔ Worker)';
+        const col3Title = isDirect ? '首包返回 (目标站 TTFB)' : 'Worker ↔ 目标网站 (首包穿透)';
+
+        const gridCols = showLocal ? '1fr 1.5fr 1.1fr' : '1.5fr 1.1fr';
+        const nodeFlow = showLocal
+          ? '<span style="color:#94a3b8;">浏览器</span> <span style="color:#475569;">──▶</span> <span style="color:#e2e8f0;font-weight:600;">xray-rs (本机)</span> <span style="color:#38bdf8;">══▶</span> <span style="color:#fbbf24;font-weight:600;">' + midNodeLabel + '</span> <span style="color:#34d399;">──▶</span> <span style="color:#34d399;font-weight:600;">' + esc(t.host) + '</span>'
+          : '<span style="color:#64748b;font-size:11px;">[浏览器→本机已隐藏]</span> <span style="color:#e2e8f0;font-weight:600;">xray-rs (本机)</span> <span style="color:#38bdf8;">══▶</span> <span style="color:#fbbf24;font-weight:600;">' + midNodeLabel + '</span> <span style="color:#34d399;">──▶</span> <span style="color:#34d399;font-weight:600;">' + esc(t.host) + '</span>';
+
+        const col1Html = showLocal
+          ? '<div style="background:#070d19;border:1px dashed #1e293b;border-radius:6px;padding:8px;">'
+            + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:6px;border-bottom:1px solid #1e293b;padding-bottom:4px;">'
+            +   '<span>浏览器 ↔ xray-rs (本机)</span>'
+            +   '<span class="mono">' + localSum.toFixed(1) + ' ms</span>'
+            + '</div>'
+            + renderLaneSteps(localSteps, maxMs, '0 ms (本机)')
+            + '</div>'
+          : '';
+
+        const col2Html = '<div style="background:#081224;border:1px solid #1e3a5f;border-radius:6px;padding:8px;">'
+          + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#38bdf8;font-weight:600;margin-bottom:6px;border-bottom:1px solid #1e3a5f;padding-bottom:4px;">'
+          +   '<span>' + col2Title + '</span>'
+          +   '<span class="mono">' + rttSum.toFixed(1) + ' ms</span>'
+          + '</div>'
+          + renderLaneSteps(rttSteps, maxMs, '等待建连...')
+          + '</div>';
+
+        const col3Html = '<div style="background:#071714;border:1px solid #144337;border-radius:6px;padding:8px;">'
+          + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#34d399;font-weight:600;margin-bottom:6px;border-bottom:1px solid #144337;padding-bottom:4px;">'
+          +   '<span>' + col3Title + '</span>'
+          +   '<span class="mono">' + (remoteSteps.length ? remoteSum.toFixed(1) + ' ms' : '-') + '</span>'
+          + '</div>'
+          + renderLaneSteps(remoteSteps, maxMs, '等待目标首响应...')
+          + '</div>';
+
+        const errHtml = t.error ? '<div class="mono" style="color:#fca5a5;background:#2a1215;border:1px solid #7f1d1d;border-radius:4px;padding:6px 8px;margin-top:8px;font-size:11px;">ERROR: ' + esc(t.error) + '</div>' : '';
+
+        return '<div style="background:#0b1220;border:1px solid #1e293b;border-radius:8px;padding:10px 12px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">'
+          +   '<div class="row" style="gap:8px;">'
+          +     '<span class="mono" style="color:#64748b;font-size:11px;">#' + t.id + '</span>'
+          +     '<span class="mono" style="color:#f8fafc;font-weight:700;font-size:13px;">' + esc(t.host) + '</span>'
+          +     modeBadge + stBadge
+          +     '<span class="mono" style="color:#64748b;font-size:11px;">' + esc(t.inbound) + ' → ' + esc(t.target) + '</span>'
+          +   '</div>'
+          +   '<div class="mono" style="font-weight:700;font-size:14px;color:' + totalColor + ';">总耗时 ' + fmtDur(t.total_ms) + '</div>'
+          + '</div>'
+          + '<div class="mono" style="font-size:11px;margin-bottom:8px;padding:4px 8px;background:#070d19;border-radius:4px;border:1px solid #1e293b;">' + nodeFlow + '</div>'
+          + '<div style="display:grid;grid-template-columns:' + gridCols + ';gap:8px;">'
+          +   col1Html + col2Html + col3Html
+          + '</div>'
+          + errHtml
+          + '</div>';
+      }).join('');
+    }
+
+    function renderPageLoads() {
+      const kw = (document.getElementById('pageLoadFilter')?.value || '').trim().toLowerCase();
+      const rows = latestPageLoads.filter(p =>
+        !kw || p.site.toLowerCase().includes(kw) || (p.hosts || []).some(h => h.toLowerCase().includes(kw))
+      );
+      const tbody = document.getElementById('pageLoadsBody');
+      if (!tbody) return;
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="color:#64748b;text-align:center;padding:20px;">暂无匹配的网站打开记录</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(p => {
+        const stBadge = p.status === 'loading'
+          ? '<span class="badge badge-warn">加载中...</span>'
+          : '<span class="badge badge-ok">已完成</span>';
+        const outBadge = p.bypassed
+          ? '<span class="badge badge-warn">直连</span>'
+          : '<span class="badge badge-info">' + esc(p.outbound) + '</span>';
+        const loadColor = p.load_time_ms >= 5000 ? '#f87171' : (p.load_time_ms >= 2000 ? '#fcd34d' : '#34d399');
+        const failHtml = p.failed_count > 0 ? '<span style="color:#f87171;font-weight:700;">' + p.failed_count + '</span>' : '0';
+        return '<tr>'
+          + '<td class="mono" style="font-weight:600;color:#f8fafc;">' + esc(p.site) + '</td>'
+          + '<td>' + stBadge + '</td>'
+          + '<td>' + outBadge + '</td>'
+          + '<td class="mono" style="font-weight:700;font-size:14px;color:' + loadColor + ';">' + fmtDur(p.load_time_ms) + '</td>'
+          + '<td class="mono">' + (p.first_byte_ms > 0 ? fmtDur(p.first_byte_ms) : '-') + '</td>'
+          + '<td class="mono">' + fmtDur(p.first_connect_ms) + '</td>'
+          + '<td class="mono">' + p.conn_count + ' / ' + failHtml + '</td>'
+          + '<td class="mono">' + fmtBytes(p.downlink_bytes) + '</td>'
+          + '<td class="mono" style="color:#94a3b8;font-size:11px;">' + esc((p.hosts || []).join(', ')) + '</td>'
+          + '</tr>';
+      }).join('');
     }
 
     async function pollCompare() {

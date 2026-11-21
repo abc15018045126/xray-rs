@@ -50,6 +50,10 @@ pub struct SessionContext {
     pub forced_outbound_tag: Option<String>,
     pub sniffed_protocol: Option<String>,
     pub sniffed_domain: Option<String>,
+    #[cfg(debug_assertions)]
+    pub debug_trace_id: Option<u64>,
+    #[cfg(debug_assertions)]
+    pub debug_trace_origin: Option<std::time::Instant>,
 }
 
 impl SessionContext {
@@ -66,6 +70,10 @@ impl SessionContext {
             forced_outbound_tag: None,
             sniffed_protocol: None,
             sniffed_domain: None,
+            #[cfg(debug_assertions)]
+            debug_trace_id: None,
+            #[cfg(debug_assertions)]
+            debug_trace_origin: None,
         }
     }
 
