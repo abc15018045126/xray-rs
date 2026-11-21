@@ -3,16 +3,25 @@
 
 use async_trait::async_trait;
 use std::net::{IpAddr, SocketAddr};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[allow(unused_imports)]
 use tokio::net::UdpSocket;
 
-use super::nameserver::{NameServer, build_dns_query_typed, parse_dns_response};
+use super::nameserver::{NameServer, build_dns_query_with_ecs, parse_dns_response};
+use super::nameserver_doh::DohRoutingCtx;
 use crate::common::errors::{Error, Result};
+use crate::common::net::{Address, Destination};
+use crate::common::protocol::SessionContext;
+use crate::features::routing::RouterFeature;
 
 pub struct UdpNameServer {
     pub server_addr: SocketAddr,
     pub timeout: Duration,
+    tag: Option<String>,
+    routing: Option<Arc<OnceLock<DohRoutingCtx>>>,
+    client_ip: Option<IpAddr>,
 }
 
 impl UdpNameServer {
@@ -20,6 +29,30 @@ impl UdpNameServer {
         Self {
             server_addr,
             timeout: Duration::from_secs(5),
+            tag: None,
+            routing: None,
+            client_ip: None,
+        }
+    }
+
+    pub fn new_local_with_ecs(server_addr: SocketAddr, client_ip: Option<IpAddr>) -> Self {
+        let mut s = Self::new(server_addr);
+        s.client_ip = client_ip;
+        s
+    }
+
+    pub fn new_routed(
+        server_addr: SocketAddr,
+        tag: Option<String>,
+        routing: Arc<OnceLock<DohRoutingCtx>>,
+        client_ip: Option<IpAddr>,
+    ) -> Self {
+        Self {
+            server_addr,
+            timeout: Duration::from_secs(5),
+            tag,
+            routing: Some(routing),
+            client_ip,
         }
     }
 
@@ -27,6 +60,9 @@ impl UdpNameServer {
         Self {
             server_addr,
             timeout,
+            tag: None,
+            routing: None,
+            client_ip: None,
         }
     }
 
@@ -43,6 +79,37 @@ impl NameServer for UdpNameServer {
 
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
+        let query_a = build_dns_query_with_ecs(clean, 1, self.client_ip);
+
+        if let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) {
+            let addr = match self.server_addr.ip() {
+                IpAddr::V4(v4) => Address::Ipv4(v4),
+                IpAddr::V6(v6) => Address::Ipv6(v6),
+            };
+            let dest = Destination::udp(addr, self.server_addr.port());
+            let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), dest);
+            let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
+            if matches!(picked, "block" | "blackhole") {
+                return Err(Error::Protocol(format!(
+                    "UDP DNS server '{}' blocked by routing rule",
+                    self.server_addr
+                )));
+            } else if !matches!(picked, "direct" | "freedom" | "dns")
+                && let Some(outbound) = ctx.outbounds.get(picked)
+            {
+                let mut stream = pingora_timeout::timeout(self.timeout, outbound.connect(&session))
+                    .await
+                    .map_err(|_| Error::Timeout)??;
+                stream.write_all(&query_a).await.map_err(Error::Io)?;
+                let mut buf = vec![0u8; 2048];
+                let n = pingora_timeout::timeout(self.timeout, stream.read(&mut buf))
+                    .await
+                    .map_err(|_| Error::Timeout)?
+                    .map_err(Error::Io)?;
+                return parse_dns_response(&buf[..n], clean);
+            }
+        }
+
         let _bind_addr = if self.server_addr.is_ipv6() {
             "[::]:0"
         } else {
@@ -64,12 +131,11 @@ impl NameServer for UdpNameServer {
         };
         #[cfg(not(target_os = "windows"))]
         let socket = {
-            let socket = UdpSocket::bind(bind_addr).await.map_err(Error::Io)?;
+            let socket = UdpSocket::bind(_bind_addr).await.map_err(Error::Io)?;
             socket.connect(self.server_addr).await.map_err(Error::Io)?;
             socket
         };
 
-        let query_a = build_dns_query_typed(clean, 1);
         socket.send(&query_a).await.map_err(Error::Io)?;
 
         let mut buf = vec![0u8; 2048];

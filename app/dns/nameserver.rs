@@ -201,13 +201,24 @@ pub fn build_dns_query(domain: &str) -> Vec<u8> {
 }
 
 pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> {
+    build_dns_query_with_ecs(domain, qtype, None)
+}
+
+/// Build a DNS query packet with optional RFC 7871 EDNS0 Client Subnet (`clientIp`),
+/// matching Xray-core (`sourcePrefix = 24` for IPv4, `56` for IPv6).
+pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAddr>) -> Vec<u8> {
+    let arcount: [u8; 2] = if client_ip.is_some() {
+        [0x00, 0x01]
+    } else {
+        [0x00, 0x00]
+    };
     let mut query = vec![
         0xAB, 0xCD, // Transaction ID
         0x01, 0x00, // Standard query with recursion desired
         0x00, 0x01, // Questions: 1
         0x00, 0x00, // Answer RRs: 0
         0x00, 0x00, // Authority RRs: 0
-        0x00, 0x00, // Additional RRs: 0
+        arcount[0], arcount[1], // Additional RRs: 0 or 1 (OPT/ECS)
     ];
 
     let clean = domain.trim_end_matches('.');
@@ -220,6 +231,26 @@ pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> {
     query.push(0x00); // End of name
     query.extend_from_slice(&qtype.to_be_bytes()); // Type A (1) or AAAA (28)
     query.extend_from_slice(&[0x00, 0x01]); // Class IN
+
+    if let Some(ip) = client_ip {
+        match ip {
+            IpAddr::V4(v4) => {
+                let oct = v4.octets();
+                query.extend_from_slice(&[
+                    0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0B,
+                    0x00, 0x08, 0x00, 0x07, 0x00, 0x01, 24, 0x00, oct[0], oct[1], oct[2],
+                ]);
+            }
+            IpAddr::V6(v6) => {
+                let oct = v6.octets();
+                query.extend_from_slice(&[
+                    0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F,
+                    0x00, 0x08, 0x00, 0x0B, 0x00, 0x02, 56, 0x00,
+                    oct[0], oct[1], oct[2], oct[3], oct[4], oct[5], oct[6],
+                ]);
+            }
+        }
+    }
 
     query
 }

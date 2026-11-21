@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use crate::app::dns::cache_controller::CacheController;
@@ -12,15 +12,17 @@ use crate::app::dns::config::QueryStrategy;
 use crate::app::dns::fakedns::FakeDnsHolder;
 use crate::app::dns::hosts::StaticHosts;
 use crate::app::dns::nameserver::NameServer;
-use crate::app::dns::nameserver_doh::DohNameServer;
+use crate::app::dns::nameserver_doh::{DohNameServer, DohRoutingCtx};
 use crate::app::dns::nameserver_fakedns::FakeDnsNameServer;
 use crate::app::dns::nameserver_local::LocalNameServer;
 use crate::app::dns::nameserver_tcp::TcpNameServer;
 use crate::app::dns::nameserver_udp::UdpNameServer;
+use crate::app::router::Router;
 use crate::app::router::condition::{DomainMatcher, IpMatcher};
 use crate::common::errors::{Error, Result};
 use crate::features::dns::client::{DnsClient as DnsClientTrait, IPOption};
 use crate::features::feature::{Feature, TYPE_DNS_CLIENT};
+use crate::features::outbound::OutboundHandler;
 
 #[derive(Debug, Clone, Default)]
 pub struct DnsServerConfig {
@@ -30,6 +32,7 @@ pub struct DnsServerConfig {
     pub skip_fallback: bool,
     pub query_strategy: Option<QueryStrategy>,
     pub tag: Option<String>,
+    pub client_ip: Option<IpAddr>,
 }
 
 struct ServerEntry {
@@ -53,6 +56,7 @@ pub struct DnsClient {
     disable_fallback: bool,
     disable_fallback_if_match: bool,
     fakedns_holder: Option<Arc<FakeDnsHolder>>,
+    routing_ctx: Arc<OnceLock<DohRoutingCtx>>,
 }
 
 impl Default for DnsClient {
@@ -79,7 +83,22 @@ impl DnsClient {
             disable_fallback: false,
             disable_fallback_if_match: false,
             fakedns_holder: None,
+            routing_ctx: Arc::new(OnceLock::new()),
         }
+    }
+
+    /// Attach `Router` and `outbounds` so routed DoH (`https://...`) queries follow
+    /// Xray-core routing rules (`inboundTag` -> `direct`/`proxy`) just like `nameserver_doh.go`.
+    pub fn attach_routing(
+        &self,
+        router: Router,
+        outbounds: HashMap<String, Arc<dyn OutboundHandler>>,
+    ) {
+        let _ = self.routing_ctx.set(DohRoutingCtx {
+            router,
+            outbounds,
+            hosts: self.hosts.clone(),
+        });
     }
 
     pub fn with_hosts(hosts_map: HashMap<String, Vec<IpAddr>>) -> Self {
@@ -143,35 +162,92 @@ impl DnsClient {
             });
             Some(Arc::new(FakeDnsNameServer::new(holder.clone())))
         } else if let Some(rest) = addr.strip_prefix("https+local://") {
-            Some(Arc::new(DohNameServer::new(&format!("https://{}", rest))))
+            Some(Arc::new(DohNameServer::new_local_with_ecs(
+                &format!("https://{}", rest),
+                server.client_ip,
+            )))
         } else if addr.starts_with("https://") || addr.starts_with("http://") {
-            Some(Arc::new(DohNameServer::new(addr)))
+            Some(Arc::new(DohNameServer::new_routed(
+                addr,
+                server.tag.clone(),
+                self.routing_ctx.clone(),
+                server.client_ip,
+            )))
         } else if addr.eq_ignore_ascii_case("local") || addr.eq_ignore_ascii_case("localhost") {
             is_local = true;
             Some(Arc::new(LocalNameServer::new()))
-        } else if let Some(stripped) = addr
-            .strip_prefix("tcp+local://")
-            .or_else(|| addr.strip_prefix("tcp://"))
-        {
+        } else if let Some(stripped) = addr.strip_prefix("tcp+local://") {
             if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                Some(Arc::new(TcpNameServer::new(sa)))
+                Some(Arc::new(TcpNameServer::new_local_with_ecs(sa, server.client_ip)))
             } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                Some(Arc::new(TcpNameServer::new(SocketAddr::new(ip, 53))))
+                Some(Arc::new(TcpNameServer::new_local_with_ecs(
+                    SocketAddr::new(ip, 53),
+                    server.client_ip,
+                )))
+            } else {
+                None
+            }
+        } else if let Some(stripped) = addr.strip_prefix("tcp://") {
+            if let Ok(sa) = stripped.parse::<SocketAddr>() {
+                Some(Arc::new(TcpNameServer::new_routed(
+                    sa,
+                    server.tag.clone(),
+                    self.routing_ctx.clone(),
+                    server.client_ip,
+                )))
+            } else if let Ok(ip) = stripped.parse::<IpAddr>() {
+                Some(Arc::new(TcpNameServer::new_routed(
+                    SocketAddr::new(ip, 53),
+                    server.tag.clone(),
+                    self.routing_ctx.clone(),
+                    server.client_ip,
+                )))
+            } else {
+                None
+            }
+        } else if let Some(stripped) = addr.strip_prefix("udp+local://") {
+            if let Ok(sa) = stripped.parse::<SocketAddr>() {
+                Some(Arc::new(UdpNameServer::new_local_with_ecs(sa, server.client_ip)))
+            } else if let Ok(ip) = stripped.parse::<IpAddr>() {
+                Some(Arc::new(UdpNameServer::new_local_with_ecs(
+                    SocketAddr::new(ip, 53),
+                    server.client_ip,
+                )))
             } else {
                 None
             }
         } else if let Some(stripped) = addr.strip_prefix("udp://") {
             if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                Some(Arc::new(UdpNameServer::new(sa)))
+                Some(Arc::new(UdpNameServer::new_routed(
+                    sa,
+                    server.tag.clone(),
+                    self.routing_ctx.clone(),
+                    server.client_ip,
+                )))
             } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                Some(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))))
+                Some(Arc::new(UdpNameServer::new_routed(
+                    SocketAddr::new(ip, 53),
+                    server.tag.clone(),
+                    self.routing_ctx.clone(),
+                    server.client_ip,
+                )))
             } else {
                 None
             }
         } else if let Ok(sa) = addr.parse::<SocketAddr>() {
-            Some(Arc::new(UdpNameServer::new(sa)))
+            Some(Arc::new(UdpNameServer::new_routed(
+                sa,
+                server.tag.clone(),
+                self.routing_ctx.clone(),
+                server.client_ip,
+            )))
         } else if let Ok(ip) = addr.parse::<IpAddr>() {
-            Some(Arc::new(UdpNameServer::new(SocketAddr::new(ip, 53))))
+            Some(Arc::new(UdpNameServer::new_routed(
+                SocketAddr::new(ip, 53),
+                server.tag.clone(),
+                self.routing_ctx.clone(),
+                server.client_ip,
+            )))
         } else {
             None
         };

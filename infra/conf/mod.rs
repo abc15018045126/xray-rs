@@ -1023,6 +1023,7 @@ impl Config {
         }
 
         let router = Router::new(rules, default_outbound_tag.clone());
+        dns_client.attach_routing(router.clone(), outbounds.clone());
 
         Ok(BuiltConfig {
             inbounds,
@@ -1072,6 +1073,15 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
             }
         }
 
+        let default_dns_tag = val
+            .get("tag")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let default_client_ip = val
+            .get("clientIp")
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<std::net::IpAddr>().ok());
+
         if let Some(servers_arr) = val.get("servers").and_then(|s| s.as_array()) {
             let parse_str_list = |obj: &serde_json::Map<String, serde_json::Value>, key: &str| {
                 obj.get(key)
@@ -1088,6 +1098,8 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
                 if let Some(addr) = s.as_str() {
                     client.add_server(crate::app::dns::DnsServerConfig {
                         address: addr.to_string(),
+                        tag: default_dns_tag.clone(),
+                        client_ip: default_client_ip,
                         ..Default::default()
                     });
                 } else if let Some(obj) = s.as_object()
@@ -1113,7 +1125,13 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
                     let tag = obj
                         .get("tag")
                         .and_then(|v| v.as_str())
-                        .map(|v| v.to_string());
+                        .map(|v| v.to_string())
+                        .or_else(|| default_dns_tag.clone());
+                    let client_ip = obj
+                        .get("clientIp")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| s.parse::<std::net::IpAddr>().ok())
+                        .or(default_client_ip);
 
                     client.add_server(crate::app::dns::DnsServerConfig {
                         address: addr,
@@ -1122,6 +1140,7 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
                         skip_fallback,
                         query_strategy,
                         tag,
+                        client_ip,
                     });
                 }
             }

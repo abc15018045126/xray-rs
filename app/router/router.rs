@@ -17,6 +17,7 @@ pub enum DomainStrategy {
     IpOnDemand,
 }
 
+#[derive(Clone)]
 pub struct Router {
     pub domain_strategy: DomainStrategy,
     pub rules: Vec<Rule>,
