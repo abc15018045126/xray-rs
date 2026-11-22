@@ -658,23 +658,18 @@ fn parse_geosite_entry_if_match(
     while !r.is_eof() {
         let (field, wt) = r.read_tag()?;
         if field == 1 && wt == 2 {
-            let code_bytes = r.read_bytes()?;
-            if let Ok(code) = std::str::from_utf8(code_bytes)
-                && code.eq_ignore_ascii_case(target_code)
-            {
-                matched = true;
-            }
+            matched = std::str::from_utf8(r.read_bytes()?)
+                .is_ok_and(|code| code.eq_ignore_ascii_case(target_code));
             break;
-        } else {
-            r.skip_field(wt)?;
         }
+        r.skip_field(wt)?;
     }
     if !matched {
         return None;
     }
 
     let (negate_attr, want_attr) = match attr_filter {
-        Some(a) if let Some(stripped) = a.strip_prefix('!') => (true, Some(stripped)),
+        Some(a) if let Some(s) = a.strip_prefix('!') => (true, Some(s)),
         Some(a) => (false, Some(a)),
         None => (false, None),
     };
@@ -683,82 +678,57 @@ fn parse_geosite_entry_if_match(
     let mut r2 = ProtoReader::new(entry);
     while !r2.is_eof() {
         let (field, wt) = r2.read_tag()?;
-        if field == 2 && wt == 2 {
-            let dom_bytes = r2.read_bytes()?;
-            let mut dr = ProtoReader::new(dom_bytes);
-            let mut dtype: u64 = 0;
-            let mut val: Option<&str> = None;
-            let mut has_attr = false;
-            while !dr.is_eof() {
-                let Some((df, dwt)) = dr.read_tag() else {
-                    break;
-                };
-                match (df, dwt) {
-                    (1, 0) => dtype = dr.read_varint().unwrap_or(0),
-                    (2, 2) => {
-                        if let Some(b) = dr.read_bytes() {
-                            val = std::str::from_utf8(b).ok();
-                        }
-                    }
-                    (3, 2) => {
-                        if let Some(ab) = dr.read_bytes()
-                            && let Some(target_attr) = want_attr
-                        {
-                            let mut ar = ProtoReader::new(ab);
-                            while !ar.is_eof() {
-                                let Some((af, awt)) = ar.read_tag() else {
-                                    break;
-                                };
-                                if af == 1 && awt == 2 {
-                                    if let Some(kb) = ar.read_bytes()
-                                        && let Ok(k) = std::str::from_utf8(kb)
-                                        && k.eq_ignore_ascii_case(target_attr)
-                                    {
-                                        has_attr = true;
-                                    }
-                                } else if ar.skip_field(awt).is_none() {
-                                    break;
+        if field != 2 || wt != 2 {
+            r2.skip_field(wt)?;
+            continue;
+        }
+        let mut dr = ProtoReader::new(r2.read_bytes()?);
+        let (mut dtype, mut val, mut has_attr) = (0u64, None, false);
+        while !dr.is_eof() {
+            let Some((df, dwt)) = dr.read_tag() else { break };
+            match (df, dwt) {
+                (1, 0) => dtype = dr.read_varint().unwrap_or(0),
+                (2, 2) => val = dr.read_bytes().and_then(|b| std::str::from_utf8(b).ok()),
+                (3, 2) => {
+                    if let (Some(ab), Some(target_attr)) = (dr.read_bytes(), want_attr) {
+                        let mut ar = ProtoReader::new(ab);
+                        while !ar.is_eof() {
+                            let Some((af, awt)) = ar.read_tag() else { break };
+                            if af == 1 && awt == 2 {
+                                if ar.read_bytes().and_then(|b| std::str::from_utf8(b).ok()).is_some_and(|k| k.eq_ignore_ascii_case(target_attr)) {
+                                    has_attr = true;
                                 }
+                            } else if ar.skip_field(awt).is_none() {
+                                break;
                             }
                         }
                     }
-                    _ => {
-                        if dr.skip_field(dwt).is_none() {
-                            break;
-                        }
-                    }
                 }
+                _ if dr.skip_field(dwt).is_none() => break,
+                _ => {}
             }
+        }
 
-            if want_attr.is_some() {
-                let keep = if negate_attr { !has_attr } else { has_attr };
-                if !keep {
-                    continue;
+        if want_attr.is_some() && has_attr == negate_attr {
+            continue;
+        }
+        if let Some(v) = val.filter(|s| !s.is_empty()) {
+            let v_lower = v.to_lowercase();
+            match dtype {
+                0 => idx.substr.push(v_lower),
+                1 => {
+                    if let Ok(re) = Regex::new(v) {
+                        idx.regex.push(re);
+                    }
                 }
-            }
-
-            if let Some(v) = val
-                && !v.is_empty()
-            {
-                let v_lower = v.to_lowercase();
-                match dtype {
-                    0 => idx.substr.push(v_lower),
-                    1 => {
-                        if let Ok(re) = Regex::new(v) {
-                            idx.regex.push(re);
-                        }
-                    }
-                    2 => {
-                        idx.domain.insert(v_lower.trim_end_matches('.').to_string());
-                    }
-                    3 => {
-                        idx.full.insert(v_lower.trim_end_matches('.').to_string());
-                    }
-                    _ => {}
+                2 => {
+                    idx.domain.insert(v_lower.trim_end_matches('.').to_string());
                 }
+                3 => {
+                    idx.full.insert(v_lower.trim_end_matches('.').to_string());
+                }
+                _ => {}
             }
-        } else {
-            r2.skip_field(wt)?;
         }
     }
     Some(idx)

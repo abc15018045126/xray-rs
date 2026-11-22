@@ -122,27 +122,31 @@ pub fn apply_masqueraded_headers(
     browser: &str,
     variant: &str,
 ) {
+    let set = |h: &mut HashMap<String, String>, k: &str, v: &str| {
+        h.insert(k.into(), v.into());
+    };
+    let set_def = |h: &mut HashMap<String, String>, k: &str, v: &str| {
+        h.entry(k.into()).or_insert_with(|| v.into());
+    };
+
     match browser {
-        "chrome" => {
-            headers.insert("Sec-CH-UA".into(), chrome_uach());
-            headers.insert("Sec-CH-UA-Mobile".into(), "?0".into());
-            headers.insert("Sec-CH-UA-Platform".into(), "\"Windows\"".into());
-            headers.insert("DNT".into(), "1".into());
-            headers.insert("User-Agent".into(), chrome_ua());
-            headers.insert("Accept-Language".into(), "en-US,en;q=0.9".into());
-        }
-        "edge" => {
-            headers.insert("Sec-CH-UA".into(), msedge_uach());
-            headers.insert("Sec-CH-UA-Mobile".into(), "?0".into());
-            headers.insert("Sec-CH-UA-Platform".into(), "\"Windows\"".into());
-            headers.insert("DNT".into(), "1".into());
-            headers.insert("User-Agent".into(), msedge_ua());
-            headers.insert("Accept-Language".into(), "en-US,en;q=0.9".into());
+        "chrome" | "edge" => {
+            let (uach, ua) = if browser == "chrome" {
+                (chrome_uach(), chrome_ua())
+            } else {
+                (msedge_uach(), msedge_ua())
+            };
+            headers.insert("Sec-CH-UA".into(), uach);
+            set(headers, "Sec-CH-UA-Mobile", "?0");
+            set(headers, "Sec-CH-UA-Platform", "\"Windows\"");
+            set(headers, "DNT", "1");
+            headers.insert("User-Agent".into(), ua);
+            set(headers, "Accept-Language", "en-US,en;q=0.9");
         }
         "firefox" => {
-            headers.insert("User-Agent".into(), FIREFOX_UA.into());
-            headers.insert("DNT".into(), "1".into());
-            headers.insert("Accept-Language".into(), "en-US,en;q=0.5".into());
+            set(headers, "User-Agent", FIREFOX_UA);
+            set(headers, "DNT", "1");
+            set(headers, "Accept-Language", "en-US,en;q=0.5");
         }
         "golang" => {
             headers.remove("User-Agent");
@@ -153,73 +157,33 @@ pub fn apply_masqueraded_headers(
 
     match variant {
         "nav" => {
-            if !headers.contains_key("Cache-Control") && (browser == "chrome" || browser == "edge")
-            {
-                headers.insert("Cache-Control".into(), "max-age=0".into());
+            if matches!(browser, "chrome" | "edge") {
+                set_def(headers, "Cache-Control", "max-age=0");
             }
-            headers.insert("Upgrade-Insecure-Requests".into(), "1".into());
-            if !headers.contains_key("Accept") {
+            set(headers, "Upgrade-Insecure-Requests", "1");
+            match browser {
+                "chrome" | "edge" => set_def(headers, "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/jxl,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"),
+                "firefox" => set_def(headers, "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+                _ => {}
+            }
+            for (k, v) in [("Sec-Fetch-Site", "none"), ("Sec-Fetch-Mode", "navigate"), ("Sec-Fetch-User", "?1"), ("Sec-Fetch-Dest", "document"), ("Priority", "u=0, i")] {
+                set(headers, k, v);
+            }
+        }
+        "ws" | "fetch" => {
+            set(headers, "Sec-Fetch-Mode", if variant == "ws" { "websocket" } else { "cors" });
+            set(headers, "Sec-Fetch-Dest", "empty");
+            set(headers, "Sec-Fetch-Site", "same-origin");
+            if variant == "fetch" {
                 match browser {
-                    "chrome" | "edge" => {
-                        headers.insert(
-                            "Accept".into(),
-                            "text/html,application/xhtml+xml,application/xml;q=0.9,image/jxl,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7".into(),
-                        );
-                    }
-                    "firefox" => {
-                        headers.insert(
-                            "Accept".into(),
-                            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-                                .into(),
-                        );
-                    }
+                    "chrome" | "edge" => set_def(headers, "Priority", "u=1, i"),
+                    "firefox" => set_def(headers, "Priority", "u=4"),
                     _ => {}
                 }
             }
-            headers.insert("Sec-Fetch-Site".into(), "none".into());
-            headers.insert("Sec-Fetch-Mode".into(), "navigate".into());
-            headers.insert("Sec-Fetch-User".into(), "?1".into());
-            headers.insert("Sec-Fetch-Dest".into(), "document".into());
-            headers.insert("Priority".into(), "u=0, i".into());
-        }
-        "ws" => {
-            headers.insert("Sec-Fetch-Mode".into(), "websocket".into());
-            headers.insert("Sec-Fetch-Dest".into(), "empty".into());
-            headers.insert("Sec-Fetch-Site".into(), "same-origin".into());
-            headers
-                .entry("Cache-Control".into())
-                .or_insert_with(|| "no-cache".into());
-            headers
-                .entry("Pragma".into())
-                .or_insert_with(|| "no-cache".into());
-            headers
-                .entry("Accept".into())
-                .or_insert_with(|| "*/*".into());
-        }
-        "fetch" => {
-            headers.insert("Sec-Fetch-Mode".into(), "cors".into());
-            headers.insert("Sec-Fetch-Dest".into(), "empty".into());
-            headers.insert("Sec-Fetch-Site".into(), "same-origin".into());
-            if !headers.contains_key("Priority") {
-                match browser {
-                    "chrome" | "edge" => {
-                        headers.insert("Priority".into(), "u=1, i".into());
-                    }
-                    "firefox" => {
-                        headers.insert("Priority".into(), "u=4".into());
-                    }
-                    _ => {}
-                }
+            for (k, v) in [("Cache-Control", "no-cache"), ("Pragma", "no-cache"), ("Accept", "*/*")] {
+                set_def(headers, k, v);
             }
-            headers
-                .entry("Cache-Control".into())
-                .or_insert_with(|| "no-cache".into());
-            headers
-                .entry("Pragma".into())
-                .or_insert_with(|| "no-cache".into());
-            headers
-                .entry("Accept".into())
-                .or_insert_with(|| "*/*".into());
         }
         _ => {}
     }

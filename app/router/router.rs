@@ -136,108 +136,59 @@ impl CoreRouterTrait for Router {
         let user = ctx.get_user();
         let src_ips = ctx.get_source_ips();
         let src_port = ctx.get_source_port();
-        let src_addr = if !src_ips.is_empty() && src_port > 0 {
-            Some(std::net::SocketAddr::new(src_ips[0], src_port))
-        } else {
-            None
-        };
+        let src_addr = (!src_ips.is_empty() && src_port > 0)
+            .then(|| std::net::SocketAddr::new(src_ips[0], src_port));
         let is_tcp = net == crate::common::net::Network::Tcp;
 
         for rule in &self.rules {
             if !rule.process.is_empty() && !rule.matches_process(src_addr, is_tcp) {
                 continue;
             }
-
             if !rule.inbound_tags.is_empty() && !rule.inbound_tags.iter().any(|t| t == in_tag) {
                 continue;
             }
-
-            if let Some(r_net) = rule.network
-                && r_net != net
+            if rule.network.is_some_and(|r_net| r_net != net) {
+                continue;
+            }
+            if (!rule.ports.is_empty() || !rule.port_ranges.is_empty())
+                && !rule.ports.contains(&target_port)
+                && !rule.port_ranges.iter().any(|&(s, e)| (s..=e).contains(&target_port))
+            {
+                continue;
+            }
+            if !rule.source_ports.is_empty() && !rule.source_ports.contains(&src_port) {
+                continue;
+            }
+            if !rule.source_ip_matchers.is_empty()
+                && !src_ips.iter().any(|ip| rule.source_ip_matchers.iter().any(|m| m.matches(ip)))
+            {
+                continue;
+            }
+            if !rule.protocols.is_empty()
+                && !proto.is_some_and(|p| rule.protocols.iter().any(|rp| rp.eq_ignore_ascii_case(p)))
+            {
+                continue;
+            }
+            if !rule.user_emails.is_empty()
+                && !user.is_some_and(|u| rule.user_emails.iter().any(|ru| ru == u))
             {
                 continue;
             }
 
-            if !rule.ports.is_empty() || !rule.port_ranges.is_empty() {
-                let port_match = rule.ports.contains(&target_port)
-                    || rule
-                        .port_ranges
-                        .iter()
-                        .any(|&(s, e)| target_port >= s && target_port <= e);
-                if !port_match {
-                    continue;
-                }
-            }
-
-            if !rule.source_ports.is_empty() && !rule.source_ports.contains(&src_port) {
-                continue;
-            }
-
-            if !rule.source_ip_matchers.is_empty() {
-                let matched = src_ips
-                    .iter()
-                    .any(|ip| rule.source_ip_matchers.iter().any(|m| m.matches(ip)));
-                if !matched {
-                    continue;
-                }
-            }
-
-            if !rule.protocols.is_empty() {
-                let matched = match proto {
-                    Some(p) => rule.protocols.iter().any(|rp| rp.eq_ignore_ascii_case(p)),
-                    None => false,
-                };
-                if !matched {
-                    continue;
-                }
-            }
-
-            if !rule.user_emails.is_empty() {
-                let matched = match user {
-                    Some(u) => rule.user_emails.iter().any(|ru| ru == u),
-                    None => false,
-                };
-                if !matched {
-                    continue;
-                }
-            }
-
-            let has_domain_rules = !rule.domain_matchers.is_empty();
-            let has_ip_rules = !rule.ip_matchers.is_empty();
-
-            if has_domain_rules || has_ip_rules {
-                let mut matched = false;
-
-                if has_domain_rules && let Some(domain) = target_domain {
-                    for matcher in &rule.domain_matchers {
-                        if matcher.matches(domain) {
-                            matched = true;
-                            break;
-                        }
-                    }
-                }
-
-                if !matched && has_ip_rules {
-                    for ip in &target_ips {
-                        if rule.matches_destination_ip(ip) {
-                            matched = true;
-                            break;
-                        }
-                    }
-                }
-
-                if !matched {
+            let (has_dom, has_ip) = (!rule.domain_matchers.is_empty(), !rule.ip_matchers.is_empty());
+            if has_dom || has_ip {
+                let dom_ok = has_dom && target_domain.is_some_and(|d| rule.domain_matchers.iter().any(|m| m.matches(d)));
+                let ip_ok = !dom_ok && has_ip && target_ips.iter().any(|ip| rule.matches_destination_ip(ip));
+                if !dom_ok && !ip_ok {
                     continue;
                 }
             }
 
             if let Some(btag) = &rule.balancer_tag
-                && let Some(balancer) = self.balancers.get(btag)
-                && let Some(picked) = balancer.pick()
+                && let Some(picked) = self.balancers.get(btag).and_then(|b| b.pick())
             {
                 return Ok(picked);
             }
-
             if !rule.tag.is_empty() {
                 return Ok(rule.tag.clone());
             }

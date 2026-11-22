@@ -337,16 +337,8 @@ impl Client {
     fn init_pre_conns(&self) -> &PingoraPrePool {
         self.pre_conns.get_or_init(|| {
             let cap = (self.testpre as usize).max(1);
-            let ttl_secs = if self.testpre_idle_secs == 0 {
-                120u64
-            } else {
-                self.testpre_idle_secs as u64
-            };
-            let idle_sleep_ms = if self.testpre_idle_secs == 0 {
-                0u64
-            } else {
-                (self.testpre_idle_secs as u64) * 1000
-            };
+            let ttl_secs = if self.testpre_idle_secs == 0 { 120u64 } else { self.testpre_idle_secs as u64 };
+            let idle_sleep_ms = (self.testpre_idle_secs as u64) * 1000;
             let pool = Arc::new(PingoraStreamPool::new(cap, Duration::from_secs(ttl_secs)));
             let key = pool_key(&format!("{}:{}", self.tag, self.dial_params.server_addr));
             let wake_refill = Arc::new(Notify::new());
@@ -355,75 +347,53 @@ impl Client {
             let epoch = Instant::now();
             let last_activity_ms = Arc::new(AtomicU64::new(0));
 
-            if idle_sleep_ms == 0 {
-                tracing::info!(
-                    "VLESS outbound '{}': starting Pingora testpre pool ({} workers, {}s TTL, continuous mode)",
-                    self.tag,
-                    self.testpre,
-                    ttl_secs
-                );
-            } else {
-                tracing::info!(
-                    "VLESS outbound '{}': starting Pingora testpre pool ({} workers, {}s TTL & auto-sleep)",
-                    self.tag,
-                    self.testpre,
-                    ttl_secs
-                );
-            }
+            let mode = if idle_sleep_ms == 0 { "continuous mode" } else { "auto-sleep" };
+            tracing::info!(
+                "VLESS outbound '{}': starting Pingora testpre pool ({} workers, {}s TTL, {})",
+                self.tag, self.testpre, ttl_secs, mode
+            );
 
             for _ in 0..self.testpre {
-                let pool_clone = pool.clone();
-                let wake_clone = wake_refill.clone();
-                let slots_clone = refill_slots.clone();
-                let closed_clone = closed.clone();
-                let last_act_clone = last_activity_ms.clone();
-                let params = self.dial_params.clone();
-                let tag = self.tag.clone();
+                let (pool, wake, slots, closed, last_act, params, tag) = (
+                    pool.clone(),
+                    wake_refill.clone(),
+                    refill_slots.clone(),
+                    closed.clone(),
+                    last_activity_ms.clone(),
+                    self.dial_params.clone(),
+                    self.tag.clone(),
+                );
+                let is_idle = move || {
+                    idle_sleep_ms > 0
+                        && (epoch.elapsed().as_millis() as u64)
+                            .saturating_sub(last_act.load(Ordering::Relaxed))
+                            >= idle_sleep_ms
+                };
 
                 tokio::spawn(async move {
-                    loop {
-                        if closed_clone.load(Ordering::Relaxed) {
+                    while !closed.load(Ordering::Relaxed) {
+                        if is_idle() {
+                            wake.notified().await;
+                            continue;
+                        }
+                        let Ok(permit) = slots.clone().acquire_owned().await else { break };
+                        if closed.load(Ordering::Relaxed) {
                             break;
                         }
-                        if idle_sleep_ms > 0 {
-                            let now_ms = epoch.elapsed().as_millis() as u64;
-                            let last_ms = last_act_clone.load(Ordering::Relaxed);
-                            if now_ms.saturating_sub(last_ms) >= idle_sleep_ms {
-                                wake_clone.notified().await;
-                                continue;
-                            }
-                        }
-                        let Ok(permit) = slots_clone.clone().acquire_owned().await else {
-                            break;
-                        };
-                        if closed_clone.load(Ordering::Relaxed) {
+                        if is_idle() {
                             drop(permit);
-                            break;
-                        }
-                        if idle_sleep_ms > 0 {
-                            let now_ms = epoch.elapsed().as_millis() as u64;
-                            let last_ms = last_act_clone.load(Ordering::Relaxed);
-                            if now_ms.saturating_sub(last_ms) >= idle_sleep_ms {
-                                drop(permit);
-                                wake_clone.notified().await;
-                                continue;
-                            }
+                            wake.notified().await;
+                            continue;
                         }
                         match params.dial_and_handshake().await {
-                            Ok(conn) => {
-                                if closed_clone.load(Ordering::Relaxed) {
-                                    break;
-                                }
-                                pool_clone.put_with_permit(key, conn, permit);
+                            Ok(conn) if !closed.load(Ordering::Relaxed) => {
+                                pool.put_with_permit(key, conn, permit);
                                 pingora_timeout::sleep(Duration::from_millis(200)).await;
                             }
+                            Ok(_) => break,
                             Err(e) => {
                                 drop(permit);
-                                tracing::warn!(
-                                    "VLESS '{}' testpre pre-connect failed: {}",
-                                    tag,
-                                    e
-                                );
+                                tracing::warn!("VLESS '{}' testpre pre-connect failed: {}", tag, e);
                                 pingora_timeout::sleep(Duration::from_millis(500)).await;
                             }
                         }
@@ -431,15 +401,7 @@ impl Client {
                 });
             }
 
-            PingoraPrePool {
-                pool,
-                key,
-                wake_refill,
-                refill_slots,
-                closed,
-                epoch,
-                last_activity_ms,
-            }
+            PingoraPrePool { pool, key, wake_refill, refill_slots, closed, epoch, last_activity_ms }
         })
     }
 
@@ -631,13 +593,15 @@ impl AsyncRead for VlessStream {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        if self.pending_header.is_some() {
-            let timer = self
+        if self.pending_header.is_some()
+            && self
                 .header_flush_timer
-                .get_or_insert_with(|| Box::pin(tokio::time::sleep(Duration::from_millis(500))));
-            if timer.as_mut().poll(cx).is_ready() {
-                self.promote_pending_header();
-            }
+                .get_or_insert_with(|| Box::pin(tokio::time::sleep(Duration::from_millis(500))))
+                .as_mut()
+                .poll(cx)
+                .is_ready()
+        {
+            self.promote_pending_header();
         }
         if !self.pending_write.is_empty() {
             let _ = self.flush_pending_write(cx);
@@ -648,39 +612,30 @@ impl AsyncRead for VlessStream {
                 if self.is_udp {
                     if self.udp_pkt_remaining > 0 {
                         if !self.pending_buf.is_empty() {
-                            let to_write = std::cmp::min(
-                                buf.remaining(),
-                                std::cmp::min(self.udp_pkt_remaining, self.pending_buf.len()),
-                            );
-                            buf.put_slice(&self.pending_buf[..to_write]);
-                            self.pending_buf.drain(..to_write);
-                            self.udp_pkt_remaining -= to_write;
+                            let n = buf.remaining().min(self.udp_pkt_remaining).min(self.pending_buf.len());
+                            buf.put_slice(&self.pending_buf[..n]);
+                            self.pending_buf.drain(..n);
+                            self.udp_pkt_remaining -= n;
                             return Poll::Ready(Ok(()));
                         }
                     } else if self.pending_buf.len() >= 2 {
-                        let pkt_len =
-                            u16::from_be_bytes([self.pending_buf[0], self.pending_buf[1]]) as usize;
+                        let pkt_len = u16::from_be_bytes([self.pending_buf[0], self.pending_buf[1]]) as usize;
                         self.pending_buf.drain(..2);
-                        if pkt_len == 0 {
-                            continue;
-                        }
                         self.udp_pkt_remaining = pkt_len;
                         continue;
                     }
+                } else if !self.pending_buf.is_empty() {
+                    let n = buf.remaining().min(self.pending_buf.len());
+                    buf.put_slice(&self.pending_buf[..n]);
+                    self.pending_buf.drain(..n);
+                    return Poll::Ready(Ok(()));
                 } else {
-                    if !self.pending_buf.is_empty() {
-                        let to_write = std::cmp::min(buf.remaining(), self.pending_buf.len());
-                        buf.put_slice(&self.pending_buf[..to_write]);
-                        self.pending_buf.drain(..to_write);
-                        return Poll::Ready(Ok(()));
-                    }
                     return Pin::new(&mut self.inner).poll_read(cx, buf);
                 }
             }
 
             let mut temp_buf = [0u8; 2048];
             let mut temp_read_buf = ReadBuf::new(&mut temp_buf);
-
             match Pin::new(&mut self.inner).poll_read(cx, &mut temp_read_buf) {
                 Poll::Ready(Ok(())) => {
                     let filled = temp_read_buf.filled();
@@ -688,28 +643,15 @@ impl AsyncRead for VlessStream {
                         return Poll::Ready(Ok(()));
                     }
                     self.pending_buf.extend_from_slice(filled);
-
                     if !self.header_parsed && self.pending_buf.len() >= 2 {
-                        let addons_len = self.pending_buf[1] as usize;
-                        let header_len = 2 + addons_len;
-
+                        let header_len = 2 + self.pending_buf[1] as usize;
                         if self.pending_buf.len() >= header_len {
                             self.header_parsed = true;
                             self.pending_buf.drain(..header_len);
-
-                            if !self.is_udp && !self.pending_buf.is_empty() {
-                                let to_write =
-                                    std::cmp::min(buf.remaining(), self.pending_buf.len());
-                                buf.put_slice(&self.pending_buf[..to_write]);
-                                self.pending_buf.drain(..to_write);
-                                return Poll::Ready(Ok(()));
-                            }
-                            continue;
                         }
                     }
                 }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => return Poll::Pending,
+                other => return other,
             }
         }
     }

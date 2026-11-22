@@ -458,247 +458,7 @@ impl Config {
                         .unwrap_or(p::blackhole::ResponseType::None);
                     Arc::new(p::blackhole::Handler::with_response(&tag, resp_type))
                 }
-                "vless" => {
-                    let mut settings: MultiServerSettings =
-                        serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
-                            |e| Error::Config(format!("Invalid VLESS outbound settings: {}", e)),
-                        )?;
-                    settings.normalize_flat_outbound();
-                    if settings.vnext.is_empty() {
-                        return Err(Error::Config("VLESS vnext is empty".into()));
-                    }
-
-                    let stream_settings = out_cfg.stream_settings;
-                    let mut vless_handlers: Vec<Arc<dyn OutboundHandler>> =
-                        Vec::with_capacity(settings.vnext.len());
-                    let mut lb_labels: Vec<String> = Vec::with_capacity(settings.vnext.len());
-
-                    for (v_idx, server) in settings.vnext.iter().enumerate() {
-                        let user = server
-                            .users
-                            .first()
-                            .ok_or_else(|| Error::Config("VLESS users is empty".into()))?;
-                        let user_uuid = Uuid::from_str(&user.id)
-                            .map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
-
-                        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
-                        let port_val = server.port.unwrap_or(443);
-                        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
-                        let sub_tag = if settings.vnext.len() == 1 {
-                            tag.clone()
-                        } else {
-                            format!("{}#{}", tag, v_idx)
-                        };
-                        lb_labels.push(format!("{}:{}", addr_str, port_val));
-
-                        let mut tls_client = None;
-                        let mut tls_sni = None;
-                        let mut reality_client = None;
-                        let mut ws_path = None;
-                        let mut ws_host = None;
-                        let mut ws_headers = HashMap::new();
-                        let mut ws_heartbeat = 0u32;
-                        let mut xhttp_cfg: Option<crate::transport::internet::SplitHttpConfig> =
-                            None;
-                        let mut httpupgrade_cfg: Option<(
-                            String,
-                            Option<String>,
-                            HashMap<String, String>,
-                        )> = None;
-                        let mut fragment_cfg = None;
-
-                        if let Some(ref stream_settings) = stream_settings {
-                            if let Some(ref fm) = stream_settings.finalmask {
-                                fragment_cfg = parse_fragment_config(fm);
-                            }
-
-                            let net_lower = stream_settings
-                                .network
-                                .as_deref()
-                                .unwrap_or("tcp")
-                                .to_ascii_lowercase();
-                            let is_xhttp = net_lower == "xhttp"
-                                || net_lower == "splithttp"
-                                || stream_settings.xhttp_settings.is_some();
-                            if is_xhttp {
-                                xhttp_cfg = Some(
-                                    stream_settings
-                                        .xhttp_settings
-                                        .clone()
-                                        .unwrap_or_default(),
-                                );
-                            }
-
-                            let is_httpupgrade = !is_xhttp
-                                && (net_lower == "httpupgrade"
-                                    || stream_settings.httpupgrade_settings.is_some());
-                            if is_httpupgrade {
-                                let hu = stream_settings.httpupgrade_settings.as_ref();
-                                let path = hu
-                                    .and_then(|h| h.path.as_deref())
-                                    .map(|p| p.trim())
-                                    .filter(|p| !p.is_empty())
-                                    .unwrap_or("/")
-                                    .to_string();
-                                let host = hu
-                                    .and_then(|h| h.host.clone())
-                                    .filter(|h| !h.trim().is_empty());
-                                let headers = hu
-                                    .and_then(|h| h.headers.clone())
-                                    .unwrap_or_default();
-                                httpupgrade_cfg = Some((path, host, headers));
-                            }
-
-                            let is_ws = !is_xhttp
-                                && !is_httpupgrade
-                                && (net_lower == "ws"
-                                    || net_lower == "websocket"
-                                    || stream_settings.ws_settings.is_some());
-                            if is_ws {
-                                let ws_cfg = stream_settings.ws_settings.as_ref();
-                                ws_heartbeat = ws_cfg.and_then(|w| w.heartbeat_period).unwrap_or(0);
-                                let raw_path =
-                                    ws_cfg.and_then(|w| w.path.as_deref()).unwrap_or("/");
-                                let clean_path = if raw_path.trim().is_empty() {
-                                    "/"
-                                } else {
-                                    raw_path.trim()
-                                };
-                                ws_path = Some(clean_path.to_string());
-
-                                if let Some(w) = ws_cfg {
-                                    if let Some(h) = &w.host
-                                        && !h.trim().is_empty()
-                                    {
-                                        ws_host = Some(h.trim().to_string());
-                                    }
-                                    if let Some(headers) = &w.headers {
-                                        ws_headers = headers.clone();
-                                        if ws_host.is_none() {
-                                            for (k, v) in headers {
-                                                if k.eq_ignore_ascii_case("host")
-                                                    && !v.trim().is_empty()
-                                                {
-                                                    ws_host = Some(v.trim().to_string());
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if stream_settings.security.as_deref() == Some("tls") {
-                                let tls_cfg =
-                                    stream_settings.tls_settings.clone().unwrap_or_default();
-                                let clean_server_name =
-                                    tls_cfg.server_name.filter(|s| !s.trim().is_empty());
-                                let clean_ws_host =
-                                    ws_host.clone().filter(|s| !s.trim().is_empty());
-                                let sni = clean_server_name
-                                    .or(clean_ws_host)
-                                    .unwrap_or_else(|| addr_str.to_string());
-                                let allow_insecure = tls_cfg.allow_insecure.unwrap_or(false);
-                                let alpn = tls_cfg
-                                    .alpn
-                                    .unwrap_or_default()
-                                    .into_iter()
-                                    .map(|s| s.into_bytes())
-                                    .collect();
-                                let fp = tls_cfg.fingerprint.as_deref().unwrap_or("");
-                                tls_client = Some(TlsClient::new_with_fingerprint(
-                                    &sni,
-                                    allow_insecure,
-                                    alpn,
-                                    fp,
-                                )?);
-                                tls_sni = Some(sni.clone());
-
-                                if ws_host.is_none() {
-                                    ws_host = Some(sni);
-                                }
-                            } else if stream_settings.security.as_deref() == Some("reality")
-                                && let Some(rc) = stream_settings.reality_settings.as_ref()
-                            {
-                                let sni = rc
-                                    .server_name
-                                    .as_deref()
-                                    .filter(|s| !s.trim().is_empty())
-                                    .or_else(|| rc.server_names.first().map(|s| s.as_str()))
-                                    .unwrap_or(addr_str);
-                                let pub_key = rc.public_key.as_deref().ok_or_else(|| {
-                                    Error::Config(format!(
-                                        "Outbound '{}' has security='reality' but missing publicKey/password",
-                                        tag
-                                    ))
-                                })?;
-                                let short_id = rc
-                                    .short_id
-                                    .as_deref()
-                                    .or_else(|| rc.short_ids.first().map(|s| s.as_str()))
-                                    .unwrap_or("");
-                                let fp = rc.fingerprint.as_deref().unwrap_or("");
-                                tls_client = Some(TlsClient::new_with_fingerprint(
-                                    sni,
-                                    true,
-                                    vec![],
-                                    fp,
-                                )?);
-                                tls_sni = Some(sni.to_string());
-                                reality_client = Some(
-                                    crate::transport::internet::reality::RealityClient::new(
-                                        sni, pub_key, short_id,
-                                    )?,
-                                );
-                            }
-
-                            if is_ws && ws_host.is_none() {
-                                ws_host = tls_sni.clone().or_else(|| Some(addr_str.to_string()));
-                            }
-                        }
-
-                        let is_ws_tls = ws_path.is_some() && tls_client.is_some();
-                        let mut client = p::vless::OutboundClient::new(
-                            &sub_tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host,
-                        )
-                        .with_ws_headers(ws_headers)
-                        .with_ws_heartbeat(ws_heartbeat);
-                        if let Some(ref flow) = user.flow
-                            && !flow.is_empty()
-                        {
-                            client = client.with_flow(flow.clone());
-                        }
-                        let effective_testpre = match user.testpre {
-                            Some(n) => n,
-                            None => {
-                                if is_ws_tls && !client.has_ws_early_data() {
-                                    3
-                                } else {
-                                    0
-                                }
-                            }
-                        };
-                        if effective_testpre > 0 {
-                            let idle_secs = user.testpre_idle.unwrap_or(45);
-                            client = client.with_testpre_idle(effective_testpre, idle_secs);
-                        }
-                        if let Some(rc) = reality_client {
-                            client = client.with_reality(rc);
-                        }
-                        if let Some(f_cfg) = fragment_cfg {
-                            client = client.with_fragment(f_cfg);
-                        }
-                        if let Some(x_cfg) = xhttp_cfg {
-                            client = client.with_splithttp(x_cfg);
-                        }
-                        if let Some((hu_path, hu_host, hu_headers)) = httpupgrade_cfg {
-                            client = client.with_httpupgrade(hu_path, hu_host, hu_headers);
-                        }
-                        vless_handlers.push(Arc::new(client));
-                    }
-
-                    wrap_pingora_multi_outbound(&tag, vless_handlers, lb_labels)?
-                }
+                "vless" => build_vless_outbound(&tag, out_cfg.settings, out_cfg.stream_settings)?,
                 "trojan" => {
                     let s = parse_multi_settings(out_cfg.settings, "Trojan")?;
                     if s.servers.is_empty() {
@@ -1090,79 +850,7 @@ impl Config {
             inbounds.push((bind_addr, handler));
         }
 
-        let mut rules = Vec::new();
-        if let Some(routing) = self.routing
-            && let Some(rule_configs) = routing.rules
-        {
-            for r_cfg in rule_configs {
-                let mut rule = Rule::new(&r_cfg.outbound_tag);
-                if let Some(in_tags) = r_cfg.inbound_tag {
-                    rule.inbound_tags = in_tags;
-                }
-                if let Some(domains) = r_cfg.domain {
-                    for d in domains {
-                        rule.domain_matchers.push(DomainMatcher::parse(&d));
-                    }
-                }
-                let mut unparseable_ip_rule = false;
-                if let Some(ips) = r_cfg.ip {
-                    let had_ips = !ips.is_empty();
-                    for ip_str in ips {
-                        if let Some(ip_matcher) = IpMatcher::parse(&ip_str) {
-                            rule.ip_matchers.push(ip_matcher);
-                        } else {
-                            tracing::warn!("Ignoring unrecognized routing IP matcher: '{}'", ip_str);
-                        }
-                    }
-                    if had_ips && rule.ip_matchers.is_empty() {
-                        unparseable_ip_rule = true;
-                    }
-                }
-                if unparseable_ip_rule {
-                    tracing::warn!(
-                        "Skipping routing rule for '{}' because none of its IP matchers could be parsed",
-                        rule.tag
-                    );
-                    continue;
-                }
-                if let Some(port_val) = r_cfg.port {
-                    let ports_str = match port_val {
-                        serde_json::Value::Number(n) => n.to_string(),
-                        serde_json::Value::String(s) => s,
-                        _ => String::new(),
-                    };
-                    for part in ports_str.split(',') {
-                        let trimmed = part.trim();
-                        if trimmed.contains('-') {
-                            let range_parts: Vec<&str> = trimmed.split('-').collect();
-                            if range_parts.len() == 2
-                                && let (Ok(start), Ok(end)) = (
-                                    range_parts[0].trim().parse::<u16>(),
-                                    range_parts[1].trim().parse::<u16>(),
-                                )
-                            {
-                                for p in start..=end {
-                                    rule.ports.push(p);
-                                }
-                            }
-                        } else if let Ok(p) = trimmed.parse::<u16>() {
-                            rule.ports.push(p);
-                        }
-                    }
-                }
-                if let Some(net_str) = r_cfg.network {
-                    rule.network = match net_str.to_lowercase().as_str() {
-                        "tcp" => Some(Network::Tcp),
-                        "udp" => Some(Network::Udp),
-                        _ => None,
-                    };
-                }
-                if let Some(proc_list) = r_cfg.process {
-                    rule.process = proc_list;
-                }
-                rules.push(rule);
-            }
-        }
+        let rules = build_routing_rules(self.routing);
 
         let router = Router::new(rules, default_outbound_tag.clone());
         dns_client.attach_routing(router.clone(), outbounds.clone());
@@ -1176,6 +864,198 @@ impl Config {
             default_outbound_tag,
         })
     }
+}
+
+fn build_vless_outbound(
+    tag: &str,
+    settings_val: Option<serde_json::Value>,
+    stream_settings: Option<StreamSettingsConfig>,
+) -> Result<Arc<dyn OutboundHandler>> {
+    let settings = parse_multi_settings(settings_val, "VLESS")?;
+    if settings.vnext.is_empty() {
+        return Err(Error::Config("VLESS vnext is empty".into()));
+    }
+
+    let (mut handlers, mut lbs) = (
+        Vec::with_capacity(settings.vnext.len()),
+        Vec::with_capacity(settings.vnext.len()),
+    );
+    for (v_idx, server) in settings.vnext.iter().enumerate() {
+        let user = server.users.first().ok_or_else(|| Error::Config("VLESS users is empty".into()))?;
+        let user_uuid = Uuid::from_str(&user.id).map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
+        let addr_str = server.address.as_deref().unwrap_or("127.0.0.1");
+        let port_val = server.port.unwrap_or(443);
+        let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
+        let sub_tag = sub_tag_for(tag, settings.vnext.len(), v_idx);
+        lbs.push(format!("{}:{}", addr_str, port_val));
+
+        let (mut tls_client, mut tls_sni, mut reality_client) = (None, None, None);
+        let (mut ws_path, mut ws_host, mut ws_headers, mut ws_heartbeat) = (None, None, HashMap::new(), 0u32);
+        let (mut xhttp_cfg, mut httpupgrade_cfg, mut fragment_cfg) = (None, None, None);
+
+        if let Some(ref ss) = stream_settings {
+            fragment_cfg = ss.finalmask.as_ref().and_then(parse_fragment_config);
+            let net = ss.network.as_deref().unwrap_or("tcp").to_ascii_lowercase();
+            let is_xhttp = matches!(net.as_str(), "xhttp" | "splithttp") || ss.xhttp_settings.is_some();
+            if is_xhttp {
+                xhttp_cfg = Some(ss.xhttp_settings.clone().unwrap_or_default());
+            }
+            let is_hu = !is_xhttp && (net == "httpupgrade" || ss.httpupgrade_settings.is_some());
+            if is_hu {
+                let hu = ss.httpupgrade_settings.as_ref();
+                let path = hu.and_then(|h| h.path.as_deref()).map(str::trim).filter(|p| !p.is_empty()).unwrap_or("/").to_string();
+                let host = hu.and_then(|h| h.host.clone()).filter(|h| !h.trim().is_empty());
+                let headers = hu.and_then(|h| h.headers.clone()).unwrap_or_default();
+                httpupgrade_cfg = Some((path, host, headers));
+            }
+            let is_ws = !is_xhttp && !is_hu && (matches!(net.as_str(), "ws" | "websocket") || ss.ws_settings.is_some());
+            if is_ws {
+                let w = ss.ws_settings.as_ref();
+                ws_heartbeat = w.and_then(|x| x.heartbeat_period).unwrap_or(0);
+                let p = w.and_then(|x| x.path.as_deref()).map(str::trim).filter(|s| !s.is_empty()).unwrap_or("/");
+                ws_path = Some(p.to_string());
+                if let Some(w) = w {
+                    ws_host = w.host.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
+                    if let Some(headers) = &w.headers {
+                        ws_headers = headers.clone();
+                        if ws_host.is_none() {
+                            ws_host = headers
+                                .iter()
+                                .find(|(k, v)| k.eq_ignore_ascii_case("host") && !v.trim().is_empty())
+                                .map(|(_, v)| v.trim().to_string());
+                        }
+                    }
+                }
+            }
+
+            match ss.security.as_deref() {
+                Some("tls") => {
+                    let tls_cfg = ss.tls_settings.clone().unwrap_or_default();
+                    let sni = tls_cfg
+                        .server_name
+                        .filter(|s| !s.trim().is_empty())
+                        .or_else(|| ws_host.clone().filter(|s| !s.trim().is_empty()))
+                        .unwrap_or_else(|| addr_str.to_string());
+                    let alpn = tls_cfg.alpn.unwrap_or_default().into_iter().map(String::into_bytes).collect();
+                    tls_client = Some(TlsClient::new_with_fingerprint(
+                        &sni,
+                        tls_cfg.allow_insecure.unwrap_or(false),
+                        alpn,
+                        tls_cfg.fingerprint.as_deref().unwrap_or(""),
+                    )?);
+                    tls_sni = Some(sni.clone());
+                    ws_host.get_or_insert(sni);
+                }
+                Some("reality") if ss.reality_settings.is_some() => {
+                    let rc = ss.reality_settings.as_ref().unwrap();
+                    let sni = rc
+                        .server_name
+                        .as_deref()
+                        .filter(|s| !s.trim().is_empty())
+                        .or_else(|| rc.server_names.first().map(String::as_str))
+                        .unwrap_or(addr_str);
+                    let pub_key = rc.public_key.as_deref().ok_or_else(|| {
+                        Error::Config(format!("Outbound '{}' has security='reality' but missing publicKey/password", tag))
+                    })?;
+                    let short_id = rc.short_id.as_deref().or_else(|| rc.short_ids.first().map(String::as_str)).unwrap_or("");
+                    tls_client = Some(TlsClient::new_with_fingerprint(sni, true, vec![], rc.fingerprint.as_deref().unwrap_or(""))?);
+                    tls_sni = Some(sni.to_string());
+                    reality_client = Some(crate::transport::internet::reality::RealityClient::new(sni, pub_key, short_id)?);
+                }
+                _ => {}
+            }
+
+            if is_ws && ws_host.is_none() {
+                ws_host = tls_sni.clone().or_else(|| Some(addr_str.to_string()));
+            }
+        }
+
+        let is_ws_tls = ws_path.is_some() && tls_client.is_some();
+        let mut client = p::vless::OutboundClient::new(&sub_tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host)
+            .with_ws_headers(ws_headers)
+            .with_ws_heartbeat(ws_heartbeat);
+        if let Some(ref flow) = user.flow
+            && !flow.is_empty()
+        {
+            client = client.with_flow(flow.clone());
+        }
+        let testpre = user.testpre.unwrap_or_else(|| if is_ws_tls && !client.has_ws_early_data() { 3 } else { 0 });
+        if testpre > 0 {
+            client = client.with_testpre_idle(testpre, user.testpre_idle.unwrap_or(45));
+        }
+        if let Some(rc) = reality_client {
+            client = client.with_reality(rc);
+        }
+        if let Some(f_cfg) = fragment_cfg {
+            client = client.with_fragment(f_cfg);
+        }
+        if let Some(x_cfg) = xhttp_cfg {
+            client = client.with_splithttp(x_cfg);
+        }
+        if let Some((hu_path, hu_host, hu_headers)) = httpupgrade_cfg {
+            client = client.with_httpupgrade(hu_path, hu_host, hu_headers);
+        }
+        handlers.push(Arc::new(client) as Arc<dyn OutboundHandler>);
+    }
+
+    wrap_pingora_multi_outbound(tag, handlers, lbs)
+}
+
+fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
+    let mut rules = Vec::new();
+    let Some(rule_configs) = routing.and_then(|r| r.rules) else { return rules };
+
+    for r_cfg in rule_configs {
+        let mut rule = Rule::new(&r_cfg.outbound_tag);
+        if let Some(in_tags) = r_cfg.inbound_tag {
+            rule.inbound_tags = in_tags;
+        }
+        if let Some(domains) = r_cfg.domain {
+            rule.domain_matchers.extend(domains.iter().map(|d| DomainMatcher::parse(d)));
+        }
+        if let Some(ips) = r_cfg.ip {
+            let had_ips = !ips.is_empty();
+            for ip_str in ips {
+                if let Some(m) = IpMatcher::parse(&ip_str) {
+                    rule.ip_matchers.push(m);
+                } else {
+                    tracing::warn!("Ignoring unrecognized routing IP matcher: '{}'", ip_str);
+                }
+            }
+            if had_ips && rule.ip_matchers.is_empty() {
+                tracing::warn!("Skipping routing rule for '{}' because none of its IP matchers could be parsed", rule.tag);
+                continue;
+            }
+        }
+        if let Some(port_val) = r_cfg.port {
+            let ports_str = match port_val {
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::String(s) => s,
+                _ => String::new(),
+            };
+            for part in ports_str.split(',').map(str::trim) {
+                if let Some((a, b)) = part.split_once('-') {
+                    if let (Ok(s), Ok(e)) = (a.trim().parse::<u16>(), b.trim().parse::<u16>()) {
+                        rule.ports.extend(s..=e);
+                    }
+                } else if let Ok(p) = part.parse::<u16>() {
+                    rule.ports.push(p);
+                }
+            }
+        }
+        if let Some(net_str) = r_cfg.network {
+            rule.network = match net_str.to_lowercase().as_str() {
+                "tcp" => Some(Network::Tcp),
+                "udp" => Some(Network::Udp),
+                _ => None,
+            };
+        }
+        if let Some(proc_list) = r_cfg.process {
+            rule.process = proc_list;
+        }
+        rules.push(rule);
+    }
+    rules
 }
 
 fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::DnsClient {
