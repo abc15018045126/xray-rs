@@ -302,31 +302,20 @@ impl DnsClient {
     }
 
     pub async fn lookup_for_dialer(&self, domain: &str) -> Result<Vec<IpAddr>> {
-        let clean = domain.trim_end_matches('.');
-        let option = IPOption::default();
-
-        if let Some(ips) = self.hosts.lookup(clean) {
-            let filtered = self.filter_ips(&ips, &option);
-            if !filtered.is_empty() {
-                return Ok(filtered);
-            }
-        }
-
-        if !self.disable_cache
-            && let Some(ips) = self.cache.get(clean)
-        {
-            let filtered = self.filter_ips(&ips, &option);
-            if !filtered.is_empty() {
-                return Ok(filtered);
+        let (clean, option) = (domain.trim_end_matches('.'), IPOption::default());
+        for cached in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()] {
+            if let Some(ips) = cached {
+                let filtered = self.filter_ips(&ips, &option);
+                if !filtered.is_empty() {
+                    return Ok(filtered);
+                }
             }
         }
 
         let mut tried = vec![false; self.entries.len()];
         for (idx, entry) in self.entries.iter().enumerate() {
-            if entry.is_fakedns || entry.ns.routes_via_proxy() {
-                continue;
-            }
-            if !entry.domain_matchers.is_empty()
+            if !entry.is_fakedns
+                && !entry.ns.routes_via_proxy()
                 && entry.domain_matchers.iter().any(|m| m.matches(clean))
             {
                 tried[idx] = true;
@@ -337,18 +326,16 @@ impl DnsClient {
         }
 
         for (idx, entry) in self.entries.iter().enumerate() {
-            if tried[idx] || entry.is_fakedns || entry.ns.routes_via_proxy() {
-                continue;
-            }
-            if let Some(ips) = self.query_entry(entry, clean, &option).await {
+            if !tried[idx]
+                && !entry.is_fakedns
+                && !entry.ns.routes_via_proxy()
+                && let Some(ips) = self.query_entry(entry, clean, &option).await
+            {
                 return Ok(ips);
             }
         }
 
-        Err(Error::NotFound(format!(
-            "No direct/local IP found for dialer domain: {}",
-            domain
-        )))
+        Err(Error::NotFound(format!("No direct/local IP found for dialer domain: {}", domain)))
     }
 
     pub async fn lookup_ip_with_option(

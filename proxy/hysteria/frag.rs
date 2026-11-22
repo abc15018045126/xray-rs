@@ -91,43 +91,28 @@ impl Defragger {
             return None;
         }
 
+        let fid = m.frag_id as usize;
         if m.packet_id != self.pkt_id || m.frag_count as usize != self.frags.len() {
             self.pkt_id = m.packet_id;
-            let mut frags = vec![None; m.frag_count as usize];
-            self.size = m.data.len();
-            self.count = 1;
-            let fid = m.frag_id as usize;
-            frags[fid] = Some(m);
-            self.frags = frags;
-        } else if self.frags[m.frag_id as usize].is_none() {
+            self.frags = vec![None; m.frag_count as usize];
+            (self.size, self.count) = (m.data.len(), 1);
+            self.frags[fid] = Some(m);
+            return None;
+        }
+        if self.frags[fid].is_none() {
             self.count += 1;
             self.size += m.data.len();
-            let frag_idx = m.frag_id as usize;
-            self.frags[frag_idx] = Some(m);
-
+            self.frags[fid] = Some(m);
             if self.count as usize == self.frags.len() {
                 let mut data = Vec::with_capacity(self.size);
                 let first = self.frags[0].as_ref().unwrap();
-                let address = first.address.clone();
-                let session_id = first.session_id;
-                let packet_id = first.packet_id;
-
+                let (address, session_id, packet_id) = (first.address.clone(), first.session_id, first.packet_id);
                 for f in self.frags.iter().flatten() {
                     data.extend_from_slice(&f.data);
                 }
-
                 self.frags.clear();
-                self.count = 0;
-                self.size = 0;
-
-                return Some(UDPMessage {
-                    session_id,
-                    packet_id,
-                    frag_id: 0,
-                    frag_count: 1,
-                    address,
-                    data,
-                });
+                (self.count, self.size) = (0, 0);
+                return Some(UDPMessage { session_id, packet_id, frag_id: 0, frag_count: 1, address, data });
             }
         }
         None

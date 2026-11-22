@@ -159,8 +159,7 @@ impl TrojanUdpPacket {
     }
 
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
-        let addr_type = reader.read_u8().await?;
-        let address = match addr_type {
+        let address = match reader.read_u8().await? {
             1 => {
                 let mut ip = [0u8; 4];
                 reader.read_exact(&mut ip).await?;
@@ -170,39 +169,24 @@ impl TrojanUdpPacket {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom).map_err(|e| {
-                    Error::Protocol(format!("Invalid UTF-8 domain in Trojan UDP packet: {}", e))
-                })?;
-                Address::Domain(s)
+                Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in Trojan UDP packet: {}", e)))?)
             }
             4 => {
                 let mut ip = [0u8; 16];
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => {
-                return Err(Error::Protocol(format!(
-                    "Invalid Trojan UDP address type: {}",
-                    other
-                )));
-            }
+            other => return Err(Error::Protocol(format!("Invalid Trojan UDP address type: {}", other))),
         };
 
-        let port = reader.read_u16().await?;
-        let length = reader.read_u16().await? as usize;
-
-        let mut crlf = [0u8; 2];
-        reader.read_exact(&mut crlf).await?;
-        if &crlf != CRLF {
+        let mut tail = [0u8; 6];
+        reader.read_exact(&mut tail).await?;
+        if &tail[4..6] != CRLF {
             return Err(Error::Protocol("Invalid Trojan UDP CRLF".into()));
         }
-
-        let mut payload = vec![0u8; length];
+        let port = u16::from_be_bytes([tail[0], tail[1]]);
+        let mut payload = vec![0u8; u16::from_be_bytes([tail[2], tail[3]]) as usize];
         reader.read_exact(&mut payload).await?;
-
-        Ok(Self {
-            destination: Destination::udp(address, port),
-            payload,
-        })
+        Ok(Self { destination: Destination::udp(address, port), payload })
     }
 }

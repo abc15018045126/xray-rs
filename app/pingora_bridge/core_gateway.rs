@@ -210,32 +210,17 @@ mod android_imp {
         handler: Arc<dyn InboundHandler>,
         dispatcher: Arc<DefaultDispatcher>,
     ) -> Option<JoinHandle<()>> {
-        let std_listener = match std::net::TcpListener::bind(addr) {
-            Ok(l) => l,
-            Err(e) => {
-                warn!(
-                    "Inbound [{}] could not bind to {} ({}). Continuing...",
-                    handler.tag(),
-                    addr,
-                    e
-                );
-                return None;
-            }
-        };
+        let std_listener = std::net::TcpListener::bind(addr)
+            .inspect_err(|e| warn!("Inbound [{}] could not bind to {} ({}). Continuing...", handler.tag(), addr, e))
+            .ok()?;
         let _ = std_listener.set_nonblocking(true);
         let listener = TcpListener::from_std(std_listener).ok()?;
-        let tag = handler.tag().to_string();
-        info!("Inbound [{}] listening on {} (Android Tokio)", tag, addr);
+        info!("Inbound [{}] listening on {} (Android Tokio)", handler.tag(), addr);
 
         Some(tokio::spawn(async move {
-            loop {
-                let (stream, remote_addr) = match listener.accept().await {
-                    Ok(v) => v,
-                    Err(_) => break,
-                };
+            while let Ok((stream, remote_addr)) = listener.accept().await {
                 let _ = stream.set_nodelay(true);
-                let h = handler.clone();
-                let d = dispatcher.clone();
+                let (h, d) = (handler.clone(), dispatcher.clone());
                 tokio::spawn(async move {
                     match h.handle_connection(Box::pin(stream), remote_addr).await {
                         Ok(res) => {
@@ -244,9 +229,7 @@ mod android_imp {
                             }
                         }
                         Err(Error::Closed) => {}
-                        Err(e) => {
-                            warn!("[{}] Handshake failed from {}: {}", h.tag(), remote_addr, e);
-                        }
+                        Err(e) => warn!("[{}] Handshake failed from {}: {}", h.tag(), remote_addr, e),
                     }
                 });
             }

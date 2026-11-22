@@ -193,38 +193,27 @@ impl Message {
     }
 
     fn read_name(bytes: &[u8], mut offset: usize) -> Result<(Name, usize)> {
-        let mut labels = Vec::new();
-        let mut jumps = 0;
-        let mut return_offset = None;
-
+        let (mut labels, mut jumps, mut return_offset) = (Vec::new(), 0, None);
         while offset < bytes.len() {
             let len_byte = bytes[offset];
             offset += 1;
-
             if len_byte == 0 {
                 break;
             }
-
             match len_byte & 0xC0 {
                 0x00 => {
                     let label_len = (len_byte & 0x3F) as usize;
-                    if offset + label_len > bytes.len() {
-                        return Err(Error::Protocol("Label truncated".into()));
-                    }
-                    labels.push(bytes[offset..offset + label_len].to_vec());
+                    let slice = bytes.get(offset..offset + label_len)
+                        .ok_or_else(|| Error::Protocol("Label truncated".into()))?;
+                    labels.push(slice.to_vec());
                     offset += label_len;
                 }
                 0xC0 => {
-                    if offset >= bytes.len() {
-                        return Err(Error::Protocol("Truncated compression pointer".into()));
-                    }
-                    let ptr_low = bytes[offset];
+                    let ptr_low = *bytes.get(offset)
+                        .ok_or_else(|| Error::Protocol("Truncated compression pointer".into()))?;
                     offset += 1;
-                    let ptr = (((len_byte & 0x3F) as usize) << 8) | (ptr_low as usize);
-                    if return_offset.is_none() {
-                        return_offset = Some(offset);
-                    }
-                    offset = ptr;
+                    return_offset.get_or_insert(offset);
+                    offset = (((len_byte & 0x3F) as usize) << 8) | ptr_low as usize;
                     jumps += 1;
                     if jumps > COMPRESSION_POINTER_LIMIT {
                         return Err(Error::Protocol("too many compression pointers".into()));
@@ -233,10 +222,7 @@ impl Message {
                 _ => return Err(Error::Protocol("reserved label type".into())),
             }
         }
-
-        let final_offset = return_offset.unwrap_or(offset);
-        let name = Name::new(labels)?;
-        Ok((name, final_offset))
+        Ok((Name::new(labels)?, return_offset.unwrap_or(offset)))
     }
 
     fn read_rr(bytes: &[u8], offset: usize) -> Result<(RR, usize)> {

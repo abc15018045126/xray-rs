@@ -195,48 +195,28 @@ pub fn resolve_ech_config(
     if ech_config_list.is_empty() {
         return Ok(None);
     }
-
-    let mode = if force_query.is_empty() {
-        "full"
-    } else {
-        force_query
-    };
-
+    let mode = if force_query.is_empty() { "full" } else { force_query };
     let result = if ech_config_list.contains("://") {
         let parts: Vec<&str> = ech_config_list.split('+').collect();
-        let (name_to_query, dns_server) = match parts.len() {
-            2 => (parts[0], parts[1]),
-            1 => (server_name, parts[0]),
-            _ => {
-                return Err(format!(
-                    "Invalid ECH DNS server format: {}",
-                    ech_config_list
-                ));
-            }
+        let (name, dns_server) = match parts.as_slice() {
+            [n, s] => (*n, *s),
+            [s] => (server_name, *s),
+            _ => return Err(format!("Invalid ECH DNS server format: {}", ech_config_list)),
         };
-
-        if name_to_query.is_empty() {
-            return Err(
-                "Using DNS for ECH Config needs serverName or example.com+server format".into(),
-            );
+        if name.is_empty() {
+            return Err("Using DNS for ECH Config needs serverName or example.com+server format".into());
         }
-
-        GLOBAL_ECH_CACHE.get(dns_server, name_to_query)
+        GLOBAL_ECH_CACHE.get(dns_server, name)
     } else {
-        match base64::engine::general_purpose::STANDARD.decode(ech_config_list.trim()) {
-            Ok(bytes) => Some(bytes),
-            Err(e) => return Err(format!("Failed to unmarshal ECHConfigList: {}", e)),
-        }
+        Some(
+            base64::engine::general_purpose::STANDARD
+                .decode(ech_config_list.trim())
+                .map_err(|e| format!("Failed to unmarshal ECHConfigList: {}", e))?,
+        )
     };
 
     match result {
         Some(cfg) if !cfg.is_empty() => Ok(Some(cfg)),
-        _ => {
-            if mode == "full" {
-                Ok(Some(DUMMY_FALLBACK_ECH_CONFIG.to_vec()))
-            } else {
-                Ok(None)
-            }
-        }
+        _ => Ok((mode == "full").then(|| DUMMY_FALLBACK_ECH_CONFIG.to_vec())),
     }
 }

@@ -277,44 +277,30 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
-
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
-                Poll::Ready(Ok(n)) => {
-                    this.write_buf.drain(..n);
-                }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Ok(n)) => { this.write_buf.drain(..n); }
+                other => return other,
             }
         }
 
-        let chunk_size = std::cmp::min(buf.len(), MAX_CHUNK_SIZE);
-        let plaintext_chunk = &buf[..chunk_size];
-
-        let ciphertext_len = chunk_size + TAG_LEN;
+        let chunk_size = buf.len().min(MAX_CHUNK_SIZE);
         let mut header = [0u8; HEADER_LEN];
-        encode_header(&mut header, ciphertext_len);
-
-        let ciphertext = match this.aead_write.seal(plaintext_chunk, &header) {
+        encode_header(&mut header, chunk_size + TAG_LEN);
+        let ciphertext = match this.aead_write.seal(&buf[..chunk_size], &header) {
             Ok(ct) => ct,
-            Err(e) => {
-                return Poll::Ready(Err(std::io::Error::other(e.to_string())));
-            }
+            Err(e) => return Poll::Ready(Err(std::io::Error::other(e.to_string()))),
         };
-
         let mut frame = Vec::with_capacity(HEADER_LEN + ciphertext.len());
         frame.extend_from_slice(&header);
         frame.extend_from_slice(&ciphertext);
 
         match Pin::new(&mut this.inner).poll_write(cx, &frame) {
             Poll::Ready(Ok(n)) => {
-                if n < frame.len() {
-                    this.write_buf.extend_from_slice(&frame[n..]);
-                }
+                this.write_buf.extend_from_slice(&frame[n..]);
                 Poll::Ready(Ok(chunk_size))
             }
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+            other => other,
         }
     }
 

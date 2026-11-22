@@ -211,26 +211,12 @@ pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> {
 }
 
 pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAddr>) -> Vec<u8> {
-    let arcount: [u8; 2] = if client_ip.is_some() {
-        [0x00, 0x01]
-    } else {
-        [0x00, 0x00]
-    };
     let mut query = vec![
-        0xAB, 0xCD,
-        0x01, 0x00,
-        0x00, 0x01,
-        0x00, 0x00,
-        0x00, 0x00,
-        arcount[0], arcount[1],
+        0xAB, 0xCD, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, u8::from(client_ip.is_some()),
     ];
-
-    let clean = domain.trim_end_matches('.');
-    for part in clean.split('.') {
-        if !part.is_empty() {
-            query.push(part.len() as u8);
-            query.extend_from_slice(part.as_bytes());
-        }
+    for part in domain.trim_end_matches('.').split('.').filter(|p| !p.is_empty()) {
+        query.push(part.len() as u8);
+        query.extend_from_slice(part.as_bytes());
     }
     query.push(0x00);
     query.extend_from_slice(&qtype.to_be_bytes());
@@ -239,23 +225,20 @@ pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAd
     if let Some(ip) = client_ip {
         match ip {
             IpAddr::V4(v4) => {
-                let oct = v4.octets();
+                let o = v4.octets();
                 query.extend_from_slice(&[
-                    0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0B,
-                    0x00, 0x08, 0x00, 0x07, 0x00, 0x01, 24, 0x00, oct[0], oct[1], oct[2],
+                    0, 0, 0x29, 0x10, 0, 0, 0, 0, 0, 0, 0x0B, 0, 8, 0, 7, 0, 1, 24, 0, o[0], o[1], o[2],
                 ]);
             }
             IpAddr::V6(v6) => {
-                let oct = v6.octets();
+                let o = v6.octets();
                 query.extend_from_slice(&[
-                    0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0F,
-                    0x00, 0x08, 0x00, 0x0B, 0x00, 0x02, 56, 0x00,
-                    oct[0], oct[1], oct[2], oct[3], oct[4], oct[5], oct[6],
+                    0, 0, 0x29, 0x10, 0, 0, 0, 0, 0, 0, 0x0F, 0, 8, 0, 0x0B, 0, 2, 56, 0,
+                    o[0], o[1], o[2], o[3], o[4], o[5], o[6],
                 ]);
             }
         }
     }
-
     query
 }
 

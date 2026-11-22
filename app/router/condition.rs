@@ -231,54 +231,25 @@ impl Rule {
         if self.process.is_empty() {
             return true;
         }
-        let src = match src {
-            Some(s) => s,
-            None => return false,
+        let Some(src) = src else { return false };
+        let Ok(Some(info)) = crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp) else {
+            return false;
         };
-
-        let proc_info = match crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp)
-        {
-            Ok(Some(info)) => info,
-            _ => return false,
-        };
-
         let cur_pid = std::process::id();
-        for p in &self.process {
-            let p_norm = p.replace('\\', "/");
-            if p_norm == "self/" {
-                if proc_info.pid == cur_pid {
-                    return true;
-                }
-                continue;
+        self.process.iter().any(|p| {
+            let p = p.replace('\\', "/");
+            if p == "self/" {
+                info.pid == cur_pid
+            } else if p == "xray/" {
+                info.pid == cur_pid || info.name.eq_ignore_ascii_case("xray")
+            } else if p.ends_with('/') {
+                info.path.to_ascii_lowercase().starts_with(&p.to_ascii_lowercase())
+            } else if p.contains('/') {
+                info.path.eq_ignore_ascii_case(&p)
+            } else {
+                info.name.eq_ignore_ascii_case(p.trim_end_matches(".exe"))
             }
-            if p_norm == "xray/" {
-                if proc_info.pid == cur_pid || proc_info.name.eq_ignore_ascii_case("xray") {
-                    return true;
-                }
-                continue;
-            }
-            if p_norm.ends_with('/') {
-                if proc_info
-                    .path
-                    .to_ascii_lowercase()
-                    .starts_with(&p_norm.to_ascii_lowercase())
-                {
-                    return true;
-                }
-                continue;
-            }
-            if p_norm.contains('/') {
-                if proc_info.path.eq_ignore_ascii_case(&p_norm) {
-                    return true;
-                }
-                continue;
-            }
-            let clean_name = p_norm.trim_end_matches(".exe");
-            if proc_info.name.eq_ignore_ascii_case(clean_name) {
-                return true;
-            }
-        }
-        false
+        })
     }
 
     pub fn matches(&self, session: &SessionContext) -> bool {

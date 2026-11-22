@@ -9,38 +9,20 @@ pub fn parse_mask_address(c: &str) -> Result<(u8, u8)> {
         "full" => Ok((0, 0)),
         "" => Ok((32, 128)),
         custom => {
-            let parts: Vec<&str> = custom.split('+').collect();
-            let mut m4 = 32u8;
-            let mut m6 = 128u8;
-
-            if let Some(p4) = parts.first() {
-                let trimmed = p4.trim().trim_start_matches('/');
-                if !trimmed.is_empty() {
-                    m4 = trimmed.parse().map_err(|e| {
-                        Error::Config(format!("Invalid IPv4 mask in mask_address: {}", e))
-                    })?;
+            let parse_part = |s: Option<&str>, def: u8, label: &str| -> Result<u8> {
+                match s.map(|x| x.trim().trim_start_matches('/')).filter(|x| !x.is_empty()) {
+                    Some(t) => t.parse().map_err(|e| Error::Config(format!("Invalid {} mask in mask_address: {}", label, e))),
+                    None => Ok(def),
                 }
-            }
-            if parts.len() >= 2 {
-                let trimmed = parts[1].trim().trim_start_matches('/');
-                if !trimmed.is_empty() {
-                    m6 = trimmed.parse().map_err(|e| {
-                        Error::Config(format!("Invalid IPv6 mask in mask_address: {}", e))
-                    })?;
-                }
-            }
-
+            };
+            let mut it = custom.split('+');
+            let (m4, m6) = (parse_part(it.next(), 32, "IPv4")?, parse_part(it.next(), 128, "IPv6")?);
             if !m4.is_multiple_of(8) || m4 > 32 {
-                return Err(Error::Config(
-                    "Log Mask: ipv4 mask must be divisible by 8 and between 0-32".into(),
-                ));
+                return Err(Error::Config("Log Mask: ipv4 mask must be divisible by 8 and between 0-32".into()));
             }
             if m6 > 128 {
-                return Err(Error::Config(
-                    "Log Mask: ipv6 mask must be between 0-128".into(),
-                ));
+                return Err(Error::Config("Log Mask: ipv6 mask must be between 0-128".into()));
             }
-
             Ok((m4, m6))
         }
     }

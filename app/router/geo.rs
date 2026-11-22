@@ -339,52 +339,22 @@ impl GeoDatabase {
             return;
         }
         let path_opt = self.geosite_path.read().unwrap().clone();
-        let Some(path) = path_opt else {
-            self.attempted_geosites
-                .write()
-                .unwrap()
-                .insert(group_key.to_string());
+        if !self.attempted_geosites.write().unwrap().insert(group_key.to_string()) {
             return;
-        };
-
-        {
-            let mut att = self.attempted_geosites.write().unwrap();
-            if !att.insert(group_key.to_string()) {
-                return;
-            }
         }
+        let Some(path) = path_opt else { return };
 
-        let (code, attr_filter) = match group_key.split_once('@') {
-            Some((c, a)) => (c, Some(a)),
-            None => (group_key, None),
-        };
-
-        match load_geosite_code_from_dat(&path, code, attr_filter) {
+        let (code, attr) = group_key.split_once('@').map_or((group_key, None), |(c, a)| (c, Some(a)));
+        match load_geosite_code_from_dat(&path, code, attr) {
             Ok(Some(idx)) => {
                 tracing::info!(
                     "Loaded geosite:{} (full={}, domain={}, substr={}, regex={}) from {}",
-                    group_key,
-                    idx.full.len(),
-                    idx.domain.len(),
-                    idx.substr.len(),
-                    idx.regex.len(),
-                    path.display()
+                    group_key, idx.full.len(), idx.domain.len(), idx.substr.len(), idx.regex.len(), path.display()
                 );
-                self.geosites
-                    .write()
-                    .unwrap()
-                    .insert(group_key.to_string(), idx);
+                self.geosites.write().unwrap().insert(group_key.to_string(), idx);
             }
-            Ok(None) => {
-                tracing::warn!(
-                    "geosite:{} not found in {}; keeping fallback if any",
-                    group_key,
-                    path.display()
-                );
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load geosite:{} from {}: {}", group_key, path.display(), e);
-            }
+            Ok(None) => tracing::warn!("geosite:{} not found in {}; keeping fallback if any", group_key, path.display()),
+            Err(e) => tracing::warn!("Failed to load geosite:{} from {}: {}", group_key, path.display(), e),
         }
     }
 

@@ -95,47 +95,23 @@ impl DohNameServer {
     fn parse_url(&self) -> (bool, String, u16, String) {
         let clean = self.url.trim();
         let is_https = !clean.starts_with("http://");
-        let without_scheme = clean
-            .strip_prefix("https://")
-            .or_else(|| clean.strip_prefix("http://"))
-            .unwrap_or(clean);
-
-        let (host_port, path) = match without_scheme.find('/') {
-            Some(idx) => (&without_scheme[..idx], &without_scheme[idx..]),
-            None => (without_scheme, "/dns-query"),
+        let def_port = if is_https { 443 } else { 80 };
+        let rest = clean.strip_prefix("https://").or_else(|| clean.strip_prefix("http://")).unwrap_or(clean);
+        let (host_port, path) = match rest.find('/') {
+            Some(i) => (&rest[..i], &rest[i..]),
+            None => (rest, "/dns-query"),
         };
-
-        let (host, port) = if host_port.starts_with('[') {
-            if let Some(end_bracket) = host_port.find(']') {
-                let h = &host_port[1..end_bracket];
-                let rest = &host_port[end_bracket + 1..];
-                let p = if let Some(colon) = rest.find(':') {
-                    rest[colon + 1..]
-                        .parse::<u16>()
-                        .unwrap_or(if is_https { 443 } else { 80 })
-                } else {
-                    if is_https { 443 } else { 80 }
-                };
-                (h.to_string(), p)
-            } else {
-                (host_port.to_string(), if is_https { 443 } else { 80 })
-            }
-        } else if let Some(colon) = host_port.find(':') {
-            let h = &host_port[..colon];
-            let p = host_port[colon + 1..]
-                .parse::<u16>()
-                .unwrap_or(if is_https { 443 } else { 80 });
-            (h.to_string(), p)
+        let (host, port) = if let Some(after_l) = host_port.strip_prefix('[')
+            && let Some((h, tail)) = after_l.split_once(']')
+        {
+            let p = tail.strip_prefix(':').and_then(|s| s.parse().ok()).unwrap_or(def_port);
+            (h, p)
+        } else if let Some((h, p_str)) = host_port.split_once(':') {
+            (h, p_str.parse().unwrap_or(def_port))
         } else {
-            (host_port.to_string(), if is_https { 443 } else { 80 })
+            (host_port, def_port)
         };
-
-        let p = if path.is_empty() {
-            "/dns-query".to_string()
-        } else {
-            path.to_string()
-        };
-        (is_https, host, port, p)
+        (is_https, host.to_string(), port, if path.is_empty() { "/dns-query" } else { path }.to_string())
     }
 
     async fn dial_direct(&self, host: &str, port: u16, hosts: Option<&StaticHosts>) -> Result<BoxStream> {
@@ -179,47 +155,29 @@ impl DohNameServer {
     }
 
     async fn dial_transport(&self, host: &str, port: u16) -> Result<BoxStream> {
-        if let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) {
-            let addr = match host.parse::<IpAddr>() {
-                Ok(IpAddr::V4(v4)) => Address::Ipv4(v4),
-                Ok(IpAddr::V6(v6)) => Address::Ipv6(v6),
-                Err(_) => Address::Domain(host.to_string()),
-            };
-            let dest = Destination::new(addr, port);
-            let inbound_tag = self.tag.as_deref().unwrap_or("dns");
-            let session = SessionContext::new(inbound_tag, dest);
-            let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
-
-            if matches!(picked, "block" | "blackhole") {
-                Err(Error::Protocol(format!(
-                    "DoH server '{}' blocked by routing rule",
-                    self.url
-                )))
-            } else if matches!(picked, "direct" | "freedom" | "dns") {
-                self.dial_direct(host, port, Some(&ctx.hosts)).await
-            } else if let Some(outbound) = ctx.outbounds.get(picked) {
-                pingora_timeout::timeout(self.timeout, outbound.connect(&session))
-                    .await
-                    .map_err(|_| {
-                        Error::Protocol(format!("DoH outbound '{}' connect timeout", picked))
-                    })?
-            } else {
-                self.dial_direct(host, port, Some(&ctx.hosts)).await
-            }
-        } else {
-            self.dial_direct(host, port, None).await
+        let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) else {
+            return self.dial_direct(host, port, None).await;
+        };
+        let addr = host.parse::<IpAddr>().map(Address::ip).unwrap_or_else(|_| Address::Domain(host.to_string()));
+        let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), Destination::new(addr, port));
+        let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
+        if matches!(picked, "block" | "blackhole") {
+            return Err(Error::Protocol(format!("DoH server '{}' blocked by routing rule", self.url)));
         }
+        if !matches!(picked, "direct" | "freedom" | "dns")
+            && let Some(outbound) = ctx.outbounds.get(picked)
+        {
+            return pingora_timeout::timeout(self.timeout, outbound.connect(&session))
+                .await
+                .map_err(|_| Error::Protocol(format!("DoH outbound '{}' connect timeout", picked)))?;
+        }
+        self.dial_direct(host, port, Some(&ctx.hosts)).await
     }
 
-    async fn get_or_connect_h2(
-        &self,
-        host: &str,
-        port: u16,
-    ) -> Result<h2::client::SendRequest<Bytes>> {
+    async fn get_or_connect_h2(&self, host: &str, port: u16) -> Result<h2::client::SendRequest<Bytes>> {
         let mut guard = self.h2_client.lock().await;
         if let Some(existing) = guard.as_ref() {
-            let candidate = existing.clone();
-            if candidate.ready().await.is_ok() {
+            if existing.clone().ready().await.is_ok() {
                 return Ok(existing.clone());
             }
             *guard = None;
@@ -227,12 +185,9 @@ impl DohNameServer {
 
         let tcp_stream = self.dial_transport(host, port).await?;
         let tls_client = TlsClient::new(host, true, vec![b"h2".to_vec()])?;
-        let tls_stream = pingora_timeout::timeout(
-            self.timeout,
-            tls_client.connect(host, tcp_stream),
-        )
-        .await
-        .map_err(|_| Error::Protocol(format!("DoH TLS handshake timeout with '{}'", host)))??;
+        let tls_stream = pingora_timeout::timeout(self.timeout, tls_client.connect(host, tcp_stream))
+            .await
+            .map_err(|_| Error::Protocol(format!("DoH TLS handshake timeout with '{}'", host)))??;
 
         let (send_req, h2_conn) = pingora_timeout::timeout(
             self.timeout,
@@ -248,8 +203,7 @@ impl DohNameServer {
         let slot = self.h2_client.clone();
         tokio::spawn(async move {
             let _ = h2_conn.await;
-            let mut g = slot.lock().await;
-            *g = None;
+            *slot.lock().await = None;
         });
 
         *guard = Some(send_req.clone());

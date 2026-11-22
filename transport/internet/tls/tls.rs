@@ -136,30 +136,16 @@ impl TlsClient {
             apply_fingerprint(&mut provider, fingerprint);
         }
 
+        let builder = ClientConfig::builder_with_provider(Arc::new(provider))
+            .with_safe_default_protocol_versions()
+            .map_err(|e| Error::Protocol(format!("TLS config protocol version error: {}", e)))?;
         let mut config = if allow_insecure {
-            ClientConfig::builder_with_provider(Arc::new(provider))
-                .with_safe_default_protocol_versions()
-                .map_err(|e| Error::Protocol(format!("TLS config protocol version error: {}", e)))?
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(NoCertificateVerification))
-                .with_no_client_auth()
+            builder.dangerous().with_custom_certificate_verifier(Arc::new(NoCertificateVerification)).with_no_client_auth()
         } else {
-            ClientConfig::builder_with_provider(Arc::new(provider))
-                .with_safe_default_protocol_versions()
-                .map_err(|e| Error::Protocol(format!("TLS config protocol version error: {}", e)))?
-                .with_root_certificates(root_store)
-                .with_no_client_auth()
+            builder.with_root_certificates(root_store).with_no_client_auth()
         };
-
-        let mut alpn_protocols = alpn;
-        if alpn_protocols.is_empty() {
-            alpn_protocols = vec![b"http/1.1".to_vec()];
-        }
-        config.alpn_protocols = alpn_protocols;
-
-        Ok(Self {
-            connector: TlsConnector::from(Arc::new(config)),
-        })
+        config.alpn_protocols = if alpn.is_empty() { vec![b"http/1.1".to_vec()] } else { alpn };
+        Ok(Self { connector: TlsConnector::from(Arc::new(config)) })
     }
 
     pub async fn connect(&self, domain: &str, stream: BoxStream) -> Result<BoxStream> {

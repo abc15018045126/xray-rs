@@ -84,46 +84,30 @@ impl XDnsClient {
 
     pub fn decode_packet(&self, wire: &[u8]) -> Result<Vec<Vec<u8>>> {
         let resp = Message::from_wire_format(wire)?;
-
         if (resp.flags & 0x8000) != 0x8000 || (resp.flags & 0x000F) != RCODE_NO_ERROR {
             return Err(Error::Protocol("DNS response flag or rcode invalid".into()));
         }
-
-        if resp.answers.len() != 1 {
-            return Err(Error::Protocol(
-                "DNS response must contain exactly 1 answer".into(),
-            ));
-        }
-
-        let answer = &resp.answers[0];
+        let [answer] = resp.answers.as_slice() else {
+            return Err(Error::Protocol("DNS response must contain exactly 1 answer".into()));
+        };
         if answer.name.trim_suffix(&self.domain).is_none() {
-            return Err(Error::Protocol(
-                "DNS response name suffix does not match configured domain".into(),
-            ));
+            return Err(Error::Protocol("DNS response name suffix does not match configured domain".into()));
         }
-
         if answer.rrtype != RR_TYPE_TXT {
-            return Err(Error::Protocol(
-                "DNS response answer type is not TXT".into(),
-            ));
+            return Err(Error::Protocol("DNS response answer type is not TXT".into()));
         }
 
         let payload = decode_rdata_txt(&answer.data)?;
-        let mut packets = Vec::new();
-        let mut offset = 0;
-
+        let (mut packets, mut offset) = (Vec::new(), 0);
         while offset + 2 <= payload.len() {
             let n = u16::from_be_bytes([payload[offset], payload[offset + 1]]) as usize;
             offset += 2;
-            if offset + n > payload.len() {
-                return Err(Error::Protocol(
-                    "unexpected eof in DNS response subpacket stream".into(),
-                ));
-            }
-            packets.push(payload[offset..offset + n].to_vec());
+            let chunk = payload
+                .get(offset..offset + n)
+                .ok_or_else(|| Error::Protocol("unexpected eof in DNS response subpacket stream".into()))?;
+            packets.push(chunk.to_vec());
             offset += n;
         }
-
         Ok(packets)
     }
 

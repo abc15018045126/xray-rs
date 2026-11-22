@@ -190,41 +190,25 @@ impl Frame {
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut header_buf = Vec::new();
         header_buf.extend_from_slice(&self.session_id.to_be_bytes());
-        header_buf.push(self.status as u8);
-        header_buf.push(self.option);
+        header_buf.extend_from_slice(&[self.status as u8, self.option]);
 
         if self.status == SessionStatus::New
             && let Some(target) = &self.target
         {
-            let net_byte = match target.network {
-                Network::Tcp => TARGET_NETWORK_TCP,
-                Network::Udp => TARGET_NETWORK_UDP,
-            };
-            header_buf.push(net_byte);
+            header_buf.push(if target.network == Network::Udp { TARGET_NETWORK_UDP } else { TARGET_NETWORK_TCP });
             header_buf.extend_from_slice(&target.port.to_be_bytes());
             match &target.address {
-                Address::Ipv4(v4) => {
-                    header_buf.push(1);
-                    header_buf.extend_from_slice(&v4.octets());
-                }
-                Address::Ipv6(v6) => {
-                    header_buf.push(2);
-                    header_buf.extend_from_slice(&v6.octets());
-                }
-                Address::Domain(domain) => {
-                    header_buf.push(3);
-                    header_buf.push(domain.len() as u8);
-                    header_buf.extend_from_slice(domain.as_bytes());
-                }
+                Address::Ipv4(v4) => { header_buf.push(1); header_buf.extend_from_slice(&v4.octets()); }
+                Address::Ipv6(v6) => { header_buf.push(2); header_buf.extend_from_slice(&v6.octets()); }
+                Address::Domain(d) => { header_buf.push(3); header_buf.push(d.len() as u8); header_buf.extend_from_slice(d.as_bytes()); }
             }
         }
 
-        let total_frame_len = header_buf.len() + self.payload.len();
-        if total_frame_len > u16::MAX as usize {
+        let total = header_buf.len() + self.payload.len();
+        if total > u16::MAX as usize {
             return Err(Error::BufferOverflow);
         }
-
-        writer.write_u16(total_frame_len as u16).await?;
+        writer.write_u16(total as u16).await?;
         writer.write_all(&header_buf).await?;
         if !self.payload.is_empty() {
             writer.write_all(&self.payload).await?;

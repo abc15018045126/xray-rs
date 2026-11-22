@@ -150,54 +150,37 @@ impl KcpConnection {
 
     pub async fn input_packet(&self, mut raw: &[u8]) -> Result<()> {
         let current = now_millis();
-        while !raw.is_empty() {
-            let (seg, remaining) = match read_segment(raw) {
-                Some((s, r)) => (s, r),
-                None => break,
-            };
+        while let Some((seg, remaining)) = read_segment(raw) {
             raw = remaining;
-
             if seg.conversation() != self.conv {
                 continue;
             }
-
             match seg {
                 Segment::Data(data_seg) => {
-                    let mut r_wnd = self.recv_window.lock().await;
-                    let mut acks = self.ack_list.lock().await;
-                    acks.add(data_seg.number, data_seg.timestamp);
-
                     let number = data_seg.number;
+                    let mut r_wnd = self.recv_window.lock().await;
+                    self.ack_list.lock().await.add(number, data_seg.timestamp);
                     r_wnd.set(data_seg);
-
-                    let mut stream = self.received_stream_buf.lock().await;
-                    r_wnd.drain_in_order(&mut stream);
-
-                    let mut s_wnd = self.send_window.lock().await;
-                    s_wnd.handle_fast_ack(number, 200);
+                    r_wnd.drain_in_order(&mut *self.received_stream_buf.lock().await);
+                    self.send_window.lock().await.handle_fast_ack(number, 200);
                 }
                 Segment::Ack(ack_seg) => {
                     let mut s_wnd = self.send_window.lock().await;
                     s_wnd.clear(ack_seg.receiving_next);
-
                     let mut rtt = self.rtt_info.lock().await;
                     for &num in &ack_seg.number_list {
-                        if let Some(measured_rtt) = s_wnd.acknowledge(num, current) {
-                            rtt.update(measured_rtt, current);
+                        if let Some(measured) = s_wnd.acknowledge(num, current) {
+                            rtt.update(measured, current);
                         }
                     }
                 }
-                Segment::CmdOnly(cmd_seg) => {
-                    if cmd_seg.cmd == COMMAND_TERMINATE {
-                        let mut state = self.state.lock().await;
-                        *state = State::PeerClosed;
-                    }
+                Segment::CmdOnly(cmd_seg) if cmd_seg.cmd == COMMAND_TERMINATE => {
+                    *self.state.lock().await = State::PeerClosed;
                 }
+                Segment::CmdOnly(_) => {}
             }
         }
-
-        self.flush_acks().await?;
-        Ok(())
+        self.flush_acks().await
     }
 
     pub async fn send_data(&self, payload: &[u8]) -> Result<()> {

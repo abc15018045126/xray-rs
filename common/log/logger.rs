@@ -87,41 +87,26 @@ impl GeneralLogger {
         let done_clone = done.clone();
 
         let worker = thread::spawn(move || {
-            let mut writer = match creator() {
-                Some(w) => w,
-                None => return,
-            };
-
+            let Some(mut writer) = creator() else { return };
             let rx: Receiver<String> = rx;
+            let sep = platform::line_separator();
             loop {
                 match rx.recv_timeout(Duration::from_millis(50)) {
-                    Ok(msg) => {
-                        let line = format!("{}{}", msg, platform::line_separator());
-                        let _ = writer.write_str(&line);
-                    }
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                        if done_clone.load(Ordering::SeqCst) {
-                            while let Ok(msg) = rx.try_recv() {
-                                let line = format!("{}{}", msg, platform::line_separator());
-                                let _ = writer.write_str(&line);
-                            }
-                            let _ = writer.close();
-                            return;
+                    Ok(msg) => { let _ = writer.write_str(&format!("{}{}", msg, sep)); }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) if done_clone.load(Ordering::SeqCst) => {
+                        while let Ok(msg) = rx.try_recv() {
+                            let _ = writer.write_str(&format!("{}{}", msg, sep));
                         }
+                        break;
                     }
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                        let _ = writer.close();
-                        return;
-                    }
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
                 }
             }
+            let _ = writer.close();
         });
 
-        Arc::new(Self {
-            sender: tx,
-            done,
-            worker: Mutex::new(Some(worker)),
-        })
+        Arc::new(Self { sender: tx, done, worker: Mutex::new(Some(worker)) })
     }
 
     pub fn close(&self) {

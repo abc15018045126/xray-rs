@@ -52,47 +52,28 @@ impl OutboundHandler for Client {
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
-
-        let sni = self
-            .tls_sni
-            .as_deref()
-            .unwrap_or_else(|| match &self.server_addr.address {
-                crate::common::net::Address::Domain(d) => d.as_str(),
-                _ => "localhost",
-            });
-
-        let stream = if let Some(tls) = &self.tls_client {
-            tls.connect(sni, tcp_stream).await?
-        } else {
-            tcp_stream
+        let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
+            crate::common::net::Address::Domain(d) => d.as_str(),
+            _ => "localhost",
+        });
+        let stream = match &self.tls_client {
+            Some(tls) => tls.connect(sni, tcp_stream).await?,
+            None => tcp_stream,
         };
-
         let mut stream = if let Some(path) = &self.ws_path {
             let dest_host = match &self.server_addr.address {
-                crate::common::net::Address::Domain(d) => d.clone(),
-                crate::common::net::Address::Ipv4(ip) => ip.to_string(),
                 crate::common::net::Address::Ipv6(ip) => format!("[{}]", ip),
+                addr => addr.to_string(),
             };
-            let host_hdr = self.ws_host.as_deref().unwrap_or(sni);
-            let scheme = if self.tls_client.is_some() {
-                "wss"
-            } else {
-                "ws"
-            };
+            let scheme = if self.tls_client.is_some() { "wss" } else { "ws" };
             let ws_url = format!("{}://{}{}", scheme, dest_host, path);
-            WebSocketStream::client_handshake(&ws_url, Some(host_hdr), stream).await?
+            WebSocketStream::client_handshake(&ws_url, Some(self.ws_host.as_deref().unwrap_or(sni)), stream).await?
         } else {
             stream
         };
 
-        let command = match session.destination.network {
-            Network::Tcp => RequestCommand::Tcp,
-            Network::Udp => RequestCommand::Udp,
-        };
-
-        let req = RequestHeader::new(&self.password, command, session.destination.clone());
-        req.encode(&mut stream).await?;
-
+        let command = if session.destination.network == Network::Udp { RequestCommand::Udp } else { RequestCommand::Tcp };
+        RequestHeader::new(&self.password, command, session.destination.clone()).encode(&mut stream).await?;
         Ok(stream)
     }
 }

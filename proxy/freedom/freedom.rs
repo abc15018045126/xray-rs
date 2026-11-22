@@ -77,44 +77,20 @@ impl Handler {
     }
 
     async fn resolve_destination(&self, dest: &Destination) -> Result<Destination> {
-        if let Address::Domain(ref domain) = dest.address {
-            match self.config.domain_strategy {
-                DomainStrategy::AsIs => Ok(dest.clone()),
-                DomainStrategy::UseIP => {
-                    let addr_str = format!("{}:{}", domain, dest.port);
-                    if let Ok(mut addrs) = lookup_host(&addr_str).await
-                        && let Some(sock_addr) = addrs.next()
-                    {
-                        return Ok(Destination::new(Address::from(sock_addr.ip()), dest.port));
-                    }
-                    Ok(dest.clone())
-                }
-                DomainStrategy::UseIPv4 => {
-                    let addr_str = format!("{}:{}", domain, dest.port);
-                    if let Ok(addrs) = lookup_host(&addr_str).await {
-                        for sa in addrs {
-                            if sa.is_ipv4() {
-                                return Ok(Destination::new(Address::from(sa.ip()), dest.port));
-                            }
-                        }
-                    }
-                    Ok(dest.clone())
-                }
-                DomainStrategy::UseIPv6 => {
-                    let addr_str = format!("{}:{}", domain, dest.port);
-                    if let Ok(addrs) = lookup_host(&addr_str).await {
-                        for sa in addrs {
-                            if sa.is_ipv6() {
-                                return Ok(Destination::new(Address::from(sa.ip()), dest.port));
-                            }
-                        }
-                    }
-                    Ok(dest.clone())
-                }
-            }
-        } else {
-            Ok(dest.clone())
+        let Address::Domain(ref domain) = dest.address else { return Ok(dest.clone()) };
+        if self.config.domain_strategy == DomainStrategy::AsIs {
+            return Ok(dest.clone());
         }
+        if let Ok(addrs) = lookup_host(format!("{}:{}", domain, dest.port)).await
+            && let Some(sa) = addrs.into_iter().find(|sa| match self.config.domain_strategy {
+                DomainStrategy::UseIPv4 => sa.is_ipv4(),
+                DomainStrategy::UseIPv6 => sa.is_ipv6(),
+                _ => true,
+            })
+        {
+            return Ok(Destination::new(Address::from(sa.ip()), dest.port));
+        }
+        Ok(dest.clone())
     }
 }
 

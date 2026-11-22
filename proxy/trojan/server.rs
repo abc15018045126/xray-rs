@@ -71,40 +71,24 @@ impl InboundHandler for Server {
         mut stream: BoxStream,
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
-        let req_res = RequestHeader::decode(&mut stream).await;
-
-        let req = match req_res {
-            Ok(r) => r,
-            Err(e) => {
-                if let Some(fb) = self.fallbacks.first() {
-                    let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
-                    let mut session = SessionContext::new(&self.tag, fallback_dest);
-                    session.source = Some(remote_addr);
-                    return Ok(InboundResult { stream, session });
-                }
-                return Err(e);
-            }
+        let fallback = |stream: BoxStream, err: Error| -> Result<InboundResult> {
+            let Some(fb) = self.fallbacks.first() else { return Err(err) };
+            let mut session = SessionContext::new(&self.tag, Destination::parse_str(&fb.dest, Network::Tcp)?);
+            session.source = Some(remote_addr);
+            Ok(InboundResult { stream, session })
         };
 
+        let req = match RequestHeader::decode(&mut stream).await {
+            Ok(r) => r,
+            Err(e) => return fallback(stream, e),
+        };
         if !self.validator.validate(&req.password_hash) {
-            if let Some(fb) = self.fallbacks.first() {
-                let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
-                let mut session = SessionContext::new(&self.tag, fallback_dest);
-                session.source = Some(remote_addr);
-                return Ok(InboundResult { stream, session });
-            }
-            return Err(Error::AuthFailed("Invalid Trojan password hash".into()));
+            return fallback(stream, Error::AuthFailed("Invalid Trojan password hash".into()));
         }
 
         let mut session = SessionContext::new(&self.tag, req.destination);
         session.source = Some(remote_addr);
-        session.destination.network = match req.command {
-            RequestCommand::Tcp => Network::Tcp,
-            RequestCommand::Udp => Network::Udp,
-            RequestCommand::Mux => Network::Tcp,
-            RequestCommand::Rvs => Network::Tcp,
-        };
-
+        session.destination.network = if matches!(req.command, RequestCommand::Udp) { Network::Udp } else { Network::Tcp };
         Ok(InboundResult { stream, session })
     }
 }

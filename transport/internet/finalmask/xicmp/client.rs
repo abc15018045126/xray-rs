@@ -101,57 +101,30 @@ impl XIcmpClient {
         if packet.len() < 8 {
             return Err(Error::Protocol("ICMP packet too short (< 8 bytes)".into()));
         }
-
-        let typ = packet[0];
-        let code = packet[1];
-        if code != 0 {
+        if packet[1] != 0 {
             return Err(Error::Protocol("ICMP reply code non-zero".into()));
         }
-
-        let expected_typ = if self.is_ipv6 {
-            ICMP_TYPE_ECHO_REPLY_V6
-        } else {
-            ICMP_TYPE_ECHO_REPLY_V4
-        };
-
-        if typ != expected_typ {
-            return Err(Error::Protocol(format!(
-                "ICMP type mismatch: expected reply {}, got {}",
-                expected_typ, typ
-            )));
+        let expected_typ = if self.is_ipv6 { ICMP_TYPE_ECHO_REPLY_V6 } else { ICMP_TYPE_ECHO_REPLY_V4 };
+        if packet[0] != expected_typ {
+            return Err(Error::Protocol(format!("ICMP type mismatch: expected reply {}, got {}", expected_typ, packet[0])));
         }
-
         if !verify_checksum(packet) {
             return Err(Error::Protocol("ICMP checksum verification failed".into()));
         }
-
-        let id = u16::from_be_bytes([packet[4], packet[5]]);
-        if id != self.id {
+        if u16::from_be_bytes([packet[4], packet[5]]) != self.id {
             return Ok(None);
         }
-
-        let seq = u16::from_be_bytes([packet[6], packet[7]]);
-        let status = match self.seq_status.remove(&seq) {
-            Some(s) => s,
-            None => return Ok(None),
+        let Some(status) = self.seq_status.remove(&u16::from_be_bytes([packet[6], packet[7]])) else {
+            return Ok(None);
         };
-
         let mut data = &packet[8..];
         if status.need_seq_byte {
-            if data.len() <= 1 {
-                return Ok(None);
-            }
-            if data[0] == status.seq_byte {
+            if data.len() <= 1 || data[0] == status.seq_byte {
                 return Ok(None);
             }
             data = &data[1..];
         }
-
-        if data.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(data.to_vec()))
-        }
+        Ok((!data.is_empty()).then(|| data.to_vec()))
     }
 }
 
