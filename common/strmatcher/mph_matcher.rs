@@ -33,16 +33,10 @@ impl MphMatcherGroup {
     }
     pub fn add_full_or_domain_pattern(&mut self, pattern: &str, t: MatcherType) {
         let h = rolling_hash(pattern);
-        match t {
-            MatcherType::Domain => {
-                let dot_pattern = format!(".{}", pattern);
-                let dot_hash = h.wrapping_mul(PRIME_RK).wrapping_add(b'.' as u32);
-                self.rule_map.insert(dot_pattern, dot_hash);
-                self.rule_map.insert(pattern.to_string(), h);
-            }
-            MatcherType::Full => { self.rule_map.insert(pattern.to_string(), h); }
-            _ => {}
+        if t == MatcherType::Domain {
+            self.rule_map.insert(format!(".{}", pattern), h.wrapping_mul(PRIME_RK).wrapping_add(b'.' as u32));
         }
+        if matches!(t, MatcherType::Domain | MatcherType::Full) { self.rule_map.insert(pattern.to_string(), h); }
     }
     pub fn add_pattern(&mut self, pattern: &str, t: MatcherType) -> Result<u32> {
         match t {

@@ -49,17 +49,10 @@ pub mod device {
     }
     impl AsyncWrite for WintunAsyncDevice {
         fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
-            match self.session.allocate_send_packet(buf.len() as u32) {
-                Ok(mut send_pkt) => {
-                    send_pkt.copy_from_slice(buf);
-                    self.session.send_packet(send_pkt);
-                    Poll::Ready(Ok(buf.len()))
-                }
-                Err(e) => {
-                    debug!("wintun allocate_send_packet error: {}", e);
-                    Poll::Ready(Err(e))
-                }
-            }
+            Poll::Ready(match self.session.allocate_send_packet(buf.len() as u32) {
+                Ok(mut pkt) => { pkt.copy_from_slice(buf); self.session.send_packet(pkt); Ok(buf.len()) }
+                Err(e) => { debug!("wintun allocate_send_packet error: {}", e); Err(e) }
+            })
         }
         fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> { Poll::Ready(Ok(())) }
         fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {

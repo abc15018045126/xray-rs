@@ -9,31 +9,17 @@ pub fn print_non_removal_deprecated_feature_warning(source_feature: &str, target
 }
 
 pub fn print_deprecated_feature_warning(feature: &str, migrate_feature: &str) {
-    if !migrate_feature.is_empty() {
-        log_warning(format!(
-            "This feature {} is deprecated, will be removed soon and being migrated to {}. Please update your config(s) according to release note and documentation before removal.",
-            feature, migrate_feature
-        ));
-    } else {
-        log_warning(format!(
-            "This feature {} is deprecated and will be removed soon. Please update your config(s) according to release note and documentation before removal.",
-            feature
-        ));
-    }
+    let mid = if migrate_feature.is_empty() { " and will be removed soon".into() }
+        else { format!(", will be removed soon and being migrated to {}", migrate_feature) };
+    log_warning(format!("This feature {} is deprecated{}. Please update your config(s) according to release note and documentation before removal.", feature, mid));
 }
 
 pub fn print_removed_feature_error(feature: &str, migrate_feature: &str) -> Error {
-    if !migrate_feature.is_empty() {
-        Error::Config(format!(
-            "The feature {} has been removed and migrated to {}. Please update your config(s) according to release note and documentation.",
-            feature, migrate_feature
-        ))
-    } else {
-        Error::Config(format!(
-            "The feature {} has been removed. Please update your config(s) according to release note and documentation.",
-            feature
-        ))
-    }
+    let mig = if migrate_feature.is_empty() { String::new() } else { format!(" and migrated to {}", migrate_feature) };
+    Error::Config(format!(
+        "The feature {} has been removed{}. Please update your config(s) according to release note and documentation.",
+        feature, mig
+    ))
 }
 
 pub fn missing_feature(name: &str) -> Error { Error::Config(format!("Feature '{}' not found", name)) }

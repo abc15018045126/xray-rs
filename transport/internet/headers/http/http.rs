@@ -158,36 +158,18 @@ pub struct Authenticator {
 impl Authenticator {
     pub fn new(config: Config) -> Self { Self { config } }
     pub fn format_request(&self) -> Vec<u8> {
-        if let Some(req) = &self.config.request {
-            let method = req.get_method_value();
-            let uri = req.pick_uri();
-            let version = req.get_full_version();
-            let mut s = format!("{} {} {}\r\n", method, uri, version);
-            for h in req.pick_headers() {
-                s.push_str(&h);
-                s.push_str(CRLF);
-            }
-            s.push_str(CRLF);
-            s.into_bytes()
-        } else {
-            b"GET / HTTP/1.1\r\n\r\n".to_vec()
-        }
+        let Some(r) = &self.config.request else { return b"GET / HTTP/1.1\r\n\r\n".to_vec(); };
+        let mut s = format!("{} {} {}\r\n", r.get_method_value(), r.pick_uri(), r.get_full_version());
+        for h in r.pick_headers() { s.push_str(&h); s.push_str(CRLF); }
+        s.push_str(CRLF);
+        s.into_bytes()
     }
     pub fn format_response(&self) -> Vec<u8> {
-        if let Some(resp) = &self.config.response {
-            let version = resp.get_full_version();
-            let code = resp.get_status_code();
-            let reason = resp.get_status_reason();
-            let mut s = format!("{} {} {}\r\n", version, code, reason);
-            for h in resp.pick_headers() {
-                s.push_str(&h);
-                s.push_str(CRLF);
-            }
-            s.push_str(CRLF);
-            s.into_bytes()
-        } else {
-            b"HTTP/1.1 200 OK\r\n\r\n".to_vec()
-        }
+        let Some(r) = &self.config.response else { return b"HTTP/1.1 200 OK\r\n\r\n".to_vec(); };
+        let mut s = format!("{} {} {}\r\n", r.get_full_version(), r.get_status_code(), r.get_status_reason());
+        for h in r.pick_headers() { s.push_str(&h); s.push_str(CRLF); }
+        s.push_str(CRLF);
+        s.into_bytes()
     }
     pub fn client_stream<S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static>(&self, stream: S) -> BoxStream {
         let req_header = self.format_request();

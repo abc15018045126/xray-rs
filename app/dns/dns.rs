@@ -64,15 +64,9 @@ impl DnsClient {
         Self {
             hosts: Arc::new(StaticHosts::new()),
             cache: Arc::new(CacheController::new("default".into(), false, true, Duration::from_secs(3600))),
-            servers: Vec::new(),
-            entries: Vec::new(),
-            nameservers: Vec::new(),
-            query_strategy: QueryStrategy::UseIP,
-            disable_cache: false,
-            disable_fallback: false,
-            disable_fallback_if_match: false,
-            fakedns_holder: None,
-            routing_ctx: Arc::new(OnceLock::new()),
+            servers: Vec::new(), entries: Vec::new(), nameservers: Vec::new(), query_strategy: QueryStrategy::UseIP,
+            disable_cache: false, disable_fallback: false, disable_fallback_if_match: false,
+            fakedns_holder: None, routing_ctx: Arc::new(OnceLock::new()),
         }
     }
     pub fn attach_routing(&self, router: Router, outbounds: HashMap<String, Arc<dyn OutboundHandler>>) {
@@ -168,17 +162,12 @@ impl DnsClient {
         self.servers.push(server);
     }
     fn filter_ips_with_strategy(strategy: QueryStrategy, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
-        let (ipv4_allow, ipv6_allow) = match strategy {
+        let (v4, v6) = match strategy {
             QueryStrategy::UseIPv4 => (true, false),
             QueryStrategy::UseIPv6 => (false, true),
             QueryStrategy::UseIP => (option.ipv4_enable, option.ipv6_enable),
         };
-        ips.iter().copied()
-            .filter(|ip| match ip {
-                IpAddr::V4(_) => ipv4_allow,
-                IpAddr::V6(_) => ipv6_allow,
-            })
-            .collect()
+        ips.iter().copied().filter(|ip| if ip.is_ipv4() { v4 } else { v6 }).collect()
     }
     fn filter_ips(&self, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
         Self::filter_ips_with_strategy(self.query_strategy, ips, option)

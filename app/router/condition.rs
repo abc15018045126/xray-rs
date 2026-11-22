@@ -132,37 +132,15 @@ pub struct Rule {
 impl Rule {
     pub fn new(tag: impl Into<String>) -> Self {
         Self {
-            tag: tag.into(),
-            balancer_tag: None,
-            inbound_tags: Vec::new(),
-            domain_matchers: Vec::new(),
-            ip_matchers: Vec::new(),
-            source_ip_matchers: Vec::new(),
-            ports: Vec::new(),
-            port_ranges: Vec::new(),
-            source_ports: Vec::new(),
-            network: None,
-            protocols: Vec::new(),
-            user_emails: Vec::new(),
-            process: Vec::new(),
+            tag: tag.into(), balancer_tag: None, inbound_tags: Vec::new(), domain_matchers: Vec::new(),
+            ip_matchers: Vec::new(), source_ip_matchers: Vec::new(), ports: Vec::new(), port_ranges: Vec::new(),
+            source_ports: Vec::new(), network: None, protocols: Vec::new(), user_emails: Vec::new(), process: Vec::new(),
         }
     }
     pub fn with_balancer(balancer_tag: impl Into<String>) -> Self {
-        Self {
-            tag: String::new(),
-            balancer_tag: Some(balancer_tag.into()),
-            inbound_tags: Vec::new(),
-            domain_matchers: Vec::new(),
-            ip_matchers: Vec::new(),
-            source_ip_matchers: Vec::new(),
-            ports: Vec::new(),
-            port_ranges: Vec::new(),
-            source_ports: Vec::new(),
-            network: None,
-            protocols: Vec::new(),
-            user_emails: Vec::new(),
-            process: Vec::new(),
-        }
+        let mut r = Self::new("");
+        r.balancer_tag = Some(balancer_tag.into());
+        r
     }
     pub fn matches_destination_ip(&self, ip: &IpAddr) -> bool {
         if self.ip_matchers.is_empty() { return false; }

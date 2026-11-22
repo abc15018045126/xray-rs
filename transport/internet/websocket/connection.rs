@@ -77,16 +77,11 @@ pub struct PrefixedStream {
 }
 
 impl tokio::io::AsyncRead for PrefixedStream {
-    fn poll_read(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
+    fn poll_read(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> std::task::Poll<std::io::Result<()>> {
         if self.offset < self.prefix.len() {
-            let rem = &self.prefix[self.offset..];
-            let to_copy = rem.len().min(buf.remaining());
-            buf.put_slice(&rem[..to_copy]);
-            self.offset += to_copy;
+            let n = (self.prefix.len() - self.offset).min(buf.remaining());
+            buf.put_slice(&self.prefix[self.offset..self.offset + n]);
+            self.offset += n;
             return std::task::Poll::Ready(Ok(()));
         }
         std::pin::Pin::new(&mut self.inner).poll_read(cx, buf)

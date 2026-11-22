@@ -63,12 +63,8 @@ impl fmt::Display for Name {
         for (i, label) in self.labels.iter().enumerate() {
             if i > 0 { write!(f, ".")?; }
             for &b in label {
-                if b == b'-' || b.is_ascii_digit() || b.is_ascii_uppercase() || b.is_ascii_lowercase()
-                {
-                    write!(f, "{}", b as char)?;
-                } else {
-                    write!(f, "\\x{:02x}", b)?;
-                }
+                if b == b'-' || b.is_ascii_alphanumeric() { write!(f, "{}", b as char)?; }
+                else { write!(f, "\\x{:02x}", b)?; }
             }
         }
         Ok(())

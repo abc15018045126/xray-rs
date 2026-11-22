@@ -345,14 +345,11 @@ impl<'a> ProtoReader<'a> {
 fn load_geoip_code_from_dat(path: &Path, target_code: &str) -> Result<Option<GeoIpIndex>> {
     let data = std::fs::read(path)?;
     let mut r = ProtoReader::new(&data);
-    while !r.is_eof() {
-        let Some((field, wt)) = r.read_tag() else { break; };
+    while let Some((field, wt)) = (!r.is_eof()).then(|| r.read_tag()).flatten() {
         if field == 1 && wt == 2 {
-            let Some(entry_bytes) = r.read_bytes() else { break; };
-            if let Some(idx) = parse_geoip_entry_if_match(entry_bytes, target_code) { return Ok(Some(idx)); }
-        } else if r.skip_field(wt).is_none() {
-            break;
-        }
+            let Some(eb) = r.read_bytes() else { break; };
+            if let Some(idx) = parse_geoip_entry_if_match(eb, target_code) { return Ok(Some(idx)); }
+        } else if r.skip_field(wt).is_none() { break; }
     }
     Ok(None)
 }

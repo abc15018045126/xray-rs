@@ -27,16 +27,10 @@ impl ActivityTimer {
             task_handle: Mutex::new(None),
         }
     }
-    pub fn with_callback<F>(timeout: Duration, on_timeout: F) -> Arc<Self>
-    where
-        F: FnOnce() + Send + 'static,
-    {
+    pub fn with_callback<F: FnOnce() + Send + 'static>(timeout: Duration, on_timeout: F) -> Arc<Self> {
         let timer = Arc::new(Self {
-            timeout: Mutex::new(timeout),
-            last_activity: Arc::new(AtomicU64::new(0)),
-            start_time: Instant::now(),
-            consumed: Arc::new(AtomicBool::new(false)),
-            on_timeout: Arc::new(Mutex::new(Some(Box::new(on_timeout)))),
+            timeout: Mutex::new(timeout), last_activity: Arc::new(AtomicU64::new(0)), start_time: Instant::now(),
+            consumed: Arc::new(AtomicBool::new(false)), on_timeout: Arc::new(Mutex::new(Some(Box::new(on_timeout)))),
             task_handle: Mutex::new(None),
         });
         timer.set_timeout(timeout);

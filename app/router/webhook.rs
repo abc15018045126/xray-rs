@@ -69,19 +69,9 @@ impl WebhookEvent {
     pub fn new(outbound_tag: impl Into<String>) -> Self {
         let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
         Self {
-            email: None,
-            level: None,
-            protocol: None,
-            network: None,
-            source: None,
-            destination: None,
-            original_target: None,
-            route_target: None,
-            inbound_tag: None,
-            inbound_name: None,
-            inbound_local: None,
-            outbound_tag: Some(outbound_tag.into()),
-            ts,
+            email: None, level: None, protocol: None, network: None, source: None, destination: None,
+            original_target: None, route_target: None, inbound_tag: None, inbound_name: None, inbound_local: None,
+            outbound_tag: Some(outbound_tag.into()), ts,
         }
     }
 }
@@ -98,15 +88,10 @@ pub struct WebhookNotifier {
 impl WebhookNotifier {
     pub fn new(cfg: &WebhookConfig) -> Result<Option<Self>> {
         if cfg.url.is_empty() { return Ok(None); }
-        let (http_url, socket_path) = parse_url(&cfg.url);
-        let resolved_socket = resolve_socket_path(&socket_path);
+        let (url, sock) = parse_url(&cfg.url);
         Ok(Some(Self {
-            url: http_url,
-            socket_path: resolved_socket,
-            headers: cfg.headers.clone(),
-            deduplication: cfg.deduplication,
-            seen: Arc::new(RwLock::new(HashMap::new())),
-            closed: Arc::new(AtomicBool::new(false)),
+            url, socket_path: resolve_socket_path(&sock), headers: cfg.headers.clone(), deduplication: cfg.deduplication,
+            seen: Arc::new(RwLock::new(HashMap::new())), closed: Arc::new(AtomicBool::new(false)),
         }))
     }
     pub fn is_duplicate(&self, email: &str) -> bool {
@@ -121,19 +106,15 @@ impl WebhookNotifier {
         false
     }
     pub fn build_event(
-        outbound_tag: &str,
-        inbound_tag: Option<&str>,
-        email: Option<&str>,
-        network: Option<&str>,
-        source: Option<&str>,
-        destination: Option<&str>,
+        outbound_tag: &str, inbound_tag: Option<&str>, email: Option<&str>,
+        network: Option<&str>, source: Option<&str>, destination: Option<&str>,
     ) -> WebhookEvent {
         let mut ev = WebhookEvent::new(outbound_tag);
-        ev.inbound_tag = inbound_tag.map(|s| s.to_string());
-        ev.email = email.map(|s| s.to_string());
-        ev.network = network.map(|s| s.to_string());
-        ev.source = source.map(|s| s.to_string());
-        ev.destination = destination.map(|s| s.to_string());
+        ev.inbound_tag = inbound_tag.map(str::to_string);
+        ev.email = email.map(str::to_string);
+        ev.network = network.map(str::to_string);
+        ev.source = source.map(str::to_string);
+        ev.destination = destination.map(str::to_string);
         ev
     }
     pub fn close(&self) { self.closed.store(true, Ordering::SeqCst); }

@@ -7,19 +7,9 @@ pub fn format_json(raw: &str) -> Result<String> {
 }
 
 pub fn cmd_convert_json() -> Command {
-    Command::new(
-        "json",
-        "xray convert json [-t] [json content or file]",
-        "Convert typedMessage or raw JSON to formatted json",
-    )
-    .with_run(|args| {
-        if args.is_empty() { return Err(Error::Config("empty input list".into())); }
-        let input = args.last().unwrap();
-        let content = if std::path::Path::new(input).exists() {
-            std::fs::read_to_string(input).map_err(Error::Io)?
-        } else {
-            input.to_string()
-        };
+    Command::new("json", "xray convert json [-t] [json content or file]", "Convert typedMessage or raw JSON to formatted json").with_run(|args| {
+        let input = args.last().ok_or_else(|| Error::Config("empty input list".into()))?;
+        let content = if std::path::Path::new(input).exists() { std::fs::read_to_string(input).map_err(Error::Io)? } else { input.to_string() };
         format_json(&content)
     })
 }

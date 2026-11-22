@@ -142,16 +142,10 @@ impl DispatcherConn {
 }
 
 pub async fn dial_dispatcher(dispatcher: Arc<dyn LinkDispatcher>) -> Result<DispatcherConn> {
-    let (cache_tx, cache_rx) = mpsc::channel(16);
-    let closed = Arc::new(AtomicBool::new(false));
-    let closed_clone = closed.clone();
-    let callback: ResponseCallback = Arc::new(move |packet: &UdpPacket| {
-        if !closed_clone.load(Ordering::Relaxed) { let _ = cache_tx.try_send(packet.clone()); }
+    let ((tx, rx), closed) = (mpsc::channel(16), Arc::new(AtomicBool::new(false)));
+    let c = closed.clone();
+    let cb: ResponseCallback = Arc::new(move |pkt: &UdpPacket| {
+        if !c.load(Ordering::Relaxed) { let _ = tx.try_send(pkt.clone()); }
     });
-    let d = Arc::new(Dispatcher::new(dispatcher, callback));
-    Ok(DispatcherConn {
-        dispatcher: d,
-        cache_rx: Mutex::new(cache_rx),
-        closed,
-    })
+    Ok(DispatcherConn { dispatcher: Arc::new(Dispatcher::new(dispatcher, cb)), cache_rx: Mutex::new(rx), closed })
 }

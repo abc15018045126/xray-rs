@@ -22,10 +22,7 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
         if self.eof { return Ok(None); }
         let size = match self.reader.read_u16().await {
             Ok(s) => s as usize,
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                self.eof = true;
-                return Ok(None);
-            }
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => { self.eof = true; return Ok(None); }
             Err(e) => return Err(e.into()),
         };
         let mut buf = vec![0u8; size];
