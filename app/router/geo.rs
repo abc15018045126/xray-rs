@@ -125,23 +125,16 @@ fn cidr_v6_range(ip: [u8; 16], prefix: u32) -> (u128, u128) {
 }
 
 pub fn find_asset_file(filename: &str) -> Option<PathBuf> {
-    for env_key in ["XRAY_LOCATION_ASSET", "xray.location.asset"] {
-        if let Ok(dir) = std::env::var(env_key) && !dir.is_empty()
-        {
+    for k in ["XRAY_LOCATION_ASSET", "xray.location.asset"] {
+        if let Ok(dir) = std::env::var(k) && !dir.is_empty() {
             let p = PathBuf::from(dir).join(filename);
             if p.is_file() { return Some(p); }
         }
     }
-    if let Ok(exe) = std::env::current_exe() && let Some(parent) = exe.parent()
-    {
-        let p = parent.join(filename);
-        if p.is_file() { return Some(p); }
+    if let Ok(exe) = std::env::current_exe() && let Some(p) = exe.parent().map(|d| d.join(filename)) && p.is_file() {
+        return Some(p);
     }
-    let cwd = PathBuf::from(filename);
-    if cwd.is_file() { return Some(cwd); }
-    let cfg = PathBuf::from("configs").join(filename);
-    if cfg.is_file() { return Some(cfg); }
-    None
+    [PathBuf::from(filename), PathBuf::from("configs").join(filename)].into_iter().find(|p| p.is_file())
 }
 
 pub struct GeoDatabase {
@@ -155,20 +148,10 @@ pub struct GeoDatabase {
 
 impl GeoDatabase {
     pub fn new() -> Self {
-        let geosite_path = find_asset_file("geosite.dat");
-        let geoip_path = find_asset_file("geoip.dat");
+        let (geosite_path, geoip_path) = (find_asset_file("geosite.dat"), find_asset_file("geoip.dat"));
         if let Some(ref p) = geosite_path { tracing::info!("Found geosite.dat at {}", p.display()); }
         if let Some(ref p) = geoip_path { tracing::info!("Found geoip.dat at {}", p.display()); }
-        let db = Self {
-            geosites: RwLock::new(HashMap::new()),
-            geoips: RwLock::new(HashMap::new()),
-            geosite_path: RwLock::new(geosite_path),
-            geoip_path: RwLock::new(geoip_path),
-            attempted_geosites: RwLock::new(HashSet::new()),
-            attempted_geoips: RwLock::new(HashSet::new()),
-        };
-        db.init_builtin_rules();
-        db
+        Self::with_asset_paths(geoip_path, geosite_path)
     }
     pub fn with_asset_paths(geoip_path: Option<PathBuf>, geosite_path: Option<PathBuf>) -> Self {
         let db = Self {

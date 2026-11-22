@@ -55,13 +55,11 @@ impl SessionManager {
     }
     pub fn count(&self) -> usize { self.count.load(Ordering::Relaxed) as usize }
     pub fn allocate(&self, strategy: &ClientStrategy) -> Option<Session> {
-        let max_concurrency = strategy.max_concurrency as usize;
-        let max_connection = strategy.max_connection;
         let mut guard = self.sessions.write().unwrap();
-        if self.closed.load(Ordering::Relaxed) { return None; }
-        if max_concurrency > 0 && guard.len() >= max_concurrency { return None; }
-        let curr_count = self.count.load(Ordering::Relaxed);
-        if max_connection > 0 && curr_count >= max_connection as u16 { return None; }
+        if self.closed.load(Ordering::Relaxed)
+            || (strategy.max_concurrency > 0 && guard.len() >= strategy.max_concurrency as usize)
+            || (strategy.max_connection > 0 && self.count.load(Ordering::Relaxed) >= strategy.max_connection as u16)
+        { return None; }
         let id = self.count.fetch_add(1, Ordering::SeqCst) + 1;
         let session = Session::new(id);
         guard.insert(id, session.clone());

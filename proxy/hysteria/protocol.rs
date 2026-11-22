@@ -18,26 +18,10 @@ impl QuicVarint {
         Ok(val)
     }
     pub fn write(val: u64, buf: &mut Vec<u8>) {
-        if val <= 63 {
-            buf.push(val as u8);
-        } else if val <= 16383 {
-            buf.push(0x40 | ((val >> 8) as u8));
-            buf.push(val as u8);
-        } else if val <= 1073741823 {
-            buf.push(0x80 | ((val >> 24) as u8));
-            buf.push((val >> 16) as u8);
-            buf.push((val >> 8) as u8);
-            buf.push(val as u8);
-        } else {
-            buf.push(0xc0 | ((val >> 56) as u8));
-            buf.push((val >> 48) as u8);
-            buf.push((val >> 40) as u8);
-            buf.push((val >> 32) as u8);
-            buf.push((val >> 24) as u8);
-            buf.push((val >> 16) as u8);
-            buf.push((val >> 8) as u8);
-            buf.push(val as u8);
-        }
+        if val <= 63 { buf.push(val as u8); }
+        else if val <= 16383 { buf.extend_from_slice(&(0x4000 | val as u16).to_be_bytes()); }
+        else if val <= 1073741823 { buf.extend_from_slice(&(0x8000_0000 | val as u32).to_be_bytes()); }
+        else { buf.extend_from_slice(&(0xc000_0000_0000_0000 | val).to_be_bytes()); }
     }
 }
 

@@ -10,22 +10,13 @@ static TYPE_CREATOR_REGISTRY: LazyLock<RwLock<HashMap<TypeId, ConfigCreator>>> =
 
 pub fn type_of<T>(_: &T) -> &'static str { std::any::type_name::<T>() }
 
-pub fn register_config<T: 'static, F>(creator: F) -> Result<()>
-where
-    F: Fn(T) -> Result<Box<dyn Any>> + Send + Sync + 'static,
-{
+pub fn register_config<T: 'static, F: Fn(T) -> Result<Box<dyn Any>> + Send + Sync + 'static>(creator: F) -> Result<()> {
     let type_id = TypeId::of::<T>();
     let mut guard = TYPE_CREATOR_REGISTRY.write().map_err(|_| Error::Other("Config registry lock poisoned".into()))?;
     if guard.contains_key(&type_id) {
         return Err(Error::Other(format!("Type {} is already registered", std::any::type_name::<T>())));
     }
-    guard.insert(
-        type_id,
-        Box::new(move |boxed_any| {
-            let val = boxed_any.downcast::<T>().map_err(|_| Error::Other("Failed to downcast config object".into()))?;
-            creator(*val)
-        }),
-    );
+    guard.insert(type_id, Box::new(move |b| creator(*b.downcast::<T>().map_err(|_| Error::Other("Failed to downcast config object".into()))?)));
     Ok(())
 }
 

@@ -27,23 +27,11 @@ impl AlwaysOnInboundHandler {
         receiver_settings: Option<Vec<u8>>,
         proxy_settings: Option<Vec<u8>>,
     ) -> Self {
-        let tag_str = tag.into();
-        let (uplink_counter, downlink_counter) = if let Some(mgr) = stats_mgr {
-            (
-                Some(mgr.register_counter_sync(inbound_uplink_name(&tag_str))),
-                Some(mgr.register_counter_sync(inbound_downlink_name(&tag_str))),
-            )
-        } else {
-            (None, None)
-        };
-        Self {
-            tag: tag_str,
-            workers: RwLock::new(Vec::new()),
-            uplink_counter,
-            downlink_counter,
-            receiver_settings,
-            proxy_settings,
-        }
+        let tag = tag.into();
+        let (uplink_counter, downlink_counter) = stats_mgr.map_or((None, None), |m| {
+            (Some(m.register_counter_sync(inbound_uplink_name(&tag))), Some(m.register_counter_sync(inbound_downlink_name(&tag))))
+        });
+        Self { tag, workers: RwLock::new(Vec::new()), uplink_counter, downlink_counter, receiver_settings, proxy_settings }
     }
     pub async fn add_worker(&self, worker: InboundWorker) { self.workers.write().await.push(worker); }
     pub fn uplink_counter(&self) -> Option<&Arc<Counter>> { self.uplink_counter.as_ref() }

@@ -12,26 +12,13 @@ use crate::transport::internet::tcp::TcpDialer;
 
 pub fn parse_ws_early_data(raw_path: &str) -> (String, usize) {
     let Some((base, query)) = raw_path.split_once('?') else { return (raw_path.to_string(), 0); };
-    let mut ed = 0usize;
-    let mut kept = Vec::new();
-    for pair in query.split('&') {
-        if pair.is_empty() { continue; }
-        if let Some((k, v)) = pair.split_once('=') && k == "ed" && let Ok(n) = v.parse::<usize>()
-        {
-            ed = n;
-            continue;
-        }
-        kept.push(pair);
+    let (mut ed, mut kept) = (0usize, Vec::new());
+    for pair in query.split('&').filter(|p| !p.is_empty()) {
+        if let Some(("ed", v)) = pair.split_once('=') && let Ok(n) = v.parse::<usize>() { ed = n; }
+        else { kept.push(pair); }
     }
-    let clean = if kept.is_empty() {
-        if base.is_empty() {
-            "/".to_string()
-        } else {
-            base.to_string()
-        }
-    } else {
-        format!("{}?{}", base, kept.join("&"))
-    };
+    let clean = if kept.is_empty() { if base.is_empty() { "/".into() } else { base.into() } }
+        else { format!("{}?{}", base, kept.join("&")) };
     (clean, ed)
 }
 

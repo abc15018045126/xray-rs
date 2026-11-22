@@ -148,17 +148,11 @@ impl AckSegment {
         let total = self.byte_size();
         if buf.len() < total { return Err(Error::BufferOverflow); }
         buf[0..2].copy_from_slice(&self.conv.to_be_bytes());
-        buf[2] = COMMAND_ACK;
-        buf[3] = self.option;
+        (buf[2], buf[3], buf[16]) = (COMMAND_ACK, self.option, self.number_list.len() as u8);
         buf[4..8].copy_from_slice(&self.receiving_window.to_be_bytes());
         buf[8..12].copy_from_slice(&self.receiving_next.to_be_bytes());
         buf[12..16].copy_from_slice(&self.timestamp.to_be_bytes());
-        buf[16] = self.number_list.len() as u8;
-        let mut offset = 17;
-        for &num in &self.number_list {
-            buf[offset..offset + 4].copy_from_slice(&num.to_be_bytes());
-            offset += 4;
-        }
+        for (i, &num) in self.number_list.iter().enumerate() { buf[17 + i * 4..21 + i * 4].copy_from_slice(&num.to_be_bytes()); }
         Ok(total)
     }
     pub fn decode(buf: &[u8]) -> Result<Self> {
@@ -238,22 +232,10 @@ impl CmdOnlySegment {
 
 pub fn read_segment(buf: &[u8]) -> Option<(Segment, &[u8])> {
     if buf.len() < 4 { return None; }
-    let conv = u16::from_be_bytes([buf[0], buf[1]]);
-    let cmd = buf[2];
-    let opt = buf[3];
-    let rest = &buf[4..];
+    let (conv, cmd, opt, rest) = (u16::from_be_bytes([buf[0], buf[1]]), buf[2], buf[3], &buf[4..]);
     match cmd {
-        COMMAND_DATA => {
-            let (seg, remaining) = DataSegment::parse(conv, opt, rest)?;
-            Some((Segment::Data(seg), remaining))
-        }
-        COMMAND_ACK => {
-            let (seg, remaining) = AckSegment::parse(conv, opt, rest)?;
-            Some((Segment::Ack(seg), remaining))
-        }
-        _ => {
-            let (seg, remaining) = CmdOnlySegment::parse(conv, cmd, opt, rest)?;
-            Some((Segment::CmdOnly(seg), remaining))
-        }
+        COMMAND_DATA => DataSegment::parse(conv, opt, rest).map(|(s, r)| (Segment::Data(s), r)),
+        COMMAND_ACK => AckSegment::parse(conv, opt, rest).map(|(s, r)| (Segment::Ack(s), r)),
+        _ => CmdOnlySegment::parse(conv, cmd, opt, rest).map(|(s, r)| (Segment::CmdOnly(s), r)),
     }
 }

@@ -21,21 +21,10 @@ pub fn protect_android_socket(fd: i32) -> bool {
 }
 
 pub fn apply_tcp_options(s: &TcpStream) -> std::io::Result<()> {
+    let ka = TcpKeepalive::new().with_time(Duration::from_secs(10)).with_interval(Duration::from_secs(1));
     #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
-    {
-        let sock_ref = socket2::SockRef::from(s);
-        sock_ref.set_tcp_keepalive(
-            &TcpKeepalive::new()
-                .with_time(Duration::from_secs(10)).with_interval(Duration::from_secs(1)).with_retries(3),
-        )?;
-    }
-    #[cfg(any(target_os = "windows", target_os = "android"))]
-    {
-        let sock_ref = socket2::SockRef::from(s);
-        sock_ref.set_tcp_keepalive(
-            &TcpKeepalive::new().with_time(Duration::from_secs(10)).with_interval(Duration::from_secs(1)),
-        )?;
-    }
+    let ka = ka.with_retries(3);
+    socket2::SockRef::from(s).set_tcp_keepalive(&ka)?;
     s.set_nodelay(true)
 }
 

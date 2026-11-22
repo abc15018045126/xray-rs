@@ -54,27 +54,12 @@ impl AccessMessage {
 
 impl Message for AccessMessage {
     fn to_log_string(&self) -> String {
-        let mut builder = String::new();
-        builder.push_str("from ");
-        builder.push_str(&self.from);
-        builder.push(' ');
-        builder.push_str(self.status.as_str());
-        builder.push(' ');
-        builder.push_str(&self.to);
-        if !self.detour.is_empty() {
-            builder.push_str(" [");
-            builder.push_str(&self.detour);
-            builder.push(']');
-        }
-        if !self.reason.is_empty() {
-            builder.push(' ');
-            builder.push_str(&self.reason);
-        }
-        if !self.email.is_empty() {
-            builder.push_str(" email: ");
-            builder.push_str(&self.email);
-        }
-        builder
+        use std::fmt::Write;
+        let mut s = format!("from {} {} {}", self.from, self.status.as_str(), self.to);
+        if !self.detour.is_empty() { let _ = write!(s, " [{}]", self.detour); }
+        if !self.reason.is_empty() { let _ = write!(s, " {}", self.reason); }
+        if !self.email.is_empty() { let _ = write!(s, " email: {}", self.email); }
+        s
     }
     fn as_any(&self) -> &dyn std::any::Any { self }
 }

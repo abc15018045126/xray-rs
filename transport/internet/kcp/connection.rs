@@ -80,9 +80,7 @@ impl KcpConnection {
     }
     pub fn with_remote_addr(conv: u16, socket: Arc<UdpSocket>, remote_addr: Option<SocketAddr>) -> Self {
         Self {
-            conv,
-            socket,
-            remote_addr,
+            conv, socket, remote_addr, mss: 1400,
             state: Arc::new(Mutex::new(State::Active)),
             rtt_info: Arc::new(Mutex::new(RoundTripInfo::new())),
             send_window: Arc::new(Mutex::new(SendingWindow::new())),
@@ -90,7 +88,6 @@ impl KcpConnection {
             ack_list: Arc::new(Mutex::new(AckList::new())),
             next_send_num: Arc::new(AtomicU32::new(0)),
             received_stream_buf: Arc::new(Mutex::new(Vec::with_capacity(65535))),
-            mss: 1400,
         }
     }
     pub fn conv(&self) -> u16 { self.conv }
@@ -140,20 +137,15 @@ impl KcpConnection {
     }
     pub async fn send_data(&self, payload: &[u8]) -> Result<()> {
         if self.is_closed().await { return Err(Error::Closed); }
-        let mut offset = 0;
-        let mut s_wnd = self.send_window.lock().await;
-        while offset < payload.len() {
-            let take = (payload.len() - offset).min(self.mss);
-            let chunk = payload[offset..offset + take].to_vec();
-            offset += take;
-            let num = self.next_send_num.fetch_add(1, Ordering::SeqCst);
-            let mut seg = DataSegment::new(self.conv, num, chunk);
-            seg.timestamp = now_millis();
-            s_wnd.push(seg);
+        {
+            let mut s_wnd = self.send_window.lock().await;
+            for chunk in payload.chunks(self.mss) {
+                let mut seg = DataSegment::new(self.conv, self.next_send_num.fetch_add(1, Ordering::SeqCst), chunk.to_vec());
+                seg.timestamp = now_millis();
+                s_wnd.push(seg);
+            }
         }
-        drop(s_wnd);
-        self.flush().await?;
-        Ok(())
+        self.flush().await
     }
     pub async fn flush_acks(&self) -> Result<()> {
         let current = now_millis();

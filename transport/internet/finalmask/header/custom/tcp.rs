@@ -88,18 +88,12 @@ pub async fn server_handshake<S: AsyncRead + AsyncWrite + Unpin>(stream: &mut S,
     let mut j = 0;
     for (i, client_seq) in config.clients.iter().enumerate() {
         if let Err(e) = read_sequence(stream, client_seq).await {
-            if i < config.errors.len() { let _ = write_sequence(stream, &config.errors[i]).await; }
+            if let Some(err_seq) = config.errors.get(i) { let _ = write_sequence(stream, err_seq).await; }
             return Err(e);
         }
-        if j < config.servers.len() {
-            write_sequence(stream, &config.servers[j]).await?;
-            j += 1;
-        }
+        if let Some(srv) = config.servers.get(j) { write_sequence(stream, srv).await?; j += 1; }
     }
-    while j < config.servers.len() {
-        write_sequence(stream, &config.servers[j]).await?;
-        j += 1;
-    }
+    for srv in &config.servers[j..] { write_sequence(stream, srv).await?; }
     Ok(())
 }
 

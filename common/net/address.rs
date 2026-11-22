@@ -145,22 +145,10 @@ pub fn ip_address(ip: impl Into<IpAddr>) -> Address { Address::ip(ip.into()) }
 
 pub fn ip_address_from_bytes(bytes: &[u8]) -> Option<Address> {
     match bytes.len() {
-        4 => {
-            let mut octets = [0u8; 4];
-            octets.copy_from_slice(bytes);
-            Some(Address::Ipv4(Ipv4Addr::from(octets)))
-        }
-        16 => {
-            if bytes[..10] == [0u8; 10] && bytes[10] == 0xff && bytes[11] == 0xff {
-                let mut octets = [0u8; 4];
-                octets.copy_from_slice(&bytes[12..16]);
-                Some(Address::Ipv4(Ipv4Addr::from(octets)))
-            } else {
-                let mut octets = [0u8; 16];
-                octets.copy_from_slice(bytes);
-                Some(Address::Ipv6(Ipv6Addr::from(octets)))
-            }
-        }
+        4 => Some(Address::Ipv4(Ipv4Addr::from(<[u8; 4]>::try_from(bytes).ok()?))),
+        16 if bytes[..10] == [0; 10] && bytes[10] == 0xff && bytes[11] == 0xff =>
+            Some(Address::Ipv4(Ipv4Addr::from(<[u8; 4]>::try_from(&bytes[12..16]).ok()?))),
+        16 => Some(Address::Ipv6(Ipv6Addr::from(<[u8; 16]>::try_from(bytes).ok()?))),
         _ => None,
     }
 }

@@ -17,22 +17,11 @@ pub struct CommandRoutingContext {
 
 impl CommandRoutingContext {
     pub fn to_session_context(&self) -> SessionContext {
-        let addr = if let Some(domain) = &self.target_domain {
-            Address::Domain(domain.clone())
-        } else if let Some(ip) = self.target_ip {
-            Address::from(ip)
-        } else {
-            Address::Domain("localhost".into())
-        };
-        let dest = Destination::new(addr, self.target_port);
-        let mut session = SessionContext::new(&self.inbound_tag, dest);
-        if let Some(user_email) = &self.user {
-            session.user = Some(User {
-                id: Uuid::nil(),
-                email: user_email.clone(),
-                level: 0,
-            });
-        }
+        let addr = self.target_domain.as_ref().map(|d| Address::Domain(d.clone()))
+            .or_else(|| self.target_ip.map(Address::from))
+            .unwrap_or_else(|| Address::Domain("localhost".into()));
+        let mut session = SessionContext::new(&self.inbound_tag, Destination::new(addr, self.target_port));
+        session.user = self.user.as_ref().map(|e| User { id: Uuid::nil(), email: e.clone(), level: 0 });
         session
     }
 }

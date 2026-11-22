@@ -12,25 +12,14 @@ impl Second {
 
 pub fn default_policy() -> Policy {
     let p = session_default();
+    let sec = |d: Duration| Some(Second { value: d.as_secs() as u32 });
     Policy {
         timeout: Some(PolicyTimeout {
-            handshake: Some(Second {
-                value: p.timeouts.handshake.as_secs() as u32,
-            }),
-            connection_idle: Some(Second {
-                value: p.timeouts.connection_idle.as_secs() as u32,
-            }),
-            uplink_only: Some(Second {
-                value: p.timeouts.uplink_only.as_secs() as u32,
-            }),
-            downlink_only: Some(Second {
-                value: p.timeouts.downlink_only.as_secs() as u32,
-            }),
+            handshake: sec(p.timeouts.handshake), connection_idle: sec(p.timeouts.connection_idle),
+            uplink_only: sec(p.timeouts.uplink_only), downlink_only: sec(p.timeouts.downlink_only),
         }),
         stats: None,
-        buffer: Some(PolicyBuffer {
-            connection: p.buffer.per_connection,
-        }),
+        buffer: Some(PolicyBuffer { connection: p.buffer.per_connection }),
     }
 }
 

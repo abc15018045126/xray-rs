@@ -108,25 +108,17 @@ impl HealthPingRTTS {
     }
     pub fn get_with_cache(&mut self) -> HealthPingStats {
         let now = Instant::now();
-        let should_update = match (self.stats.as_ref(), self.last_update_at, self.idx) {
-            (None, _, _) => true,
-            (_, Some(last_update), idx) if idx >= 0 => {
-                if let Some(put_time) = self.rtts[idx as usize].time {
-                    last_update < put_time || self.find_outdated(now)
-                } else {
-                    true
-                }
-            }
-            _ => true,
+        let fresh = match (self.stats.as_ref(), self.last_update_at, self.idx) {
+            (Some(s), Some(last), idx) if idx >= 0 => self.rtts[idx as usize].time
+                .is_some_and(|t| last >= t && !self.find_outdated(now))
+                .then(|| s.clone()),
+            _ => None,
         };
-        if should_update {
-            let s = self.get_statistics();
-            self.stats = Some(s.clone());
-            self.last_update_at = Some(now);
-            s
-        } else {
-            self.stats.clone().unwrap()
-        }
+        if let Some(s) = fresh { return s; }
+        let s = self.get_statistics();
+        self.stats = Some(s.clone());
+        self.last_update_at = Some(now);
+        s
     }
     fn find_outdated(&self, now: Instant) -> bool {
         for i in (self.capacity - 1)..(2 * self.capacity) {

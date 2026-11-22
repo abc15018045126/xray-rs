@@ -97,15 +97,9 @@ pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()>
 pub fn maybe_routes_clean_up(cfg: &TunConfig, tun_name: &str) -> io::Result<()> {
     if let Some(via) = super::super::net::get_interface_by_name(tun_name) {
         if cfg.route_all {
-            let r1 = "0.0.0.0/1".parse().unwrap();
-            let r2 = "128.0.0.0/1".parse().unwrap();
-            let _ = delete_route(&via, &r1);
-            let _ = delete_route(&via, &r2);
+            for r in ["0.0.0.0/1", "128.0.0.0/1"] { let _ = delete_route(&via, &r.parse().unwrap()); }
             if via.addr_v6.is_some() {
-                let v6_1 = "::/1".parse().unwrap();
-                let v6_2 = "8000::/1".parse().unwrap();
-                let _ = delete_route(&via, &v6_1);
-                let _ = delete_route(&via, &v6_2);
+                for r in ["::/1", "8000::/1"] { let _ = delete_route(&via, &r.parse().unwrap()); }
             }
         }
         for r in &cfg.routes { let _ = delete_route(&via, r); }

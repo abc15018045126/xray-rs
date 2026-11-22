@@ -23,28 +23,12 @@ pub struct AcAutomatonMatcher {
 }
 
 fn char_to_index(c: u8) -> Option<usize> {
+    const SYMS: &[u8] = b"!$&'()*+,;=:%-._~";
     match c {
         b'A'..=b'Z' => Some((c - b'A') as usize),
         b'a'..=b'z' => Some((c - b'a') as usize),
-        b'!' => Some(26),
-        b'$' => Some(27),
-        b'&' => Some(28),
-        b'\'' => Some(29),
-        b'(' => Some(30),
-        b')' => Some(31),
-        b'*' => Some(32),
-        b'+' => Some(33),
-        b',' => Some(34),
-        b';' => Some(35),
-        b'=' => Some(36),
-        b':' => Some(37),
-        b'%' => Some(38),
-        b'-' => Some(39),
-        b'.' => Some(40),
-        b'_' => Some(41),
-        b'~' => Some(42),
         b'0'..=b'9' => Some(43 + (c - b'0') as usize),
-        _ => None,
+        _ => SYMS.iter().position(|&b| b == c).map(|i| 26 + i),
     }
 }
 
@@ -101,19 +85,15 @@ impl AcAutomatonMatcher {
         }
     }
     pub fn match_str(&self, s: &str) -> bool {
-        let bytes = s.as_bytes();
-        let mut node = 0;
-        let mut full_match = true;
-        for &b in bytes.iter().rev() {
-            let idx = match char_to_index(b) {
-                Some(i) => i,
-                None => return false,
-            };
-            full_match = full_match && self.trie[node][idx].edge_type;
-            node = self.trie[node][idx].next_node;
+        let (mut node, mut full_match) = (0, true);
+        for &b in s.as_bytes().iter().rev() {
+            let Some(idx) = char_to_index(b) else { return false; };
+            let edge = self.trie[node][idx];
+            full_match &= edge.edge_type;
+            node = edge.next_node;
             match self.exists[node].m_type {
                 MatcherType::Substr => return true,
-                MatcherType::Domain if full_match => { return true; }
+                MatcherType::Domain if full_match => return true,
                 _ => {}
             }
         }

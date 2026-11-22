@@ -19,14 +19,8 @@ pub fn gen_mldsa65(input_seed: Option<&[u8]>) -> ([u8; 32], Vec<u8>) {
 }
 
 pub fn cmd_mldsa65() -> Command {
-    Command::new(
-        "mldsa65",
-        "xray mldsa65 [-i seed]",
-        "Generate key pair for ML-DSA-65 post-quantum signature (REALITY)",
-    )
-    .with_run(|args| {
-        let mut input_seed = None;
-        let mut i = 0;
+    Command::new("mldsa65", "xray mldsa65 [-i seed]", "Generate key pair for ML-DSA-65 post-quantum signature (REALITY)").with_run(|args| {
+        let (mut input_seed, mut i) = (None, 0);
         while i < args.len() {
             if args[i] == "-i" && i + 1 < args.len() {
                 if let Ok(s) = URL_SAFE_NO_PAD.decode(args[i + 1]) { input_seed = Some(s); }

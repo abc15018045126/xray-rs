@@ -30,26 +30,20 @@ fn seedrand(mut x: i32) -> i32 {
 
 impl GoRand {
     pub fn new(mut seed: i64) -> Self {
-        let tap = 0;
-        let feed = RNG_LEN - RNG_TAP;
         seed %= INT32_MAX as i64;
         if seed < 0 { seed += INT32_MAX as i64; }
         if seed == 0 { seed = 89482311; }
-        let mut x = seed as i32;
-        let mut vec = [0i64; RNG_LEN];
+        let (mut x, mut vec) = (seed as i32, [0i64; RNG_LEN]);
         for i in -20..(RNG_LEN as isize) {
             x = seedrand(x);
             if i >= 0 {
                 let mut u = (x as i64) << 40;
-                x = seedrand(x);
-                u ^= (x as i64) << 20;
-                x = seedrand(x);
-                u ^= x as i64;
-                u ^= RNG_COOKED[i as usize];
+                x = seedrand(x); u ^= (x as i64) << 20;
+                x = seedrand(x); u ^= (x as i64) ^ RNG_COOKED[i as usize];
                 vec[i as usize] = u;
             }
         }
-        Self { tap, feed, vec }
+        Self { tap: 0, feed: RNG_LEN - RNG_TAP, vec }
     }
     pub fn new_seeded() -> Self {
         use std::time::{SystemTime, UNIX_EPOCH};
@@ -139,27 +133,12 @@ pub fn ascii_layout() -> ByteLayout {
 }
 
 pub fn entropy_layout() -> ByteLayout {
-    let mut padding = Vec::with_capacity(16);
-    for i in 0..8 {
-        padding.push(0x80 + i);
-        padding.push(0x10 + i);
-    }
-    let encode_group: EncodeGroupFn = Arc::new(|group: u8| {
-        let v = group & 0x3f;
-        ((v & 0x30) << 1) | (v & 0x0f)
-    });
-    let decode_group: DecodeGroupFn = Arc::new(|b: u8| {
-        if (b & 0x90) != 0 { return None; }
-        Some(((b >> 1) & 0x30) | (b & 0x0f))
-    });
+    let padding: Vec<u8> = (0..8).flat_map(|i| [0x80 + i, 0x10 + i]).collect();
+    let encode_group: EncodeGroupFn = Arc::new(|g| { let v = g & 0x3f; ((v & 0x30) << 1) | (v & 0x0f) });
+    let decode_group: DecodeGroupFn = Arc::new(|b| ((b & 0x90) == 0).then(|| ((b >> 1) & 0x30) | (b & 0x0f)));
     ByteLayout {
-        hint_mask: 0x90,
-        hint_value: 0x00,
-        pad_marker: 0x80,
-        padding_pool: padding,
-        encode_hint: encode_group.clone(),
-        encode_group,
-        decode_group,
+        hint_mask: 0x90, hint_value: 0x00, pad_marker: 0x80, padding_pool: padding,
+        encode_hint: encode_group.clone(), encode_group, decode_group,
     }
 }
 

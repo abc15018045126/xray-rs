@@ -66,36 +66,18 @@ impl VlessAead {
     }
     pub fn seal(&mut self, plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
         increase_nonce(&mut self.nonce);
-        let payload = Payload {
-            msg: plaintext,
-            aad,
-        };
+        let payload = Payload { msg: plaintext, aad };
         match &self.cipher {
-            VlessCipher::AesGcm(c) => {
-                let n = AesNonce::from_slice(&self.nonce);
-                c.encrypt(n, payload).map_err(|e| Error::Crypto(format!("AES-GCM seal error: {}", e)))
-            }
-            VlessCipher::ChaCha(c) => {
-                let n = ChaChaNonce::from_slice(&self.nonce);
-                c.encrypt(n, payload).map_err(|e| Error::Crypto(format!("ChaCha seal error: {}", e)))
-            }
+            VlessCipher::AesGcm(c) => c.encrypt(AesNonce::from_slice(&self.nonce), payload).map_err(|e| Error::Crypto(format!("AES-GCM seal error: {}", e))),
+            VlessCipher::ChaCha(c) => c.encrypt(ChaChaNonce::from_slice(&self.nonce), payload).map_err(|e| Error::Crypto(format!("ChaCha seal error: {}", e))),
         }
     }
     pub fn open(&mut self, ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
         increase_nonce(&mut self.nonce);
-        let payload = Payload {
-            msg: ciphertext,
-            aad,
-        };
+        let payload = Payload { msg: ciphertext, aad };
         match &self.cipher {
-            VlessCipher::AesGcm(c) => {
-                let n = AesNonce::from_slice(&self.nonce);
-                c.decrypt(n, payload).map_err(|e| Error::Crypto(format!("AES-GCM open error: {}", e)))
-            }
-            VlessCipher::ChaCha(c) => {
-                let n = ChaChaNonce::from_slice(&self.nonce);
-                c.decrypt(n, payload).map_err(|e| Error::Crypto(format!("ChaCha open error: {}", e)))
-            }
+            VlessCipher::AesGcm(c) => c.decrypt(AesNonce::from_slice(&self.nonce), payload).map_err(|e| Error::Crypto(format!("AES-GCM open error: {}", e))),
+            VlessCipher::ChaCha(c) => c.decrypt(ChaChaNonce::from_slice(&self.nonce), payload).map_err(|e| Error::Crypto(format!("ChaCha open error: {}", e))),
         }
     }
 }

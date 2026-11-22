@@ -42,17 +42,13 @@ impl SudokuTcpConn {
     pub fn new(config: &SudokuConfig, is_client: bool) -> Result<Self> {
         let tables = get_tables(config)?;
         let (p_min, p_max) = config.normalized_padding();
-        let pure_encoder = SudokuCodec::new(tables.clone(), p_min, p_max);
-        let pure_decoder = HintStreamDecoder::new(&tables);
-        let packed_encoder = PackedEncoder::new(&tables, p_min, p_max);
-        let packed_decoder = PackedStreamDecoder::new(&tables);
         Ok(Self {
-            tables,
             is_client,
-            pure_encoder,
-            pure_decoder,
-            packed_encoder,
-            packed_decoder,
+            pure_encoder: SudokuCodec::new(tables.clone(), p_min, p_max),
+            pure_decoder: HintStreamDecoder::new(&tables),
+            packed_encoder: PackedEncoder::new(&tables, p_min, p_max),
+            packed_decoder: PackedStreamDecoder::new(&tables),
+            tables,
             pending_in: Vec::with_capacity(4096),
         })
     }

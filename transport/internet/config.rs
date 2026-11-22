@@ -103,25 +103,11 @@ impl DomainStrategy {
         }
     }
     pub fn get_dynamic_strategy(self, is_ipv4: bool, is_ipv6: bool) -> DomainStrategy {
-        match self {
-            DomainStrategy::UseIp => {
-                if is_ipv4 {
-                    DomainStrategy::UseIp46
-                } else if is_ipv6 {
-                    DomainStrategy::UseIp64
-                } else {
-                    self
-                }
-            }
-            DomainStrategy::ForceIp => {
-                if is_ipv4 {
-                    DomainStrategy::ForceIp46
-                } else if is_ipv6 {
-                    DomainStrategy::ForceIp64
-                } else {
-                    self
-                }
-            }
+        match (self, is_ipv4, is_ipv6) {
+            (DomainStrategy::UseIp, true, _) => DomainStrategy::UseIp46,
+            (DomainStrategy::UseIp, false, true) => DomainStrategy::UseIp64,
+            (DomainStrategy::ForceIp, true, _) => DomainStrategy::ForceIp46,
+            (DomainStrategy::ForceIp, false, true) => DomainStrategy::ForceIp64,
             _ => self,
         }
     }

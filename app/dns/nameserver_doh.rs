@@ -313,16 +313,9 @@ impl NameServer for DohNameServer {
     fn routes_via_proxy(&self) -> bool {
         let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) else { return false; };
         let (_, host, port, _) = self.parse_url();
-        let addr = match host.parse::<IpAddr>() {
-            Ok(IpAddr::V4(v4)) => Address::Ipv4(v4),
-            Ok(IpAddr::V6(v6)) => Address::Ipv6(v6),
-            Err(_) => Address::Domain(host),
-        };
-        let dest = Destination::new(addr, port);
-        let inbound_tag = self.tag.as_deref().unwrap_or("dns");
-        let session = SessionContext::new(inbound_tag, dest);
-        let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
-        !matches!(picked, "direct" | "freedom" | "dns" | "block" | "blackhole")
+        let addr = host.parse::<IpAddr>().map_or_else(|_| Address::Domain(host), Address::ip);
+        let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), Destination::new(addr, port));
+        !matches!(ctx.router.pick_outbound(&session).unwrap_or("direct"), "direct" | "freedom" | "dns" | "block" | "blackhole")
     }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         match self.execute_doh(domain).await {

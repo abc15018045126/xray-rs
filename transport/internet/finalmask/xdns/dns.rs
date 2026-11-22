@@ -204,12 +204,9 @@ impl MessageBuilder {
     pub fn bytes(&self) -> &[u8] { &self.buf }
     pub fn write_name(&mut self, name: &Name) {
         for i in 0..name.labels.len() {
-            let suffix_name = Name { labels: name.labels[i..].to_vec(), };
-            let key = suffix_name.to_string();
-            if let Some(&ptr) = self.name_cache.get(&key) && (ptr & 0x3fff) == ptr
-            {
-                let comp = 0xc000 | (ptr as u16);
-                self.buf.extend_from_slice(&comp.to_be_bytes());
+            let key = Name { labels: name.labels[i..].to_vec() }.to_string();
+            if let Some(&ptr) = self.name_cache.get(&key) && (ptr & 0x3fff) == ptr {
+                self.buf.extend_from_slice(&(0xc000 | ptr as u16).to_be_bytes());
                 return;
             }
             self.name_cache.insert(key, self.buf.len());
@@ -300,23 +297,17 @@ pub fn base32_encode(data: &[u8]) -> String {
 }
 
 pub fn base32_decode(s: &str) -> Result<Vec<u8>> {
-    let mut out = Vec::new();
-    let mut buffer = 0u64;
-    let mut bits_left = 0;
-    for c in s.chars() {
-        if c.is_whitespace() { continue; }
+    let (mut out, mut buf, mut bits) = (Vec::new(), 0u64, 0);
+    for c in s.chars().filter(|c| !c.is_whitespace()) {
         let val = match c {
             'A'..='Z' => (c as u8 - b'A') as u64,
             'a'..='z' => (c as u8 - b'a') as u64,
             '2'..='7' => (c as u8 - b'2' + 26) as u64,
             _ => return Err(Error::Protocol(format!("invalid base32 char: {}", c))),
         };
-        buffer = (buffer << 5) | val;
-        bits_left += 5;
-        if bits_left >= 8 {
-            bits_left -= 8;
-            out.push(((buffer >> bits_left) & 0xff) as u8);
-        }
+        buf = (buf << 5) | val;
+        bits += 5;
+        if bits >= 8 { bits -= 8; out.push(((buf >> bits) & 0xff) as u8); }
     }
     Ok(out)
 }
