@@ -66,6 +66,8 @@ impl TcpDialer {
                             .map_err(Error::Io)?,
                     );
                 }
+                // Prefer IPv4 before IPv6 so IPv4-only networks don't stall waiting on IPv6 timeouts.
+                addrs.sort_by_key(|a| a.is_ipv6());
 
                 #[cfg(debug_assertions)]
                 crate::debug_panel::record_stage("TCP 域名解析 (DnsClient/lookup_host)", _dt0.elapsed());
