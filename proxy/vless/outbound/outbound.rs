@@ -74,20 +74,9 @@ impl DialParams {
         )
         .await
     }
-    async fn dial_and_handshake_with_ed(
-        &self,
-        early_data: Option<&[u8]>,
-        #[cfg(debug_assertions)] trace_ctx: Option<(u64, std::time::Instant)>,
-    ) -> Result<BoxStream> {
-        pingora_timeout::timeout(
-            Duration::from_secs(15),
-            self.dial_and_handshake_inner(
-                early_data,
-                #[cfg(debug_assertions)]
-                trace_ctx,
-            ),
-        )
-        .await.map_err(|_| Error::Protocol("VLESS outbound dial/handshake timed out (15s)".into()))?
+    async fn dial_and_handshake_with_ed(&self, early_data: Option<&[u8]>, #[cfg(debug_assertions)] trace_ctx: Option<(u64, std::time::Instant)>) -> Result<BoxStream> {
+        pingora_timeout::timeout(Duration::from_secs(15), self.dial_and_handshake_inner(early_data, #[cfg(debug_assertions)] trace_ctx))
+            .await.map_err(|_| Error::Protocol("VLESS outbound dial/handshake timed out (15s)".into()))?
     }
     async fn dial_and_handshake_inner(
         &self,

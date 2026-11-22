@@ -9,19 +9,9 @@ pub const XUDP_MAX_PACKET_SIZE: usize = 65535;
 pub fn write_address_port(buf: &mut Vec<u8>, addr: &Address, port: u16) {
     buf.extend_from_slice(&port.to_be_bytes());
     match addr {
-        Address::Ipv4(v4) => {
-            buf.push(1);
-            buf.extend_from_slice(&v4.octets());
-        }
-        Address::Domain(dom) => {
-            buf.push(2);
-            buf.push(dom.len() as u8);
-            buf.extend_from_slice(dom.as_bytes());
-        }
-        Address::Ipv6(v6) => {
-            buf.push(3);
-            buf.extend_from_slice(&v6.octets());
-        }
+        Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+        Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+        Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
     }
 }
 

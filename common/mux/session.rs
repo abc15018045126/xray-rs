@@ -69,10 +69,8 @@ impl SessionManager {
         if self.closed.load(Ordering::Relaxed) { return Err(Error::Closed); }
         let id = self.count.fetch_add(1, Ordering::SeqCst) + 1;
         let mut session = Session::new(id);
-        session.target = Some(target);
-        session.sender = Some(sender);
-        let mut guard = self.sessions.write().unwrap();
-        guard.insert(id, session.clone());
+        (session.target, session.sender) = (Some(target), Some(sender));
+        self.sessions.write().unwrap().insert(id, session.clone());
         Ok(session)
     }
     pub fn add(&self, session: &Session) -> bool {

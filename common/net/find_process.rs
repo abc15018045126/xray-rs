@@ -33,10 +33,7 @@ impl ProcessFinder {
         #[cfg(target_os = "windows")]
         let res = Ok(windows_impl::find_process(is_tcp, src));
         #[cfg(not(target_os = "windows"))]
-        let res = {
-            let _ = (src, is_tcp);
-            Ok(None)
-        };
+        let res = { let _ = (src, is_tcp); Ok(None) };
         #[cfg(debug_assertions)]
         crate::debug_panel::record_stage("进程查表 (find_process)", _t0.elapsed());
         res

@@ -60,19 +60,11 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
 #[async_trait]
 impl<R: AsyncRead + Send + Sync + Unpin> Reader for BufferedReader<R> {
     async fn read_multi_buffer(&mut self) -> Result<MultiBuffer> {
-        if !self.cached.is_empty() {
-            let mb = self.cached.clone();
-            self.cached.clear();
-            return Ok(mb);
-        }
-        match self.read_buffer().await? {
-            Some(b) => {
-                let mut mb = MultiBuffer::new();
-                mb.push(b);
-                Ok(mb)
-            }
-            None => Err(Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"))),
-        }
+        if !self.cached.is_empty() { return Ok(std::mem::replace(&mut self.cached, MultiBuffer::new())); }
+        let b = self.read_buffer().await?.ok_or_else(|| Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof")))?;
+        let mut mb = MultiBuffer::new();
+        mb.push(b);
+        Ok(mb)
     }
 }
 

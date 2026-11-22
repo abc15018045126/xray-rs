@@ -9,13 +9,7 @@ pub trait FakeDnsEngine: Feature {
     fn get_domain_from_fake_dns(&self, ip: &IpAddr) -> Option<String>;
     fn is_ip_in_ip_pool(&self, ip: &IpAddr) -> bool;
     fn get_fake_ip_for_domain_with_options(&self, domain: &str, ipv4: bool, ipv6: bool) -> Vec<IpAddr> {
-        let ips = self.get_fake_ip_for_domain(domain);
-        ips.into_iter()
-            .filter(|ip| match ip {
-                IpAddr::V4(_) => ipv4,
-                IpAddr::V6(_) => ipv6,
-            })
-            .collect()
+        self.get_fake_ip_for_domain(domain).into_iter().filter(|ip| if ip.is_ipv4() { ipv4 } else { ipv6 }).collect()
     }
 }
 

@@ -9,13 +9,9 @@ pub struct UdpDialer;
 
 impl UdpDialer {
     pub async fn dial(dest: &Destination, _stream_settings: Option<&MemoryStreamConfig>) -> Result<Arc<UdpSocket>> {
-        let local_addr: SocketAddr = if dest.is_ipv6() {
-            "[::]:0".parse().unwrap()
-        } else {
-            "0.0.0.0:0".parse().unwrap()
-        };
-        let socket = UdpSocket::bind(local_addr).await.map_err(Error::Io)?;
-        if let Some(target_addr) = dest.to_socket_addr() { socket.connect(target_addr).await.map_err(Error::Io)?; }
+        let local: SocketAddr = if dest.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" }.parse().unwrap();
+        let socket = UdpSocket::bind(local).await.map_err(Error::Io)?;
+        if let Some(target) = dest.to_socket_addr() { socket.connect(target).await.map_err(Error::Io)?; }
         Ok(Arc::new(socket))
     }
 }

@@ -15,15 +15,9 @@ pub fn check_ip_command_installed() -> std::io::Result<()> {
 }
 
 pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> std::io::Result<()> {
-    let cmd = std::process::Command::new("ip")
-        .arg("route").arg("add").arg(dest.to_string()).arg("dev").arg(&via.name).output()?;
+    let cmd = std::process::Command::new("ip").args(["route", "add", &dest.to_string(), "dev", &via.name]).output()?;
     warn!("executing: ip route add {} dev {}", dest, via.name);
-    if !cmd.status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("add route failed: {}", String::from_utf8_lossy(&cmd.stderr)),
-        ));
-    }
+    if !cmd.status.success() { return Err(std::io::Error::other(format!("add route failed: {}", String::from_utf8_lossy(&cmd.stderr)))); }
     Ok(())
 }
 

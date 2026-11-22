@@ -155,12 +155,9 @@ impl GeoDatabase {
     }
     pub fn with_asset_paths(geoip_path: Option<PathBuf>, geosite_path: Option<PathBuf>) -> Self {
         let db = Self {
-            geosites: RwLock::new(HashMap::new()),
-            geoips: RwLock::new(HashMap::new()),
-            geosite_path: RwLock::new(geosite_path),
-            geoip_path: RwLock::new(geoip_path),
-            attempted_geosites: RwLock::new(HashSet::new()),
-            attempted_geoips: RwLock::new(HashSet::new()),
+            geosites: RwLock::new(HashMap::new()), geoips: RwLock::new(HashMap::new()),
+            geosite_path: RwLock::new(geosite_path), geoip_path: RwLock::new(geoip_path),
+            attempted_geosites: RwLock::new(HashSet::new()), attempted_geoips: RwLock::new(HashSet::new()),
         };
         db.init_builtin_rules();
         db

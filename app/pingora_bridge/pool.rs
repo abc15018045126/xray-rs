@@ -73,24 +73,19 @@ pub struct PingoraUpstreamBalancer {
 #[cfg(not(target_os = "android"))]
 impl PingoraUpstreamBalancer {
     fn build_backends_from_addrs(addrs: &[SocketAddr]) -> Result<(Backends, Vec<String>)> {
-        let mut set = BTreeSet::new();
-        let mut labels = Vec::with_capacity(addrs.len());
+        let (mut set, mut labels) = (BTreeSet::new(), Vec::with_capacity(addrs.len()));
         for addr in addrs {
             let s = addr.to_string();
-            set.insert(Backend::new(&s).map_err(|e| {
-                Error::Config(format!("Invalid backend address {}: {}", addr, e))
-            })?);
+            set.insert(Backend::new(&s).map_err(|e| Error::Config(format!("Invalid backend address {}: {}", addr, e)))?);
             labels.push(s);
         }
         Ok((Backends::new(discovery::Static::new(set)), labels))
     }
     fn build_backends_from_labels(labels: Vec<String>) -> Result<(Backends, Vec<String>)> {
         let mut set = BTreeSet::new();
-        for (idx, _label) in labels.iter().enumerate() {
-            let synthetic = format!("127.0.0.1:{}", 10000 + (idx % 50000));
-            set.insert(Backend::new(&synthetic).map_err(|e| {
-                Error::Config(format!("Invalid synthetic backend {}: {}", synthetic, e))
-            })?);
+        for idx in 0..labels.len() {
+            let s = format!("127.0.0.1:{}", 10000 + (idx % 50000));
+            set.insert(Backend::new(&s).map_err(|e| Error::Config(format!("Invalid synthetic backend {}: {}", s, e)))?);
         }
         Ok((Backends::new(discovery::Static::new(set)), labels))
     }

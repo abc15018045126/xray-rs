@@ -17,15 +17,10 @@ impl HttpUpgradeHub {
     }
     pub fn local_addr(&self) -> SocketAddr { self.tcp_hub.local_addr() }
     pub async fn accept(&self) -> Result<HttpUpgradeConnection> {
-        let (raw_stream, remote_addr) = self.tcp_hub.accept().await?;
-        let expected_host = if self.config.host.is_empty() {
-            None
-        } else {
-            Some(self.config.host.as_str())
-        };
-        let expected_path = Some(self.config.get_normalized_path());
-        let upgrade_stream = HttpUpgradeStream::server_handshake(raw_stream, expected_host, expected_path.as_deref())
-        .await?;
-        Ok(HttpUpgradeConnection::new(upgrade_stream, remote_addr.to_string()))
+        let (raw, addr) = self.tcp_hub.accept().await?;
+        let host = (!self.config.host.is_empty()).then_some(self.config.host.as_str());
+        let path = self.config.get_normalized_path();
+        let s = HttpUpgradeStream::server_handshake(raw, host, Some(path.as_str())).await?;
+        Ok(HttpUpgradeConnection::new(s, addr.to_string()))
     }
 }

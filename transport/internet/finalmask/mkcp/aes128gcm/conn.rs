@@ -29,14 +29,12 @@ impl Aes128GcmPacketConn {
     pub fn size(&self) -> usize { GCM_NONCE_SIZE }
     pub fn overhead(&self) -> usize { GCM_TAG_SIZE }
     pub fn wrap(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        let mut nonce_bytes = [0u8; GCM_NONCE_SIZE];
-        rand::thread_rng().fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
-        let ciphertext = self
-            .cipher.encrypt(nonce, plaintext).map_err(|e| Error::Protocol(format!("aes128gcm seal error: {:?}", e)))?;
-        let mut out = Vec::with_capacity(GCM_NONCE_SIZE + ciphertext.len());
-        out.extend_from_slice(&nonce_bytes);
-        out.extend_from_slice(&ciphertext);
+        let mut nonce = [0u8; GCM_NONCE_SIZE];
+        rand::thread_rng().fill_bytes(&mut nonce);
+        let ct = self.cipher.encrypt(Nonce::from_slice(&nonce), plaintext).map_err(|e| Error::Protocol(format!("aes128gcm seal error: {:?}", e)))?;
+        let mut out = Vec::with_capacity(GCM_NONCE_SIZE + ct.len());
+        out.extend_from_slice(&nonce);
+        out.extend_from_slice(&ct);
         Ok(out)
     }
     pub fn unwrap(&self, packet: &[u8]) -> Result<Vec<u8>> {

@@ -33,10 +33,8 @@ impl crate::features::outbound::OutboundHandler for LoopbackOutbound {
         let (client, server) = tokio::io::duplex(64 * 1024);
         let mut loop_session = SessionContext::new(self.inbound_tag.clone(), session.destination.clone());
         loop_session.source = session.source;
-        let dispatcher = self.dispatcher.clone();
-        tokio::spawn(async move {
-            let _ = dispatcher.dispatch(Box::pin(server), loop_session).await;
-        });
+        let d = self.dispatcher.clone();
+        tokio::spawn(async move { let _ = d.dispatch(Box::pin(server), loop_session).await; });
         Ok(Box::pin(client))
     }
 }

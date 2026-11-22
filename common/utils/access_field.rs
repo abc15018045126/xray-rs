@@ -17,30 +17,12 @@ impl DynamicFieldHolder {
         self.fields.insert(name.to_string(), Box::new(value));
     }
     pub fn access_field<T: 'static>(&self, field_name: &str) -> &T {
-        match self.fields.get(field_name) {
-            Some(boxed) => match boxed.downcast_ref::<T>() {
-                Some(val) => val,
-                None => panic!(
-                    "field type mismatch for field '{}': expected {}",
-                    field_name,
-                    std::any::type_name::<T>()
-                ),
-            },
-            None => panic!("field '{}' not found", field_name),
-        }
+        let b = self.fields.get(field_name).unwrap_or_else(|| panic!("field '{}' not found", field_name));
+        b.downcast_ref::<T>().unwrap_or_else(|| panic!("field type mismatch for field '{}': expected {}", field_name, std::any::type_name::<T>()))
     }
     pub fn access_field_mut<T: 'static>(&mut self, field_name: &str) -> &mut T {
-        match self.fields.get_mut(field_name) {
-            Some(boxed) => match boxed.downcast_mut::<T>() {
-                Some(val) => val,
-                None => panic!(
-                    "field type mismatch for field '{}': expected {}",
-                    field_name,
-                    std::any::type_name::<T>()
-                ),
-            },
-            None => panic!("field '{}' not found", field_name),
-        }
+        let b = self.fields.get_mut(field_name).unwrap_or_else(|| panic!("field '{}' not found", field_name));
+        b.downcast_mut::<T>().unwrap_or_else(|| panic!("field type mismatch for field '{}': expected {}", field_name, std::any::type_name::<T>()))
     }
     pub fn try_access_field<T: 'static>(&self, field_name: &str) -> Option<&T> {
         self.fields.get(field_name).and_then(|b| b.downcast_ref::<T>())

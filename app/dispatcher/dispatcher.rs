@@ -38,17 +38,9 @@ impl DispatcherBuilder {
         self
     }
     pub fn add_outbound(mut self, tag: impl Into<String>, outbound: Arc<dyn OutboundHandler>) -> Self {
-        let tag_str = tag.into();
-        let pooled: Arc<dyn OutboundHandler> = Arc::new(
-            crate::app::pingora_bridge::PingoraPooledOutbound::new(
-                tag_str.clone(),
-                vec![outbound],
-                None,
-                128,
-                std::time::Duration::from_secs(60),
-            ),
-        );
-        self.outbounds.insert(tag_str, pooled);
+        let tag = tag.into();
+        let pooled = Arc::new(crate::app::pingora_bridge::PingoraPooledOutbound::new(tag.clone(), vec![outbound], None, 128, std::time::Duration::from_secs(60)));
+        self.outbounds.insert(tag, pooled);
         self
     }
     pub fn with_default_outbound(mut self, tag: impl Into<String>) -> Self {

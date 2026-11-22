@@ -23,26 +23,19 @@ impl Certificate {
         out
     }
     pub fn to_pem(&self) -> (String, String) {
-        let cert_pem = format!(
-            "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----\n",
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &self.certificate)
-        );
-        let key_pem = format!(
-            "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
-            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &self.private_key)
-        );
-        (cert_pem, key_pem)
+        let enc = |b: &[u8]| base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b);
+        (
+            format!("-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----\n", enc(&self.certificate)),
+            format!("-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n", enc(&self.private_key)),
+        )
     }
 }
 
 pub fn parse_certificate(cert_pem: &str, key_pem: &str) -> Result<Certificate> {
-    let extract_base64 = |pem: &str| -> Result<Vec<u8>> {
-        let lines: Vec<&str> = pem.lines().map(|l| l.trim()).filter(|l| !l.starts_with("-----")).collect();
-        let b64 = lines.join("");
+    let dec = |pem: &str| {
+        let b64: String = pem.lines().map(str::trim).filter(|l| !l.starts_with("-----")).collect();
         base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &b64)
             .map_err(|e| Error::Protocol(format!("failed to decode pem base64: {}", e)))
     };
-    let cert = extract_base64(cert_pem)?;
-    let key = extract_base64(key_pem)?;
-    Ok(Certificate::new(cert, key))
+    Ok(Certificate::new(dec(cert_pem)?, dec(key_pem)?))
 }

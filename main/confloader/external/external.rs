@@ -4,18 +4,14 @@ pub use crate::main::confloader::set_effective_config_file_loader;
 pub use config_loader as load_external_config;
 
 pub fn config_loader(arg: &str) -> Result<Vec<u8>> {
-    if arg.starts_with("http+unix://") {
-        fetch_unix_socket_http_content(arg)
-    } else if arg.starts_with("http://") || arg.starts_with("https://") {
-        fetch_http_content(arg)
-    } else if arg == "stdin:" || arg == "-" {
+    if arg.starts_with("http+unix://") { fetch_unix_socket_http_content(arg) }
+    else if arg.starts_with("http://") || arg.starts_with("https://") { fetch_http_content(arg) }
+    else if arg == "stdin:" || arg == "-" {
         use std::io::Read;
         let mut buf = Vec::new();
         std::io::stdin().read_to_end(&mut buf).map_err(Error::Io)?;
         Ok(buf)
-    } else {
-        std::fs::read(arg).map_err(Error::Io)
-    }
+    } else { std::fs::read(arg).map_err(Error::Io) }
 }
 
 pub fn fetch_http_content(target: &str) -> Result<Vec<u8>> {

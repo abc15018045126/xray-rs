@@ -52,15 +52,11 @@ impl MphMatcherGroup {
     }
     pub fn lookup(&self, s: &str) -> bool { self.rule_map.contains_key(s) }
     pub fn match_pattern(&self, pattern: &str) -> Vec<u32> {
-        let bytes = pattern.as_bytes();
-        for (i, &b) in bytes.iter().enumerate() { if b == b'.' && self.lookup(&pattern[i..]) { return vec![1]; } }
-        if self.lookup(pattern) { return vec![1]; }
-        if let Some(ac) = &self.ac && ac.match_str(pattern)
+        if pattern.as_bytes().iter().enumerate().any(|(i, &b)| b == b'.' && self.lookup(&pattern[i..]))
+            || self.lookup(pattern)
+            || self.ac.as_ref().is_some_and(|ac| ac.match_str(pattern))
         { return vec![1]; }
-        for (m, id) in &self.other_matchers {
-            if super::strmatcher::Matcher::match_str(m, pattern) { return vec![*id]; }
-        }
-        Vec::new()
+        self.other_matchers.iter().find(|(m, _)| super::strmatcher::Matcher::match_str(m, pattern)).map_or_else(Vec::new, |(_, id)| vec![*id])
     }
     pub fn size(&self) -> u32 { self.count }
 }

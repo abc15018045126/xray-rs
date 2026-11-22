@@ -37,11 +37,7 @@ pub mod device {
     impl AsyncRead for WintunAsyncDevice {
         fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
             match self.read_rx.poll_recv(cx) {
-                Poll::Ready(Some(packet)) => {
-                    let n = packet.len().min(buf.remaining());
-                    buf.put_slice(&packet[..n]);
-                    Poll::Ready(Ok(()))
-                }
+                Poll::Ready(Some(pkt)) => { buf.put_slice(&pkt[..pkt.len().min(buf.remaining())]); Poll::Ready(Ok(())) }
                 Poll::Ready(None) => Poll::Ready(Ok(())),
                 Poll::Pending => Poll::Pending,
             }

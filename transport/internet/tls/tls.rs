@@ -139,15 +139,10 @@ impl TlsClient {
         Ok(Self { connector: TlsConnector::from(Arc::new(config)) })
     }
     pub async fn connect(&self, domain: &str, stream: BoxStream) -> Result<BoxStream> {
-        let clean_domain = domain.trim();
-        let server_name = ServerName::try_from(clean_domain.to_string()).map_err(|e| {
-            Error::Protocol(format!("Invalid TLS server name '{}': {}", clean_domain, e))
-        })?;
-        let tls_stream = self.connector.connect(server_name, stream).await
-            .map_err(|e| {
-                Error::Protocol(format!("TLS handshake failed with '{}': {}", clean_domain, e))
-            })?;
-        Ok(Box::pin(tls_stream))
+        let clean = domain.trim();
+        let name = ServerName::try_from(clean.to_string()).map_err(|e| Error::Protocol(format!("Invalid TLS server name '{}': {}", clean, e)))?;
+        let s = self.connector.connect(name, stream).await.map_err(|e| Error::Protocol(format!("TLS handshake failed with '{}': {}", clean, e)))?;
+        Ok(Box::pin(s))
     }
 }
 

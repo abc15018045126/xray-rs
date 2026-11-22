@@ -121,16 +121,11 @@ pub struct DispatcherConn {
 
 impl DispatcherConn {
     pub async fn read_from(&self, buf: &mut [u8]) -> Result<(usize, Destination)> {
-        let mut guard = self.cache_rx.lock().await;
-        match guard.recv().await {
-            Some(packet) => {
-                let bytes = packet.payload.as_slice();
-                let n = bytes.len().min(buf.len());
-                buf[..n].copy_from_slice(&bytes[..n]);
-                Ok((n, packet.source))
-            }
-            None => Err(Error::Other("dispatcher conn closed".into())),
-        }
+        let pkt = self.cache_rx.lock().await.recv().await.ok_or_else(|| Error::Other("dispatcher conn closed".into()))?;
+        let bytes = pkt.payload.as_slice();
+        let n = bytes.len().min(buf.len());
+        buf[..n].copy_from_slice(&bytes[..n]);
+        Ok((n, pkt.source))
     }
     pub async fn write_to(&self, buf: &[u8], dest: Destination) -> Result<usize> {
         let buffer = Buffer::from_bytes(buf);
