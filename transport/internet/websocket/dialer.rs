@@ -114,59 +114,40 @@ impl AsyncWrite for DelayDialConn {
             match &mut self.state {
                 DelayDialState::Idle => {
                     let use_ed = !buf.is_empty() && buf.len() <= self.max_ed;
-                    let ed_bytes = if use_ed { Some(buf.to_vec()) } else { None };
-                    let ed_len = buf.len();
+                    let ed_bytes = use_ed.then(|| buf.to_vec());
                     let dial_fn = self.dial_fn.clone();
                     let (tx, rx) = oneshot::channel();
                     let handle = tokio::spawn(async move {
-                        let res = dial_fn(ed_bytes).await;
-                        let _ = tx.send(res);
+                        let _ = tx.send(dial_fn(ed_bytes).await);
                     });
-                    self.state = DelayDialState::Dialing {
-                        rx,
-                        handle,
-                        sent_as_ed: use_ed,
-                        ed_len,
-                    };
+                    self.state = DelayDialState::Dialing { rx, handle, sent_as_ed: use_ed, ed_len: buf.len() };
                 }
-                DelayDialState::Dialing {
-                    rx,
-                    sent_as_ed,
-                    ed_len,
-                    ..
-                } => match Pin::new(rx).poll(cx) {
+                DelayDialState::Dialing { rx, sent_as_ed, ed_len, .. } => match Pin::new(rx).poll(cx) {
                     Poll::Pending => {
                         self.register_waker(cx.waker());
                         return Poll::Pending;
                     }
                     Poll::Ready(Ok(Ok(stream))) => {
-                        let was_ed = *sent_as_ed;
-                        let n = *ed_len;
+                        let (was_ed, n) = (*sent_as_ed, *ed_len);
                         self.state = DelayDialState::Connected(stream);
                         self.wake_all();
                         if was_ed {
                             return Poll::Ready(Ok(n.min(buf.len())));
                         }
                     }
-                    Poll::Ready(Ok(Err(e))) => {
+                    Poll::Ready(res) => {
+                        let msg = match res {
+                            Ok(Err(e)) => e.to_string(),
+                            _ => "WebSocket early-data dial task cancelled".into(),
+                        };
                         self.state = DelayDialState::Closed;
                         self.wake_all();
-                        return Poll::Ready(Err(std::io::Error::other(e.to_string())));
-                    }
-                    Poll::Ready(Err(_)) => {
-                        self.state = DelayDialState::Closed;
-                        self.wake_all();
-                        return Poll::Ready(Err(std::io::Error::other(
-                            "WebSocket early-data dial task cancelled",
-                        )));
+                        return Poll::Ready(Err(std::io::Error::other(msg)));
                     }
                 },
                 DelayDialState::Connected(stream) => return Pin::new(stream).poll_write(cx, buf),
                 DelayDialState::Closed => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::BrokenPipe,
-                        "delayDialConn closed",
-                    )));
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "delayDialConn closed")));
                 }
             }
         }

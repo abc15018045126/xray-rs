@@ -123,34 +123,26 @@ impl RequestHeader {
     }
 
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
-        let version = reader.read_u8().await?;
-        if version != VLESS_VERSION {
-            return Err(Error::Protocol(format!(
-                "Unsupported VLESS version: {}",
-                version
-            )));
+        let mut head = [0u8; 18];
+        reader.read_exact(&mut head).await?;
+        if head[0] != VLESS_VERSION {
+            return Err(Error::Protocol(format!("Unsupported VLESS version: {}", head[0])));
         }
-
-        let mut user_bytes = [0u8; 16];
-        reader.read_exact(&mut user_bytes).await?;
-        let user_id = Uuid::from_bytes(user_bytes);
-
-        let addons_len = reader.read_u8().await? as usize;
-        let addons = if addons_len > 0 {
-            let mut addons_buf = vec![0u8; addons_len];
+        let user_id = Uuid::from_bytes(head[1..17].try_into().unwrap());
+        let addons = if head[17] > 0 {
+            let mut addons_buf = vec![0u8; head[17] as usize];
             reader.read_exact(&mut addons_buf).await?;
             Addons::decode(&addons_buf)
         } else {
             Addons::default()
         };
 
-        let cmd_byte = reader.read_u8().await?;
-        let command = RequestCommand::from_u8(cmd_byte)
-            .ok_or_else(|| Error::Protocol(format!("Invalid VLESS command: {}", cmd_byte)))?;
-
-        let port = reader.read_u16().await?;
-        let addr_type = reader.read_u8().await?;
-        let address = match addr_type {
+        let mut meta = [0u8; 4];
+        reader.read_exact(&mut meta).await?;
+        let command = RequestCommand::from_u8(meta[0])
+            .ok_or_else(|| Error::Protocol(format!("Invalid VLESS command: {}", meta[0])))?;
+        let port = u16::from_be_bytes([meta[1], meta[2]]);
+        let address = match meta[3] {
             1 => {
                 let mut ip = [0u8; 4];
                 reader.read_exact(&mut ip).await?;
@@ -160,36 +152,21 @@ impl RequestHeader {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom).map_err(|e| {
-                    Error::Protocol(format!("Invalid UTF-8 domain in VLESS header: {}", e))
-                })?;
-                Address::Domain(s)
+                Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in VLESS header: {}", e)))?)
             }
             3 => {
                 let mut ip = [0u8; 16];
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => {
-                return Err(Error::Protocol(format!(
-                    "Invalid VLESS address type: {}",
-                    other
-                )));
-            }
+            other => return Err(Error::Protocol(format!("Invalid VLESS address type: {}", other))),
         };
-
         let destination = if command == RequestCommand::Udp {
             Destination::udp(address, port)
         } else {
             Destination::tcp(address, port)
         };
-
-        Ok(Self {
-            user_id,
-            command,
-            destination,
-            addons,
-        })
+        Ok(Self { user_id, command, destination, addons })
     }
 }
 

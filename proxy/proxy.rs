@@ -212,75 +212,59 @@ pub fn xtls_padding(
 }
 
 pub fn xtls_unpadding(data: &[u8], state: &mut TrafficState, is_uplink: bool) -> Vec<u8> {
-    let (remaining_command, remaining_content, remaining_padding, current_command) = if is_uplink {
-        (
-            &mut state.inbound.remaining_command,
-            &mut state.inbound.remaining_content,
-            &mut state.inbound.remaining_padding,
-            &mut state.inbound.current_command,
-        )
+    let (rem_cmd, rem_content, rem_pad, cur_cmd) = if is_uplink {
+        let s = &mut state.inbound;
+        (&mut s.remaining_command, &mut s.remaining_content, &mut s.remaining_padding, &mut s.current_command)
     } else {
-        (
-            &mut state.outbound.remaining_command,
-            &mut state.outbound.remaining_content,
-            &mut state.outbound.remaining_padding,
-            &mut state.outbound.current_command,
-        )
+        let s = &mut state.outbound;
+        (&mut s.remaining_command, &mut s.remaining_content, &mut s.remaining_padding, &mut s.current_command)
     };
 
-    let mut cursor = 0;
-    let len = data.len();
-
-    if *remaining_command == -1 && *remaining_content == -1 && *remaining_padding == -1 {
+    let (mut cursor, len) = (0, data.len());
+    if *rem_cmd == -1 && *rem_content == -1 && *rem_pad == -1 {
         if len >= 21 && &data[..16] == state.user_uuid.as_slice() {
-            cursor += 16;
-            *remaining_command = 5;
+            cursor = 16;
+            *rem_cmd = 5;
         } else {
             return data.to_vec();
         }
     }
 
     let mut result = Vec::new();
-
     while cursor < len {
-        if *remaining_command > 0 {
-            let byte = data[cursor];
+        if *rem_cmd > 0 {
+            let b = data[cursor] as i32;
             cursor += 1;
-            match *remaining_command {
-                5 => *current_command = byte as i32,
-                4 => *remaining_content = (byte as i32) << 8,
-                3 => *remaining_content |= byte as i32,
-                2 => *remaining_padding = (byte as i32) << 8,
-                1 => *remaining_padding |= byte as i32,
+            match *rem_cmd {
+                5 => *cur_cmd = b,
+                4 => *rem_content = b << 8,
+                3 => *rem_content |= b,
+                2 => *rem_pad = b << 8,
+                1 => *rem_pad |= b,
                 _ => {}
             }
-            *remaining_command -= 1;
-        } else if *remaining_content > 0 {
-            let to_read = (*remaining_content as usize).min(len - cursor);
-            result.extend_from_slice(&data[cursor..cursor + to_read]);
-            cursor += to_read;
-            *remaining_content -= to_read as i32;
-        } else if *remaining_padding > 0 {
-            let to_skip = (*remaining_padding as usize).min(len - cursor);
-            cursor += to_skip;
-            *remaining_padding -= to_skip as i32;
+            *rem_cmd -= 1;
+        } else if *rem_content > 0 {
+            let n = (*rem_content as usize).min(len - cursor);
+            result.extend_from_slice(&data[cursor..cursor + n]);
+            cursor += n;
+            *rem_content -= n as i32;
+        } else if *rem_pad > 0 {
+            let n = (*rem_pad as usize).min(len - cursor);
+            cursor += n;
+            *rem_pad -= n as i32;
         }
 
-        if *remaining_command <= 0 && *remaining_content <= 0 && *remaining_padding <= 0 {
-            if *current_command == COMMAND_PADDING_CONTINUE as i32 {
-                *remaining_command = 5;
+        if *rem_cmd <= 0 && *rem_content <= 0 && *rem_pad <= 0 {
+            if *cur_cmd == COMMAND_PADDING_CONTINUE as i32 {
+                *rem_cmd = 5;
             } else {
-                *remaining_command = -1;
-                *remaining_content = -1;
-                *remaining_padding = -1;
-                if cursor < len {
-                    result.extend_from_slice(&data[cursor..]);
-                }
+                (*rem_cmd, *rem_content, *rem_pad) = (-1, -1, -1);
+                result.extend_from_slice(&data[cursor..]);
                 break;
             }
         }
     }
-
     result
 }
 

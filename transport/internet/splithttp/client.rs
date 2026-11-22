@@ -154,57 +154,28 @@ impl DialerClient for DefaultDialerClient {
         payload: Vec<u8>,
     ) -> Result<()> {
         let (mut stream, _, _) = self.dial_stream().await?;
-        let norm_path = self.transport_config.get_normalized_path();
-        let target_path = if !session_id.is_empty()
-            && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH
-        {
-            let p1 = SplitHttpConfig::append_to_path(&norm_path, session_id);
-            if !seq_str.is_empty()
-                && self.transport_config.get_normalized_seq_placement() == PLACEMENT_PATH
-            {
-                SplitHttpConfig::append_to_path(&p1, seq_str)
-            } else {
-                p1
+        let cfg = &self.transport_config;
+        let (s_pl, q_pl) = (cfg.get_normalized_session_placement(), cfg.get_normalized_seq_placement());
+        let mut target_path = cfg.get_normalized_path();
+        if !session_id.is_empty() && s_pl == PLACEMENT_PATH {
+            target_path = SplitHttpConfig::append_to_path(&target_path, session_id);
+            if !seq_str.is_empty() && q_pl == PLACEMENT_PATH {
+                target_path = SplitHttpConfig::append_to_path(&target_path, seq_str);
             }
-        } else {
-            norm_path
-        };
+        }
 
-        let method = self.transport_config.get_normalized_uplink_http_method();
-        let host = if !self.transport_config.host.is_empty() {
-            &self.transport_config.host
-        } else {
-            "localhost"
-        };
-
+        let host = if cfg.host.is_empty() { "localhost" } else { &cfg.host };
         let mut req = format!(
             "{} {} HTTP/1.1\r\nHost: {}\r\nContent-Length: {}\r\n",
-            method,
-            target_path,
-            host,
-            payload.len()
+            cfg.get_normalized_uplink_http_method(), target_path, host, payload.len()
         );
-
-        if !session_id.is_empty()
-            && self.transport_config.get_normalized_session_placement() == PLACEMENT_HEADER
-        {
-            req.push_str(&format!(
-                "{}: {}\r\n",
-                self.transport_config.get_normalized_session_key(),
-                session_id
-            ));
+        if !session_id.is_empty() && s_pl == PLACEMENT_HEADER {
+            req.push_str(&format!("{}: {}\r\n", cfg.get_normalized_session_key(), session_id));
         }
-        if !seq_str.is_empty()
-            && self.transport_config.get_normalized_seq_placement() == PLACEMENT_HEADER
-        {
-            req.push_str(&format!(
-                "{}: {}\r\n",
-                self.transport_config.get_normalized_seq_key(),
-                seq_str
-            ));
+        if !seq_str.is_empty() && q_pl == PLACEMENT_HEADER {
+            req.push_str(&format!("{}: {}\r\n", cfg.get_normalized_seq_key(), seq_str));
         }
-
-        for (k, v) in &self.transport_config.headers {
+        for (k, v) in &cfg.headers {
             req.push_str(&format!("{}: {}\r\n", k, v));
         }
         req.push_str("\r\n");

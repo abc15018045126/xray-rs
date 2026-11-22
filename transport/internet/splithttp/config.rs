@@ -232,71 +232,32 @@ impl SplitHttpConfig {
         query_pairs: &HashMap<String, String>,
         cookies: &HashMap<String, String>,
     ) -> (String, String) {
-        let session_placement = self.get_normalized_session_placement();
-        let seq_placement = self.get_normalized_seq_placement();
-        let session_key = self.get_normalized_session_key();
-        let seq_key = self.get_normalized_seq_key();
-
-        let mut subpath: Vec<&str> = Vec::new();
-        if (session_placement == PLACEMENT_PATH || seq_placement == PLACEMENT_PATH)
-            && req_path.starts_with(base_path)
-        {
-            let rem = &req_path[base_path.len()..];
-            subpath = rem.split('/').filter(|s| !s.is_empty()).collect();
-        }
+        let (sp, qp) = (self.get_normalized_session_placement(), self.get_normalized_seq_placement());
+        let subpath: Vec<&str> = if (sp == PLACEMENT_PATH || qp == PLACEMENT_PATH) && req_path.starts_with(base_path) {
+            req_path[base_path.len()..].split('/').filter(|s| !s.is_empty()).collect()
+        } else {
+            Vec::new()
+        };
 
         let mut path_part = 0;
-        let mut session_id = String::new();
-        match session_placement {
-            PLACEMENT_PATH => {
-                if subpath.len() > path_part {
-                    session_id = subpath[path_part].to_string();
-                    path_part += 1;
+        let mut get_field = |placement: &str, key: &str| -> String {
+            match placement {
+                PLACEMENT_PATH => {
+                    let v = subpath.get(path_part).copied().unwrap_or("");
+                    if !v.is_empty() {
+                        path_part += 1;
+                    }
+                    v.to_string()
                 }
+                PLACEMENT_QUERY => query_pairs.get(key).cloned().unwrap_or_default(),
+                PLACEMENT_HEADER => headers.get(key).cloned().unwrap_or_default(),
+                PLACEMENT_COOKIE => cookies.get(key).cloned().unwrap_or_default(),
+                _ => String::new(),
             }
-            PLACEMENT_QUERY => {
-                if let Some(val) = query_pairs.get(session_key) {
-                    session_id = val.clone();
-                }
-            }
-            PLACEMENT_HEADER => {
-                if let Some(val) = headers.get(session_key) {
-                    session_id = val.clone();
-                }
-            }
-            PLACEMENT_COOKIE => {
-                if let Some(val) = cookies.get(session_key) {
-                    session_id = val.clone();
-                }
-            }
-            _ => {}
-        }
+        };
 
-        let mut seq_str = String::new();
-        match seq_placement {
-            PLACEMENT_PATH => {
-                if subpath.len() > path_part {
-                    seq_str = subpath[path_part].to_string();
-                }
-            }
-            PLACEMENT_QUERY => {
-                if let Some(val) = query_pairs.get(seq_key) {
-                    seq_str = val.clone();
-                }
-            }
-            PLACEMENT_HEADER => {
-                if let Some(val) = headers.get(seq_key) {
-                    seq_str = val.clone();
-                }
-            }
-            PLACEMENT_COOKIE => {
-                if let Some(val) = cookies.get(seq_key) {
-                    seq_str = val.clone();
-                }
-            }
-            _ => {}
-        }
-
+        let session_id = get_field(sp, self.get_normalized_session_key());
+        let seq_str = get_field(qp, self.get_normalized_seq_key());
         (session_id, seq_str)
     }
 }

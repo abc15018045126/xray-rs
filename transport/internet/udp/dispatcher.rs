@@ -87,63 +87,40 @@ impl Dispatcher {
         if self.closed.load(Ordering::SeqCst) {
             return Err(Error::Other("dispatcher is closed".into()));
         }
-
-        {
-            let guard = self.conn.read().await;
-            if let Some(entry) = &*guard
-                && !entry.closed.load(Ordering::SeqCst)
-            {
-                return Ok(entry.clone());
-            }
+        if let Some(entry) = self.conn.read().await.as_ref().filter(|e| !e.closed.load(Ordering::SeqCst)) {
+            return Ok(entry.clone());
         }
 
         let mut guard = self.conn.write().await;
         if self.closed.load(Ordering::SeqCst) {
             return Err(Error::Other("dispatcher is closed".into()));
         }
-        if let Some(entry) = &*guard
-            && !entry.closed.load(Ordering::SeqCst)
-        {
+        if let Some(entry) = guard.as_ref().filter(|e| !e.closed.load(Ordering::SeqCst)) {
             return Ok(entry.clone());
         }
 
         let link = self.dispatcher.dispatch(dest.clone()).await?;
-        let closed = Arc::new(AtomicBool::new(false));
         let (cancel_tx, mut cancel_rx) = oneshot::channel();
         let entry = Arc::new(ConnEntry {
             link: link.clone(),
             cancel_tx: Mutex::new(Some(cancel_tx)),
-            closed: closed.clone(),
+            closed: Arc::new(AtomicBool::new(false)),
         });
         *guard = Some(entry.clone());
 
-        let callback = self.callback.clone();
-        let call_close = self.call_close.clone();
-        let entry_clone = entry.clone();
-        let dest_clone = dest.clone();
-
+        let (callback, call_close, entry_clone) = (self.callback.clone(), self.call_close.clone(), entry.clone());
         tokio::spawn(async move {
             let reader = link.reader;
             loop {
                 tokio::select! {
-                    _ = &mut cancel_rx => {
-                        break;
-                    }
-                    res = reader.read_multi_buffer() => {
-                        match res {
-                            Ok(mb) => {
-                                if mb.is_empty() {
-                                    break;
-                                }
-                                for buf in mb.into_buffers() {
-                                    let packet = UdpPacket::new(buf, dest_clone.clone(), Destination::default());
-                                    callback(&packet);
-                                }
-                            }
-                            Err(_) => {
-                                break;
+                    _ = &mut cancel_rx => break,
+                    res = reader.read_multi_buffer() => match res {
+                        Ok(mb) if !mb.is_empty() => {
+                            for buf in mb.into_buffers() {
+                                callback(&UdpPacket::new(buf, dest.clone(), Destination::default()));
                             }
                         }
+                        _ => break,
                     }
                 }
             }

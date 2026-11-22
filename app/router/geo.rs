@@ -560,16 +560,11 @@ fn parse_geoip_entry_if_match(entry: &[u8], target_code: &str) -> Option<GeoIpIn
     while !r.is_eof() {
         let (field, wt) = r.read_tag()?;
         if field == 1 && wt == 2 {
-            let code_bytes = r.read_bytes()?;
-            if let Ok(code) = std::str::from_utf8(code_bytes)
-                && code.eq_ignore_ascii_case(target_code)
-            {
-                matched = true;
-            }
+            matched = std::str::from_utf8(r.read_bytes()?)
+                .is_ok_and(|code| code.eq_ignore_ascii_case(target_code));
             break;
-        } else {
-            r.skip_field(wt)?;
         }
+        r.skip_field(wt)?;
     }
     if !matched {
         return None;
@@ -581,41 +576,27 @@ fn parse_geoip_entry_if_match(entry: &[u8], target_code: &str) -> Option<GeoIpIn
         let (field, wt) = r2.read_tag()?;
         match (field, wt) {
             (2, 2) => {
-                let cidr_bytes = r2.read_bytes()?;
-                let mut cr = ProtoReader::new(cidr_bytes);
-                let mut ip_slice: Option<&[u8]> = None;
-                let mut prefix: u32 = 0;
+                let mut cr = ProtoReader::new(r2.read_bytes()?);
+                let (mut ip_slice, mut prefix) = (None, 0u32);
                 while !cr.is_eof() {
-                    let Some((cf, cwt)) = cr.read_tag() else {
-                        break;
-                    };
+                    let Some((cf, cwt)) = cr.read_tag() else { break };
                     match (cf, cwt) {
                         (1, 2) => ip_slice = cr.read_bytes(),
                         (2, 0) => prefix = cr.read_varint().unwrap_or(0) as u32,
-                        _ => {
-                            if cr.skip_field(cwt).is_none() {
-                                break;
-                            }
-                        }
+                        _ if cr.skip_field(cwt).is_none() => break,
+                        _ => {}
                     }
                 }
                 if let Some(ip) = ip_slice {
-                    if ip.len() == 4 {
-                        let arr: [u8; 4] = [ip[0], ip[1], ip[2], ip[3]];
+                    if let Ok(arr) = <[u8; 4]>::try_from(ip) {
                         idx.v4.push(cidr_v4_range(arr, prefix));
-                    } else if ip.len() == 16 {
-                        let mut arr = [0u8; 16];
-                        arr.copy_from_slice(ip);
+                    } else if let Ok(arr) = <[u8; 16]>::try_from(ip) {
                         idx.v6.push(cidr_v6_range(arr, prefix));
                     }
                 }
             }
-            (3, 0) => {
-                idx.reverse_match = r2.read_varint().unwrap_or(0) != 0;
-            }
-            _ => {
-                r2.skip_field(wt)?;
-            }
+            (3, 0) => idx.reverse_match = r2.read_varint().unwrap_or(0) != 0,
+            _ => r2.skip_field(wt)?,
         }
     }
     idx.finalize();

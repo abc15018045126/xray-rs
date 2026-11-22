@@ -50,39 +50,22 @@ pub(crate) fn bridge_ws_stream(
 
         loop {
             tokio::select! {
-                read_res = r_client.read(&mut buf) => {
-                    match read_res {
-                        Ok(0) => {
-                            let close_frame = CloseFrame {
-                                code: CloseCode::Normal,
-                                reason: "".into(),
-                            };
-                            let _ = pingora_timeout::timeout(
-                                Duration::from_secs(5),
-                                ws_sink.send(Message::Close(Some(close_frame))),
-                            )
-                            .await;
-                            let _ = ws_sink.close().await;
-                            break;
-                        }
-                        Ok(n) => {
-                            if ws_sink.send(Message::Binary(buf[..n].to_vec())).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(_) => break,
+                res = r_client.read(&mut buf) => match res {
+                    Ok(0) => {
+                        let cf = CloseFrame { code: CloseCode::Normal, reason: "".into() };
+                        let _ = pingora_timeout::timeout(Duration::from_secs(5), ws_sink.send(Message::Close(Some(cf)))).await;
+                        let _ = ws_sink.close().await;
+                        break;
                     }
-                }
+                    Ok(n) => if ws_sink.send(Message::Binary(buf[..n].to_vec())).await.is_err() { break; },
+                    Err(_) => break,
+                },
                 _ = async {
                     match heartbeat.as_mut() {
                         Some(iv) => iv.tick().await,
                         None => std::future::pending().await,
                     }
-                } => {
-                    if ws_sink.send(Message::Ping(Vec::new())).await.is_err() {
-                        break;
-                    }
-                }
+                } => if ws_sink.send(Message::Ping(Vec::new())).await.is_err() { break; }
             }
         }
     });
@@ -91,22 +74,14 @@ pub(crate) fn bridge_ws_stream(
         use tokio::io::AsyncWriteExt;
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
-                Message::Binary(bin) => {
-                    if w_client.write_all(&bin).await.is_err() {
-                        break;
-                    }
-                }
+                Message::Binary(bin) if w_client.write_all(&bin).await.is_err() => break,
                 Message::Close(_) => break,
                 _ => {}
             }
         }
     });
 
-    let combined = CombinedStream {
-        reader: r_server,
-        writer: w_server,
-    };
-    Box::pin(combined)
+    Box::pin(CombinedStream { reader: r_server, writer: w_server })
 }
 
 pub struct PrefixedStream {

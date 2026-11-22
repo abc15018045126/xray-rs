@@ -233,11 +233,10 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
         let this = self.get_mut();
-
         if !this.read_buf.is_empty() {
-            let to_write = std::cmp::min(buf.remaining(), this.read_buf.len());
-            buf.put_slice(&this.read_buf[..to_write]);
-            this.read_buf.drain(..to_write);
+            let n = buf.remaining().min(this.read_buf.len());
+            buf.put_slice(&this.read_buf[..n]);
+            this.read_buf.drain(..n);
             return Poll::Ready(Ok(()));
         }
 
@@ -249,48 +248,24 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
                 if filled.is_empty() {
                     return Poll::Ready(Ok(()));
                 }
-
                 if filled.len() < HEADER_LEN + TAG_LEN {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "Truncated encrypted packet",
-                    )));
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Truncated encrypted packet")));
                 }
-
+                let inv = |e: crate::common::errors::Error| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string());
                 let l = match decode_header(&filled[..HEADER_LEN]) {
                     Ok(len) => len,
-                    Err(e) => {
-                        return Poll::Ready(Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            e.to_string(),
-                        )));
-                    }
+                    Err(e) => return Poll::Ready(Err(inv(e))),
                 };
-
-                let cipher_end = (HEADER_LEN + l).min(filled.len());
-                let ciphertext = &filled[HEADER_LEN..cipher_end];
-                let header = &filled[..HEADER_LEN];
-
-                let plaintext = match this.aead_read.open(ciphertext, header) {
+                let plaintext = match this.aead_read.open(&filled[HEADER_LEN..(HEADER_LEN + l).min(filled.len())], &filled[..HEADER_LEN]) {
                     Ok(pt) => pt,
-                    Err(e) => {
-                        return Poll::Ready(Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            e.to_string(),
-                        )));
-                    }
+                    Err(e) => return Poll::Ready(Err(inv(e))),
                 };
-
-                let to_write = std::cmp::min(buf.remaining(), plaintext.len());
-                buf.put_slice(&plaintext[..to_write]);
-                if to_write < plaintext.len() {
-                    this.read_buf.extend_from_slice(&plaintext[to_write..]);
-                }
-
+                let n = buf.remaining().min(plaintext.len());
+                buf.put_slice(&plaintext[..n]);
+                this.read_buf.extend_from_slice(&plaintext[n..]);
                 Poll::Ready(Ok(()))
             }
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+            other => other,
         }
     }
 }

@@ -185,17 +185,12 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
-
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
-                Poll::Ready(Ok(n)) => {
-                    this.write_buf.drain(..n);
-                }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Ok(n)) => { this.write_buf.drain(..n); }
+                other => return other,
             }
         }
-
         if this.write_direct || this.context.is_direct_copy() {
             return Pin::new(&mut this.inner).poll_write(cx, buf);
         }
@@ -203,24 +198,19 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
         let (padded_frame, switch_direct) = {
             let mut state = this.context.traffic_state.lock().unwrap();
             xtls_filter_tls(buf, &mut state);
-
-            let command = if state.is_tls && state.is_tls12_or_above {
+            let cmd = if state.is_tls && state.is_tls12_or_above {
                 COMMAND_PADDING_DIRECT
             } else if state.number_of_packet_to_filter <= 0 {
                 COMMAND_PADDING_END
             } else {
                 COMMAND_PADDING_CONTINUE
             };
-
-            let uuid_opt = if !this.write_uuid_sent {
+            let uuid = (!this.write_uuid_sent).then(|| {
                 this.write_uuid_sent = true;
-                Some(state.user_uuid.clone())
-            } else {
-                None
-            };
-            let frame = xtls_padding(Some(buf), command, uuid_opt.as_deref(), true, None);
-            let done = command == COMMAND_PADDING_DIRECT || command == COMMAND_PADDING_END;
-            (frame, done)
+                state.user_uuid.as_slice()
+            });
+            let frame = xtls_padding(Some(buf), cmd, uuid, true, None);
+            (frame, cmd == COMMAND_PADDING_DIRECT || cmd == COMMAND_PADDING_END)
         };
 
         if switch_direct {
@@ -232,13 +222,10 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
 
         match Pin::new(&mut this.inner).poll_write(cx, &padded_frame) {
             Poll::Ready(Ok(n)) => {
-                if n < padded_frame.len() {
-                    this.write_buf.extend_from_slice(&padded_frame[n..]);
-                }
+                this.write_buf.extend_from_slice(&padded_frame[n..]);
                 Poll::Ready(Ok(buf.len()))
             }
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+            other => other,
         }
     }
 

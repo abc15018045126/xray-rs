@@ -264,15 +264,10 @@ impl DohNameServer {
         path: &str,
         query: &[u8],
     ) -> Result<Vec<u8>> {
-        let authority = if port == 443 {
-            host.to_string()
-        } else {
-            format!("{}:{}", host, port)
-        };
-        let uri = format!("https://{}{}", authority, path);
+        let authority = if port == 443 { host.to_string() } else { format!("{}:{}", host, port) };
         let req = http::Request::builder()
             .method(http::Method::POST)
-            .uri(uri)
+            .uri(format!("https://{}{}", authority, path))
             .header(http::header::ACCEPT, "application/dns-message")
             .header(http::header::CONTENT_TYPE, "application/dns-message")
             .header(http::header::USER_AGENT, "xray/dns")
@@ -283,11 +278,9 @@ impl DohNameServer {
             .await
             .map_err(|_| Error::Protocol("DoH H2 ready timeout".into()))?
             .map_err(|e| Error::Protocol(format!("DoH H2 ready error: {}", e)))?;
-
         let (resp_fut, mut send_stream) = ready
             .send_request(req, false)
             .map_err(|e| Error::Protocol(format!("DoH H2 send_request error: {}", e)))?;
-
         send_stream
             .send_data(Bytes::copy_from_slice(query), true)
             .map_err(|e| Error::Protocol(format!("DoH H2 send_data error: {}", e)))?;
@@ -296,7 +289,6 @@ impl DohNameServer {
             .await
             .map_err(|_| Error::Protocol("DoH H2 response timeout".into()))?
             .map_err(|e| Error::Protocol(format!("DoH H2 response error: {}", e)))?;
-
         let status = resp.status();
         let mut body_stream = resp.into_body();
         let mut out = Vec::with_capacity(512);
@@ -304,8 +296,7 @@ impl DohNameServer {
             .await
             .map_err(|_| Error::Protocol("DoH H2 body read timeout".into()))?
         {
-            let chunk = chunk_res
-                .map_err(|e| Error::Protocol(format!("DoH H2 body chunk error: {}", e)))?;
+            let chunk = chunk_res.map_err(|e| Error::Protocol(format!("DoH H2 body chunk error: {}", e)))?;
             let _ = body_stream.flow_control().release_capacity(chunk.len());
             out.extend_from_slice(&chunk);
             if out.len() > 65536 {
@@ -314,10 +305,7 @@ impl DohNameServer {
         }
 
         if status != http::StatusCode::OK {
-            return Err(Error::Protocol(format!(
-                "DoH server responded with HTTP {}",
-                status.as_u16()
-            )));
+            return Err(Error::Protocol(format!("DoH server responded with HTTP {}", status.as_u16())));
         }
         if out.is_empty() {
             return Err(Error::Protocol("Invalid or empty DoH H2 response".into()));

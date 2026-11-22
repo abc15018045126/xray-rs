@@ -159,13 +159,10 @@ impl Message {
         if bytes.len() < 12 {
             return Err(Error::Protocol("DNS message too short".into()));
         }
-
-        let id = u16::from_be_bytes([bytes[0], bytes[1]]);
-        let flags = u16::from_be_bytes([bytes[2], bytes[3]]);
-        let qdcount = u16::from_be_bytes([bytes[4], bytes[5]]) as usize;
-        let ancount = u16::from_be_bytes([bytes[6], bytes[7]]) as usize;
-        let nscount = u16::from_be_bytes([bytes[8], bytes[9]]) as usize;
-        let arcount = u16::from_be_bytes([bytes[10], bytes[11]]) as usize;
+        let u16_be = |i: usize| u16::from_be_bytes([bytes[i], bytes[i + 1]]);
+        let (id, flags) = (u16_be(0), u16_be(2));
+        let (qdcount, ancount, nscount, arcount) =
+            (u16_be(4) as usize, u16_be(6) as usize, u16_be(8) as usize, u16_be(10) as usize);
 
         let mut offset = 12;
         let mut questions = Vec::with_capacity(qdcount);
@@ -175,49 +172,24 @@ impl Message {
             if offset + 4 > bytes.len() {
                 return Err(Error::Protocol("Truncated DNS question".into()));
             }
-            let qtype = u16::from_be_bytes([bytes[offset], bytes[offset + 1]]);
-            let qclass = u16::from_be_bytes([bytes[offset + 2], bytes[offset + 3]]);
+            questions.push(Question { name, qtype: u16_be(offset), qclass: u16_be(offset + 2) });
             offset += 4;
-            questions.push(Question {
-                name,
-                qtype,
-                qclass,
-            });
         }
 
-        let mut answers = Vec::with_capacity(ancount);
-        for _ in 0..ancount {
-            let (rr, next_off) = Self::read_rr(bytes, offset)?;
-            offset = next_off;
-            answers.push(rr);
-        }
-
-        let mut authority = Vec::with_capacity(nscount);
-        for _ in 0..nscount {
-            let (rr, next_off) = Self::read_rr(bytes, offset)?;
-            offset = next_off;
-            authority.push(rr);
-        }
-
-        let mut additional = Vec::with_capacity(arcount);
-        for _ in 0..arcount {
-            let (rr, next_off) = Self::read_rr(bytes, offset)?;
-            offset = next_off;
-            additional.push(rr);
-        }
-
+        let mut read_rrs = |count: usize| -> Result<Vec<ResourceRecord>> {
+            let mut out = Vec::with_capacity(count);
+            for _ in 0..count {
+                let (rr, next_off) = Self::read_rr(bytes, offset)?;
+                offset = next_off;
+                out.push(rr);
+            }
+            Ok(out)
+        };
+        let (answers, authority, additional) = (read_rrs(ancount)?, read_rrs(nscount)?, read_rrs(arcount)?);
         if offset < bytes.len() {
             return Err(Error::Protocol("trailing bytes after message".into()));
         }
-
-        Ok(Self {
-            id,
-            flags,
-            questions,
-            answers,
-            authority,
-            additional,
-        })
+        Ok(Self { id, flags, questions, answers, authority, additional })
     }
 
     fn read_name(bytes: &[u8], mut offset: usize) -> Result<(Name, usize)> {

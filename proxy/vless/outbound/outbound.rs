@@ -416,12 +416,7 @@ impl Client {
                 #[cfg(debug_assertions)]
                 let tc = trace_ctx;
                 Box::pin(async move {
-                    p.dial_and_handshake_with_ed(
-                        ed.as_deref(),
-                        #[cfg(debug_assertions)]
-                        tc,
-                    )
-                    .await
+                    p.dial_and_handshake_with_ed(ed.as_deref(), #[cfg(debug_assertions)] tc).await
                 })
             });
             return Ok(Box::pin(DelayDialConn::new(dial_fn, self.dial_params.ws_ed)));
@@ -433,19 +428,10 @@ impl Client {
             if let Some(conn) = pre_pool.pool.get(pre_pool.key) {
                 #[cfg(debug_assertions)]
                 {
-                    let host = session
-                        .sniffed_domain
-                        .clone()
-                        .unwrap_or_else(|| session.destination.address.to_string());
+                    let host = session.sniffed_domain.clone().unwrap_or_else(|| session.destination.address.to_string());
                     crate::debug_panel::metrics().record_pool_reuse(&host, &self.tag);
                     if let Some((tid, origin)) = trace_ctx {
-                        crate::debug_panel::metrics().update_trace_meta(
-                            tid,
-                            None,
-                            None,
-                            None,
-                            Some(true),
-                        );
+                        crate::debug_panel::metrics().update_trace_meta(tid, None, None, None, Some(true));
                         crate::debug_panel::metrics().add_trace_step(
                             tid,
                             "3. 预热池复用 (Pingora Pool)",
@@ -460,13 +446,7 @@ impl Client {
             }
         }
 
-        self.dial_params
-            .dial_and_handshake_with_ed(
-                None,
-                #[cfg(debug_assertions)]
-                trace_ctx,
-            )
-            .await
+        self.dial_params.dial_and_handshake_with_ed(None, #[cfg(debug_assertions)] trace_ctx).await
     }
 }
 

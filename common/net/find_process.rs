@@ -229,71 +229,33 @@ pub mod windows_impl {
     }
 
     pub fn get_process_info_from_pid(pid: u32) -> ProcessInfo {
-        if pid == 0 {
-            return ProcessInfo {
-                pid: 0,
-                name: ":System Idle Process".into(),
-                path: ":System Idle Process".into(),
-            };
-        }
-        if pid == 4 {
-            return ProcessInfo {
-                pid: 4,
-                name: ":System".into(),
-                path: ":System".into(),
-            };
-        }
-        if pid == std::process::id() {
-            let cur_exe = std::env::current_exe()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| "xray.exe".into());
-            let norm_path = cur_exe.replace('\\', "/");
-            let name = norm_path
-                .split('/')
-                .next_back()
-                .unwrap_or(&norm_path)
-                .trim_end_matches(".exe")
-                .to_string();
-            return ProcessInfo {
-                pid,
-                name,
-                path: norm_path,
-            };
+        let from_path = |raw: String| {
+            let path = raw.replace('\\', "/");
+            let name = path.split('/').next_back().unwrap_or(&path).trim_end_matches(".exe").to_string();
+            ProcessInfo { pid, name, path }
+        };
+        match pid {
+            0 => return ProcessInfo { pid: 0, name: ":System Idle Process".into(), path: ":System Idle Process".into() },
+            4 => return ProcessInfo { pid: 4, name: ":System".into(), path: ":System".into() },
+            p if p == std::process::id() => {
+                let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "xray.exe".into());
+                return from_path(exe);
+            }
+            _ => {}
         }
 
         unsafe {
             if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
                 let mut buf = [0u16; 1024];
                 let mut len = buf.len() as u32;
-                let res = QueryFullProcessImageNameW(
-                    handle,
-                    PROCESS_NAME_FORMAT(0),
-                    windows::core::PWSTR(buf.as_mut_ptr()),
-                    &mut len,
-                );
+                let res = QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), windows::core::PWSTR(buf.as_mut_ptr()), &mut len);
                 let _ = CloseHandle(handle);
                 if res.is_ok() && len > 0 {
-                    let path = String::from_utf16_lossy(&buf[..len as usize]);
-                    let norm_path = path.replace('\\', "/");
-                    let name = norm_path
-                        .split('/')
-                        .next_back()
-                        .unwrap_or(&norm_path)
-                        .trim_end_matches(".exe")
-                        .to_string();
-                    return ProcessInfo {
-                        pid,
-                        name,
-                        path: norm_path,
-                    };
+                    return from_path(String::from_utf16_lossy(&buf[..len as usize]));
                 }
             }
         }
 
-        ProcessInfo {
-            pid,
-            name: format!("pid-{}", pid),
-            path: String::new(),
-        }
+        ProcessInfo { pid, name: format!("pid-{}", pid), path: String::new() }
     }
 }

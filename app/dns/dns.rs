@@ -357,52 +357,35 @@ impl DnsClient {
         option: IPOption,
     ) -> Result<(Vec<IpAddr>, u32)> {
         let clean = domain.trim_end_matches('.');
-
-        if let Some(ips) = self.hosts.lookup(clean) {
-            let filtered = self.filter_ips(&ips, &option);
-            if !filtered.is_empty() {
-                return Ok((filtered, 300));
-            }
-        }
-
-        if !self.disable_cache
-            && let Some(ips) = self.cache.get(clean)
-        {
-            let filtered = self.filter_ips(&ips, &option);
-            if !filtered.is_empty() {
-                return Ok((filtered, 300));
+        for cached in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()] {
+            if let Some(ips) = cached {
+                let filtered = self.filter_ips(&ips, &option);
+                if !filtered.is_empty() {
+                    return Ok((filtered, 300));
+                }
             }
         }
 
         let mut tried = vec![false; self.entries.len()];
-        let mut any_domain_matched = false;
-        let mut local_tried = false;
+        let (mut any_domain_matched, mut local_tried) = (false, false);
 
         for (idx, entry) in self.entries.iter().enumerate() {
-            if !entry.domain_matchers.is_empty()
-                && entry.domain_matchers.iter().any(|m| m.matches(clean))
-            {
+            if entry.domain_matchers.iter().any(|m| m.matches(clean)) {
                 any_domain_matched = true;
                 tried[idx] = true;
-                if entry.is_local {
-                    local_tried = true;
-                }
+                local_tried |= entry.is_local;
                 if let Some(ips) = self.query_entry(entry, clean, &option).await {
                     return Ok((ips, 300));
                 }
             }
         }
 
-        let block_fallback =
-            self.disable_fallback || (self.disable_fallback_if_match && any_domain_matched);
-        if !block_fallback {
+        if !self.disable_fallback && !(self.disable_fallback_if_match && any_domain_matched) {
             for (idx, entry) in self.entries.iter().enumerate() {
                 if tried[idx] || entry.skip_fallback {
                     continue;
                 }
-                if entry.is_local {
-                    local_tried = true;
-                }
+                local_tried |= entry.is_local;
                 if let Some(ips) = self.query_entry(entry, clean, &option).await {
                     return Ok((ips, 300));
                 }
@@ -411,13 +394,11 @@ impl DnsClient {
             #[cfg(not(target_os = "android"))]
             if !local_tried
                 && let Ok(ips) = LocalNameServer::new().query_ip(clean).await
-                && !ips.is_empty()
             {
                 let filtered = self.filter_ips(&ips, &option);
                 if !filtered.is_empty() {
                     if !self.disable_cache {
-                        self.cache
-                            .set(clean, filtered.clone(), Duration::from_secs(300));
+                        self.cache.set(clean, filtered.clone(), Duration::from_secs(300));
                     }
                     return Ok((filtered, 300));
                 }
@@ -426,10 +407,7 @@ impl DnsClient {
             let _ = local_tried;
         }
 
-        Err(Error::NotFound(format!(
-            "No IP found for domain: {}",
-            domain
-        )))
+        Err(Error::NotFound(format!("No IP found for domain: {}", domain)))
     }
 
     pub fn r#type(&self) -> &'static str {

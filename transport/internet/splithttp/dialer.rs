@@ -28,78 +28,35 @@ impl SplitHttpDialer {
         client: Arc<dyn DialerClient>,
         dest: &Destination,
     ) -> Result<BoxStream> {
-        let mode = if self.config.mode.is_empty() || self.config.mode == "auto" {
-            "packet-up"
-        } else {
-            &self.config.mode
-        };
-
-        let session_id = if mode != "stream-one" {
-            uuid::Uuid::new_v4().to_string()
-        } else {
-            String::new()
-        };
-
+        let mode = if self.config.mode.is_empty() || self.config.mode == "auto" { "packet-up" } else { &self.config.mode };
+        let session_id = if mode != "stream-one" { uuid::Uuid::new_v4().to_string() } else { String::new() };
         let norm_path = self.config.get_normalized_path();
-        let target_url = if !self.config.host.is_empty() {
-            format!("http://{}{}", self.config.host, norm_path)
-        } else {
+        let target_url = if self.config.host.is_empty() {
             format!("http://{}{}", dest.address, norm_path)
-        };
-
-        let (down_reader, local_addr, remote_addr) = client
-            .open_stream(&target_url, &session_id, None, false)
-            .await?;
-
-        let (upload_tx, mut upload_rx) = tokio::io::duplex(64 * 1024);
-
-        let max_post_bytes = self.config.get_normalized_sc_max_each_post_bytes().rand() as usize;
-        let max_chunk = if max_post_bytes > 0 {
-            max_post_bytes
         } else {
-            1024 * 1024
+            format!("http://{}{}", self.config.host, norm_path)
         };
 
-        let client_clone = Arc::clone(&client);
-        let session_id_clone = session_id.clone();
-        let url_clone = target_url.clone();
+        let (down_reader, local_addr, remote_addr) = client.open_stream(&target_url, &session_id, None, false).await?;
+        let (upload_tx, mut upload_rx) = tokio::io::duplex(64 * 1024);
+        let max_post = self.config.get_normalized_sc_max_each_post_bytes().rand() as usize;
+        let max_chunk = if max_post > 0 { max_post } else { 1024 * 1024 };
 
         tokio::spawn(async move {
             let seq = AtomicI64::new(0);
             let mut buf = vec![0u8; max_chunk];
-            loop {
-                match upload_rx.read(&mut buf).await {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let cur_seq = seq.fetch_add(1, Ordering::SeqCst);
-                        let payload = buf[..n].to_vec();
-                        if client_clone
-                            .post_packet(
-                                &url_clone,
-                                &session_id_clone,
-                                &cur_seq.to_string(),
-                                payload,
-                            )
-                            .await
-                            .is_err()
-                        {
-                            break;
-                        }
-                    }
-                    Err(_) => break,
+            while let Ok(n) = upload_rx.read(&mut buf).await {
+                if n == 0 {
+                    break;
+                }
+                let cur_seq = seq.fetch_add(1, Ordering::SeqCst).to_string();
+                if client.post_packet(&target_url, &session_id, &cur_seq, buf[..n].to_vec()).await.is_err() {
+                    break;
                 }
             }
         });
 
-        let conn = SplitConn::new(
-            down_reader,
-            Box::pin(upload_tx),
-            local_addr,
-            remote_addr,
-            None,
-        );
-
-        Ok(Box::pin(conn))
+        Ok(Box::pin(SplitConn::new(down_reader, Box::pin(upload_tx), local_addr, remote_addr, None)))
     }
 }
 

@@ -110,68 +110,40 @@ impl Sniffer {
     }
 
     pub fn sniff_tls_sni(payload: &[u8]) -> Option<String> {
-        if payload.len() < 43 {
+        let u16_be = |i: usize| u16::from_be_bytes([payload[i], payload[i + 1]]) as usize;
+        if payload.len() < 43 || payload[5] != 0x01 {
             return None;
         }
-
-        let mut pos = 5;
-        if pos >= payload.len() || payload[pos] != 0x01 {
-            return None;
-        }
-
-        pos += 4;
-        pos += 2 + 32;
+        let mut pos = 43;
         if pos >= payload.len() {
             return None;
         }
-
-        let session_id_len = payload[pos] as usize;
-        pos += 1 + session_id_len;
-
+        pos += 1 + payload[pos] as usize;
         if pos + 2 > payload.len() {
             return None;
         }
-        let cipher_suites_len = u16::from_be_bytes([payload[pos], payload[pos + 1]]) as usize;
-        pos += 2 + cipher_suites_len;
-
+        pos += 2 + u16_be(pos);
         if pos + 1 > payload.len() {
             return None;
         }
-        let comp_methods_len = payload[pos] as usize;
-        pos += 1 + comp_methods_len;
-
+        pos += 1 + payload[pos] as usize;
         if pos + 2 > payload.len() {
             return None;
         }
-        let extensions_len = u16::from_be_bytes([payload[pos], payload[pos + 1]]) as usize;
+        let end_ext = (pos + 2 + u16_be(pos)).min(payload.len());
         pos += 2;
 
-        let end_ext = (pos + extensions_len).min(payload.len());
         while pos + 4 <= end_ext {
-            let ext_type = u16::from_be_bytes([payload[pos], payload[pos + 1]]);
-            let ext_len = u16::from_be_bytes([payload[pos + 2], payload[pos + 3]]) as usize;
+            let (ext_type, ext_len) = (u16_be(pos), u16_be(pos + 2));
             pos += 4;
-
-            if ext_type == 0x0000 {
-                if pos + 5 <= end_ext {
-                    let _server_name_list_len =
-                        u16::from_be_bytes([payload[pos], payload[pos + 1]]);
-                    let name_type = payload[pos + 2];
-                    if name_type == 0 {
-                        let name_len =
-                            u16::from_be_bytes([payload[pos + 3], payload[pos + 4]]) as usize;
-                        let start = pos + 5;
-                        if start + name_len <= end_ext {
-                            return std::str::from_utf8(&payload[start..start + name_len])
-                                .ok()
-                                .map(|s| s.to_string());
-                        }
-                    }
+            if ext_type == 0x0000 && pos + 5 <= end_ext && payload[pos + 2] == 0 {
+                let nlen = u16_be(pos + 3);
+                if pos + 5 + nlen <= end_ext {
+                    return std::str::from_utf8(&payload[pos + 5..pos + 5 + nlen]).ok().map(str::to_string);
                 }
             }
             pos += ext_len;
         }
-
         None
     }
 

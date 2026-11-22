@@ -107,58 +107,31 @@ impl SystemDialerTrait for DefaultSystemDialer {
         _sockopt: Option<&SocketOptions>,
     ) -> Result<BoxStream> {
         let addr_str = match &dest.address {
-            Address::Ipv4(ip) => format!("{}:{}", ip, dest.port),
             Address::Ipv6(ip) => format!("[{}]:{}", ip, dest.port),
-            Address::Domain(host) => format!("{}:{}", host, dest.port),
+            _ => format!("{}:{}", dest.address, dest.port),
         };
-
-        let addrs: Vec<SocketAddr> = tokio::net::lookup_host(&addr_str)
-            .await
-            .map_err(Error::Io)?
-            .collect();
-
-        if addrs.is_empty() {
-            return Err(Error::NotFound(format!("Failed to resolve {}", addr_str)));
-        }
-
-        let target_addr = addrs[0];
+        let target_addr = tokio::net::lookup_host(&addr_str)
+            .await?
+            .next()
+            .ok_or_else(|| Error::NotFound(format!("Failed to resolve {}", addr_str)))?;
 
         {
-            let ctls = self.controllers.read().await;
-            for ctl in ctls.iter() {
-                let net_str = match dest.network {
-                    Network::Tcp => "tcp",
-                    Network::Udp => "udp",
-                };
-                let _ = ctl(net_str, &target_addr.to_string());
+            let net_str = if dest.network == Network::Tcp { "tcp" } else { "udp" };
+            let target_s = target_addr.to_string();
+            for ctl in self.controllers.read().await.iter() {
+                let _ = ctl(net_str, &target_s);
             }
         }
 
         if dest.network == Network::Udp {
             #[cfg(any(target_os = "windows", target_os = "android"))]
-            {
+            let socket = {
                 let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-                let socket = crate::proxy::tun::socket_helpers::new_udp_socket(
-                    None,
-                    iface.as_ref(),
-                    Some(target_addr),
-                )
-                .await
-                .map_err(Error::Io)?;
-                let wrapper = PacketConnWrapper::new(socket, target_addr);
-                return Ok(Box::pin(wrapper));
-            }
+                crate::proxy::tun::socket_helpers::new_udp_socket(None, iface.as_ref(), Some(target_addr)).await?
+            };
             #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
-            {
-                let bind_addr: SocketAddr = if target_addr.is_ipv4() {
-                    "0.0.0.0:0".parse().unwrap()
-                } else {
-                    "[::]:0".parse().unwrap()
-                };
-                let socket = UdpSocket::bind(bind_addr).await.map_err(Error::Io)?;
-                let wrapper = PacketConnWrapper::new(socket, target_addr);
-                return Ok(Box::pin(wrapper));
-            }
+            let socket = UdpSocket::bind(if target_addr.is_ipv4() { "0.0.0.0:0" } else { "[::]:0" }).await?;
+            return Ok(Box::pin(PacketConnWrapper::new(socket, target_addr)));
         }
 
         crate::app::pingora_bridge::PingoraCoreConnector::dial_tcp(target_addr).await
