@@ -83,7 +83,7 @@ pingora-load-balancing = { version = "0.9.1", features = ["rustls"] }
 tun = { version = "0.8.14", features = ["async"] }
 
 [target.'cfg(windows)'.dependencies]
-xray-rs-window = { path = "1/xray-rs-window", version = "0.1.0" }
+xray-rs-window = "0.1.0"
 wintun = { package = "wintun-rs", version = "0.0.6" }
 windows = { version = "0.62", features = [
     "Win32_Networking_WinSock",
