@@ -15,18 +15,22 @@ mod tests {
     fn test_session_inbound_and_outbound_context() {
         let ctx = Context::new();
 
-        let mut inbound = Inbound::default();
-        inbound.tag = "socks-in".to_string();
-        inbound.source = Some(Destination::tcp(Address::Domain("127.0.0.1".into()), 1080));
+        let inbound = Inbound {
+            tag: "socks-in".to_string(),
+            source: Some(Destination::tcp(Address::Domain("127.0.0.1".into()), 1080)),
+            ..Default::default()
+        };
         context_with_inbound(&ctx, Arc::new(inbound));
 
         let retrieved_inbound = inbound_from_context(&ctx).expect("retrieve inbound");
         assert_eq!(retrieved_inbound.tag, "socks-in");
 
         let mut outbounds = Vec::new();
-        let mut ob = Outbound::default();
-        ob.tag = "direct".to_string();
-        ob.target = Some(Destination::tcp(Address::Domain("example.com".into()), 443));
+        let ob = Outbound {
+            tag: "direct".to_string(),
+            target: Some(Destination::tcp(Address::Domain("example.com".into()), 443)),
+            ..Default::default()
+        };
         outbounds.push(ob);
         context_with_outbounds(&ctx, outbounds);
 
@@ -34,8 +38,7 @@ mod tests {
         assert_eq!(retrieved_outbounds.len(), 1);
         assert_eq!(retrieved_outbounds[0].tag, "direct");
 
-        let mut content = Content::default();
-        content.protocol = "http".to_string();
+        let mut content = Content { protocol: "http".to_string(), ..Default::default() };
         content.set_attribute("key", "val");
         context_with_content(&ctx, Arc::new(content));
 

@@ -22,7 +22,7 @@ mod tests {
         let flag = EnvFlag::new("xxxxx.y.nonexistent");
         assert_eq!(flag.get_value_as_int(10), 10);
         assert_eq!(flag.get_value_str("fallback"), "fallback");
-        assert_eq!(flag.get_value_as_bool(true), true);
+        assert!(flag.get_value_as_bool(true));
     }
 
     #[test]

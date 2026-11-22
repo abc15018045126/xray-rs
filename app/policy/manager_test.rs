@@ -48,9 +48,11 @@ mod tests {
     #[test]
     fn test_policy_manager_levels() {
         let pm = ConfigPolicyManager::new();
-        let mut p = PolicyLevelConfig::default();
-        p.handshake_timeout = Some(10);
-        p.stats_user_uplink = true;
+        let p = PolicyLevelConfig {
+            handshake_timeout: Some(10),
+            stats_user_uplink: true,
+            ..Default::default()
+        };
 
         pm.set_level_policy(1, p);
         let ret = pm.for_level(1);

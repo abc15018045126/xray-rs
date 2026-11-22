@@ -246,9 +246,9 @@ pub struct MultiServerSettings {
 
 impl MultiServerSettings {
     fn normalize_flat_outbound(&mut self) {
-        let Some(ref addr) = self.address.as_ref().filter(|a| !a.is_empty()) else { return; };
+        let Some(addr) = self.address.as_ref().filter(|a| !a.is_empty()) else { return; };
         let base = |users| ServerTargetConfig {
-            address: Some((*addr).clone()), port: self.port, users,
+            address: Some(addr.clone()), port: self.port, users,
             password: self.password.clone(), method: self.method.clone(),
         };
         if self.vnext.is_empty() && let Some(ref id) = self.id && !id.is_empty() {

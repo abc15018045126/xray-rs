@@ -67,9 +67,11 @@ mod tests {
     #[test]
     fn test_policy_manager_custom_levels() {
         let mut mgr = PolicyManager::default();
-        let mut p = SessionPolicy::default();
-        p.buffer_size = 1024 * 1024;
-        p.conn_idle = Duration::from_secs(600);
+        let p = SessionPolicy {
+            buffer_size: 1024 * 1024,
+            conn_idle: Duration::from_secs(600),
+            ..Default::default()
+        };
         mgr.set_level(5, p);
 
         let retrieved = mgr.for_level(5);

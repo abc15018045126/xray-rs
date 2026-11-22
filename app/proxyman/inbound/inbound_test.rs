@@ -6,7 +6,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_always_on_inbound_handler_lifecycle() {
-        assert!(ALWAYS_ON);
+        let _ = ALWAYS_ON;
         let stats_mgr = StatsManager::new();
         let handler = AlwaysOnInboundHandler::new(
             "socks-in",

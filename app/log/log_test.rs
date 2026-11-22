@@ -14,11 +14,13 @@ mod tests {
 
     #[test]
     fn test_log_config_pb_and_creator() {
-        let mut cfg = LogConfigPb::default();
-        cfg.error_log_type = PbLogType::Console;
-        cfg.error_log_level = Severity::Debug;
-        cfg.enable_dns_log = true;
-        cfg.mask_address = "half".to_string();
+        let cfg = LogConfigPb {
+            error_log_type: PbLogType::Console,
+            error_log_level: Severity::Debug,
+            enable_dns_log: true,
+            mask_address: "half".to_string(),
+            ..Default::default()
+        };
 
         assert_eq!(cfg.error_log_type, PbLogType::Console);
         assert_eq!(cfg.error_log_level, Severity::Debug);

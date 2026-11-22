@@ -12,6 +12,7 @@ pub fn read_android_tun_fd_from_env() -> Result<i32> {
 }
 
 #[cfg(target_os = "android")]
+#[allow(unsafe_code)]
 mod imp {
     use super::*;
     use std::io;

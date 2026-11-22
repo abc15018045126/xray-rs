@@ -38,8 +38,7 @@ mod tests {
     struct DummyStage;
     impl ConfigureFilePostProcessingStage for DummyStage {
         fn process(&self, conf: &mut Config) -> Result<()> {
-            if conf.inbounds.is_empty() {
-            }
+            let _ = conf.inbounds.is_empty();
             Ok(())
         }
     }

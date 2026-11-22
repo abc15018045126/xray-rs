@@ -14,9 +14,9 @@ mod tests {
 
         let table = &tables[0];
         assert_eq!(table.encode.len(), 256);
-        for b in 0..256 {
+        for (b, clues) in table.encode.iter().enumerate() {
             assert!(
-                !table.encode[b].is_empty(),
+                !clues.is_empty(),
                 "byte {} has empty encode clues",
                 b
             );
@@ -37,7 +37,7 @@ mod tests {
 
         let ascii_chars = masked
             .iter()
-            .filter(|&&b| b >= 0x20 && b <= 0x7e || b == b'\n')
+            .filter(|&&b| (0x20..=0x7e).contains(&b) || b == b'\n')
             .count();
         let ratio = (ascii_chars as f64) / (masked.len() as f64);
         assert!(ratio >= 0.95, "ASCII ratio {} too low", ratio);

@@ -39,17 +39,9 @@ mod tests {
         let (downlink_reader, downlink_writer) = new_with_options(vec![with_size_limit(1024)]);
 
         tokio::spawn(async move {
-            loop {
-                match uplink_reader.read_multi_buffer().await {
-                    Ok(mb) => {
-                        if mb.is_empty() {
-                            break;
-                        }
-                        if downlink_writer.write_multi_buffer(mb).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(_) => break,
+            while let Ok(mb) = uplink_reader.read_multi_buffer().await {
+                if mb.is_empty() || downlink_writer.write_multi_buffer(mb).await.is_err() {
+                    break;
                 }
             }
         });
@@ -100,17 +92,9 @@ mod tests {
         let (downlink_reader, downlink_writer) = new_with_options(vec![with_size_limit(1024)]);
 
         tokio::spawn(async move {
-            loop {
-                match uplink_reader.read_multi_buffer().await {
-                    Ok(mb) => {
-                        if mb.is_empty() {
-                            break;
-                        }
-                        if downlink_writer.write_multi_buffer(mb).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(_) => break,
+            while let Ok(mb) = uplink_reader.read_multi_buffer().await {
+                if mb.is_empty() || downlink_writer.write_multi_buffer(mb).await.is_err() {
+                    break;
                 }
             }
         });

@@ -28,10 +28,12 @@ mod tests {
     #[test]
     fn test_policy_manager_levels_and_system() {
         let mut levels = HashMap::new();
-        let mut custom_p = SessionPolicy::default();
-        custom_p.handshake = Duration::from_secs(10);
-        custom_p.conn_idle = Duration::from_secs(600);
-        custom_p.buffer_size = 1024 * 1024;
+        let custom_p = SessionPolicy {
+            handshake: Duration::from_secs(10),
+            conn_idle: Duration::from_secs(600),
+            buffer_size: 1024 * 1024,
+            ..Default::default()
+        };
         levels.insert(1, custom_p);
 
         let sys = SystemPolicy {

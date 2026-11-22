@@ -9,6 +9,7 @@ pub struct IncreasingNonce {
 
 impl IncreasingNonce {
     pub fn new(size: usize) -> Self { Self { nonce: vec![0u8; size], } }
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> &[u8] {
         for byte in self.nonce.iter_mut() {
             *byte = byte.wrapping_add(1);

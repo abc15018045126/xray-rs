@@ -377,7 +377,8 @@ fn now_epoch_ms() -> u64 {
 
 #[cfg(target_os = "windows")]
 #[repr(C)]
-#[allow(non_snake_case)]
+#[derive(Default, Clone, Copy)]
+#[allow(non_snake_case, clippy::upper_case_acronyms)]
 struct FILETIME {
     dwLowDateTime: u32,
     dwHighDateTime: u32,
@@ -385,6 +386,7 @@ struct FILETIME {
 
 #[cfg(target_os = "windows")]
 #[repr(C)]
+#[derive(Default)]
 #[allow(non_snake_case)]
 struct PROCESS_MEMORY_COUNTERS_EX {
     cb: u32,
@@ -402,6 +404,7 @@ struct PROCESS_MEMORY_COUNTERS_EX {
 
 #[cfg(target_os = "windows")]
 #[repr(C)]
+#[derive(Default)]
 #[allow(non_snake_case)]
 struct THREADENTRY32 {
     dwSize: u32,
@@ -421,11 +424,11 @@ const THREAD_QUERY_LIMITED_INFORMATION: u32 = 0x0800;
 const INVALID_HANDLE_VALUE: isize = -1;
 
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code)]
 #[link(name = "kernel32")]
 #[link(name = "psapi")]
 unsafe extern "system" {
     fn GetCurrentProcess() -> isize;
-    fn GetCurrentProcessId() -> u32;
     fn GetProcessTimes(
         hProcess: isize,
         lpCreationTime: *mut FILETIME,
@@ -460,14 +463,11 @@ fn filetime_to_u64(ft: FILETIME) -> u64 {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code)]
 fn read_process_cpu_100ns() -> (u64, u64) {
+    let (mut creation, mut exit, mut kernel, mut user) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
     unsafe {
-        let handle = GetCurrentProcess();
-        let mut creation = std::mem::zeroed::<FILETIME>();
-        let mut exit = std::mem::zeroed::<FILETIME>();
-        let mut kernel = std::mem::zeroed::<FILETIME>();
-        let mut user = std::mem::zeroed::<FILETIME>();
-        if GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) != 0 {
+        if GetProcessTimes(GetCurrentProcess(), &mut creation, &mut exit, &mut kernel, &mut user) != 0 {
             (filetime_to_u64(kernel), filetime_to_u64(user))
         } else {
             (0, 0)
@@ -476,50 +476,40 @@ fn read_process_cpu_100ns() -> (u64, u64) {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code)]
 fn read_threads_cpu_100ns() -> Vec<(u32, String, u64, u64)> {
     let mut out = Vec::new();
+    let pid = std::process::id();
     unsafe {
-        let pid = GetCurrentProcessId();
         let snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
         if snap == INVALID_HANDLE_VALUE || snap == 0 {
             return out;
         }
-        let mut te = std::mem::zeroed::<THREADENTRY32>();
-        te.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+        let mut te = THREADENTRY32 { dwSize: std::mem::size_of::<THREADENTRY32>() as u32, ..Default::default() };
         if Thread32First(snap, &mut te) != 0 {
             loop {
                 if te.th32OwnerProcessID == pid {
                     let tid = te.th32ThreadID;
                     let h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, 0, tid);
                     if h != 0 {
-                        let mut c = std::mem::zeroed::<FILETIME>();
-                        let mut e = std::mem::zeroed::<FILETIME>();
-                        let mut k = std::mem::zeroed::<FILETIME>();
-                        let mut u = std::mem::zeroed::<FILETIME>();
+                        let (mut c, mut e, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
                         let (k_ns, u_ns) = if GetThreadTimes(h, &mut c, &mut e, &mut k, &mut u) != 0 {
                             (filetime_to_u64(k), filetime_to_u64(u))
                         } else {
                             (0, 0)
                         };
-
                         let mut desc_ptr: *mut u16 = std::ptr::null_mut();
                         let name = if GetThreadDescription(h, &mut desc_ptr) >= 0 && !desc_ptr.is_null() {
                             let mut len = 0usize;
                             while *desc_ptr.add(len) != 0 && len < 256 {
                                 len += 1;
                             }
-                            let slice = std::slice::from_raw_parts(desc_ptr, len);
-                            let s = String::from_utf16_lossy(slice);
+                            let s = String::from_utf16_lossy(std::slice::from_raw_parts(desc_ptr, len));
                             LocalFree(desc_ptr as *mut core::ffi::c_void);
-                            if s.is_empty() {
-                                format!("thread-{}", tid)
-                            } else {
-                                s
-                            }
+                            if s.is_empty() { format!("thread-{}", tid) } else { s }
                         } else {
                             format!("thread-{}", tid)
                         };
-
                         CloseHandle(h);
                         out.push((tid, name, k_ns, u_ns));
                     }
@@ -535,18 +525,13 @@ fn read_threads_cpu_100ns() -> Vec<(u32, String, u64, u64)> {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code)]
 fn read_process_memory_mb() -> (f64, f64, f64) {
+    let mut counters = PROCESS_MEMORY_COUNTERS_EX { cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32, ..Default::default() };
     unsafe {
-        let handle = GetCurrentProcess();
-        let mut counters = std::mem::zeroed::<PROCESS_MEMORY_COUNTERS_EX>();
-        counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
-        if GetProcessMemoryInfo(handle, &mut counters, counters.cb) != 0 {
+        if GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) != 0 {
             let mb = 1024.0 * 1024.0;
-            (
-                counters.WorkingSetSize as f64 / mb,
-                counters.PrivateUsage as f64 / mb,
-                counters.PeakWorkingSetSize as f64 / mb,
-            )
+            (counters.WorkingSetSize as f64 / mb, counters.PrivateUsage as f64 / mb, counters.PeakWorkingSetSize as f64 / mb)
         } else {
             (0.0, 0.0, 0.0)
         }

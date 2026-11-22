@@ -12,11 +12,8 @@ pub static TUN_SOMARK: LazyLock<tokio::sync::RwLock<Option<u32>>> = LazyLock::ne
 pub async fn init_net_config(tun_somark: Option<u32>) {
     *DEFAULT_OUTBOUND_INTERFACE.write().await = get_outbound_interface();
     *TUN_SOMARK.write().await = tun_somark;
-    trace!(
-        "default outbound interface: {:?}, tun somark: {:?}",
-        *DEFAULT_OUTBOUND_INTERFACE.read().await,
-        *TUN_SOMARK.read().await
-    );
+    let (iface, somark) = (DEFAULT_OUTBOUND_INTERFACE.read().await, TUN_SOMARK.read().await);
+    trace!("default outbound interface: {:?}, tun somark: {:?}", *iface, *somark);
 }
 
 #[derive(Debug, Clone)]

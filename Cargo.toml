@@ -1,6 +1,6 @@
 [package]
 name = "xray-rs"
-version = "3.0.9"
+version = "3.5.0"
 edition = "2024"
 authors = ["abc15018045126", "Xray Rust Team"]
 description = "High-performance Rust implementation of Xray-core with XTLS Vision, Reality, and TUN support."
@@ -99,9 +99,13 @@ windows = { version = "0.62", features = [
 ] }
 
 [lints.rust]
-warnings = "warn"
+unsafe_code = "deny"
+warnings = "deny"
+future_incompatible = { level = "deny", priority = -1 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+rust_2024_compatibility = { level = "deny", priority = -1 }
 
 [lints.clippy]
-all = { level = "warn", priority = -1 }
+all = { level = "deny", priority = -1 }
 module_inception = "allow"
 type_complexity = "allow"

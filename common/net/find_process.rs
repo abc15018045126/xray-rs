@@ -41,6 +41,7 @@ impl ProcessFinder {
 }
 
 #[cfg(target_os = "windows")]
+#[allow(unsafe_code)]
 pub mod windows_impl {
     use super::ProcessInfo;
     use std::ffi::c_void;

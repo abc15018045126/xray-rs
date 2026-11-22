@@ -202,11 +202,9 @@ impl DnsClient {
     }
     pub async fn lookup_for_dialer(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let (clean, option) = (domain.trim_end_matches('.'), IPOption::default());
-        for cached in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()] {
-            if let Some(ips) = cached {
-                let filtered = self.filter_ips(&ips, &option);
-                if !filtered.is_empty() { return Ok(filtered); }
-            }
+        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+            let filtered = self.filter_ips(&ips, &option);
+            if !filtered.is_empty() { return Ok(filtered); }
         }
         let mut tried = vec![false; self.entries.len()];
         for (idx, entry) in self.entries.iter().enumerate() {
@@ -227,11 +225,9 @@ impl DnsClient {
     }
     pub async fn lookup_ip_with_option(&self, domain: &str, option: IPOption) -> Result<(Vec<IpAddr>, u32)> {
         let clean = domain.trim_end_matches('.');
-        for cached in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()] {
-            if let Some(ips) = cached {
-                let filtered = self.filter_ips(&ips, &option);
-                if !filtered.is_empty() { return Ok((filtered, 300)); }
-            }
+        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+            let filtered = self.filter_ips(&ips, &option);
+            if !filtered.is_empty() { return Ok((filtered, 300)); }
         }
         let mut tried = vec![false; self.entries.len()];
         let (mut any_domain_matched, mut local_tried) = (false, false);

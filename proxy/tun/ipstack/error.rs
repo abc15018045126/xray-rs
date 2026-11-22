@@ -34,10 +34,6 @@ impl From<tokio::sync::mpsc::error::SendError<crate::proxy::tun::ipstack::stream
     }
 }
 
-unsafe impl Send for IpStackError {}
-
-unsafe impl Sync for IpStackError {}
-
 impl From<IpStackError> for std::io::Error {
     fn from(e: IpStackError) -> Self {
         match e {

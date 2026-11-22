@@ -117,7 +117,7 @@ impl DialParams {
             Some(f_cfg) => Box::pin(crate::transport::internet::finalmask::fragment::FragmentConn::new_client(f_cfg.clone(), tcp_stream)),
             None => tcp_stream,
         };
-        let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
+        let sni = self.tls_sni.as_deref().unwrap_or(match &self.server_addr.address {
             crate::common::net::Address::Domain(d) => d.as_str(),
             _ => "localhost",
         });
@@ -598,16 +598,12 @@ mod tests {
         let accepted = Arc::new(AtomicUsize::new(0));
         let accepted_bg = accepted.clone();
         let accept_task = tokio::spawn(async move {
-            loop {
-                if let Ok((_sock, _)) = listener.accept().await {
-                    accepted_bg.fetch_add(1, Ordering::SeqCst);
-                    tokio::spawn(async move {
-                        let _s = _sock;
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                    });
-                } else {
-                    break;
-                }
+            while let Ok((_sock, _)) = listener.accept().await {
+                accepted_bg.fetch_add(1, Ordering::SeqCst);
+                tokio::spawn(async move {
+                    let _s = _sock;
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                });
             }
         });
         let dest = Destination::from_ip_port(addr.ip(), addr.port());

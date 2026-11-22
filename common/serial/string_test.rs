@@ -9,7 +9,7 @@ mod tests {
         let string_obj = "a".to_string();
         assert_eq!(to_string_val(&string_obj), "a");
         assert_eq!(to_string_val(&&string_obj), "a");
-        let bytes: &[u8] = &[b'b', b'c'];
+        let bytes: &[u8] = b"bc";
         assert_eq!(to_string_val(&bytes), "[98 99]");
     }
 

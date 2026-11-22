@@ -28,13 +28,15 @@ impl StaticHosts {
     pub fn lookup(&self, domain: &str) -> Option<Vec<IpAddr>> {
         let d = domain.to_lowercase();
         if let Ok(g) = self.exact.read() && let Some(ips) = g.get(&d) { return Some(ips.clone()); }
-        if let Ok(g) = self.domain_suffix.read() {
-            if let Some((_, ips)) = g.iter().find(|(s, _)| d == **s || d.strip_suffix(s.as_str()).is_some_and(|p| p.ends_with('.'))) {
-                return Some(ips.clone());
-            }
+        if let Ok(g) = self.domain_suffix.read()
+            && let Some((_, ips)) = g.iter().find(|(s, _)| d == **s || d.strip_suffix(s.as_str()).is_some_and(|p| p.ends_with('.')))
+        {
+            return Some(ips.clone());
         }
-        if let Ok(g) = self.keywords.read() {
-            if let Some((_, ips)) = g.iter().find(|(k, _)| d.contains(k.as_str())) { return Some(ips.clone()); }
+        if let Ok(g) = self.keywords.read()
+            && let Some((_, ips)) = g.iter().find(|(k, _)| d.contains(k.as_str()))
+        {
+            return Some(ips.clone());
         }
         None
     }

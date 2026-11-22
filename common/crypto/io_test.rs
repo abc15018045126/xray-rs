@@ -9,13 +9,13 @@ mod tests {
     fn test_rand_between_and_bytes() {
         for _ in 0..100 {
             let val = rand_between(10, 20);
-            assert!(val >= 10 && val < 20);
+            assert!((10..20).contains(&val));
         }
 
         let mut bytes = [0u8; 64];
         rand_bytes_between(&mut bytes, b'a', b'z');
         for b in bytes {
-            assert!(b >= b'a' && b <= b'z');
+            assert!(b.is_ascii_lowercase());
         }
     }
 
@@ -26,7 +26,7 @@ mod tests {
         let key = [0xff, 0x00];
         let len = xor_buffers(&mut dst, &src, &key).unwrap();
         assert_eq!(len, 4);
-        assert_eq!(dst, [1 ^ 0xff, 2 ^ 0x00, 3 ^ 0xff, 4 ^ 0x00]);
+        assert_eq!(dst, [1 ^ 0xff, 2, 3 ^ 0xff, 4]);
     }
 
     struct SimpleXorCipher {

@@ -38,7 +38,7 @@ mod tests {
 
         assert!(packets[0].0.len() >= 16 && packets[0].0.len() <= 32);
         for &b in &packets[0].0 {
-            assert!(b >= 10 && b <= 50);
+            assert!((10..=50).contains(&b));
         }
         assert!(packets[0].1.as_millis() >= 5 && packets[0].1.as_millis() <= 15);
 

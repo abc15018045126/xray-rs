@@ -267,7 +267,7 @@ async fn route(
                     },
                 })
                 .collect();
-            outbounds.sort_by(|a, b| b.established.cmp(&a.established));
+            outbounds.sort_by_key(|b| std::cmp::Reverse(b.established));
 
             let mut top_hosts = sites;
             top_hosts.sort_by(|a, b| {

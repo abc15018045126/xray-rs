@@ -113,6 +113,7 @@ mod tests {
             let captured_ed = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
             let captured_ed_cb = captured_ed.clone();
 
+            #[allow(clippy::result_large_err)]
             let ws = accept_hdr_async(tcp, move |req: &Request, resp: Response| {
                 if let Some(val) = req.headers().get("sec-websocket-protocol") {
                     let s = val.to_str().unwrap();

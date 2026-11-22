@@ -353,10 +353,8 @@ fn parse_tls_client_hello(buf: &[u8]) -> TrafficFeatures {
                 while p < data.len() {
                     let l = data[p] as usize;
                     p += 1;
-                    if p + l <= data.len() {
-                        if let Ok(proto) = std::str::from_utf8(&data[p..p + l]) {
-                            features.alpn.push(proto.to_string());
-                        }
+                    if p + l <= data.len() && let Ok(proto) = std::str::from_utf8(&data[p..p + l]) {
+                        features.alpn.push(proto.to_string());
                     }
                     p += l;
                 }
@@ -561,21 +559,12 @@ impl SiteMetricsInner {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DirectBypassConfig {
     /// When true, matching connections bypass proxy outbounds and go directly through the OS kernel.
     pub enabled: bool,
     /// Optional domain filter. If empty and `enabled == true`, ALL traffic bypasses proxy directly.
     pub domains: Vec<String>,
-}
-
-impl Default for DirectBypassConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            domains: Vec::new(),
-        }
-    }
 }
 
 impl DirectBypassConfig {

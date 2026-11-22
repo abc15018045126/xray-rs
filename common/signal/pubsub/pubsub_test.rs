@@ -13,6 +13,6 @@ mod tests {
         sub.close().unwrap();
         service.publish("a", "2").unwrap();
 
-        let _ = service.cleanup();
+        service.cleanup();
     }
 }

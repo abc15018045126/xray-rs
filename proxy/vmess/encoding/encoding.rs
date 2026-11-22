@@ -136,12 +136,7 @@ impl ResponseHeader {
         }
     }
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
-        let mut buf = Vec::with_capacity(4);
-        buf.push(self.response_header_byte);
-        buf.push(0);
-        buf.push(0);
-        buf.push(0);
-        writer.write_all(&buf).await?;
+        writer.write_all(&[self.response_header_byte, 0, 0, 0]).await?;
         writer.flush().await?;
         Ok(())
     }

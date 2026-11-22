@@ -9,6 +9,7 @@ pub enum QueryStrategy {
 }
 
 impl QueryStrategy {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "use_ip4" | "useip4" | "useipv4" | "use_ipv4" => QueryStrategy::UseIPv4,

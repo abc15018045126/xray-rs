@@ -18,9 +18,7 @@ mod tests {
 
     #[test]
     fn test_scenario_stream_settings() {
-        let mut settings = StreamSettings::default();
-        settings.network = "ws".into();
-        settings.security = "tls".into();
+        let settings = StreamSettings { network: "ws".into(), security: "tls".into(), ..Default::default() };
         assert_eq!(settings.network, "ws");
         assert_eq!(settings.security, "tls");
     }

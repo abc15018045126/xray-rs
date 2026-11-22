@@ -28,11 +28,7 @@ mod tests {
     #[test]
     fn test_kcp_config_in_flight_sizes() {
         use super::super::config::KcpConfig;
-        let mut cfg = KcpConfig::default();
-        cfg.uplink_capacity = 10;
-        cfg.downlink_capacity = 40;
-        cfg.mtu = 1400;
-        cfg.tti = 50;
+        let cfg = KcpConfig { uplink_capacity: 10, downlink_capacity: 40, mtu: 1400, tti: 50, ..Default::default() };
         assert!(cfg.sending_in_flight_size() >= 8);
         assert!(cfg.receiving_in_flight_size() >= 8);
         assert!(cfg.receiving_in_flight_size() > cfg.sending_in_flight_size());

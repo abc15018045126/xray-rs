@@ -96,13 +96,12 @@ impl Handler {
     pub fn get_user(&self, uuid: &Uuid) -> Option<User> { self.validator.get(uuid) }
     pub fn get_user_count(&self) -> usize { self.validator.get_count() }
     pub fn match_fallback(&self, name: &str, alpn: &str, path: &str) -> Option<&Fallback> {
-        let name_lower = name.to_lowercase();
-        let alpn_lower = alpn.to_lowercase();
+        let (name_lower, alpn_lower) = (name.to_lowercase(), alpn.to_lowercase());
         if let Some(by_name) = self.fallback_map.get(&name_lower).or_else(|| self.fallback_map.get(""))
+            && let Some(by_alpn) = by_name.get(&alpn_lower).or_else(|| by_name.get(""))
+            && let Some(fb) = by_alpn.get(path).or_else(|| by_alpn.get(""))
         {
-            if let Some(by_alpn) = by_name.get(&alpn_lower).or_else(|| by_name.get("")) {
-                if let Some(fb) = by_alpn.get(path).or_else(|| by_alpn.get("")) { return Some(fb); }
-            }
+            return Some(fb);
         }
         None
     }

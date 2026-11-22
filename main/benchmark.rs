@@ -19,57 +19,33 @@ const PING_ROUNDS: usize = 100;
 const CONCURRENT_CLIENTS: usize = 100;
 const THROUGHPUT_BYTES: usize = 50 * 1024 * 1024;
 
-#[repr(C)]
-#[allow(non_snake_case)]
-struct PROCESS_MEMORY_COUNTERS_EX {
-    cb: u32,
-    PageFaultCount: u32,
-    PeakWorkingSetSize: usize,
-    WorkingSetSize: usize,
-    QuotaPeakPagedPoolUsage: usize,
-    QuotaPagedPoolUsage: usize,
-    QuotaPeakNonPagedPoolUsage: usize,
-    QuotaNonPagedPoolUsage: usize,
-    PagefileUsage: usize,
-    PeakPagefileUsage: usize,
-    PrivateUsage: usize,
-}
-
 #[cfg(target_os = "windows")]
-#[link(name = "psapi")]
-#[link(name = "kernel32")]
-unsafe extern "system" {
-    fn OpenProcess(desired_access: u32, inherit_handle: i32, process_id: u32) -> isize;
-    fn CloseHandle(handle: isize) -> i32;
-    fn GetProcessMemoryInfo(
-        handle: isize,
-        counters: *mut PROCESS_MEMORY_COUNTERS_EX,
-        cb: u32,
-    ) -> i32;
+fn get_process_memory_mb(pid: u32) -> f64 {
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::{
+            ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
+            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
+        },
+    };
+    #[allow(unsafe_code)]
+    unsafe {
+        let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid) else {
+            return 0.0;
+        };
+        let mut counters = PROCESS_MEMORY_COUNTERS {
+            cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+            ..Default::default()
+        };
+        let ok = GetProcessMemoryInfo(handle, &mut counters, counters.cb).is_ok();
+        let _ = CloseHandle(handle);
+        if ok { counters.WorkingSetSize as f64 / (1024.0 * 1024.0) } else { 0.0 }
+    }
 }
 
-fn get_process_memory_mb(pid: u32) -> f64 {
-    #[cfg(target_os = "windows")]
-    unsafe {
-        let handle = OpenProcess(0x0400 | 0x0010, 0, pid);
-        if handle == 0 {
-            return 0.0;
-        }
-        let mut counters: PROCESS_MEMORY_COUNTERS_EX = std::mem::zeroed();
-        counters.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
-        let ok = GetProcessMemoryInfo(handle, &mut counters, counters.cb);
-        CloseHandle(handle);
-        if ok != 0 {
-            counters.WorkingSetSize as f64 / (1024.0 * 1024.0)
-        } else {
-            0.0
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = pid;
-        0.0
-    }
+#[cfg(not(target_os = "windows"))]
+fn get_process_memory_mb(_pid: u32) -> f64 {
+    0.0
 }
 
 async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16) -> Result<TcpStream> {

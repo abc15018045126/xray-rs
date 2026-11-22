@@ -3413,7 +3413,7 @@ dependencies = [
 
 [[package]]
 name = "xray-rs"
-version = "3.0.9"
+version = "3.5.0"
 dependencies = [
  "aes-gcm",
  "ahash",

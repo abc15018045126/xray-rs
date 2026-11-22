@@ -479,32 +479,27 @@ fn round2(v: f64) -> f64 {
 }
 
 fn dissect_l7(data: &[u8], full_len: usize, dir: Direction) -> (String, String) {
-    if data.len() >= 5 {
-        if (20..=23).contains(&data[0]) && data[1] == 0x03 && data[2] <= 0x04 {
-            let rec_len = u16::from_be_bytes([data[3], data[4]]);
-            let info = match data[0] {
-                20 => format!("Change Cipher Spec (rec={}B, total={}B)", rec_len, full_len),
-                21 => format!("Alert (rec={}B)", rec_len),
-                22 => {
-                    let hs = data.get(5).copied().unwrap_or(0);
-                    match hs {
-                        1 => {
-                            let feat = crate::debug_panel::inspect_initial_payload(data);
-                            format!("Client Hello ({})", feat.summary)
-                        }
-                        2 => format!("Server Hello (rec={}B, total={}B)", rec_len, full_len),
-                        11 => format!("Certificate (rec={}B, total={}B)", rec_len, full_len),
-                        _ => format!(
-                            "Handshake type=0x{:02x} (rec={}B, total={}B)",
-                            hs, rec_len, full_len
-                        ),
+    if data.len() >= 5 && (20..=23).contains(&data[0]) && data[1] == 0x03 && data[2] <= 0x04 {
+        let rec_len = u16::from_be_bytes([data[3], data[4]]);
+        let info = match data[0] {
+            20 => format!("Change Cipher Spec (rec={}B, total={}B)", rec_len, full_len),
+            21 => format!("Alert (rec={}B)", rec_len),
+            22 => {
+                let hs = data.get(5).copied().unwrap_or(0);
+                match hs {
+                    1 => {
+                        let feat = crate::debug_panel::inspect_initial_payload(data);
+                        format!("Client Hello ({})", feat.summary)
                     }
+                    2 => format!("Server Hello (rec={}B, total={}B)", rec_len, full_len),
+                    11 => format!("Certificate (rec={}B, total={}B)", rec_len, full_len),
+                    _ => format!("Handshake type=0x{:02x} (rec={}B, total={}B)", hs, rec_len, full_len),
                 }
-                23 => format!("Application Data (rec={}B, total={}B)", rec_len, full_len),
-                _ => format!("TLS record (total={}B)", full_len),
-            };
-            return ("TLS".into(), info);
-        }
+            }
+            23 => format!("Application Data (rec={}B, total={}B)", rec_len, full_len),
+            _ => format!("TLS record (total={}B)", full_len),
+        };
+        return ("TLS".into(), info);
     }
 
     if let Ok(text) = std::str::from_utf8(&data[..data.len().min(256)]) {
@@ -631,11 +626,11 @@ fn build_ipv4_tcp_packet(
 
 fn internet_checksum(data: &[u8]) -> u16 {
     let mut sum: u32 = 0;
-    let mut chunks = data.chunks_exact(2);
-    for c in &mut chunks {
-        sum += u16::from_be_bytes([c[0], c[1]]) as u32;
+    let (chunks, rem) = data.as_chunks::<2>();
+    for &c in chunks {
+        sum += u16::from_be_bytes(c) as u32;
     }
-    if let Some(&last) = chunks.remainder().first() {
+    if let Some(&last) = rem.first() {
         sum += (last as u32) << 8;
     }
     while (sum >> 16) != 0 {
@@ -655,11 +650,11 @@ fn tcp_checksum(src_ip: Ipv4Addr, dst_ip: Ipv4Addr, tcp_segment: &[u8]) -> u16 {
     sum += 6u32;
     sum += tcp_segment.len() as u32;
 
-    let mut chunks = tcp_segment.chunks_exact(2);
-    for c in &mut chunks {
-        sum += u16::from_be_bytes([c[0], c[1]]) as u32;
+    let (chunks, rem) = tcp_segment.as_chunks::<2>();
+    for &c in chunks {
+        sum += u16::from_be_bytes(c) as u32;
     }
-    if let Some(&last) = chunks.remainder().first() {
+    if let Some(&last) = rem.first() {
         sum += (last as u32) << 8;
     }
     while (sum >> 16) != 0 {

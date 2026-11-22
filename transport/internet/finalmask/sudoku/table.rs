@@ -122,7 +122,7 @@ pub fn ascii_layout() -> ByteLayout {
 pub fn entropy_layout() -> ByteLayout {
     let padding: Vec<u8> = (0..8).flat_map(|i| [0x80 + i, 0x10 + i]).collect();
     let encode_group: EncodeGroupFn = Arc::new(|g| { let v = g & 0x3f; ((v & 0x30) << 1) | (v & 0x0f) });
-    let decode_group: DecodeGroupFn = Arc::new(|b| ((b & 0x90) == 0).then(|| ((b >> 1) & 0x30) | (b & 0x0f)));
+    let decode_group: DecodeGroupFn = Arc::new(|b| ((b & 0x90) == 0).then_some(((b >> 1) & 0x30) | (b & 0x0f)));
     ByteLayout {
         hint_mask: 0x90, hint_value: 0x00, pad_marker: 0x80, padding_pool: padding,
         encode_hint: encode_group.clone(), encode_group, decode_group,

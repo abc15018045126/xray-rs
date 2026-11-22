@@ -1,3 +1,4 @@
+#![allow(unsafe_code)]
 use ipnet::IpNet;
 use std::{io, net::SocketAddr};
 use tracing::{debug, error, info, warn};
@@ -8,7 +9,7 @@ use windows::Win32::{
         IP_ADDRESS_PREFIX, InitializeIpForwardEntry, MIB_IPFORWARD_ROW2,
         MIB_UNICASTIPADDRESS_ROW,
     },
-    Networking::WinSock::{ AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET, },
+    Networking::WinSock::{IpPrefixOriginManual, IpSuffixOriginManual},
 };
 
 use super::super::config::TunConfig;
@@ -73,19 +74,8 @@ pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
 
 #[allow(dead_code)]
 pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()> {
-    let mut addr_inet = SOCKADDR_INET::default();
-    match addr_net {
-        IpNet::V4(ipv4_net) => {
-            addr_inet.Ipv4.sin_family = windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET.0);
-            addr_inet.Ipv4.sin_addr.S_un.S_addr = u32::from_le_bytes(ipv4_net.addr().octets());
-        }
-        IpNet::V6(ipv6_net) => {
-            addr_inet.Ipv6.sin6_family = windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET6.0);
-            addr_inet.Ipv6.sin6_addr.u.Byte = ipv6_net.addr().octets();
-        }
-    }
     let row = MIB_UNICASTIPADDRESS_ROW {
-        InterfaceIndex: iface.index, Address: addr_inet, OnLinkPrefixLength: addr_net.prefix_len(),
+        InterfaceIndex: iface.index, Address: SocketAddr::new(addr_net.addr(), 0).into(), OnLinkPrefixLength: addr_net.prefix_len(),
         PrefixOrigin: IpPrefixOriginManual, SuffixOrigin: IpSuffixOriginManual,
         ValidLifetime: 0xffffffff, PreferredLifetime: 0xffffffff, SkipAsSource: false, ..Default::default()
     };
