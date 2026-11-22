@@ -155,29 +155,15 @@ async fn main() -> Result<()> {
 }
 
 async fn run_instance(config_path: PathBuf) -> Result<()> {
-    let resolved_path = resolve_path(&config_path);
-
+    let resolved = resolve_path(&config_path);
     info!("Starting Xray Core (Rust Edition)...");
-    info!("Loading configuration from: {:?}", resolved_path);
-    let content = std::fs::read_to_string(&resolved_path)
-        .with_context(|| format!("Failed to read config file {:?}", resolved_path))?;
-    let config: Config =
-        serde_json::from_str(&content).with_context(|| "Failed to parse JSON config")?;
-
-    let instance =
-        Instance::from_config(config).with_context(|| "Failed to initialize Xray instance")?;
-
-    let _tasks = instance
-        .start()
-        .await
-        .with_context(|| "Failed to start inbounds")?;
-
+    info!("Loading configuration from: {:?}", resolved);
+    let content = std::fs::read_to_string(&resolved).with_context(|| format!("Failed to read config file {:?}", resolved))?;
+    let config: Config = serde_json::from_str(&content).with_context(|| "Failed to parse JSON config")?;
+    let instance = Instance::from_config(config).with_context(|| "Failed to initialize Xray instance")?;
+    let _tasks = instance.start().await.with_context(|| "Failed to start inbounds")?;
     info!("Xray-core is running. Press Ctrl+C to terminate.");
-
-    tokio::signal::ctrl_c()
-        .await
-        .with_context(|| "Failed to listen for ctrl_c signal")?;
-
+    tokio::signal::ctrl_c().await.with_context(|| "Failed to listen for ctrl_c signal")?;
     info!("Received interrupt signal, shutting down...");
     Ok(())
 }

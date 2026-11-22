@@ -116,32 +116,18 @@ impl Pipe {
     }
 
     pub async fn write_multi_buffer(&self, mut mb: MultiBuffer) -> Result<()> {
-        if mb.is_empty() {
-            return Ok(());
-        }
-
+        if mb.is_empty() { return Ok(()); }
         loop {
             {
                 let mut guard = self.inner.lock().await;
-
-                if guard.state != State::Open {
-                    return Err(Error::Closed);
-                }
-
-                let cur_size = guard.data.len();
-                let full = guard.option.is_full(cur_size + mb.len());
-
-                if !full {
+                if guard.state != State::Open { return Err(Error::Closed); }
+                if !guard.option.is_full(guard.data.len() + mb.len()) {
                     guard.data.append(&mut mb);
                     self.read_signal.notify_waiters();
                     return Ok(());
                 }
-
-                if guard.option.discard_overflow {
-                    return Ok(());
-                }
+                if guard.option.discard_overflow { return Ok(()); }
             }
-
             tokio::select! {
                 _ = self.write_signal.notified() => continue,
                 _ = self.done_notify.notified() => return Err(Error::Closed),

@@ -58,35 +58,17 @@ impl DomainMatcherGroup {
     }
 
     pub fn match_domain(&self, domain: &str) -> Vec<u32> {
-        if domain.is_empty() {
-            return Vec::new();
+        if domain.is_empty() { return Vec::new(); }
+        let (mut matches, mut cur) = (Vec::new(), &self.root);
+        for part in domain.rsplit('.') {
+            let Some(next) = cur.sub.get(part) else { break; };
+            cur = next;
+            if !cur.values.is_empty() { matches.push(cur.values.as_slice()); }
         }
-
-        let parts: Vec<&str> = domain.split('.').collect();
-        let mut matches = Vec::new();
-        let mut current = &self.root;
-
-        for part in parts.into_iter().rev() {
-            if let Some(next) = current.sub.get(part) {
-                current = next;
-                if !current.values.is_empty() {
-                    matches.push(current.values.clone());
-                }
-            } else {
-                break;
-            }
-        }
-
         match matches.len() {
             0 => Vec::new(),
-            1 => matches.into_iter().next().unwrap(),
-            _ => {
-                let mut result = Vec::new();
-                for list in matches.into_iter().rev() {
-                    result.extend(list);
-                }
-                result
-            }
+            1 => matches[0].to_vec(),
+            _ => matches.into_iter().rev().flat_map(|s| s.iter().copied()).collect(),
         }
     }
 }

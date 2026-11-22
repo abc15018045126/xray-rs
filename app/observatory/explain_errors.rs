@@ -8,28 +8,13 @@ pub enum ErrorCategory {
 }
 
 pub fn explain_error(err_str: &str) -> (&'static str, ErrorCategory) {
-    let lower = err_str.to_lowercase();
-    if lower.contains("timeout") || lower.contains("timed out") || lower.contains("deadline") {
-        ("Request timeout / packet dropped", ErrorCategory::Timeout)
-    } else if lower.contains("connection refused")
-        || lower.contains("10061")
-        || lower.contains("reset by peer")
-    {
-        (
-            "Remote endpoint refused connection",
-            ErrorCategory::ConnectionRefused,
-        )
-    } else if lower.contains("tls") || lower.contains("handshake") || lower.contains("certificate")
-    {
-        (
-            "TLS handshake or SNI interception failure",
-            ErrorCategory::TlsHandshakeFailed,
-        )
-    } else if lower.contains("dns") || lower.contains("not resolved") || lower.contains("lookup") {
-        ("DNS resolution failure", ErrorCategory::DnsLookupFailed)
-    } else {
-        ("General network dispatch error", ErrorCategory::Unknown)
-    }
+    let l = err_str.to_lowercase();
+    let has = |ks: &[&str]| ks.iter().any(|k| l.contains(k));
+    if has(&["timeout", "timed out", "deadline"]) { ("Request timeout / packet dropped", ErrorCategory::Timeout) }
+    else if has(&["connection refused", "10061", "reset by peer"]) { ("Remote endpoint refused connection", ErrorCategory::ConnectionRefused) }
+    else if has(&["tls", "handshake", "certificate"]) { ("TLS handshake or SNI interception failure", ErrorCategory::TlsHandshakeFailed) }
+    else if has(&["dns", "not resolved", "lookup"]) { ("DNS resolution failure", ErrorCategory::DnsLookupFailed) }
+    else { ("General network dispatch error", ErrorCategory::Unknown) }
 }
 
 #[derive(Default, Debug, Clone)]

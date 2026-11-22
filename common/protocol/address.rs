@@ -62,11 +62,7 @@ impl AddressParser {
         }
     }
 
-    pub async fn write_address<W: AsyncWrite + Unpin>(
-        &self,
-        writer: &mut W,
-        addr: &Address,
-    ) -> Result<()> {
+    pub async fn write_address<W: AsyncWrite + Unpin>(&self, writer: &mut W, addr: &Address) -> Result<()> {
         match addr {
             Address::Ipv4(ip) => {
                 writer.write_u8(ADDR_TYPE_IPV4).await.map_err(Error::Io)?;
@@ -76,16 +72,9 @@ impl AddressParser {
                 writer.write_u8(ADDR_TYPE_IPV6).await.map_err(Error::Io)?;
                 writer.write_all(&ip.octets()).await.map_err(Error::Io)?;
             }
-            Address::Domain(domain) => {
-                writer.write_u8(ADDR_TYPE_DOMAIN).await.map_err(Error::Io)?;
-                writer
-                    .write_u8(domain.len() as u8)
-                    .await
-                    .map_err(Error::Io)?;
-                writer
-                    .write_all(domain.as_bytes())
-                    .await
-                    .map_err(Error::Io)?;
+            Address::Domain(d) => {
+                writer.write_all(&[ADDR_TYPE_DOMAIN, d.len() as u8]).await.map_err(Error::Io)?;
+                writer.write_all(d.as_bytes()).await.map_err(Error::Io)?;
             }
         }
         Ok(())

@@ -89,28 +89,15 @@ impl RequestHeader {
         let mut buf = Vec::new();
         buf.push(VLESS_VERSION);
         buf.extend_from_slice(self.user_id.as_bytes());
-
-        let addons_bytes = self.addons.encode();
-        buf.push(addons_bytes.len() as u8);
-        buf.extend_from_slice(&addons_bytes);
-
+        let addons = self.addons.encode();
+        buf.push(addons.len() as u8);
+        buf.extend_from_slice(&addons);
         buf.push(self.command.to_u8());
         buf.extend_from_slice(&self.destination.port.to_be_bytes());
-
         match &self.destination.address {
-            Address::Ipv4(v4) => {
-                buf.push(1);
-                buf.extend_from_slice(&v4.octets());
-            }
-            Address::Domain(dom) => {
-                buf.push(2);
-                buf.push(dom.len() as u8);
-                buf.extend_from_slice(dom.as_bytes());
-            }
-            Address::Ipv6(v6) => {
-                buf.push(3);
-                buf.extend_from_slice(&v6.octets());
-            }
+            Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+            Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+            Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
         }
         buf
     }

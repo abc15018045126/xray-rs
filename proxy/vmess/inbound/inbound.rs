@@ -41,30 +41,15 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(
-        &self,
-        mut stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
+    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let req = RequestHeader::decode(&mut stream).await?;
-
         if self.validator.count() > 0 && self.validator.get(&req.user_id).is_none() {
-            return Err(Error::AuthFailed(format!(
-                "Unauthorized VMess user UUID: {}",
-                req.user_id
-            )));
+            return Err(Error::AuthFailed(format!("Unauthorized VMess user UUID: {}", req.user_id)));
         }
-
         let mut session = SessionContext::new(&self.tag, req.destination);
         session.source = Some(remote_addr);
-        session.destination.network = match req.command {
-            RequestCommand::Tcp => Network::Tcp,
-            RequestCommand::Udp => Network::Udp,
-            RequestCommand::Mux => Network::Tcp,
-            RequestCommand::Rvs => Network::Tcp,
-        };
+        session.destination.network = if req.command == RequestCommand::Udp { Network::Udp } else { Network::Tcp };
         session.user = Some(User::new(req.user_id));
-
         Ok(InboundResult { stream, session })
     }
 }

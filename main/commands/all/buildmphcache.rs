@@ -18,31 +18,15 @@ pub fn build_mph_cache_from_config(config_path: &Path, output_path: &Path) -> Re
 }
 
 pub fn cmd_build_mph_cache() -> Command {
-    Command::new(
-        "buildMphCache",
-        "xray buildMphCache [-c config.json] [-o domain.cache]",
-        "Build domain matcher cache from a configuration file",
-    )
-    .with_run(|args| {
-        let mut config_path = "config.json".to_string();
-        let mut output_path = "domain.cache".to_string();
-        let mut i = 0;
+    Command::new("buildMphCache", "xray buildMphCache [-c config.json] [-o domain.cache]", "Build domain matcher cache from a configuration file").with_run(|args| {
+        let (mut cfg, mut out, mut i) = ("config.json".to_string(), "domain.cache".to_string(), 0);
         while i < args.len() {
-            if args[i] == "-c" && i + 1 < args.len() {
-                config_path = args[i + 1].to_string();
-                i += 1;
-            } else if args[i] == "-o" && i + 1 < args.len() {
-                output_path = args[i + 1].to_string();
-                i += 1;
-            }
+            if args[i] == "-c" && i + 1 < args.len() { cfg = args[i + 1].to_string(); i += 1; }
+            else if args[i] == "-o" && i + 1 < args.len() { out = args[i + 1].to_string(); i += 1; }
             i += 1;
         }
-        let count = build_mph_cache_from_config(Path::new(&config_path), Path::new(&output_path))
-            .unwrap_or(0);
-        Ok(format!(
-            "MPH cache built successfully: {} entries written to {}",
-            count, output_path
-        ))
+        let count = build_mph_cache_from_config(Path::new(&cfg), Path::new(&out)).unwrap_or(0);
+        Ok(format!("MPH cache built successfully: {} entries written to {}", count, out))
     })
 }
 

@@ -66,30 +66,21 @@ pub fn parse_bytes(b: &[u8]) -> Result<UUID> {
 
 pub fn parse_string(str: &str) -> Result<UUID> {
     let text = str.as_bytes();
-    let l = text.len();
-    if !(32..=36).contains(&l) {
-        if l == 0 || l > 30 {
-            return Err(Error::Protocol(format!("invalid UUID: {}", str)));
-        }
-        let mut hasher = Sha1::new();
-        hasher.update([0u8; 16]);
-        hasher.update(text);
-        let result = hasher.finalize();
-        let mut u = [0u8; 16];
-        u.copy_from_slice(&result[..16]);
+    if !(32..=36).contains(&text.len()) {
+        if text.is_empty() || text.len() > 30 { return Err(Error::Protocol(format!("invalid UUID: {}", str))); }
+        let mut h = Sha1::new();
+        h.update([0u8; 16]);
+        h.update(text);
+        let mut u: [u8; 16] = h.finalize()[..16].try_into().unwrap();
         u[6] = (u[6] & 0x0f) | (5 << 4);
         u[8] = (u[8] & 0x3f) | 0x80;
         return Ok(UUID(u));
     }
-
     let cleaned: String = str.chars().filter(|&c| c != '-').collect();
-    if cleaned.len() != 32 {
-        return Err(Error::Protocol(format!("invalid UUID: {}", str)));
-    }
-
+    if cleaned.len() != 32 { return Err(Error::Protocol(format!("invalid UUID: {}", str))); }
     let mut out = [0u8; 16];
-    for i in 0..16 {
-        out[i] = u8::from_str_radix(&cleaned[i * 2..i * 2 + 2], 16)
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&cleaned[i * 2..i * 2 + 2], 16)
             .map_err(|e| Error::Protocol(format!("invalid UUID hex: {}", e)))?;
     }
     Ok(UUID(out))

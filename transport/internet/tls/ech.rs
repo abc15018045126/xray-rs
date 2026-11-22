@@ -117,37 +117,18 @@ pub static GLOBAL_ECH_CACHE: std::sync::LazyLock<Arc<EchConfigCache>> =
     std::sync::LazyLock::new(|| Arc::new(EchConfigCache::new()));
 
 pub fn convert_to_ech_keys(data: &[u8]) -> Result<Vec<EchServerKey>, &'static str> {
-    let mut keys = Vec::new();
-    let mut offset = 0;
-
-    while offset < data.len() {
-        if offset + 2 > data.len() {
-            return Err("goech: invalid length");
-        }
-        let sk_len = u16::from_be_bytes([data[offset], data[offset + 1]]) as usize;
-        offset += 2;
-
-        if offset + sk_len + 2 > data.len() {
-            return Err("goech: invalid length");
-        }
-        let sk = data[offset..offset + sk_len].to_vec();
-        offset += sk_len;
-
-        let cfg_len = u16::from_be_bytes([data[offset], data[offset + 1]]) as usize;
-        offset += 2;
-
-        if offset + cfg_len > data.len() {
-            return Err("goech: invalid length");
-        }
-        let cfg = data[offset..offset + cfg_len].to_vec();
-        offset += cfg_len;
-
-        keys.push(EchServerKey {
-            private_key: sk,
-            config: cfg,
-        });
+    let (mut keys, mut off) = (Vec::new(), 0);
+    let read_block = |off: &mut usize| -> Result<Vec<u8>, &'static str> {
+        let h = data.get(*off..*off + 2).ok_or("goech: invalid length")?;
+        let len = u16::from_be_bytes([h[0], h[1]]) as usize;
+        *off += 2;
+        let blk = data.get(*off..*off + len).ok_or("goech: invalid length")?;
+        *off += len;
+        Ok(blk.to_vec())
+    };
+    while off < data.len() {
+        keys.push(EchServerKey { private_key: read_block(&mut off)?, config: read_block(&mut off)? });
     }
-
     Ok(keys)
 }
 

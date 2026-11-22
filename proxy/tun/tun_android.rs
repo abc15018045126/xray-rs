@@ -47,24 +47,16 @@ mod imp {
 
         pub fn from_raw_fd(fd: i32) -> Result<Self> {
             let dup_fd = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 0) };
-            if dup_fd < 0 {
-                return Err(Error::Io(io::Error::last_os_error()));
-            }
+            if dup_fd < 0 { return Err(Error::Io(io::Error::last_os_error())); }
             let flags = unsafe { libc::fcntl(dup_fd, libc::F_GETFL) };
-            if flags < 0 {
+            if flags < 0 || unsafe { libc::fcntl(dup_fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
                 let err = io::Error::last_os_error();
                 unsafe { libc::close(dup_fd) };
                 return Err(Error::Io(err));
             }
-            if unsafe { libc::fcntl(dup_fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
-                let err = io::Error::last_os_error();
-                unsafe { libc::close(dup_fd) };
-                return Err(Error::Io(err));
-            }
-            let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
             #[allow(deprecated)]
-            let async_fd = AsyncFd::new(owned).map_err(Error::Io)?;
-            Ok(Self { inner: async_fd })
+            let inner = AsyncFd::new(unsafe { OwnedFd::from_raw_fd(dup_fd) }).map_err(Error::Io)?;
+            Ok(Self { inner })
         }
 
         pub fn raw_fd(&self) -> i32 {

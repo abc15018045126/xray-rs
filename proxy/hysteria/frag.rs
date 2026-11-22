@@ -30,40 +30,17 @@ impl UDPMessage {
 }
 
 pub fn frag_udp_message(m: &UDPMessage, max_size: usize) -> Vec<UDPMessage> {
-    if m.size() <= max_size {
-        return vec![m.clone()];
-    }
-
     let header_sz = m.header_size();
-    if max_size <= header_sz {
-        return vec![m.clone()];
-    }
-
-    let max_payload_size = max_size - header_sz;
-    let full_payload = &m.data;
-    let frag_count = full_payload.len().div_ceil(max_payload_size) as u8;
-
-    let mut frags = Vec::with_capacity(frag_count as usize);
-    let mut off = 0;
-    let mut frag_id = 0u8;
-
-    while off < full_payload.len() {
-        let mut payload_size = full_payload.len() - off;
-        if payload_size > max_payload_size {
-            payload_size = max_payload_size;
-        }
-
+    if m.size() <= max_size || max_size <= header_sz { return vec![m.clone()]; }
+    let max_payload = max_size - header_sz;
+    let frag_count = m.data.len().div_ceil(max_payload) as u8;
+    m.data.chunks(max_payload).enumerate().map(|(i, chunk)| {
         let mut frag = m.clone();
-        frag.frag_id = frag_id;
+        frag.frag_id = i as u8;
         frag.frag_count = frag_count;
-        frag.data = full_payload[off..off + payload_size].to_vec();
-        frags.push(frag);
-
-        off += payload_size;
-        frag_id += 1;
-    }
-
-    frags
+        frag.data = chunk.to_vec();
+        frag
+    }).collect()
 }
 
 pub struct Defragger {

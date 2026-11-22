@@ -80,32 +80,13 @@ pub fn open_session_id(
 ) -> Result<RealityAuthSession> {
     let cipher = Aes256Gcm::new_from_slice(auth_key)
         .map_err(|e| Error::Protocol(format!("Invalid AES-GCM key: {:?}", e)))?;
-    let nonce = Nonce::from_slice(nonce_12);
-
-    let pt = cipher
-        .decrypt(
-            nonce,
-            Payload {
-                msg: sealed_session_id,
-                aad: client_hello_raw,
-            },
-        )
+    let pt = cipher.decrypt(Nonce::from_slice(nonce_12), Payload { msg: sealed_session_id, aad: client_hello_raw })
         .map_err(|e| Error::Protocol(format!("REALITY SessionId open auth error: {:?}", e)))?;
-
-    if pt.len() != 16 {
-        return Err(Error::Protocol(
-            "Decrypted session plaintext must be 16 bytes".into(),
-        ));
-    }
-
-    let version = (pt[0], pt[1], pt[2]);
-    let timestamp = u32::from_be_bytes([pt[4], pt[5], pt[6], pt[7]]);
-    let short_id = pt[8..16].to_vec();
-
+    if pt.len() != 16 { return Err(Error::Protocol("Decrypted session plaintext must be 16 bytes".into())); }
     Ok(RealityAuthSession {
-        version,
-        timestamp,
-        short_id,
+        version: (pt[0], pt[1], pt[2]),
+        timestamp: u32::from_be_bytes([pt[4], pt[5], pt[6], pt[7]]),
+        short_id: pt[8..16].to_vec(),
     })
 }
 

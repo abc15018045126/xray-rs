@@ -66,27 +66,17 @@ impl Destination {
 
     pub fn parse_str(s: &str, network: Network) -> Result<Self> {
         let s = s.trim();
-        if let Some((host, port_str)) = s.rsplit_once(':') {
-            let port = port_str
-                .parse::<u16>()
-                .map_err(|e| Error::Config(format!("Invalid port: {}", e)))?;
+        let mut d = if let Some((host, port_str)) = s.rsplit_once(':') {
+            let port = port_str.parse::<u16>().map_err(|e| Error::Config(format!("Invalid port: {}", e)))?;
             let host = host.trim_matches('[').trim_matches(']');
-            if let Ok(ip) = IpAddr::from_str(host) {
-                let mut d = Destination::from_ip_port(ip, port);
-                d.network = network;
-                Ok(d)
-            } else {
-                let mut d = Destination::from_domain_port(host, port);
-                d.network = network;
-                Ok(d)
-            }
+            IpAddr::from_str(host).map_or_else(|_| Destination::from_domain_port(host, port), |ip| Destination::from_ip_port(ip, port))
         } else if let Ok(port) = s.parse::<u16>() {
-            let mut d = Destination::from_domain_port("127.0.0.1", port);
-            d.network = network;
-            Ok(d)
+            Destination::from_domain_port("127.0.0.1", port)
         } else {
-            Err(Error::Config(format!("Invalid destination string: {}", s)))
-        }
+            return Err(Error::Config(format!("Invalid destination string: {}", s)));
+        };
+        d.network = network;
+        Ok(d)
     }
 }
 

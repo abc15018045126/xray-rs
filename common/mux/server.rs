@@ -21,25 +21,16 @@ impl MuxServer {
 
     pub async fn dispatch_frame(&self, frame: Frame) -> Result<Option<Session>> {
         match frame.status {
-            SessionStatus::New => {
-                if let Some(target) = frame.target {
-                    let (tx, _rx) = mpsc::channel(128);
-                    let session = self.session_manager.allocate_channel(target, tx).await?;
-                    return Ok(Some(session));
-                }
+            SessionStatus::New if frame.target.is_some() => {
+                let (tx, _rx) = mpsc::channel(128);
+                return Ok(Some(self.session_manager.allocate_channel(frame.target.unwrap(), tx).await?));
             }
-            SessionStatus::Keep => {
-                if let Some(session) = self.session_manager.get(frame.session_id) {
-                    if let Some(ref sender) = session.sender {
-                        let _ = sender.send(frame.payload).await;
-                    }
-                    return Ok(Some(session));
-                }
-            }
-            SessionStatus::End => {
-                self.session_manager.remove(false, frame.session_id);
-            }
-            SessionStatus::KeepAlive => {}
+            SessionStatus::Keep => if let Some(s) = self.session_manager.get(frame.session_id) {
+                if let Some(ref sender) = s.sender { let _ = sender.send(frame.payload).await; }
+                return Ok(Some(s));
+            },
+            SessionStatus::End => { self.session_manager.remove(false, frame.session_id); }
+            _ => {}
         }
         Ok(None)
     }

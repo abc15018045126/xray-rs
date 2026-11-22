@@ -4,36 +4,12 @@ use ipnet::IpNet;
 use tracing::warn;
 
 pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> std::io::Result<()> {
-    let mut cmd = std::process::Command::new("route");
-    cmd.arg("add");
-    match dest {
-        IpNet::V4(_) => {
-            cmd.arg("-net")
-                .arg(dest.to_string())
-                .arg("-interface")
-                .arg(&via.name);
-            warn!("executing: route add -net {} -interface {}", dest, via.name);
-        }
-        IpNet::V6(_) => {
-            cmd.arg("-inet6")
-                .arg(dest.to_string())
-                .arg("-interface")
-                .arg(&via.name);
-            warn!(
-                "executing: route add -inet6 {} -interface {}",
-                dest, via.name
-            );
-        }
-    }
-    let output = cmd.output()?;
-    if !output.status.success() {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "add route failed",
-        ))
-    } else {
-        Ok(())
-    }
+    let flag = if matches!(dest, IpNet::V4(_)) { "-net" } else { "-inet6" };
+    warn!("executing: route add {} {} -interface {}", flag, dest, via.name);
+    let output = std::process::Command::new("route")
+        .args(["add", flag, &dest.to_string(), "-interface", &via.name])
+        .output()?;
+    if output.status.success() { Ok(()) } else { Err(std::io::Error::other("add route failed")) }
 }
 
 pub fn maybe_add_default_route() -> std::io::Result<()> {

@@ -107,33 +107,19 @@ impl DataSegment {
     }
 
     pub fn parse(conv: u16, option: u8, buf: &[u8]) -> Option<(Self, &[u8])> {
-        if buf.len() < 14 {
-            return None;
-        }
-        let timestamp = u32::from_be_bytes(buf[0..4].try_into().unwrap());
-        let number = u32::from_be_bytes(buf[4..8].try_into().unwrap());
-        let sending_next = u32::from_be_bytes(buf[8..12].try_into().unwrap());
-        let data_len = u16::from_be_bytes(buf[12..14].try_into().unwrap()) as usize;
-        let rest = &buf[14..];
-        if rest.len() < data_len {
-            return None;
-        }
-        let payload = rest[..data_len].to_vec();
-        let remaining = &rest[data_len..];
-
-        Some((
-            Self {
-                conv,
-                option,
-                timestamp,
-                number,
-                sending_next,
-                payload,
-                timeout: 0,
-                transmit: 0,
-            },
-            remaining,
-        ))
+        if buf.len() < 14 { return None; }
+        let data_len = u16::from_be_bytes([buf[12], buf[13]]) as usize;
+        let rest = buf.get(14..)?;
+        if rest.len() < data_len { return None; }
+        let u32_be = |s: &[u8]| u32::from_be_bytes(s.try_into().unwrap());
+        Some((Self {
+            conv, option,
+            timestamp: u32_be(&buf[0..4]),
+            number: u32_be(&buf[4..8]),
+            sending_next: u32_be(&buf[8..12]),
+            payload: rest[..data_len].to_vec(),
+            timeout: 0, transmit: 0,
+        }, &rest[data_len..]))
     }
 }
 

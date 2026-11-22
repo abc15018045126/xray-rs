@@ -20,30 +20,15 @@ pub fn need_to_update(target_version: &str, installed_version: &str) -> bool {
 
 pub fn find_proto_files(root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    if !root.exists() {
-        return files;
-    }
-
+    if !root.exists() { return files; }
     fn walk_dir(dir: &Path, files: &mut Vec<PathBuf>) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if dir_name == "target" || dir_name == ".git" {
-                        continue;
-                    }
-                    walk_dir(&path, files);
-                } else if path.is_file() {
-                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if name.ends_with(".proto") {
-                        files.push(path);
-                    }
-                }
-            }
+        let Ok(entries) = std::fs::read_dir(dir) else { return; };
+        for path in entries.flatten().map(|e| e.path()) {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if path.is_dir() && name != "target" && name != ".git" { walk_dir(&path, files); }
+            else if path.is_file() && name.ends_with(".proto") { files.push(path); }
         }
     }
-
     walk_dir(root, &mut files);
     files
 }

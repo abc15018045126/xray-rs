@@ -60,29 +60,18 @@ impl JSONConfigLoader {
     pub fn load(&self, raw: &[u8]) -> Result<(Value, String)> {
         let obj: HashMap<String, Value> = serde_json::from_slice(raw)
             .map_err(|e| Error::Config(format!("JSON root parse error: {}", e)))?;
-
-        let raw_id = obj
-            .get(&self.id_key)
-            .ok_or_else(|| Error::NotFound(format!("{} not found in JSON context", self.id_key)))?;
-
-        let id = raw_id
+        let id = obj.get(&self.id_key)
+            .ok_or_else(|| Error::NotFound(format!("{} not found in JSON context", self.id_key)))?
             .as_str()
             .ok_or_else(|| Error::Config(format!("{} must be a string", self.id_key)))?
             .to_string();
-
         let raw_config = if !self.config_key.is_empty() {
-            obj.get(&self.config_key)
-                .cloned()
-                .unwrap_or(Value::Object(serde_json::Map::new()))
+            obj.get(&self.config_key).cloned().unwrap_or(Value::Object(serde_json::Map::new()))
         } else {
             Value::Object(obj.into_iter().collect())
         };
-
-        let raw_bytes =
-            serde_json::to_vec(&raw_config).map_err(|e| Error::Config(e.to_string()))?;
-
-        let config = self.load_with_id(&raw_bytes, &id)?;
-        Ok((config, id))
+        let raw_bytes = serde_json::to_vec(&raw_config).map_err(|e| Error::Config(e.to_string()))?;
+        Ok((self.load_with_id(&raw_bytes, &id)?, id))
     }
 }
 

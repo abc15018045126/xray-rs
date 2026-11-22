@@ -36,26 +36,16 @@ impl OutboundHandler for Client {
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = TcpDialer::dial(&self.server_addr).await?;
-
-        let req_header = SessionHeader::new_client(session.destination.clone());
-        let expected_session_id = req_header.session_id;
-        req_header.encode(&mut stream).await?;
-
-        let resp_header = SessionHeader::decode(&mut stream).await?;
-        if resp_header.header_type != HEADER_TYPE_SERVER {
-            return Err(Error::Protocol(format!(
-                "Invalid server header type: expected {}, got {}",
-                HEADER_TYPE_SERVER, resp_header.header_type
-            )));
+        let req = SessionHeader::new_client(session.destination.clone());
+        let expected_id = req.session_id;
+        req.encode(&mut stream).await?;
+        let resp = SessionHeader::decode(&mut stream).await?;
+        if resp.header_type != HEADER_TYPE_SERVER {
+            return Err(Error::Protocol(format!("Invalid server header type: expected {}, got {}", HEADER_TYPE_SERVER, resp.header_type)));
         }
-
-        if resp_header.session_id != expected_session_id {
-            return Err(Error::Protocol(format!(
-                "Session ID mismatch: expected {}, got {}",
-                expected_session_id, resp_header.session_id
-            )));
+        if resp.session_id != expected_id {
+            return Err(Error::Protocol(format!("Session ID mismatch: expected {}, got {}", expected_id, resp.session_id)));
         }
-
         Ok(stream)
     }
 }

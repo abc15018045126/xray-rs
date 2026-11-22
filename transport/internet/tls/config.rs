@@ -136,28 +136,14 @@ impl TlsConfig {
 
     pub fn get_certificate_for_sni(&mut self, sni: &str) -> Option<Certificate> {
         let cache = self.get_or_init_cache();
+        if let Some(cert) = cache.lock().unwrap().get(sni).cloned() { return Some(cert); }
+        if self.certificate.iter().any(|c| c.usage == CertificateUsage::AuthorityIssue)
+            && let Ok(g) = rcgen::generate_simple_self_signed(vec![sni.to_string()])
         {
-            let map = cache.lock().unwrap();
-            if let Some(cert) = map.get(sni) {
-                return Some(cert.clone());
-            }
-        }
-
-        let has_issuer = self
-            .certificate
-            .iter()
-            .any(|c| c.usage == CertificateUsage::AuthorityIssue);
-        if has_issuer
-            && let Ok(generated) = rcgen::generate_simple_self_signed(vec![sni.to_string()])
-        {
-            let cert_pem = generated.cert.pem().into_bytes();
-            let key_pem = generated.key_pair.serialize_pem().into_bytes();
-            let cert = Certificate::new(cert_pem, key_pem, CertificateUsage::Encipherment);
-            let mut map = cache.lock().unwrap();
-            map.insert(sni.to_string(), cert.clone());
+            let cert = Certificate::new(g.cert.pem().into_bytes(), g.key_pair.serialize_pem().into_bytes(), CertificateUsage::Encipherment);
+            cache.lock().unwrap().insert(sni.to_string(), cert.clone());
             return Some(cert);
         }
-
         self.build_certificates().into_iter().next()
     }
 }

@@ -75,22 +75,11 @@ impl TcpRequest {
         }
         let mut addr_buf = vec![0u8; addr_len];
         reader.read_exact(&mut addr_buf).await?;
-        let address = String::from_utf8(addr_buf)
-            .map_err(|e| Error::Protocol(format!("Invalid UTF-8 in address: {}", e)))?;
-
+        let address = String::from_utf8(addr_buf).map_err(|e| Error::Protocol(format!("Invalid UTF-8 in address: {}", e)))?;
         let padding_len = QuicVarint::read(reader).await? as usize;
-        if padding_len > MAX_PADDING_LENGTH {
-            return Err(Error::Protocol("Invalid Hysteria padding length".into()));
-        }
-        if padding_len > 0 {
-            let mut pad_buf = vec![0u8; padding_len];
-            reader.read_exact(&mut pad_buf).await?;
-        }
-
-        Ok(Self {
-            address,
-            padding_len,
-        })
+        if padding_len > MAX_PADDING_LENGTH { return Err(Error::Protocol("Invalid Hysteria padding length".into())); }
+        if padding_len > 0 { reader.read_exact(&mut vec![0u8; padding_len]).await?; }
+        Ok(Self { address, padding_len })
     }
 }
 

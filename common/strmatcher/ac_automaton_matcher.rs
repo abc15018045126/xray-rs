@@ -89,27 +89,17 @@ impl AcAutomatonMatcher {
     }
 
     pub fn build(&mut self) {
-        let mut queue = VecDeque::new();
-        for &edge in &self.trie[0] {
-            if edge.next_node != 0 {
-                queue.push_back(edge);
-            }
-        }
-
+        let mut queue: VecDeque<Edge> = self.trie[0].iter().copied().filter(|e| e.next_node != 0).collect();
         while let Some(front) = queue.pop_front() {
-            let node = front.next_node;
+            let (node, fail_node) = (front.next_node, self.fail[front.next_node]);
             for i in 0..VALID_CHAR_COUNT {
-                if self.trie[node][i].next_node != 0 {
-                    let next = self.trie[node][i].next_node;
-                    let fail_node = self.fail[node];
-                    self.fail[next] = self.trie[fail_node][i].next_node;
+                let next = self.trie[node][i].next_node;
+                let fail_next = self.trie[fail_node][i].next_node;
+                if next != 0 {
+                    self.fail[next] = fail_next;
                     queue.push_back(self.trie[node][i]);
                 } else {
-                    let fail_node = self.fail[node];
-                    self.trie[node][i] = Edge {
-                        edge_type: false,
-                        next_node: self.trie[fail_node][i].next_node,
-                    };
+                    self.trie[node][i] = Edge { edge_type: false, next_node: fail_next };
                 }
             }
         }

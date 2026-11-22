@@ -50,30 +50,13 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
     }
 
     pub async fn read_at_most(&mut self, max_size: usize) -> Result<MultiBuffer> {
-        if self.cached.is_empty()
-            && let Some(b) = self.read_buffer().await?
-        {
-            self.cached.push(b);
-        }
-
-        let mut out = MultiBuffer::new();
-        let mut needed = max_size;
-
-        let buffers = self.cached.clone().into_buffers();
-        self.cached.clear();
-
-        for mut b in buffers {
-            if needed == 0 {
-                self.cached.push(b);
-                continue;
-            }
-
-            if b.len() <= needed {
-                needed -= b.len();
-                out.push(b);
-            } else {
-                let mut chunk = Buffer::with_capacity(needed);
-                let mut data = vec![0u8; needed];
+        if self.cached.is_empty() && let Some(b) = self.read_buffer().await? { self.cached.push(b); }
+        let (mut out, mut needed) = (MultiBuffer::new(), max_size);
+        for mut b in std::mem::replace(&mut self.cached, MultiBuffer::new()).into_buffers() {
+            if needed == 0 { self.cached.push(b); continue; }
+            if b.len() <= needed { needed -= b.len(); out.push(b); }
+            else {
+                let (mut chunk, mut data) = (Buffer::with_capacity(needed), vec![0u8; needed]);
                 let _ = b.read(&mut data);
                 let _ = chunk.write(&data);
                 out.push(chunk);
@@ -81,7 +64,6 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
                 needed = 0;
             }
         }
-
         Ok(out)
     }
 }

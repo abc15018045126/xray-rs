@@ -82,33 +82,15 @@ impl PingoraInboundApp {
 
 #[async_trait]
 impl ServerApp for PingoraInboundApp {
-    async fn process_new(
-        self: &Arc<Self>,
-        session: PingoraStream,
-        _shutdown: &ShutdownWatch,
-    ) -> Option<PingoraStream> {
-        let remote_addr = session
-            .get_socket_digest()
+    async fn process_new(self: &Arc<Self>, session: PingoraStream, _shutdown: &ShutdownWatch) -> Option<PingoraStream> {
+        let remote_addr = session.get_socket_digest()
             .and_then(|d| d.peer_addr().cloned())
             .and_then(|a| a.as_inet().copied())
             .unwrap_or_else(|| SocketAddr::from(([127, 0, 0, 1], 0)));
-
-        let stream: BoxStream = Box::pin(session);
-        match self.handler.handle_connection(stream, remote_addr).await {
-            Ok(res) => {
-                if let Err(e) = self.dispatcher.dispatch(res.stream, res.session).await {
-                    warn!("Dispatch error: {}", e);
-                }
-            }
+        match self.handler.handle_connection(Box::pin(session), remote_addr).await {
+            Ok(res) => { if let Err(e) = self.dispatcher.dispatch(res.stream, res.session).await { warn!("Dispatch error: {}", e); } }
             Err(Error::Closed) => {}
-            Err(e) => {
-                warn!(
-                    "[{}] Handshake failed from {}: {}",
-                    self.handler.tag(),
-                    remote_addr,
-                    e
-                );
-            }
+            Err(e) => warn!("[{}] Handshake failed from {}: {}", self.handler.tag(), remote_addr, e),
         }
         None
     }

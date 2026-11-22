@@ -54,34 +54,17 @@ impl SimpleAead {
     }
 
     pub fn open(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        if ciphertext.len() < 6 {
-            return Err(Error::Protocol("ciphertext too short (< 6 bytes)".into()));
-        }
-
-        let mut dst = ciphertext.to_vec();
-        let dst_len = dst.len();
+        if ciphertext.len() < 6 { return Err(Error::Protocol("ciphertext too short (< 6 bytes)".into())); }
+        let (mut dst, dst_len) = (ciphertext.to_vec(), ciphertext.len());
         let xtra = 4 - (dst_len % 4);
-        if xtra != 4 {
-            dst.resize(dst_len + xtra, 0);
-        }
-
+        if xtra != 4 { dst.resize(dst_len + xtra, 0); }
         xorbkd(&mut dst);
-
-        if xtra != 4 {
-            dst.truncate(dst_len);
-        }
-
-        let expected_hash = fnv32a(&dst[4..]);
-        let actual_hash = u32::from_be_bytes([dst[0], dst[1], dst[2], dst[3]]);
-        if actual_hash != expected_hash {
+        if xtra != 4 { dst.truncate(dst_len); }
+        if u32::from_be_bytes([dst[0], dst[1], dst[2], dst[3]]) != fnv32a(&dst[4..])
+            || dst.len() - 6 != u16::from_be_bytes([dst[4], dst[5]]) as usize
+        {
             return Err(Error::Protocol("invalid auth".into()));
         }
-
-        let length = u16::from_be_bytes([dst[4], dst[5]]) as usize;
-        if dst.len() - 6 != length {
-            return Err(Error::Protocol("invalid auth".into()));
-        }
-
         Ok(dst[6..].to_vec())
     }
 }

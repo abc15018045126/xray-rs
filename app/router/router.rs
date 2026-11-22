@@ -98,27 +98,14 @@ impl Feature for Router {
 
 impl RouterFeature for Router {
     fn pick_outbound(&self, session: &SessionContext) -> Option<&str> {
-        for rule in &self.rules {
-            if rule.matches(session) {
-                if let Some(btag) = &rule.balancer_tag
-                    && let Some(balancer) = self.balancers.get(btag)
-                    && let Some(picked) = balancer.pick()
-                {
-                    for candidate in &balancer.candidates {
-                        if candidate == &picked {
-                            return Some(candidate.as_str());
-                        }
-                    }
-                    for selector in &balancer.selectors {
-                        if selector == &picked {
-                            return Some(selector.as_str());
-                        }
-                    }
-                }
-                if !rule.tag.is_empty() {
-                    return Some(&rule.tag);
-                }
+        for rule in self.rules.iter().filter(|r| r.matches(session)) {
+            if let Some(b) = rule.balancer_tag.as_ref().and_then(|t| self.balancers.get(t))
+                && let Some(picked) = b.pick()
+                && let Some(found) = b.candidates.iter().chain(&b.selectors).find(|s| **s == picked)
+            {
+                return Some(found.as_str());
             }
+            if !rule.tag.is_empty() { return Some(&rule.tag); }
         }
         self.default_tag.as_deref()
     }
