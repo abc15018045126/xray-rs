@@ -13,7 +13,6 @@ pub fn is_valid_http_host(request: &str, config: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_is_valid_http_host() {
         assert!(is_valid_http_host("example.com", "example.com"));

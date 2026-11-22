@@ -23,47 +23,26 @@ pub struct ErrorCollector {
 }
 
 impl ErrorCollector {
-    pub fn new() -> Self {
-        Self { errors: Vec::new() }
-    }
-
-    pub fn submit_error(&mut self, err: impl ToString) {
-        self.errors.push(err.to_string());
-    }
-
-    pub fn underlying_error(&self) -> Option<&str> {
-        self.errors.last().map(|s| s.as_str())
-    }
-
-    pub fn has_errors(&self) -> bool {
-        !self.errors.is_empty()
-    }
-
-    pub fn count(&self) -> usize {
-        self.errors.len()
-    }
+    pub fn new() -> Self { Self { errors: Vec::new() } }
+    pub fn submit_error(&mut self, err: impl ToString) { self.errors.push(err.to_string()); }
+    pub fn underlying_error(&self) -> Option<&str> { self.errors.last().map(|s| s.as_str()) }
+    pub fn has_errors(&self) -> bool { !self.errors.is_empty() }
+    pub fn count(&self) -> usize { self.errors.len() }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_error_collector() {
         let mut collector = ErrorCollector::new();
         assert!(!collector.has_errors());
         assert_eq!(collector.underlying_error(), None);
-
         collector.submit_error("first io error");
         collector.submit_error("connection reset by peer");
-
         assert!(collector.has_errors());
         assert_eq!(collector.count(), 2);
-        assert_eq!(
-            collector.underlying_error(),
-            Some("connection reset by peer")
-        );
-
+        assert_eq!(collector.underlying_error(), Some("connection reset by peer"));
         let (exp, cat) = explain_error(collector.underlying_error().unwrap());
         assert_eq!(cat, ErrorCategory::ConnectionRefused);
         assert!(exp.contains("refused connection"));

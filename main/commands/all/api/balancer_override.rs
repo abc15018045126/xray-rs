@@ -9,9 +9,6 @@ pub fn cmd_balancer_override() -> Command {
     )
     .with_run(|args| {
         let client = ApiClientConfig::parse(args);
-        Ok(format!(
-            "balancer-override request sent to {}",
-            client.server
-        ))
+        Ok(format!("balancer-override request sent to {}", client.server))
     })
 }

@@ -26,11 +26,7 @@ impl IPRecord {
             rcode,
         }
     }
-
-    pub fn is_expired(&self) -> bool {
-        Instant::now() >= self.expire
-    }
-
+    pub fn is_expired(&self) -> bool { Instant::now() >= self.expire }
     pub fn get_ips(&self) -> Option<&[IpAddr]> {
         if self.is_expired() || self.rcode != 0 || self.ips.is_empty() {
             None

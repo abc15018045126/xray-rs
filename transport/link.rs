@@ -7,15 +7,7 @@ pub struct Link {
 }
 
 impl Link {
-    pub fn new(reader: PipeReader, writer: PipeWriter) -> Self {
-        Self { reader, writer }
-    }
-
-    pub fn split(self) -> (PipeReader, PipeWriter) {
-        (self.reader, self.writer)
-    }
-
-    pub fn into_parts(self) -> (PipeReader, PipeWriter) {
-        (self.reader, self.writer)
-    }
+    pub fn new(reader: PipeReader, writer: PipeWriter) -> Self { Self { reader, writer } }
+    pub fn split(self) -> (PipeReader, PipeWriter) { (self.reader, self.writer) }
+    pub fn into_parts(self) -> (PipeReader, PipeWriter) { (self.reader, self.writer) }
 }

@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::sync::Arc;
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination, Network};
 use crate::common::protocol::{RequestCommand, SessionContext};
@@ -32,16 +31,13 @@ pub struct Server {
 impl Server {
     pub fn new(tag: impl Into<String>, passwords: Vec<String>) -> Self {
         let validator = PasswordValidator::new();
-        for pwd in passwords {
-            validator.add_password(&pwd);
-        }
+        for pwd in passwords { validator.add_password(&pwd); }
         Self {
             tag: tag.into(),
             validator: Arc::new(validator),
             fallbacks: Vec::new(),
         }
     }
-
     pub fn with_validator(tag: impl Into<String>, validator: Arc<PasswordValidator>) -> Self {
         Self {
             tag: tag.into(),
@@ -49,35 +45,23 @@ impl Server {
             fallbacks: Vec::new(),
         }
     }
-
     pub fn with_fallbacks(mut self, fallbacks: Vec<TrojanFallback>) -> Self {
         self.fallbacks = fallbacks;
         self
     }
-
-    pub fn add_password(&self, password: &str) {
-        self.validator.add_password(password);
-    }
+    pub fn add_password(&self, password: &str) { self.validator.add_password(password); }
 }
 
 #[async_trait]
 impl InboundHandler for Server {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
-    async fn handle_connection(
-        &self,
-        mut stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
+    fn tag(&self) -> &str { &self.tag }
+    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let fallback = |stream: BoxStream, err: Error| -> Result<InboundResult> {
             let Some(fb) = self.fallbacks.first() else { return Err(err) };
             let mut session = SessionContext::new(&self.tag, Destination::parse_str(&fb.dest, Network::Tcp)?);
             session.source = Some(remote_addr);
             Ok(InboundResult { stream, session })
         };
-
         let req = match RequestHeader::decode(&mut stream).await {
             Ok(r) => r,
             Err(e) => return fallback(stream, e),
@@ -85,7 +69,6 @@ impl InboundHandler for Server {
         if !self.validator.validate(&req.password_hash) {
             return fallback(stream, Error::AuthFailed("Invalid Trojan password hash".into()));
         }
-
         let mut session = SessionContext::new(&self.tag, req.destination);
         session.source = Some(remote_addr);
         session.destination.network = if matches!(req.command, RequestCommand::Udp) { Network::Udp } else { Network::Tcp };

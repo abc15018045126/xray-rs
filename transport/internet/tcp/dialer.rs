@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-
 use crate::app::pingora_bridge::PingoraCoreConnector;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, BoxStream, Destination};
@@ -22,14 +21,12 @@ impl TcpDialer {
             );
             return Ok(stream);
         }
-
         let Address::Domain(domain) = &dest.address else { unreachable!() };
         #[cfg(debug_assertions)]
         let _dt0 = std::time::Instant::now();
         let addrs = lookup_for_ip(domain, dest.port).await?;
         #[cfg(debug_assertions)]
         crate::debug_panel::record_stage("TCP 域名解析 (DnsClient/lookup_host)", _dt0.elapsed());
-
         let mut last_err = None;
         for addr in addrs {
             #[cfg(debug_assertions)]

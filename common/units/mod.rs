@@ -12,6 +12,4 @@ pub fn parse_bytesize(s: &str) -> Result<u64> {
     Ok(bs.0)
 }
 
-pub fn format_bytesize(bytes: u64) -> String {
-    ByteSize(bytes).to_string_formatted()
-}
+pub fn format_bytesize(bytes: u64) -> String { ByteSize(bytes).to_string_formatted() }

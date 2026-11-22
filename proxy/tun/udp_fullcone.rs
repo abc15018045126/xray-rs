@@ -21,7 +21,6 @@ impl UdpNatTable {
             ttl,
         }
     }
-
     pub fn insert(&self, src: SocketAddr, target: SocketAddr) {
         let mut guard = self.entries.lock().unwrap();
         guard.insert(
@@ -32,18 +31,15 @@ impl UdpNatTable {
             },
         );
     }
-
     pub fn lookup(&self, src: &SocketAddr) -> Option<SocketAddr> {
         let mut guard = self.entries.lock().unwrap();
-        if let Some(entry) = guard.get_mut(src)
-            && entry.last_seen.elapsed() <= self.ttl
+        if let Some(entry) = guard.get_mut(src) && entry.last_seen.elapsed() <= self.ttl
         {
             entry.last_seen = Instant::now();
             return Some(entry.target);
         }
         None
     }
-
     pub fn clean_expired(&self) {
         let mut guard = self.entries.lock().unwrap();
         let ttl = self.ttl;
@@ -52,21 +48,17 @@ impl UdpNatTable {
 }
 
 impl Default for UdpNatTable {
-    fn default() -> Self {
-        Self::new(Duration::from_secs(300))
-    }
+    fn default() -> Self { Self::new(Duration::from_secs(300)) }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_udp_nat_table_insert_and_lookup() {
         let table = UdpNatTable::new(Duration::from_secs(10));
         let src: SocketAddr = "10.0.0.1:12345".parse().unwrap();
         let target: SocketAddr = "8.8.8.8:53".parse().unwrap();
-
         assert!(table.lookup(&src).is_none());
         table.insert(src, target);
         assert_eq!(table.lookup(&src), Some(target));

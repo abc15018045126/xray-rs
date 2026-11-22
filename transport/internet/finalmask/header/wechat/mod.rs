@@ -11,15 +11,9 @@ pub struct WeChatHeader {
 impl WeChatHeader {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
-        Self {
-            sn: rng.r#gen::<u16>() as u32,
-        }
+        Self { sn: rng.r#gen::<u16>() as u32, }
     }
-
-    pub fn size(&self) -> usize {
-        13
-    }
-
+    pub fn size(&self) -> usize { 13 }
     pub fn serialize(&mut self, buf: &mut [u8]) {
         self.sn = self.sn.wrapping_add(1);
         buf[0] = 0xa1;
@@ -33,7 +27,6 @@ impl WeChatHeader {
         buf[11] = 0x22;
         buf[12] = 0x30;
     }
-
     pub fn write_header(&mut self) -> [u8; 13] {
         let mut b = [0u8; 13];
         self.serialize(&mut b);
@@ -42,7 +35,5 @@ impl WeChatHeader {
 }
 
 impl Default for WeChatHeader {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

@@ -30,7 +30,6 @@ impl CommandSwitchAccount {
         buf.push(self.valid_min);
         buf
     }
-
     pub fn decode(b: &[u8]) -> Result<Self> {
         if b.is_empty() { return Err(Error::Protocol("Empty switch account data".into())); }
         let host_len = b[0] as usize;
@@ -52,10 +51,7 @@ impl CommandSwitchAccount {
 pub fn marshal_command(cmd_id: u8, payload: &[u8]) -> Result<Vec<u8>> {
     let auth = authenticate(payload);
     let total_len = payload.len() + 4;
-    if total_len > 255 {
-        return Err(Error::Protocol("Command too large".into()));
-    }
-
+    if total_len > 255 { return Err(Error::Protocol("Command too large".into())); }
     let mut out = Vec::with_capacity(2 + 4 + payload.len());
     out.push(cmd_id);
     out.push(total_len as u8);
@@ -65,21 +61,13 @@ pub fn marshal_command(cmd_id: u8, payload: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn unmarshal_command(data: &[u8]) -> Result<(u8, Vec<u8>)> {
-    if data.len() < 6 {
-        return Err(Error::Protocol(
-            "Insufficient length for command frame".into(),
-        ));
-    }
+    if data.len() < 6 { return Err(Error::Protocol("Insufficient length for command frame".into())); }
     let cmd_id = data[0];
     let total_len = data[1] as usize;
-    if data.len() < 2 + total_len {
-        return Err(Error::Protocol("Truncated command payload".into()));
-    }
+    if data.len() < 2 + total_len { return Err(Error::Protocol("Truncated command payload".into())); }
     let expected_auth = u32::from_be_bytes([data[2], data[3], data[4], data[5]]);
     let payload = &data[6..2 + total_len];
     let actual_auth = authenticate(payload);
-    if expected_auth != actual_auth {
-        return Err(Error::AuthFailed("Invalid command auth checksum".into()));
-    }
+    if expected_auth != actual_auth { return Err(Error::AuthFailed("Invalid command auth checksum".into())); }
     Ok((cmd_id, payload.to_vec()))
 }

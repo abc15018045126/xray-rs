@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-
 use super::config_pb::{Policy, PolicyBuffer, PolicyTimeout, Second, SystemPolicy};
 use crate::features::policy::{
     Buffer as CoreBuffer, SessionPolicy as CoreSessionPolicy, SystemPolicy as CoreSystemPolicy,
@@ -8,9 +7,7 @@ use crate::features::policy::{
 };
 
 impl Second {
-    pub fn duration(&self) -> Duration {
-        Duration::from_secs(self.value as u64)
-    }
+    pub fn duration(&self) -> Duration { Duration::from_secs(self.value as u64) }
 }
 
 pub fn default_policy() -> Policy {
@@ -39,15 +36,9 @@ pub fn default_policy() -> Policy {
 
 impl PolicyTimeout {
     pub fn override_with(&mut self, another: &PolicyTimeout) {
-        if let Some(h) = &another.handshake {
-            self.handshake = Some(Second { value: h.value });
-        }
-        if let Some(ci) = &another.connection_idle {
-            self.connection_idle = Some(Second { value: ci.value });
-        }
-        if let Some(uo) = &another.uplink_only {
-            self.uplink_only = Some(Second { value: uo.value });
-        }
+        if let Some(h) = &another.handshake { self.handshake = Some(Second { value: h.value }); }
+        if let Some(ci) = &another.connection_idle { self.connection_idle = Some(Second { value: ci.value }); }
+        if let Some(uo) = &another.uplink_only { self.uplink_only = Some(Second { value: uo.value }); }
         if let Some(do_only) = &another.downlink_only {
             self.downlink_only = Some(Second {
                 value: do_only.value,
@@ -65,16 +56,13 @@ impl Policy {
                 self.timeout = Some(another_timeout.clone());
             }
         }
-        if let Some(another_stats) = &another.stats {
-            self.stats = Some(another_stats.clone());
-        }
+        if let Some(another_stats) = &another.stats { self.stats = Some(another_stats.clone()); }
         if let Some(another_buffer) = &another.buffer {
             self.buffer = Some(PolicyBuffer {
                 connection: another_buffer.connection,
             });
         }
     }
-
     pub fn to_core_policy(&self) -> CoreSessionPolicy {
         let mut cp = session_default();
         if let Some(t) = &self.timeout {
@@ -102,7 +90,6 @@ impl SystemPolicy {
             },
             None => CoreSystemStats::default(),
         };
-
         CoreSystemPolicy {
             stats,
             buffer: CoreBuffer::default(),

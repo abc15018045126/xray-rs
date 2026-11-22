@@ -14,38 +14,28 @@ impl FileLocker {
             file: None,
         }
     }
-
     #[cfg(windows)]
     pub fn acquire(&mut self) -> Result<()> {
         let f = File::create(&self.path)?;
         self.file = Some(f);
         Ok(())
     }
-
     #[cfg(not(windows))]
     pub fn acquire(&mut self) -> Result<()> {
         let f = File::create(&self.path)?;
         self.file = Some(f);
         Ok(())
     }
-
-    pub fn release(&mut self) {
-        if self.file.take().is_some() {
-            let _ = std::fs::remove_file(&self.path);
-        }
-    }
+    pub fn release(&mut self) { if self.file.take().is_some() { let _ = std::fs::remove_file(&self.path); } }
 }
 
 impl Drop for FileLocker {
-    fn drop(&mut self) {
-        self.release();
-    }
+    fn drop(&mut self) { self.release(); }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_file_locker_lifecycle() {
         let temp_dir = std::env::temp_dir();

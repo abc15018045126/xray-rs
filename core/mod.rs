@@ -22,13 +22,8 @@ pub use config::{
     ConfigFormat, ConfigLoader, ConfigSource, CoreConfig, get_extension, get_format,
     get_format_by_extension, get_merged_config, load_config, register_config_loader,
 };
-pub use context::{
-    CoreContext, from_context, must_from_context, to_background_detached_context, to_context,
-};
-pub use core::{
-    BUILD, CODENAME, INTRO, Instance, Server, VERSION_X, VERSION_Y, VERSION_Z, version,
-    version_statement,
-};
+pub use context::{CoreContext, from_context, must_from_context, to_background_detached_context, to_context};
+pub use core::{BUILD, CODENAME, INTRO, Instance, Server, VERSION_X, VERSION_Y, VERSION_Z, version, version_statement};
 pub use functions::{create_object, dial, dial_udp, start_instance};
 pub use mocks::create_mock_instance;
 pub use proto::PROTO_CORE_VERSION;

@@ -28,12 +28,10 @@ impl BrutalSender {
             slots: [PktInfo::default(); PKT_INFO_SLOT_COUNT],
         }
     }
-
     pub fn pacing_rate(&self) -> u64 {
         let rate = (self.bps as f64 / self.ack_rate.max(MIN_ACK_RATE)) as u64;
         rate.max(self.bps)
     }
-
     pub fn record_ack(&mut self, now_sec: i64, count: u64) {
         let slot_idx = (now_sec as usize) % PKT_INFO_SLOT_COUNT;
         if self.slots[slot_idx].timestamp_sec != now_sec {
@@ -47,7 +45,6 @@ impl BrutalSender {
         }
         self.update_ack_rate(now_sec);
     }
-
     pub fn record_loss(&mut self, now_sec: i64, count: u64) {
         let slot_idx = (now_sec as usize) % PKT_INFO_SLOT_COUNT;
         if self.slots[slot_idx].timestamp_sec != now_sec {
@@ -61,7 +58,6 @@ impl BrutalSender {
         }
         self.update_ack_rate(now_sec);
     }
-
     fn update_ack_rate(&mut self, now_sec: i64) {
         let mut total_ack = 0u64;
         let mut total_loss = 0u64;
@@ -72,8 +68,6 @@ impl BrutalSender {
             }
         }
         let total = total_ack + total_loss;
-        if total > 0 {
-            self.ack_rate = (total_ack as f64) / (total as f64);
-        }
+        if total > 0 { self.ack_rate = (total_ack as f64) / (total as f64); }
     }
 }

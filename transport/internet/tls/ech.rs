@@ -52,36 +52,21 @@ pub struct EchConfigCache {
 }
 
 impl Default for EchConfigCache {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl EchConfigCache {
-    pub fn new() -> Self {
-        Self {
-            records: Mutex::new(HashMap::new()),
-        }
-    }
-
-    pub fn make_key(server: &str, domain: &str) -> String {
-        format!("{}|{}", server, domain)
-    }
-
+    pub fn new() -> Self { Self { records: Mutex::new(HashMap::new()), } }
+    pub fn make_key(server: &str, domain: &str) -> String { format!("{}|{}", server, domain) }
     pub fn get(&self, server: &str, domain: &str) -> Option<Vec<u8>> {
         let key = Self::make_key(server, domain);
         let mut map = self.records.lock().unwrap();
         if let Some(record) = map.get(&key) {
-            if Instant::now() < record.expire && record.err.is_none() {
-                return Some(record.config.clone());
-            }
-            if Instant::now() >= record.expire {
-                map.remove(&key);
-            }
+            if Instant::now() < record.expire && record.err.is_none() { return Some(record.config.clone()); }
+            if Instant::now() >= record.expire { map.remove(&key); }
         }
         None
     }
-
     pub fn store(&self, server: &str, domain: &str, config: Vec<u8>, ttl: Duration) {
         let key = Self::make_key(server, domain);
         let mut map = self.records.lock().unwrap();
@@ -94,7 +79,6 @@ impl EchConfigCache {
             },
         );
     }
-
     pub fn store_error(&self, server: &str, domain: &str, err: String, ttl: Duration) {
         let key = Self::make_key(server, domain);
         let mut map = self.records.lock().unwrap();
@@ -107,10 +91,7 @@ impl EchConfigCache {
             },
         );
     }
-
-    pub fn clear(&self) {
-        self.records.lock().unwrap().clear();
-    }
+    pub fn clear(&self) { self.records.lock().unwrap().clear(); }
 }
 
 pub static GLOBAL_ECH_CACHE: std::sync::LazyLock<Arc<EchConfigCache>> =
@@ -149,12 +130,8 @@ pub fn parse_svcb_ech_param(svcb_params: &[u8]) -> Option<Vec<u8>> {
         let key = u16::from_be_bytes([svcb_params[offset], svcb_params[offset + 1]]);
         let len = u16::from_be_bytes([svcb_params[offset + 2], svcb_params[offset + 3]]) as usize;
         offset += 4;
-        if offset + len > svcb_params.len() {
-            return None;
-        }
-        if key == SVCB_PARAM_ECH {
-            return Some(svcb_params[offset..offset + len].to_vec());
-        }
+        if offset + len > svcb_params.len() { return None; }
+        if key == SVCB_PARAM_ECH { return Some(svcb_params[offset..offset + len].to_vec()); }
         offset += len;
     }
     None
@@ -173,9 +150,7 @@ pub fn resolve_ech_config(
     server_name: &str,
     force_query: &str,
 ) -> Result<Option<Vec<u8>>, String> {
-    if ech_config_list.is_empty() {
-        return Ok(None);
-    }
+    if ech_config_list.is_empty() { return Ok(None); }
     let mode = if force_query.is_empty() { "full" } else { force_query };
     let result = if ech_config_list.contains("://") {
         let parts: Vec<&str> = ech_config_list.split('+').collect();
@@ -191,11 +166,9 @@ pub fn resolve_ech_config(
     } else {
         Some(
             base64::engine::general_purpose::STANDARD
-                .decode(ech_config_list.trim())
-                .map_err(|e| format!("Failed to unmarshal ECHConfigList: {}", e))?,
+                .decode(ech_config_list.trim()).map_err(|e| format!("Failed to unmarshal ECHConfigList: {}", e))?,
         )
     };
-
     match result {
         Some(cfg) if !cfg.is_empty() => Ok(Some(cfg)),
         _ => Ok((mode == "full").then(|| DUMMY_FALLBACK_ECH_CONFIG.to_vec())),

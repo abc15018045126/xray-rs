@@ -31,24 +31,18 @@ impl XDnsServer {
             closed: Arc::new(AtomicBool::new(false)),
         })
     }
-
-    pub fn from_config(config: &super::config::XDnsConfig) -> Result<Self> {
-        Self::new(&config.domain)
-    }
-
+    pub fn from_config(config: &super::config::XDnsConfig) -> Result<Self> { Self::new(&config.domain) }
     pub fn client_id_to_addr(client_id: &[u8; 8]) -> [u8; 16] {
         let mut ip = [0u8; 16];
         ip[0] = 0xfd;
         ip[8..16].copy_from_slice(client_id);
         ip
     }
-
     pub fn decode_query(&self, wire: &[u8]) -> Result<(XDnsServerQuery, Message)> {
         let query = Message::from_wire_format(wire)?;
         if (query.flags & 0x8000) != 0 {
             return Err(Error::Protocol("incoming message is a DNS response, not a query".into()));
         }
-
         let mut resp = Message {
             id: query.id,
             flags: 0x8000,
@@ -61,12 +55,9 @@ impl XDnsServer {
             resp.flags |= rcode;
             Ok((XDnsServerQuery { client_id: [0u8; 8], packets: Vec::new(), rcode }, resp))
         };
-
         let mut payload_size = 512usize;
         for rr in query.additional.iter().filter(|rr| rr.rrtype == RR_TYPE_OPT) {
-            if !resp.additional.is_empty() {
-                return err_resp(resp, RCODE_FORMAT_ERROR);
-            }
+            if !resp.additional.is_empty() { return err_resp(resp, RCODE_FORMAT_ERROR); }
             let mut opt_rr = ResourceRecord {
                 name: Name::default(),
                 rrtype: RR_TYPE_OPT,
@@ -82,39 +73,17 @@ impl XDnsServer {
             payload_size = payload_size.max(rr.class as usize);
             resp.additional.push(opt_rr);
         }
-
-        if query.questions.len() != 1 {
-            return err_resp(resp, RCODE_FORMAT_ERROR);
-        }
-
+        if query.questions.len() != 1 { return err_resp(resp, RCODE_FORMAT_ERROR); }
         let question = &query.questions[0];
-        let Some(prefix) = question.name.trim_suffix(&self.domain) else {
-            return err_resp(resp, RCODE_NAME_ERROR);
-        };
-
+        let Some(prefix) = question.name.trim_suffix(&self.domain) else { return err_resp(resp, RCODE_NAME_ERROR); };
         resp.flags |= 0x0400;
-        if query.opcode() != 0 {
-            return err_resp(resp, RCODE_NOT_IMPLEMENTED);
-        }
-        if question.qtype != RR_TYPE_TXT {
-            return err_resp(resp, RCODE_NAME_ERROR);
-        }
-
-        let concat: String = prefix
-            .labels
-            .iter()
-            .map(|l| String::from_utf8_lossy(l).to_ascii_uppercase())
-            .collect();
-        let Ok(payload) = base32_decode(&concat) else {
-            return err_resp(resp, RCODE_NAME_ERROR);
-        };
-        if payload.len() < 8 {
-            return err_resp(resp, RCODE_NAME_ERROR);
-        }
-
+        if query.opcode() != 0 { return err_resp(resp, RCODE_NOT_IMPLEMENTED); }
+        if question.qtype != RR_TYPE_TXT { return err_resp(resp, RCODE_NAME_ERROR); }
+        let concat: String = prefix.labels.iter().map(|l| String::from_utf8_lossy(l).to_ascii_uppercase()).collect();
+        let Ok(payload) = base32_decode(&concat) else { return err_resp(resp, RCODE_NAME_ERROR); };
+        if payload.len() < 8 { return err_resp(resp, RCODE_NAME_ERROR); }
         let mut client_id = [0u8; 8];
         client_id.copy_from_slice(&payload[..8]);
-
         let mut packets = Vec::new();
         let mut offset = 8;
         while offset < payload.len() {
@@ -124,14 +93,11 @@ impl XDnsServer {
                 offset += (b - 224) as usize;
             } else {
                 let pkt_len = b as usize;
-                if offset + pkt_len > payload.len() {
-                    break;
-                }
+                if offset + pkt_len > payload.len() { break; }
                 packets.push(payload[offset..offset + pkt_len].to_vec());
                 offset += pkt_len;
             }
         }
-
         let rcode = if payload_size < MAX_UDP_PAYLOAD {
             resp.flags |= RCODE_FORMAT_ERROR;
             RCODE_FORMAT_ERROR
@@ -140,7 +106,6 @@ impl XDnsServer {
         };
         Ok((XDnsServerQuery { client_id, packets, rcode }, resp))
     }
-
     pub fn encode_response(&self, resp: &mut Message, outgoing_packets: &[&[u8]]) -> Result<Vec<u8>> {
         if resp.rcode() == RCODE_NO_ERROR && resp.questions.len() == 1 {
             let mut payload = Vec::new();
@@ -157,12 +122,6 @@ impl XDnsServer {
         if wire.len() > MAX_UDP_PAYLOAD { wire.truncate(MAX_UDP_PAYLOAD); wire[2] |= 0x02; }
         Ok(wire)
     }
-
-    pub fn close(&self) {
-        self.closed.store(true, Ordering::SeqCst);
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst)
-    }
+    pub fn close(&self) { self.closed.store(true, Ordering::SeqCst); }
+    pub fn is_closed(&self) -> bool { self.closed.load(Ordering::SeqCst) }
 }

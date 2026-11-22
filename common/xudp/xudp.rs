@@ -26,9 +26,7 @@ pub fn write_address_port(buf: &mut Vec<u8>, addr: &Address, port: u16) {
 }
 
 pub fn read_address_port(data: &[u8]) -> Result<(Address, u16, usize)> {
-    if data.len() < 3 {
-        return Err(Error::Protocol("short address buffer".into()));
-    }
+    if data.len() < 3 { return Err(Error::Protocol("short address buffer".into())); }
     let port = u16::from_be_bytes([data[0], data[1]]);
     match data[2] {
         1 => {
@@ -67,11 +65,7 @@ impl<W: AsyncWrite + Unpin> PacketWriter<W> {
             is_first: true,
         }
     }
-
-    pub fn destination(&self) -> &Destination {
-        &self.dest
-    }
-
+    pub fn destination(&self) -> &Destination { &self.dest }
     pub async fn write_packet(&mut self, payload: &[u8], is_proxy_req: bool) -> Result<()> {
         let mut meta = vec![0, 0, 0, 0, if self.is_first { 1 } else { 2 }, 1, 2];
         write_address_port(&mut meta, &self.dest.address, self.dest.port);
@@ -94,10 +88,7 @@ pub struct PacketReader<R> {
 }
 
 impl<R: AsyncRead + Unpin> PacketReader<R> {
-    pub fn new(reader: R) -> Self {
-        Self { reader }
-    }
-
+    pub fn new(reader: R) -> Self { Self { reader } }
     pub async fn read_packet(&mut self) -> Result<(Destination, Vec<u8>)> {
         let mut len_buf = [0u8; 2];
         self.reader.read_exact(&mut len_buf).await.map_err(Error::Io)?;
@@ -144,7 +135,6 @@ impl XudpPacket {
             payload,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = self.destination.port.to_be_bytes().to_vec();
         match &self.destination.address {
@@ -157,7 +147,6 @@ impl XudpPacket {
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let port = reader.read_u16().await?;
         let address = match reader.read_u8().await? {

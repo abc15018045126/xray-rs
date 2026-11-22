@@ -21,7 +21,6 @@ impl StrategyWeight {
             is_regexp: false,
         }
     }
-
     pub fn regex(pattern: impl Into<String>, value: f64) -> Self {
         Self {
             pattern: pattern.into(),
@@ -47,44 +46,25 @@ impl WeightManager {
             cache: RwLock::new(HashMap::new()),
         }
     }
-
     pub fn get(&self, tag: &str) -> f64 {
-        if let Ok(guard) = self.cache.read()
-            && let Some(&w) = guard.get(tag)
-        {
-            return w;
-        }
-
+        if let Ok(guard) = self.cache.read() && let Some(&w) = guard.get(tag)
+        { return w; }
         let w = self.find_value(tag);
-        if let Ok(mut guard) = self.cache.write() {
-            guard.insert(tag.to_string(), w);
-        }
+        if let Ok(mut guard) = self.cache.write() { guard.insert(tag.to_string(), w); }
         w
     }
-
-    pub fn apply(&self, tag: &str, value: f64) -> f64 {
-        (self.scaler)(value, self.get(tag))
-    }
-
+    pub fn apply(&self, tag: &str, value: f64) -> f64 { (self.scaler)(value, self.get(tag)) }
     fn find_value(&self, tag: &str) -> f64 {
         for w in &self.weights {
             let matched = self.get_match(tag, &w.pattern, w.is_regexp);
-            if matched.is_empty() {
-                continue;
-            }
-            if w.value > 0.0 {
-                return w.value;
-            }
-            if let Some(mat) = NUMBER_FINDER.find(&matched)
-                && let Ok(val) = mat.as_str().parse::<f64>()
-            {
-                return val;
-            }
+            if matched.is_empty() { continue; }
+            if w.value > 0.0 { return w.value; }
+            if let Some(mat) = NUMBER_FINDER.find(&matched) && let Ok(val) = mat.as_str().parse::<f64>()
+            { return val; }
             return self.default_weight;
         }
         self.default_weight
     }
-
     fn get_match(&self, tag: &str, find: &str, is_regexp: bool) -> String {
         if !is_regexp {
             if tag.contains(find) || find == "*" {
@@ -93,9 +73,7 @@ impl WeightManager {
                 String::new()
             }
         } else if let Ok(re) = Regex::new(find) {
-            re.find(tag)
-                .map(|m| m.as_str().to_string())
-                .unwrap_or_default()
+            re.find(tag).map(|m| m.as_str().to_string()).unwrap_or_default()
         } else {
             String::new()
         }

@@ -4,11 +4,6 @@ pub struct OcspCache {
 }
 
 impl OcspCache {
-    pub fn new(response: Vec<u8>) -> Self {
-        Self { response }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        !self.response.is_empty()
-    }
+    pub fn new(response: Vec<u8>) -> Self { Self { response } }
+    pub fn is_valid(&self) -> bool { !self.response.is_empty() }
 }

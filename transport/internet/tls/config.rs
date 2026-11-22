@@ -68,7 +68,6 @@ pub struct TlsConfig {
     pub ech_server_keys: Vec<u8>,
     #[serde(default)]
     pub ech_force_query: String,
-
     #[serde(skip)]
     pub cert_cache: Option<Arc<Mutex<HashMap<String, Certificate>>>>,
 }
@@ -85,15 +84,12 @@ impl PartialEq for TlsConfig {
             && self.max_version == other.max_version
             && self.cipher_suites == other.cipher_suites
             && self.fingerprint == other.fingerprint
-            && self.reject_unknown_sni == other.reject_unknown_sni
-            && self.pinned_peer_certificate_chain_sha256
-                == other.pinned_peer_certificate_chain_sha256
-            && self.pinned_peer_certificate_public_key_sha256
+            && self.reject_unknown_sni == other.reject_unknown_sni && self.pinned_peer_certificate_chain_sha256
+                == other.pinned_peer_certificate_chain_sha256 && self.pinned_peer_certificate_public_key_sha256
                 == other.pinned_peer_certificate_public_key_sha256
             && self.master_key_log == other.master_key_log
             && self.ech_config_list == other.ech_config_list
-            && self.ech_server_keys == other.ech_server_keys
-            && self.ech_force_query == other.ech_force_query
+            && self.ech_server_keys == other.ech_server_keys && self.ech_force_query == other.ech_force_query
     }
 }
 
@@ -107,7 +103,6 @@ impl TlsConfig {
             ..Default::default()
         }
     }
-
     pub fn get_or_init_cache(&mut self) -> Arc<Mutex<HashMap<String, Certificate>>> {
         if let Some(ref cache) = self.cert_cache {
             cache.clone()
@@ -117,23 +112,12 @@ impl TlsConfig {
             cache
         }
     }
-
     pub fn build_certificates(&self) -> Vec<Certificate> {
-        self.certificate
-            .iter()
-            .filter(|c| c.usage == CertificateUsage::Encipherment)
-            .cloned()
-            .collect()
+        self.certificate.iter().filter(|c| c.usage == CertificateUsage::Encipherment).cloned().collect()
     }
-
     pub fn get_client_verify_certs(&self) -> Vec<Certificate> {
-        self.certificate
-            .iter()
-            .filter(|c| c.usage == CertificateUsage::AuthorityVerify)
-            .cloned()
-            .collect()
+        self.certificate.iter().filter(|c| c.usage == CertificateUsage::AuthorityVerify).cloned().collect()
     }
-
     pub fn get_certificate_for_sni(&mut self, sni: &str) -> Option<Certificate> {
         let cache = self.get_or_init_cache();
         if let Some(cert) = cache.lock().unwrap().get(sni).cloned() { return Some(cert); }

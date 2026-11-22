@@ -56,10 +56,7 @@ pub use retry::RetryStrategy;
 pub use serial::{concat_strings, read_u16, read_u32, read_u64, write_u16, write_u32, write_u64};
 pub use session::{Content, Inbound, Outbound, SniffingRequest, Sockopt, new_session_id};
 pub use signal::{ActivityTimer, Done, Notifier, Semaphore};
-pub use strmatcher::{
-    DomainMatcher, DomainMatcherGroup, FullMatcher, Matcher, MatcherType, RegexMatcher,
-    SubstrMatcher,
-};
+pub use strmatcher::{DomainMatcher, DomainMatcherGroup, FullMatcher, Matcher, MatcherType, RegexMatcher, SubstrMatcher};
 pub use task::{Periodic, parallel_run_boxed};
 pub use units::{EB, GB, KB, MB, PB, TB, format_bytesize, parse_bytesize};
 pub use utils::{TypedSyncMap, h2_base62_pad};

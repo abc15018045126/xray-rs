@@ -6,8 +6,7 @@ pub const PROTOBUF_FORMAT: &str = "pb";
 
 pub fn convert_configs_to_pb_json(raw_jsons: &[&str]) -> Result<String> {
     let merged = build_config_from_slices(raw_jsons)?;
-    serde_json::to_string_pretty(&merged)
-        .map_err(|e| Error::Config(format!("Serialization error: {}", e)))
+    serde_json::to_string_pretty(&merged).map_err(|e| Error::Config(format!("Serialization error: {}", e)))
 }
 
 pub fn cmd_convert_pb() -> Command {
@@ -29,9 +28,7 @@ pub fn cmd_convert_pb() -> Command {
             }
             i += 1;
         }
-        if configs.is_empty() {
-            return Err(Error::Config("invalid config list length: 0".into()));
-        }
+        if configs.is_empty() { return Err(Error::Config("invalid config list length: 0".into())); }
         let slice: Vec<&str> = configs.iter().map(String::as_str).collect();
         let formatted = convert_configs_to_pb_json(&slice)?;
         if let Some(out_path) = opt_file {

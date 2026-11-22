@@ -48,63 +48,34 @@ pub struct MatcherGroup {
 }
 
 impl MatcherGroup {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+    pub fn new() -> Self { Self::default() }
     pub fn add(&mut self, m: Box<dyn Matcher>) -> u32 {
         self.count += 1;
         let c = self.count;
         match m.matcher_type() {
-            MatcherType::Full => {
-                self.full_matcher.add(m.pattern(), c);
-            }
-            MatcherType::Domain => {
-                self.domain_matcher.add(m.pattern(), c);
-            }
-            _ => {
-                self.other_matchers.push(MatcherEntry { m, id: c });
-            }
+            MatcherType::Full => { self.full_matcher.add(m.pattern(), c); }
+            MatcherType::Domain => { self.domain_matcher.add(m.pattern(), c); }
+            _ => { self.other_matchers.push(MatcherEntry { m, id: c }); }
         }
         c
     }
-
     pub fn match_pattern(&self, pattern: &str) -> Vec<u32> {
         let mut result = Vec::new();
         result.extend(self.full_matcher.match_str(pattern));
         result.extend(self.domain_matcher.match_domain(pattern));
-        for e in &self.other_matchers {
-            if e.m.match_str(pattern) {
-                result.push(e.id);
-            }
-        }
+        for e in &self.other_matchers { if e.m.match_str(pattern) { result.push(e.id); } }
         result
     }
-
-    pub fn match_any(&self, pattern: &str) -> bool {
-        !self.match_pattern(pattern).is_empty()
-    }
-
+    pub fn match_any(&self, pattern: &str) -> bool { !self.match_pattern(pattern).is_empty() }
     pub fn match_all_indices(&self, pattern: &str) -> Vec<usize> {
-        self.match_pattern(pattern)
-            .into_iter()
-            .map(|id| (id.saturating_sub(1)) as usize)
-            .collect()
+        self.match_pattern(pattern).into_iter().map(|id| (id.saturating_sub(1)) as usize).collect()
     }
-
-    pub fn size(&self) -> u32 {
-        self.count
-    }
+    pub fn size(&self) -> u32 { self.count }
 }
 
 impl IndexMatcher for MatcherGroup {
-    fn match_index(&self, input: &str) -> Vec<u32> {
-        self.match_pattern(input)
-    }
-
-    fn size(&self) -> u32 {
-        self.size()
-    }
+    fn match_index(&self, input: &str) -> Vec<u32> { self.match_pattern(input) }
+    fn size(&self) -> u32 { self.size() }
 }
 
 pub struct IndexMatcherGroup {
@@ -112,34 +83,22 @@ pub struct IndexMatcherGroup {
 }
 
 impl IndexMatcherGroup {
-    pub fn new() -> Self {
-        Self {
-            matchers: Vec::new(),
-        }
-    }
-
+    pub fn new() -> Self { Self { matchers: Vec::new(), } }
     pub fn match_input(&self, input: &str) -> Vec<u32> {
         let mut offset = 0;
         for m in &self.matchers {
             let res = m.match_index(input);
             if !res.is_empty() {
-                if offset == 0 {
-                    return res;
-                }
+                if offset == 0 { return res; }
                 return res.into_iter().map(|id| id + offset).collect();
             }
             offset += m.size();
         }
         Vec::new()
     }
-
-    pub fn size(&self) -> u32 {
-        self.matchers.iter().map(|m| m.size()).sum()
-    }
+    pub fn size(&self) -> u32 { self.matchers.iter().map(|m| m.size()).sum() }
 }
 
 impl Default for IndexMatcherGroup {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

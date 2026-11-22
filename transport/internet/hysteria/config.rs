@@ -12,13 +12,9 @@ pub struct HysteriaTransportConfig {
     pub max_conn_client: usize,
 }
 
-fn default_window() -> u64 {
-    16 * 1024 * 1024
-}
+fn default_window() -> u64 { 16 * 1024 * 1024 }
 
-fn default_max_conn() -> usize {
-    1024
-}
+fn default_max_conn() -> usize { 1024 }
 
 impl Default for HysteriaTransportConfig {
     fn default() -> Self {

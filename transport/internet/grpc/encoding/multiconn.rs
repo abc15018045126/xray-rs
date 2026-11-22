@@ -1,13 +1,9 @@
 pub struct MultiConnection;
 
 impl MultiConnection {
-    pub fn new() -> Self {
-        Self
-    }
+    pub fn new() -> Self { Self }
 }
 
 impl Default for MultiConnection {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

@@ -47,14 +47,9 @@ impl AsyncWrite for UpgradedStream {
     ) -> std::task::Poll<std::io::Result<usize>> {
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
-
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -76,13 +71,10 @@ impl HttpUpgradeStream {
             "GET {} HTTP/1.1\r\nHost: {}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n",
             path, host
         );
-        for (k, v) in headers {
-            req.push_str(&format!("{}: {}\r\n", k, v));
-        }
+        for (k, v) in headers { req.push_str(&format!("{}: {}\r\n", k, v)); }
         req.push_str("\r\n");
         stream.write_all(req.as_bytes()).await?;
         stream.flush().await?;
-
         let (buf, header_end) = read_upgrade_header(&mut stream, "HTTPUpgrade response").await?;
         let header_str = String::from_utf8_lossy(&buf[..header_end]);
         let header_lower = header_str.to_ascii_lowercase();
@@ -97,35 +89,25 @@ impl HttpUpgradeStream {
         }
         Ok(Box::pin(UpgradedStream::new(stream, buf[header_end..].to_vec())))
     }
-
     pub async fn server_handshake(
         mut stream: BoxStream,
         expected_host: Option<&str>,
         expected_path: Option<&str>,
     ) -> Result<BoxStream> {
         let (buf, header_end) = read_upgrade_header(&mut stream, "HTTPUpgrade request").await?;
-
         let header_str = String::from_utf8_lossy(&buf[..header_end]);
         let header_lower = header_str.to_ascii_lowercase();
         let mut parts = header_str.lines().next().unwrap_or("").split_whitespace();
         let (method, path) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
-        if method != "GET" {
-            return Err(Error::Protocol(format!("Invalid HTTP method: {}", method)));
-        }
-        if let Some(exp_path) = expected_path.filter(|p| !p.is_empty())
-            && path != exp_path
-        {
-            return Err(Error::Protocol(format!("Path mismatch: got '{}', expected '{}'", path, exp_path)));
-        }
+        if method != "GET" { return Err(Error::Protocol(format!("Invalid HTTP method: {}", method))); }
+        if let Some(exp_path) = expected_path.filter(|p| !p.is_empty()) && path != exp_path
+        { return Err(Error::Protocol(format!("Path mismatch: got '{}', expected '{}'", path, exp_path))); }
         if let Some(exp_host) = expected_host.filter(|h| !h.is_empty())
             && !header_lower.contains(&format!("host: {}", exp_host.to_ascii_lowercase()))
-        {
-            return Err(Error::Protocol(format!("Host mismatch: expected '{}'", exp_host)));
-        }
+        { return Err(Error::Protocol(format!("Host mismatch: expected '{}'", exp_host))); }
         if !header_lower.contains("upgrade: websocket") || !header_lower.contains("connection: upgrade") {
             return Err(Error::Protocol("Invalid HTTPUpgrade request headers".into()));
         }
-
         stream.write_all(b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n").await?;
         stream.flush().await?;
         Ok(Box::pin(UpgradedStream::new(stream, buf[header_end..].to_vec())))
@@ -136,27 +118,17 @@ async fn read_upgrade_header(stream: &mut BoxStream, ctx: &str) -> Result<(Vec<u
     let (mut buf, mut temp) = (Vec::new(), [0u8; 1024]);
     loop {
         let n = stream.read(&mut temp).await?;
-        if n == 0 {
-            return Err(Error::Protocol(format!("Unexpected EOF reading {}", ctx)));
-        }
+        if n == 0 { return Err(Error::Protocol(format!("Unexpected EOF reading {}", ctx))); }
         buf.extend_from_slice(&temp[..n]);
-        if let Some(pos) = find_header_end(&buf) {
-            return Ok((buf, pos));
-        }
-        if buf.len() > 16 * 1024 {
-            return Err(Error::Protocol(format!("{} header too large", ctx)));
-        }
+        if let Some(pos) = find_header_end(&buf) { return Ok((buf, pos)); }
+        if buf.len() > 16 * 1024 { return Err(Error::Protocol(format!("{} header too large", ctx))); }
     }
 }
 
 fn find_header_end(data: &[u8]) -> Option<usize> {
     for i in 0..data.len() {
-        if i + 4 <= data.len() && &data[i..i + 4] == b"\r\n\r\n" {
-            return Some(i + 4);
-        }
-        if i + 2 <= data.len() && &data[i..i + 2] == b"\n\n" {
-            return Some(i + 2);
-        }
+        if i + 4 <= data.len() && &data[i..i + 4] == b"\r\n\r\n" { return Some(i + 4); }
+        if i + 2 <= data.len() && &data[i..i + 2] == b"\n\n" { return Some(i + 2); }
     }
     None
 }

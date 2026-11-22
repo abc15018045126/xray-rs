@@ -13,9 +13,6 @@ pub fn load_toml_from_str(content: &str) -> Result<Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn test_toml_format_const() {
-        assert_eq!(TOML_FORMAT, "TOML");
-    }
+    fn test_toml_format_const() { assert_eq!(TOML_FORMAT, "TOML"); }
 }

@@ -3,21 +3,15 @@ pub trait StringValue {
 }
 
 impl StringValue for &str {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
 impl StringValue for String {
-    fn to_str_value(&self) -> String {
-        self.clone()
-    }
+    fn to_str_value(&self) -> String { self.clone() }
 }
 
 impl StringValue for &String {
-    fn to_str_value(&self) -> String {
-        (*self).clone()
-    }
+    fn to_str_value(&self) -> String { (*self).clone() }
 }
 
 impl StringValue for &[u8] {
@@ -28,69 +22,45 @@ impl StringValue for &[u8] {
 }
 
 impl<const N: usize> StringValue for [u8; N] {
-    fn to_str_value(&self) -> String {
-        (&self[..]).to_str_value()
-    }
+    fn to_str_value(&self) -> String { (&self[..]).to_str_value() }
 }
 
 impl StringValue for Vec<u8> {
-    fn to_str_value(&self) -> String {
-        self.as_slice().to_str_value()
-    }
+    fn to_str_value(&self) -> String { self.as_slice().to_str_value() }
 }
 
 impl StringValue for i32 {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
 impl StringValue for u32 {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
 impl StringValue for i64 {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
 impl StringValue for u64 {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
 impl StringValue for bool {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
 impl StringValue for &dyn std::error::Error {
-    fn to_str_value(&self) -> String {
-        self.to_string()
-    }
+    fn to_str_value(&self) -> String { self.to_string() }
 }
 
-pub fn to_string<T: std::fmt::Display>(val: T) -> String {
-    val.to_string()
-}
+pub fn to_string<T: std::fmt::Display>(val: T) -> String { val.to_string() }
 
-pub fn to_string_val(val: &dyn StringValue) -> String {
-    val.to_str_value()
-}
+pub fn to_string_val(val: &dyn StringValue) -> String { val.to_str_value() }
 
-pub fn concat_strings(slices: &[&str]) -> String {
-    slices.join("")
-}
+pub fn concat_strings(slices: &[&str]) -> String { slices.join("") }
 
 pub fn concat(values: &[&dyn StringValue]) -> String {
     let mut out = String::new();
-    for v in values {
-        out.push_str(&v.to_str_value());
-    }
+    for v in values { out.push_str(&v.to_str_value()); }
     out
 }

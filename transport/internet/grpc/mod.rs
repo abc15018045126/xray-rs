@@ -25,13 +25,10 @@ impl GrpcStream {
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode_frame<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>> {
         let _flag = reader.read_u8().await?;
         let len = reader.read_u32().await? as usize;
-        if len > 16 * 1024 * 1024 {
-            return Err(Error::Protocol("gRPC frame too large".into()));
-        }
+        if len > 16 * 1024 * 1024 { return Err(Error::Protocol("gRPC frame too large".into())); }
         let mut buf = vec![0u8; len];
         reader.read_exact(&mut buf).await?;
         Ok(buf)

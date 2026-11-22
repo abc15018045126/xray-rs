@@ -36,6 +36,4 @@ pub fn print_removed_feature_error(feature: &str, migrate_feature: &str) -> Erro
     }
 }
 
-pub fn missing_feature(name: &str) -> Error {
-    Error::Config(format!("Feature '{}' not found", name))
-}
+pub fn missing_feature(name: &str) -> Error { Error::Config(format!("Feature '{}' not found", name)) }

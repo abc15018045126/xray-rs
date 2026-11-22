@@ -1,6 +1,5 @@
 use std::net::SocketAddr;
 use std::time::Duration;
-
 use super::destination::{Socksaddr, to_destination, to_socksaddr};
 use super::error::return_error;
 use crate::common::buf::{Buffer, MultiBuffer};
@@ -27,11 +26,9 @@ impl PacketConnWrapper {
             cached: Vec::new(),
         }
     }
-
     pub fn from_link(link: &Link, dest: Destination) -> Self {
         Self::new(link.reader.clone(), link.writer.clone(), dest)
     }
-
     pub async fn read_packet(&mut self) -> Result<(Buffer, Socksaddr)> {
         if !self.cached.is_empty() { return Ok((self.cached.remove(0), to_socksaddr(&self.default_dest))); }
         match self.reader.read_multi_buffer_timeout(PACKET_READ_TIMEOUT).await {
@@ -47,17 +44,13 @@ impl PacketConnWrapper {
             Err(e) => { self.reader.interrupt().await; Err(e) }
         }
     }
-
     pub async fn write_packet(&self, buffer: Buffer, dest: Socksaddr) -> Result<()> {
         let _target = to_destination(&dest, Network::Udp);
         let mut mb = MultiBuffer::new();
         mb.push(buffer);
         self.writer.write_multi_buffer(mb).await
     }
-
-    pub async fn close(&self) -> Result<()> {
-        self.writer.close().await
-    }
+    pub async fn close(&self) -> Result<()> { self.writer.close().await }
 }
 
 pub async fn copy_packet_conn(link: &Link, destination: Destination) -> Result<()> {

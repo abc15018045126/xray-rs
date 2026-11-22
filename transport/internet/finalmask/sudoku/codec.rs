@@ -47,17 +47,11 @@ impl SudokuCodec {
             table_index: 0,
         }
     }
-
     pub fn should_pad(&mut self) -> bool {
-        if self.padding_chance == 0 {
-            return false;
-        }
-        if self.padding_chance >= 100 {
-            return true;
-        }
+        if self.padding_chance == 0 { return false; }
+        if self.padding_chance >= 100 { return true; }
         self.rng.intn(100) < self.padding_chance
     }
-
     pub fn current_table(&self) -> Option<Arc<SudokuTable>> {
         if self.tables.is_empty() {
             None
@@ -65,12 +59,10 @@ impl SudokuCodec {
             Some(self.tables[self.table_index % self.tables.len()].clone())
         }
     }
-
     pub fn random_padding(&mut self, t: &SudokuTable) -> u8 {
         let pool = &t.layout.padding_pool;
         pool[self.rng.intn(pool.len())]
     }
-
     pub fn encode(&mut self, input: &[u8]) -> Result<Vec<u8>> {
         if input.is_empty() { return Ok(Vec::new()); }
         let mut out = Vec::with_capacity(input.len() * 6 + 8);
@@ -95,18 +87,10 @@ impl SudokuCodec {
 }
 
 pub fn pick_padding_chance(rng: &mut GoRand, mut p_min: usize, mut p_max: usize) -> usize {
-    if p_max < p_min {
-        p_max = p_min;
-    }
-    if p_min > 100 {
-        p_min = 100;
-    }
-    if p_max > 100 {
-        p_max = 100;
-    }
-    if p_max == p_min {
-        return p_min;
-    }
+    if p_max < p_min { p_max = p_min; }
+    if p_min > 100 { p_min = 100; }
+    if p_max > 100 { p_max = 100; }
+    if p_max == p_min { return p_min; }
     p_min + rng.intn(p_max - p_min + 1)
 }
 

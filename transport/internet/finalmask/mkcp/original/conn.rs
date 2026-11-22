@@ -17,42 +17,23 @@ pub fn fnv32a(data: &[u8]) -> u32 {
 pub struct SimpleAead;
 
 impl SimpleAead {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn nonce_size(&self) -> usize {
-        0
-    }
-
-    pub fn overhead(&self) -> usize {
-        6
-    }
-
+    pub fn new() -> Self { Self }
+    pub fn nonce_size(&self) -> usize { 0 }
+    pub fn overhead(&self) -> usize { 6 }
     pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
         let mut dst = Vec::with_capacity(6 + plain.len() + 4);
         dst.extend_from_slice(&[0, 0, 0, 0]);
         dst.extend_from_slice(&(plain.len() as u16).to_be_bytes());
         dst.extend_from_slice(plain);
-
         let hash = fnv32a(&dst[4..]);
         dst[0..4].copy_from_slice(&hash.to_be_bytes());
-
         let dst_len = dst.len();
         let xtra = 4 - (dst_len % 4);
-        if xtra != 4 {
-            dst.resize(dst_len + xtra, 0);
-        }
-
+        if xtra != 4 { dst.resize(dst_len + xtra, 0); }
         xorfwd(&mut dst);
-
-        if xtra != 4 {
-            dst.truncate(dst_len);
-        }
-
+        if xtra != 4 { dst.truncate(dst_len); }
         dst
     }
-
     pub fn open(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         if ciphertext.len() < 6 { return Err(Error::Protocol("ciphertext too short (< 6 bytes)".into())); }
         let (mut dst, dst_len) = (ciphertext.to_vec(), ciphertext.len());
@@ -62,9 +43,7 @@ impl SimpleAead {
         if xtra != 4 { dst.truncate(dst_len); }
         if u32::from_be_bytes([dst[0], dst[1], dst[2], dst[3]]) != fnv32a(&dst[4..])
             || dst.len() - 6 != u16::from_be_bytes([dst[4], dst[5]]) as usize
-        {
-            return Err(Error::Protocol("invalid auth".into()));
-        }
+        { return Err(Error::Protocol("invalid auth".into())); }
         Ok(dst[6..].to_vec())
     }
 }
@@ -74,27 +53,12 @@ pub struct OriginalPacketConn {
 }
 
 impl OriginalPacketConn {
-    pub fn new(_config: &OriginalConfig) -> Self {
-        Self {
-            aead: SimpleAead::new(),
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        self.aead.overhead()
-    }
-
-    pub fn wrap(&self, payload: &[u8]) -> Vec<u8> {
-        self.aead.seal(payload)
-    }
-
-    pub fn unwrap(&self, packet: &[u8]) -> Result<Vec<u8>> {
-        self.aead.open(packet)
-    }
+    pub fn new(_config: &OriginalConfig) -> Self { Self { aead: SimpleAead::new(), } }
+    pub fn size(&self) -> usize { self.aead.overhead() }
+    pub fn wrap(&self, payload: &[u8]) -> Vec<u8> { self.aead.seal(payload) }
+    pub fn unwrap(&self, packet: &[u8]) -> Result<Vec<u8>> { self.aead.open(packet) }
 }
 
 impl Default for OriginalPacketConn {
-    fn default() -> Self {
-        Self::new(&OriginalConfig::default())
-    }
+    fn default() -> Self { Self::new(&OriginalConfig::default()) }
 }

@@ -20,29 +20,16 @@ impl SudokuUdpConn {
             p_max,
         })
     }
-
     pub fn mask(&self, payload: &[u8]) -> Result<Vec<u8>> {
         let mut codec = SudokuCodec::new(self.tables.clone(), self.p_min, self.p_max);
         codec.encode(payload)
     }
-
     pub fn unmask(&self, packet: &[u8]) -> Result<Vec<u8>> {
         let mut decoded = Vec::with_capacity(packet.len() / 4 + 1);
         let mut hints = Vec::with_capacity(4);
         let mut table_index = 0;
-
-        decode_bytes(
-            &self.tables,
-            &mut table_index,
-            packet,
-            &mut hints,
-            &mut decoded,
-        )?;
-
-        if !hints.is_empty() {
-            return Err(Error::Protocol("unexpected eof in sudoku datagram".into()));
-        }
-
+        decode_bytes(&self.tables, &mut table_index, packet, &mut hints, &mut decoded)?;
+        if !hints.is_empty() { return Err(Error::Protocol("unexpected eof in sudoku datagram".into())); }
         Ok(decoded)
     }
 }

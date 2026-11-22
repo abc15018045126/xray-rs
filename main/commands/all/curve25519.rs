@@ -21,11 +21,7 @@ pub fn gen_curve25519(input_key: Option<&[u8]>) -> Result<([u8; 32], [u8; 32], [
 }
 
 pub fn cmd_curve25519() -> Command {
-    Command::new(
-        "curve25519",
-        "xray curve25519 [-i key] [-std]",
-        "Generate Curve25519 keypair and hash",
-    )
+    Command::new("curve25519", "xray curve25519 [-i key] [-std]", "Generate Curve25519 keypair and hash")
     .with_run(|args| {
         let (priv_k, pub_k, hash) = gen_curve25519(None)?;
         let std_enc = args.contains(&"-std");
@@ -48,23 +44,19 @@ pub fn cmd_curve25519() -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_gen_curve25519() {
         let (priv_k, pub_k, hash) = gen_curve25519(None).unwrap();
         assert_eq!(priv_k.len(), 32);
         assert_eq!(pub_k.len(), 32);
         assert_eq!(hash.len(), 32);
-
         assert_eq!(priv_k[0] & 7, 0);
         assert_eq!(priv_k[31] & 128, 0);
         assert_ne!(priv_k[31] & 64, 0);
-
         let (p2, pub2, h2) = gen_curve25519(Some(&priv_k)).unwrap();
         assert_eq!(priv_k, p2);
         assert_eq!(pub_k, pub2);
         assert_eq!(hash, h2);
-
         let cmd = cmd_curve25519();
         let out = cmd.execute(&[]).unwrap();
         assert!(out.contains("PrivateKey:"));

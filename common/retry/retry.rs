@@ -26,7 +26,6 @@ impl Retryer {
             next_delay_fn: Arc::new(delay_fn),
         }
     }
-
     pub fn on<F: FnMut() -> Result<()>>(&self, mut method: F) -> Result<()> {
         let mut errs = Vec::new();
         for attempt in 0..self.total_attempt {
@@ -43,7 +42,6 @@ impl Retryer {
         }
         Err(Error::Other(format!("{}: {}", ERR_RETRY_FAILED, errs.join(" > "))))
     }
-
     pub async fn on_async<F: FnMut() -> Fut, Fut: Future<Output = Result<T>>, T>(&self, mut method: F) -> Result<T> {
         let mut errs = Vec::new();
         for attempt in 0..self.total_attempt {
@@ -63,14 +61,10 @@ impl Retryer {
 }
 
 impl Strategy for Retryer {
-    fn on<F: FnMut() -> Result<()>>(&self, method: F) -> Result<()> {
-        self.on(method)
-    }
+    fn on<F: FnMut() -> Result<()>>(&self, method: F) -> Result<()> { self.on(method) }
 }
 
-pub fn timed(attempts: usize, delay_ms: u32) -> Retryer {
-    Retryer::new(attempts, move |_| delay_ms)
-}
+pub fn timed(attempts: usize, delay_ms: u32) -> Retryer { Retryer::new(attempts, move |_| delay_ms) }
 
 pub fn exponential_backoff(attempts: usize, delay_ms: u32) -> Retryer {
     Retryer::new(attempts, move |attempt| (attempt as u32) * delay_ms)
@@ -88,17 +82,13 @@ pub enum RetryStrategy {
 }
 
 impl RetryStrategy {
-    pub fn timed(attempts: usize, delay: Duration) -> Self {
-        Self::Timed { attempts, delay }
-    }
-
+    pub fn timed(attempts: usize, delay: Duration) -> Self { Self::Timed { attempts, delay } }
     pub fn exponential_backoff(attempts: usize, base_delay: Duration) -> Self {
         Self::ExponentialBackoff {
             attempts,
             base_delay,
         }
     }
-
     pub async fn run<F: FnMut() -> Fut, Fut: Future<Output = Result<T>>, T>(&self, mut operation: F) -> Result<T> {
         let (attempts, is_exp, base) = match self {
             Self::Timed { attempts, delay } => (*attempts, false, *delay),

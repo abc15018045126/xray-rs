@@ -1,3 +1,1 @@
-pub fn is_fastopen_supported() -> bool {
-    false
-}
+pub fn is_fastopen_supported() -> bool { false }

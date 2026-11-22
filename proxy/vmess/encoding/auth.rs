@@ -18,12 +18,10 @@ pub fn generate_chacha20poly1305_key(b: &[u8]) -> [u8; 32] {
     hasher.update(b);
     let t1 = hasher.finalize();
     key[0..16].copy_from_slice(&t1);
-
     let mut hasher2 = Md5::new();
     hasher2.update(&key[0..16]);
     let t2 = hasher2.finalize();
     key[16..32].copy_from_slice(&t2);
-
     key
 }
 
@@ -40,48 +38,28 @@ impl ShakeSizeParser {
         }
         Self { mask_state: state }
     }
-
     fn next_mask(&mut self) -> u16 {
-        self.mask_state = self
-            .mask_state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1);
+        self.mask_state = self.mask_state.wrapping_mul(6364136223846793005).wrapping_add(1);
         (self.mask_state >> 48) as u16
     }
-
-    pub fn size_bytes(&self) -> usize {
-        2
-    }
-
+    pub fn size_bytes(&self) -> usize { 2 }
     pub fn encode(&mut self, size: u16) -> [u8; 2] {
         let mask = self.next_mask();
         let val = size ^ mask;
         val.to_be_bytes()
     }
-
     pub fn decode(&mut self, b: &[u8; 2]) -> Result<u16> {
         let mask = self.next_mask();
         let val = u16::from_be_bytes(*b);
         Ok(val ^ mask)
     }
-
-    pub fn next_padding_len(&mut self) -> u16 {
-        self.next_mask() % 64
-    }
-
-    pub fn max_padding_len(&self) -> u16 {
-        64
-    }
+    pub fn next_padding_len(&mut self) -> u16 { self.next_mask() % 64 }
+    pub fn max_padding_len(&self) -> u16 { 64 }
 }
 
 pub struct NoOpAuthenticator;
 
 impl NoOpAuthenticator {
-    pub fn seal<'a>(&self, plaintext: &'a [u8]) -> &'a [u8] {
-        plaintext
-    }
-
-    pub fn open<'a>(&self, ciphertext: &'a [u8]) -> Result<&'a [u8]> {
-        Ok(ciphertext)
-    }
+    pub fn seal<'a>(&self, plaintext: &'a [u8]) -> &'a [u8] { plaintext }
+    pub fn open<'a>(&self, ciphertext: &'a [u8]) -> Result<&'a [u8]> { Ok(ciphertext) }
 }

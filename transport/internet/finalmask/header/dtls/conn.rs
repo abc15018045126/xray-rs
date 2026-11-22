@@ -9,16 +9,8 @@ pub struct DtlsPacketConn {
 }
 
 impl DtlsPacketConn {
-    pub fn new() -> Self {
-        Self {
-            header: DtlsHeader::new(),
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        self.header.size()
-    }
-
+    pub fn new() -> Self { Self { header: DtlsHeader::new(), } }
+    pub fn size(&self) -> usize { self.header.size() }
     pub fn wrap_payload(&mut self, payload: &[u8]) -> Vec<u8> {
         let hdr = self.header.write_header();
         let mut out = Vec::with_capacity(hdr.len() + payload.len());
@@ -26,21 +18,13 @@ impl DtlsPacketConn {
         out.extend_from_slice(payload);
         out
     }
-
     pub fn unwrap_payload<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        if packet.len() < self.size() {
-            return None;
-        }
+        if packet.len() < self.size() { return None; }
         Some(&packet[self.size()..])
     }
-
-    pub fn serialize(&mut self, buf: &mut [u8]) {
-        self.header.serialize(buf);
-    }
+    pub fn serialize(&mut self, buf: &mut [u8]) { self.header.serialize(buf); }
 }
 
 impl Default for DtlsPacketConn {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

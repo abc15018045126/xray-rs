@@ -1,13 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
-
 use async_trait::async_trait;
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
-
 use super::pool::{PingoraStreamPool, PingoraUpstreamBalancer, pool_key};
 
 pub struct PingoraPooledOutbound {
@@ -32,31 +29,18 @@ impl PingoraPooledOutbound {
             balancer,
         }
     }
-
-    pub fn pool(&self) -> &Arc<PingoraStreamPool> {
-        &self.pool
-    }
-
+    pub fn pool(&self) -> &Arc<PingoraStreamPool> { &self.pool }
     fn pick_upstream_index(&self, key: &[u8]) -> usize {
-        if self.upstreams.len() <= 1 {
-            return 0;
-        }
-        if let Some(lb) = &self.balancer
-            && let Some(idx) = lb.select_index_for_key(key)
-            && idx < self.upstreams.len()
-        {
-            return idx;
-        }
+        if self.upstreams.len() <= 1 { return 0; }
+        if let Some(lb) = &self.balancer && let Some(idx) = lb.select_index_for_key(key) && idx < self.upstreams.len()
+        { return idx; }
         0
     }
 }
 
 #[async_trait]
 impl OutboundHandler for PingoraPooledOutbound {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let key = pool_key(&format!("{}:{}", self.tag, session.destination));
         if let Some(reused) = self.pool.get(key) {

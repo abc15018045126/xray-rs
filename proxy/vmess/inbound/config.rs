@@ -9,7 +9,5 @@ pub struct InboundConfig {
 }
 
 impl InboundConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 }

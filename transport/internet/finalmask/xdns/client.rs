@@ -29,11 +29,7 @@ impl XDnsClient {
             closed: Arc::new(AtomicBool::new(false)),
         })
     }
-
-    pub fn from_config(config: &super::config::XDnsConfig) -> Result<Self> {
-        Self::new(&config.domain)
-    }
-
+    pub fn from_config(config: &super::config::XDnsConfig) -> Result<Self> { Self::new(&config.domain) }
     pub fn new_with_id(domain_str: &str, client_id: [u8; 8]) -> Result<Self> {
         let domain = Name::parse(domain_str)?;
         Ok(Self {
@@ -42,12 +38,10 @@ impl XDnsClient {
             closed: Arc::new(AtomicBool::new(false)),
         })
     }
-
     pub fn encode_packet(&self, payload: Option<&[u8]>) -> Result<Vec<u8>> {
         if payload.is_some_and(|p| p.len() >= MAX_PAYLOAD_LEN) {
             return Err(Error::Protocol("payload too long for xdns query (>= 224 bytes)".into()));
         }
-
         let mut decoded = Vec::with_capacity(32 + payload.map_or(0, <[u8]>::len));
         decoded.extend_from_slice(&self.client_id);
         let n = if payload.is_some_and(|p| !p.is_empty()) { NUM_PADDING } else { NUM_PADDING_FOR_POLL };
@@ -55,16 +49,13 @@ impl XDnsClient {
         let pad_start = decoded.len();
         decoded.resize(pad_start + n, 0);
         rand::thread_rng().fill_bytes(&mut decoded[pad_start..]);
-
         if let Some(p) = payload.filter(|p| !p.is_empty()) {
             decoded.push(p.len() as u8);
             decoded.extend_from_slice(p);
         }
-
         let base32_str = base32_encode(&decoded).to_ascii_lowercase();
         let mut labels: Vec<Vec<u8>> = base32_str.as_bytes().chunks(63).map(<[u8]>::to_vec).collect();
         labels.extend(self.domain.labels.clone());
-
         Message {
             id: rand::random(),
             flags: 0x0100,
@@ -81,7 +72,6 @@ impl XDnsClient {
         }
         .to_wire_format()
     }
-
     pub fn decode_packet(&self, wire: &[u8]) -> Result<Vec<Vec<u8>>> {
         let resp = Message::from_wire_format(wire)?;
         if (resp.flags & 0x8000) != 0x8000 || (resp.flags & 0x000F) != RCODE_NO_ERROR {
@@ -93,10 +83,7 @@ impl XDnsClient {
         if answer.name.trim_suffix(&self.domain).is_none() {
             return Err(Error::Protocol("DNS response name suffix does not match configured domain".into()));
         }
-        if answer.rrtype != RR_TYPE_TXT {
-            return Err(Error::Protocol("DNS response answer type is not TXT".into()));
-        }
-
+        if answer.rrtype != RR_TYPE_TXT { return Err(Error::Protocol("DNS response answer type is not TXT".into())); }
         let payload = decode_rdata_txt(&answer.data)?;
         let (mut packets, mut offset) = (Vec::new(), 0);
         while offset + 2 <= payload.len() {
@@ -110,12 +97,6 @@ impl XDnsClient {
         }
         Ok(packets)
     }
-
-    pub fn close(&self) {
-        self.closed.store(true, Ordering::SeqCst);
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst)
-    }
+    pub fn close(&self) { self.closed.store(true, Ordering::SeqCst); }
+    pub fn is_closed(&self) -> bool { self.closed.load(Ordering::SeqCst) }
 }

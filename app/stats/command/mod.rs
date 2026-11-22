@@ -13,10 +13,7 @@ pub struct StatsService {
 }
 
 impl StatsService {
-    pub fn new(stats_manager: Arc<StatsManager>) -> Self {
-        Self { stats_manager }
-    }
-
+    pub fn new(stats_manager: Arc<StatsManager>) -> Self { Self { stats_manager } }
     pub fn get_stat(&self, name: &str, reset: bool) -> i64 {
         if let Some(counter) = self.stats_manager.get_counter(name) {
             if reset {
@@ -28,7 +25,6 @@ impl StatsService {
             0
         }
     }
-
     pub fn query_stats(&self, pattern: &str, reset: bool) -> HashMap<String, i64> {
         let mut res = HashMap::new();
         for (name, counter) in self.stats_manager.all_counters() {
@@ -46,7 +42,5 @@ impl StatsService {
 }
 
 impl Service for StatsService {
-    fn service_name(&self) -> &str {
-        "xray.core.app.stats.command.StatsService"
-    }
+    fn service_name(&self) -> &str { "xray.core.app.stats.command.StatsService" }
 }

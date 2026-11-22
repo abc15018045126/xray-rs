@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;
-
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination, Network};
 use crate::common::protocol::{RequestCommand, SessionContext};
@@ -37,10 +36,7 @@ impl Client {
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let tcp = TcpDialer::dial(&self.server_addr).await?;
         let mut stream = if let Some(tls) = &self.tls_client {

@@ -24,7 +24,6 @@ impl CommandRoutingContext {
         } else {
             Address::Domain("localhost".into())
         };
-
         let dest = Destination::new(addr, self.target_port);
         let mut session = SessionContext::new(&self.inbound_tag, dest);
         if let Some(user_email) = &self.user {

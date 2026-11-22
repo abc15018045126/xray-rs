@@ -24,11 +24,7 @@ use super::stats_sys::cmd_stats_sys;
 use crate::main::commands::base::command::Command;
 
 pub fn cmd_api() -> Command {
-    Command::new(
-        "api",
-        "xray api <subcommand>",
-        "Call an API in an Xray process",
-    )
+    Command::new("api", "xray api <subcommand>", "Call an API in an Xray process")
     .with_subcommands(vec![
         cmd_balancer_info(),
         cmd_balancer_override(),

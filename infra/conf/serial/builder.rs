@@ -9,15 +9,9 @@ pub fn build_json_config(raw_json: &str) -> Result<Value> {
 pub fn merge_configs(configs: &[Config]) -> Config {
     let mut merged = Config::default();
     for c in configs {
-        if let Some(ref l) = c.log {
-            merged.log = Some(l.clone());
-        }
-        if let Some(ref d) = c.dns {
-            merged.dns = Some(d.clone());
-        }
-        if let Some(ref r) = c.routing {
-            merged.routing = Some(r.clone());
-        }
+        if let Some(ref l) = c.log { merged.log = Some(l.clone()); }
+        if let Some(ref d) = c.dns { merged.dns = Some(d.clone()); }
+        if let Some(ref r) = c.routing { merged.routing = Some(r.clone()); }
         merged.inbounds.extend(c.inbounds.clone());
         merged.outbounds.extend(c.outbounds.clone());
     }

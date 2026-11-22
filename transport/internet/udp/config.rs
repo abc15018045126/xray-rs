@@ -7,7 +7,5 @@ pub struct UdpConfig {
 }
 
 impl UdpConfig {
-    pub fn default_config() -> Self {
-        Self { mtu: 1500, ttl: 64 }
-    }
+    pub fn default_config() -> Self { Self { mtu: 1500, ttl: 64 } }
 }

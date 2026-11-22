@@ -6,9 +6,7 @@ pub type LogLevel = Severity;
 
 pub trait Message: Send + Sync + 'static {
     fn to_log_string(&self) -> String;
-    fn severity(&self) -> Option<Severity> {
-        None
-    }
+    fn severity(&self) -> Option<Severity> { None }
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -32,17 +30,9 @@ impl GeneralMessage {
 }
 
 impl Message for GeneralMessage {
-    fn to_log_string(&self) -> String {
-        format!("[{}] {}", self.severity, self.content)
-    }
-
-    fn severity(&self) -> Option<Severity> {
-        Some(self.severity)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+    fn to_log_string(&self) -> String { format!("[{}] {}", self.severity, self.content) }
+    fn severity(&self) -> Option<Severity> { Some(self.severity) }
+    fn as_any(&self) -> &dyn Any { self }
 }
 
 pub struct SyncHandler {
@@ -50,43 +40,24 @@ pub struct SyncHandler {
 }
 
 impl SyncHandler {
-    pub fn new() -> Self {
-        Self {
-            handler: RwLock::new(None),
-        }
-    }
-
+    pub fn new() -> Self { Self { handler: RwLock::new(None), } }
     pub fn handle(&self, msg: &dyn Message) {
-        if let Ok(guard) = self.handler.read()
-            && let Some(ref h) = *guard
-        {
-            h.handle(msg);
-        }
+        if let Ok(guard) = self.handler.read() && let Some(ref h) = *guard
+        { h.handle(msg); }
     }
-
     pub fn set(&self, handler: Arc<dyn Handler>) {
-        if let Ok(mut guard) = self.handler.write() {
-            *guard = Some(handler);
-        }
+        if let Ok(mut guard) = self.handler.write() { *guard = Some(handler); }
     }
 }
 
 impl Default for SyncHandler {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 static LOG_HANDLER: OnceLock<SyncHandler> = OnceLock::new();
 
-pub fn get_log_handler() -> &'static SyncHandler {
-    LOG_HANDLER.get_or_init(SyncHandler::new)
-}
+pub fn get_log_handler() -> &'static SyncHandler { LOG_HANDLER.get_or_init(SyncHandler::new) }
 
-pub fn record(msg: &dyn Message) {
-    get_log_handler().handle(msg);
-}
+pub fn record(msg: &dyn Message) { get_log_handler().handle(msg); }
 
-pub fn register_handler(handler: Arc<dyn Handler>) {
-    get_log_handler().set(handler);
-}
+pub fn register_handler(handler: Arc<dyn Handler>) { get_log_handler().set(handler); }

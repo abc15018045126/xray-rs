@@ -19,12 +19,7 @@ pub enum State {
     Terminated = 5,
 }
 
-pub fn now_millis() -> u32 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u32
-}
+pub fn now_millis() -> u32 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u32 }
 
 pub struct RoundTripInfo {
     pub variation: u32,
@@ -44,7 +39,6 @@ impl RoundTripInfo {
             updated_timestamp: 0,
         }
     }
-
     pub fn update(&mut self, rtt: u32, current: u32) {
         if rtt > 0x7FFFFFFF { return; }
         if self.srtt == 0 {
@@ -61,9 +55,7 @@ impl RoundTripInfo {
 }
 
 impl Default for RoundTripInfo {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[derive(Clone)]
@@ -86,12 +78,7 @@ impl KcpConnection {
         let remote_addr = socket.peer_addr().ok();
         Self::with_remote_addr(conv, socket, remote_addr)
     }
-
-    pub fn with_remote_addr(
-        conv: u16,
-        socket: Arc<UdpSocket>,
-        remote_addr: Option<SocketAddr>,
-    ) -> Self {
+    pub fn with_remote_addr(conv: u16, socket: Arc<UdpSocket>, remote_addr: Option<SocketAddr>) -> Self {
         Self {
             conv,
             socket,
@@ -106,39 +93,26 @@ impl KcpConnection {
             mss: 1400,
         }
     }
-
-    pub fn conv(&self) -> u16 {
-        self.conv
-    }
-
+    pub fn conv(&self) -> u16 { self.conv }
     async fn send_packet(&self, buf: &[u8]) -> Result<usize> {
         if self.socket.peer_addr().is_ok() {
             Ok(self.socket.send(buf).await?)
         } else if let Some(addr) = self.remote_addr {
             Ok(self.socket.send_to(buf, addr).await?)
         } else {
-            Err(Error::Protocol(
-                "missing destination address for kcp packet".into(),
-            ))
+            Err(Error::Protocol("missing destination address for kcp packet".into()))
         }
     }
-
     pub async fn is_closed(&self) -> bool {
         let state = self.state.lock().await;
         *state == State::Terminated || *state == State::Terminating
     }
-
-    pub async fn handle_incoming_segment(&self, raw: &[u8]) -> Result<()> {
-        self.input_packet(raw).await
-    }
-
+    pub async fn handle_incoming_segment(&self, raw: &[u8]) -> Result<()> { self.input_packet(raw).await }
     pub async fn input_packet(&self, mut raw: &[u8]) -> Result<()> {
         let current = now_millis();
         while let Some((seg, remaining)) = read_segment(raw) {
             raw = remaining;
-            if seg.conversation() != self.conv {
-                continue;
-            }
+            if seg.conversation() != self.conv { continue; }
             match seg {
                 Segment::Data(data_seg) => {
                     let number = data_seg.number;
@@ -153,9 +127,7 @@ impl KcpConnection {
                     s_wnd.clear(ack_seg.receiving_next);
                     let mut rtt = self.rtt_info.lock().await;
                     for &num in &ack_seg.number_list {
-                        if let Some(measured) = s_wnd.acknowledge(num, current) {
-                            rtt.update(measured, current);
-                        }
+                        if let Some(measured) = s_wnd.acknowledge(num, current) { rtt.update(measured, current); }
                     }
                 }
                 Segment::CmdOnly(cmd_seg) if cmd_seg.cmd == COMMAND_TERMINATE => {
@@ -166,36 +138,27 @@ impl KcpConnection {
         }
         self.flush_acks().await
     }
-
     pub async fn send_data(&self, payload: &[u8]) -> Result<()> {
-        if self.is_closed().await {
-            return Err(Error::Closed);
-        }
-
+        if self.is_closed().await { return Err(Error::Closed); }
         let mut offset = 0;
         let mut s_wnd = self.send_window.lock().await;
-
         while offset < payload.len() {
             let take = (payload.len() - offset).min(self.mss);
             let chunk = payload[offset..offset + take].to_vec();
             offset += take;
-
             let num = self.next_send_num.fetch_add(1, Ordering::SeqCst);
             let mut seg = DataSegment::new(self.conv, num, chunk);
             seg.timestamp = now_millis();
             s_wnd.push(seg);
         }
-
         drop(s_wnd);
         self.flush().await?;
         Ok(())
     }
-
     pub async fn flush_acks(&self) -> Result<()> {
         let current = now_millis();
         let mut acks = self.ack_list.lock().await;
         let r_wnd = self.recv_window.lock().await;
-
         if let Some(ack_seg) = acks.flush(self.conv, 256, r_wnd.next_number, current) {
             let mut buf = vec![0u8; ack_seg.byte_size()];
             let len = ack_seg.serialize(&mut buf)?;
@@ -203,46 +166,36 @@ impl KcpConnection {
         }
         Ok(())
     }
-
     pub async fn flush(&self) -> Result<()> {
         let current = now_millis();
         let rto = {
             let rtt = self.rtt_info.lock().await;
             rtt.rto
         };
-
         let mut to_send = Vec::new();
         {
             let mut s_wnd = self.send_window.lock().await;
             s_wnd.flush(current, rto, 128 * 1024, &mut to_send);
         }
-
         for seg in to_send {
             let mut buf = vec![0u8; seg.byte_size()];
             let len = seg.serialize(&mut buf)?;
             self.send_packet(&buf[..len]).await?;
         }
-
         self.flush_acks().await?;
         Ok(())
     }
-
     pub async fn recv(&self, buf: &mut [u8]) -> Result<usize> {
         let mut stream = self.received_stream_buf.lock().await;
-        if stream.is_empty() {
-            return Ok(0);
-        }
-
+        if stream.is_empty() { return Ok(0); }
         let n = buf.len().min(stream.len());
         buf[..n].copy_from_slice(&stream[..n]);
         stream.drain(..n);
         Ok(n)
     }
-
     pub async fn close(&self) -> Result<()> {
         let mut state = self.state.lock().await;
         *state = State::Terminating;
-
         let cmd = CmdOnlySegment::new(self.conv, COMMAND_TERMINATE);
         let mut buf = vec![0u8; cmd.byte_size()];
         let len = cmd.serialize(&mut buf)?;

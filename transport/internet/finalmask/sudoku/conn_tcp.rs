@@ -20,20 +20,10 @@ impl HintStreamDecoder {
             hint_buf: Vec::with_capacity(4),
         }
     }
-
     pub fn decode_chunk(&mut self, input: &[u8], pending: &mut Vec<u8>) -> Result<()> {
-        decode_bytes(
-            &self.tables,
-            &mut self.table_index,
-            input,
-            &mut self.hint_buf,
-            pending,
-        )
+        decode_bytes(&self.tables, &mut self.table_index, input, &mut self.hint_buf, pending)
     }
-
-    pub fn reset(&mut self) {
-        self.hint_buf.clear();
-    }
+    pub fn reset(&mut self) { self.hint_buf.clear(); }
 }
 
 pub struct SudokuTcpConn {
@@ -47,23 +37,15 @@ pub struct SudokuTcpConn {
 }
 
 impl SudokuTcpConn {
-    pub fn new_client(config: &SudokuConfig) -> Result<Self> {
-        Self::new(config, true)
-    }
-
-    pub fn new_server(config: &SudokuConfig) -> Result<Self> {
-        Self::new(config, false)
-    }
-
+    pub fn new_client(config: &SudokuConfig) -> Result<Self> { Self::new(config, true) }
+    pub fn new_server(config: &SudokuConfig) -> Result<Self> { Self::new(config, false) }
     pub fn new(config: &SudokuConfig, is_client: bool) -> Result<Self> {
         let tables = get_tables(config)?;
         let (p_min, p_max) = config.normalized_padding();
-
         let pure_encoder = SudokuCodec::new(tables.clone(), p_min, p_max);
         let pure_decoder = HintStreamDecoder::new(&tables);
         let packed_encoder = PackedEncoder::new(&tables, p_min, p_max);
         let packed_decoder = PackedStreamDecoder::new(&tables);
-
         Ok(Self {
             tables,
             is_client,
@@ -74,7 +56,6 @@ impl SudokuTcpConn {
             pending_in: Vec::with_capacity(4096),
         })
     }
-
     pub fn encode_stream(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         if self.is_client {
             self.pure_encoder.encode(data)
@@ -82,7 +63,6 @@ impl SudokuTcpConn {
             self.packed_encoder.encode(data)
         }
     }
-
     pub fn decode_stream(&mut self, chunk: &[u8]) -> Result<Vec<u8>> {
         let mut decoded = Vec::new();
         if self.is_client {
@@ -92,13 +72,11 @@ impl SudokuTcpConn {
         }
         Ok(decoded)
     }
-
     pub fn feed_and_read(&mut self, raw: &[u8], user_buf: &mut [u8]) -> Result<usize> {
         if !raw.is_empty() {
             let decoded = self.decode_stream(raw)?;
             self.pending_in.extend_from_slice(&decoded);
         }
-
         let n = self.pending_in.len().min(user_buf.len());
         if n > 0 {
             user_buf[..n].copy_from_slice(&self.pending_in[..n]);
@@ -109,7 +87,5 @@ impl SudokuTcpConn {
 }
 
 impl TcpMaskConn for SudokuTcpConn {
-    fn splice(&self) -> bool {
-        false
-    }
+    fn splice(&self) -> bool { false }
 }

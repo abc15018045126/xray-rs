@@ -29,7 +29,6 @@ impl FakeDnsHolder {
             ip_to_domain: Mutex::new(HashMap::new()),
         })
     }
-
     pub fn is_fake_ip(&self, ip: &IpAddr) -> bool {
         match ip {
             IpAddr::V4(v4) => {
@@ -39,31 +38,23 @@ impl FakeDnsHolder {
             IpAddr::V6(_) => false,
         }
     }
-
     pub fn get_fake_ip_for_domain(&self, domain: &str) -> Ipv4Addr {
         let domain_lower = domain.to_lowercase();
         let mut d2i = self.domain_to_ip.lock().unwrap();
-        if let Some(ip) = d2i.get(&domain_lower) {
-            return *ip;
-        }
-
+        if let Some(ip) = d2i.get(&domain_lower) { return *ip; }
         let mut next = self.next_ip.lock().unwrap();
         let current_u32 = *next;
         let ip = Ipv4Addr::from(current_u32);
-
         if *next < self.pool_end {
             *next += 1;
         } else {
             *next = self.pool_start;
         }
-
         d2i.insert(domain_lower.clone(), ip);
         let mut i2d = self.ip_to_domain.lock().unwrap();
         i2d.insert(ip, domain_lower);
-
         ip
     }
-
     pub fn get_domain_for_fake_ip(&self, ip: &Ipv4Addr) -> Option<String> {
         let i2d = self.ip_to_domain.lock().unwrap();
         i2d.get(ip).cloned()

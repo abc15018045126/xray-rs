@@ -21,7 +21,6 @@ pub fn cmd_wg() -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_wg_command() {
         let cmd = cmd_wg();

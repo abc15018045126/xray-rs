@@ -3,13 +3,9 @@ pub struct HunkConnection {
 }
 
 impl HunkConnection {
-    pub fn new() -> Self {
-        Self { buffer: Vec::new() }
-    }
+    pub fn new() -> Self { Self { buffer: Vec::new() } }
 }
 
 impl Default for HunkConnection {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

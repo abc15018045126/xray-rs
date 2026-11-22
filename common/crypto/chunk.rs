@@ -1,7 +1,6 @@
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-
 use crate::common::errors::{Error, Result};
 
 pub struct IncreasingNonce {
@@ -9,18 +8,11 @@ pub struct IncreasingNonce {
 }
 
 impl IncreasingNonce {
-    pub fn new(size: usize) -> Self {
-        Self {
-            nonce: vec![0u8; size],
-        }
-    }
-
+    pub fn new(size: usize) -> Self { Self { nonce: vec![0u8; size], } }
     pub fn next(&mut self) -> &[u8] {
         for byte in self.nonce.iter_mut() {
             *byte = byte.wrapping_add(1);
-            if *byte != 0 {
-                break;
-            }
+            if *byte != 0 { break; }
         }
         &self.nonce
     }
@@ -30,15 +22,12 @@ pub struct PlainChunk;
 
 impl PlainChunk {
     pub async fn write_chunk<W: AsyncWrite + Unpin>(writer: &mut W, data: &[u8]) -> Result<()> {
-        if data.len() > u16::MAX as usize {
-            return Err(Error::BufferOverflow);
-        }
+        if data.len() > u16::MAX as usize { return Err(Error::BufferOverflow); }
         writer.write_u16(data.len() as u16).await?;
         writer.write_all(data).await?;
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn read_chunk<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>> {
         let len = reader.read_u16().await? as usize;
         let mut buf = vec![0u8; len];
@@ -63,13 +52,9 @@ impl<W: AsyncWrite + Unpin> AeadChaCha20ChunkWriter<W> {
             nonce: IncreasingNonce::new(12),
         }
     }
-
     pub async fn write_chunk(&mut self, data: &[u8]) -> Result<()> {
         let nonce = Nonce::from_slice(self.nonce.next());
-        let ciphertext = self
-            .cipher
-            .encrypt(nonce, data)
-            .map_err(|e| Error::Crypto(e.to_string()))?;
+        let ciphertext = self.cipher.encrypt(nonce, data).map_err(|e| Error::Crypto(e.to_string()))?;
         PlainChunk::write_chunk(&mut self.writer, &ciphertext).await
     }
 }
@@ -90,12 +75,9 @@ impl<R: AsyncRead + Unpin> AeadChaCha20ChunkReader<R> {
             nonce: IncreasingNonce::new(12),
         }
     }
-
     pub async fn read_chunk(&mut self) -> Result<Vec<u8>> {
         let ciphertext = PlainChunk::read_chunk(&mut self.reader).await?;
         let nonce = Nonce::from_slice(self.nonce.next());
-        self.cipher
-            .decrypt(nonce, ciphertext.as_ref())
-            .map_err(|e| Error::Crypto(e.to_string()))
+        self.cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|e| Error::Crypto(e.to_string()))
     }
 }

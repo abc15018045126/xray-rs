@@ -6,7 +6,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-
 use crate::common::errors::{Error, Result};
 
 pub const ENCRYPTION_VERSION: u8 = 0x01;
@@ -19,9 +18,7 @@ pub fn increase_nonce(nonce: &mut [u8; 12]) {
     for i in 0..12 {
         let idx = 11 - i;
         nonce[idx] = nonce[idx].wrapping_add(1);
-        if nonce[idx] != 0 {
-            break;
-        }
+        if nonce[idx] != 0 { break; }
     }
 }
 
@@ -34,19 +31,12 @@ pub fn encode_header(h: &mut [u8], l: usize) {
 }
 
 pub fn decode_header(h: &[u8]) -> Result<usize> {
-    if h.len() < HEADER_LEN {
-        return Err(Error::Protocol("Header too short".into()));
-    }
+    if h.len() < HEADER_LEN { return Err(Error::Protocol("Header too short".into())); }
     if h[0] != 23 || h[1] != 3 || h[2] != 3 {
-        return Err(Error::Protocol(format!(
-            "Invalid record type in header: {:?}",
-            &h[..3]
-        )));
+        return Err(Error::Protocol(format!("Invalid record type in header: {:?}", &h[..3])));
     }
     let l = ((h[3] as usize) << 8) | (h[4] as usize);
-    if !(17..=16640).contains(&l) {
-        return Err(Error::Protocol(format!("Invalid header length: {}", l)));
-    }
+    if !(17..=16640).contains(&l) { return Err(Error::Protocol(format!("Invalid header length: {}", l))); }
     Ok(l)
 }
 
@@ -74,7 +64,6 @@ impl VlessAead {
             nonce: [0u8; 12],
         }
     }
-
     pub fn seal(&mut self, plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
         increase_nonce(&mut self.nonce);
         let payload = Payload {
@@ -84,17 +73,14 @@ impl VlessAead {
         match &self.cipher {
             VlessCipher::AesGcm(c) => {
                 let n = AesNonce::from_slice(&self.nonce);
-                c.encrypt(n, payload)
-                    .map_err(|e| Error::Crypto(format!("AES-GCM seal error: {}", e)))
+                c.encrypt(n, payload).map_err(|e| Error::Crypto(format!("AES-GCM seal error: {}", e)))
             }
             VlessCipher::ChaCha(c) => {
                 let n = ChaChaNonce::from_slice(&self.nonce);
-                c.encrypt(n, payload)
-                    .map_err(|e| Error::Crypto(format!("ChaCha seal error: {}", e)))
+                c.encrypt(n, payload).map_err(|e| Error::Crypto(format!("ChaCha seal error: {}", e)))
             }
         }
     }
-
     pub fn open(&mut self, ciphertext: &[u8], aad: &[u8]) -> Result<Vec<u8>> {
         increase_nonce(&mut self.nonce);
         let payload = Payload {
@@ -104,13 +90,11 @@ impl VlessAead {
         match &self.cipher {
             VlessCipher::AesGcm(c) => {
                 let n = AesNonce::from_slice(&self.nonce);
-                c.decrypt(n, payload)
-                    .map_err(|e| Error::Crypto(format!("AES-GCM open error: {}", e)))
+                c.decrypt(n, payload).map_err(|e| Error::Crypto(format!("AES-GCM open error: {}", e)))
             }
             VlessCipher::ChaCha(c) => {
                 let n = ChaChaNonce::from_slice(&self.nonce);
-                c.decrypt(n, payload)
-                    .map_err(|e| Error::Crypto(format!("ChaCha open error: {}", e)))
+                c.decrypt(n, payload).map_err(|e| Error::Crypto(format!("ChaCha open error: {}", e)))
             }
         }
     }
@@ -167,11 +151,7 @@ impl<S> CommonConn<S> {
 }
 
 impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         let this = self.get_mut();
         if !this.read_buf.is_empty() {
             let n = buf.remaining().min(this.read_buf.len());
@@ -179,15 +159,12 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
             this.read_buf.drain(..n);
             return Poll::Ready(Ok(()));
         }
-
         let mut raw_chunk = [0u8; MAX_CHUNK_SIZE + HEADER_LEN + TAG_LEN];
         let mut raw_buf = ReadBuf::new(&mut raw_chunk);
         match Pin::new(&mut this.inner).poll_read(cx, &mut raw_buf) {
             Poll::Ready(Ok(())) => {
                 let filled = raw_buf.filled();
-                if filled.is_empty() {
-                    return Poll::Ready(Ok(()));
-                }
+                if filled.is_empty() { return Poll::Ready(Ok(())); }
                 if filled.len() < HEADER_LEN + TAG_LEN {
                     return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Truncated encrypted packet")));
                 }
@@ -211,11 +188,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
 }
 
 impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
-    fn poll_write(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
@@ -223,7 +196,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
                 other => return other,
             }
         }
-
         let chunk_size = buf.len().min(MAX_CHUNK_SIZE);
         let mut header = [0u8; HEADER_LEN];
         encode_header(&mut header, chunk_size + TAG_LEN);
@@ -234,7 +206,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
         let mut frame = Vec::with_capacity(HEADER_LEN + ciphertext.len());
         frame.extend_from_slice(&header);
         frame.extend_from_slice(&ciphertext);
-
         match Pin::new(&mut this.inner).poll_write(cx, &frame) {
             Poll::Ready(Ok(n)) => {
                 this.write_buf.extend_from_slice(&frame[n..]);
@@ -243,21 +214,17 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
             other => other,
         }
     }
-
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let this = self.get_mut();
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
-                Poll::Ready(Ok(n)) => {
-                    this.write_buf.drain(..n);
-                }
+                Poll::Ready(Ok(n)) => { this.write_buf.drain(..n); }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
             }
         }
         Pin::new(&mut this.inner).poll_flush(cx)
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }

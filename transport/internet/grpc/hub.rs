@@ -16,11 +16,7 @@ impl GrpcListener {
             listener,
         })
     }
-
-    pub fn local_addr(&self) -> Result<SocketAddr> {
-        Ok(self.listener.local_addr()?)
-    }
-
+    pub fn local_addr(&self) -> Result<SocketAddr> { Ok(self.listener.local_addr()?) }
     pub async fn accept(&self) -> Result<(crate::common::net::BoxStream, SocketAddr)> {
         let (stream, addr) = self.listener.accept().await?;
         Ok((Box::pin(stream), addr))

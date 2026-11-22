@@ -23,13 +23,6 @@ pub struct Annotation {
 }
 
 impl Annotation {
-    pub fn new(api: impl Into<String>) -> Self {
-        Self { api: api.into() }
-    }
-
-    pub fn from_stability(stability: ApiStability) -> Self {
-        Self {
-            api: stability.as_str().to_string(),
-        }
-    }
+    pub fn new(api: impl Into<String>) -> Self { Self { api: api.into() } }
+    pub fn from_stability(stability: ApiStability) -> Self { Self { api: stability.as_str().to_string(), } }
 }

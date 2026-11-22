@@ -13,22 +13,9 @@ pub struct BlackholeConfig {
 }
 
 impl BlackholeConfig {
-    pub fn with_none_response() -> Self {
-        Self {
-            response: Some(serde_json::json!({"type": "none"})),
-        }
-    }
-
-    pub fn with_http_response() -> Self {
-        Self {
-            response: Some(serde_json::json!({"type": "http"})),
-        }
-    }
-
+    pub fn with_none_response() -> Self { Self { response: Some(serde_json::json!({"type": "none"})), } }
+    pub fn with_http_response() -> Self { Self { response: Some(serde_json::json!({"type": "http"})), } }
     pub fn response_type(&self) -> Option<&str> {
-        self.response
-            .as_ref()
-            .and_then(|v| v.get("type"))
-            .and_then(|t| t.as_str())
+        self.response.as_ref().and_then(|v| v.get("type")).and_then(|t| t.as_str())
     }
 }

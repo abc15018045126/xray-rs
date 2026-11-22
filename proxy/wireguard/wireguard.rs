@@ -42,23 +42,16 @@ pub fn create_ipc_request(conf: &WireGuardConfig, is_client: bool, listen_port: 
 mod tests {
     use super::super::config::WireGuardPeer;
     use super::*;
-
     #[test]
     fn test_parse_endpoints() {
-        let eps = vec![
-            "10.0.0.2/32".to_string(),
-            "fd00::2/128".to_string(),
-            "1.1.1.1".to_string(),
-        ];
+        let eps = vec!["10.0.0.2/32".to_string(), "fd00::2/128".to_string(), "1.1.1.1".to_string()];
         let (parsed, has_v4, has_v6) = parse_endpoints(&eps).expect("valid endpoints");
         assert_eq!(parsed.len(), 3);
         assert!(has_v4);
         assert!(has_v6);
-
         let bad = vec!["10.0.0.2/24".to_string()];
         assert!(parse_endpoints(&bad).is_err());
     }
-
     #[test]
     fn test_create_ipc_request() {
         let conf = WireGuardConfig {
@@ -72,14 +65,12 @@ mod tests {
             mtu: Some(1420),
             reserved: None,
         };
-
         let ipc = create_ipc_request(&conf, true, None);
         assert!(ipc.contains("private_key=CLIENT_SECRET_KEY"));
         assert!(ipc.contains("public_key=SERVER_PUBLIC_KEY"));
         assert!(ipc.contains("endpoint=198.51.100.1:51820"));
         assert!(ipc.contains("persistent_keepalive_interval=25"));
         assert!(!ipc.contains("listen_port="));
-
         let server_ipc = create_ipc_request(&conf, false, Some(51820));
         assert!(server_ipc.contains("listen_port=51820"));
     }

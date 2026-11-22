@@ -21,7 +21,6 @@ impl Destination {
             network: Network::Tcp,
         }
     }
-
     pub fn tcp(address: Address, port: u16) -> Self {
         Self {
             address,
@@ -29,7 +28,6 @@ impl Destination {
             network: Network::Tcp,
         }
     }
-
     pub fn udp(address: Address, port: u16) -> Self {
         Self {
             address,
@@ -37,21 +35,11 @@ impl Destination {
             network: Network::Udp,
         }
     }
-
-    pub fn from_ip_port(ip: IpAddr, port: u16) -> Self {
-        Self::new(Address::from(ip), port)
-    }
-
+    pub fn from_ip_port(ip: IpAddr, port: u16) -> Self { Self::new(Address::from(ip), port) }
     pub fn from_domain_port(domain: impl Into<String>, port: u16) -> Self {
         Self::new(Address::Domain(domain.into()), port)
     }
-
-    pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        self.address
-            .to_ip()
-            .map(|ip| SocketAddr::new(ip, self.port))
-    }
-
+    pub fn to_socket_addr(&self) -> Option<SocketAddr> { self.address.to_ip().map(|ip| SocketAddr::new(ip, self.port)) }
     pub fn net_addr(&self) -> String {
         match &self.address {
             Address::Ipv4(ip) => format!("{}:{}", ip, self.port),
@@ -59,11 +47,7 @@ impl Destination {
             Address::Domain(domain) => format!("{}:{}", domain, self.port),
         }
     }
-
-    pub fn is_ipv6(&self) -> bool {
-        self.address.is_ipv6()
-    }
-
+    pub fn is_ipv6(&self) -> bool { self.address.is_ipv6() }
     pub fn parse_str(s: &str, network: Network) -> Result<Self> {
         let s = s.trim();
         let mut d = if let Some((host, port_str)) = s.rsplit_once(':') {
@@ -101,29 +85,22 @@ impl Default for Destination {
 }
 
 impl From<SocketAddr> for Destination {
-    fn from(addr: SocketAddr) -> Self {
-        Self::new(Address::from(addr.ip()), addr.port())
-    }
+    fn from(addr: SocketAddr) -> Self { Self::new(Address::from(addr.ip()), addr.port()) }
 }
 
 impl PartialEq<SocketAddr> for Destination {
     fn eq(&self, other: &SocketAddr) -> bool {
-        if self.port != other.port() {
-            return false;
-        }
+        if self.port != other.port() { return false; }
         self.to_socket_addr() == Some(*other)
     }
 }
 
 impl PartialEq<Destination> for SocketAddr {
-    fn eq(&self, other: &Destination) -> bool {
-        other == self
-    }
+    fn eq(&self, other: &Destination) -> bool { other == self }
 }
 
 impl FromStr for Destination {
     type Err = Error;
-
     fn from_str(s: &str) -> Result<Self> {
         let s = s.trim();
         let parse_port = |p: &str| p.parse::<u16>().map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)));
@@ -137,13 +114,9 @@ impl FromStr for Destination {
     }
 }
 
-pub fn tcp_destination(address: Address, port: u16) -> Destination {
-    Destination::tcp(address, port)
-}
+pub fn tcp_destination(address: Address, port: u16) -> Destination { Destination::tcp(address, port) }
 
-pub fn udp_destination(address: Address, port: u16) -> Destination {
-    Destination::udp(address, port)
-}
+pub fn udp_destination(address: Address, port: u16) -> Destination { Destination::udp(address, port) }
 
 pub fn parse_destination(dest: &str) -> Result<Destination> {
     let (network, rest) = if let Some(stripped) = dest.strip_prefix("tcp:") {

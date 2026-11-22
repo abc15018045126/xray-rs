@@ -24,22 +24,15 @@ impl XIcmpServer {
         let is_ipv6 = config.ip.contains(':');
         Self { config, is_ipv6 }
     }
-
     pub fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        if packet.len() < 8 {
-            return None;
-        }
+        if packet.len() < 8 { return None; }
         let icmp_type = packet[0];
         if icmp_type != ICMP_TYPE_ECHO_V4
             && icmp_type != ICMP_TYPE_ECHO_REPLY_V4
-            && icmp_type != ICMP_TYPE_ECHO_V6
-            && icmp_type != ICMP_TYPE_ECHO_REPLY_V6
-        {
-            return None;
-        }
+            && icmp_type != ICMP_TYPE_ECHO_V6 && icmp_type != ICMP_TYPE_ECHO_REPLY_V6
+        { return None; }
         Some(&packet[8..])
     }
-
     pub fn decode_request(&self, packet: &[u8]) -> Result<Option<XIcmpServerRequest>> {
         if packet.len() < 8 { return Err(Error::Protocol("ICMP request too short (< 8 bytes)".into())); }
         if packet[1] != 0 { return Err(Error::Protocol("ICMP request code non-zero".into())); }
@@ -52,7 +45,6 @@ impl XIcmpServer {
             id, seq, need_seq_byte: !data.is_empty(), seq_byte: data.first().copied().unwrap_or(0), payload: data.to_vec(),
         }))
     }
-
     pub fn encode_reply(&self, req: &XIcmpServerRequest, payload: Option<&[u8]>) -> Result<Vec<u8>> {
         let typ = if self.is_ipv6 { ICMP_TYPE_ECHO_REPLY_V6 } else { ICMP_TYPE_ECHO_REPLY_V4 };
         let mut pkt = Vec::with_capacity(9 + payload.map_or(0, <[u8]>::len));

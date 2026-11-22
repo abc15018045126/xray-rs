@@ -25,7 +25,6 @@ impl<T: Eq + Hash + Clone> ReplayFilter<T> {
             }),
         }
     }
-
     pub fn check(&self, sum: T) -> bool {
         let mut inner = self.lock.lock().unwrap();
         let now = Instant::now();
@@ -33,10 +32,8 @@ impl<T: Eq + Hash + Clone> ReplayFilter<T> {
             inner.pool_b = std::mem::take(&mut inner.pool_a);
             inner.last_clean = now;
         }
-
         let exists_a = inner.pool_a.contains(&sum);
         let exists_b = inner.pool_b.contains(&sum);
-
         if !exists_a && !exists_b {
             inner.pool_a.insert(sum);
             true

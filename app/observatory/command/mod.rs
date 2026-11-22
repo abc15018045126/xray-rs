@@ -20,21 +20,11 @@ pub struct ObservatoryService {
 }
 
 impl ObservatoryService {
-    pub fn new(observatory: Arc<Observatory>) -> Self {
-        Self { observatory }
-    }
-
-    pub fn get_outbound_status(&self, tag: &str) -> Option<OutboundStatus> {
-        self.observatory.get_status(tag)
-    }
-
-    pub fn get_all_statuses(&self) -> Vec<OutboundStatus> {
-        self.observatory.all_statuses()
-    }
+    pub fn new(observatory: Arc<Observatory>) -> Self { Self { observatory } }
+    pub fn get_outbound_status(&self, tag: &str) -> Option<OutboundStatus> { self.observatory.get_status(tag) }
+    pub fn get_all_statuses(&self) -> Vec<OutboundStatus> { self.observatory.all_statuses() }
 }
 
 impl Service for ObservatoryService {
-    fn service_name(&self) -> &str {
-        "xray.core.app.observatory.command.ObservatoryService"
-    }
+    fn service_name(&self) -> &str { "xray.core.app.observatory.command.ObservatoryService" }
 }

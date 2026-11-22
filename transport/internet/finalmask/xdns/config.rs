@@ -18,12 +18,6 @@ impl XDnsConfig {
             fake_ip: String::new(),
         }
     }
-
-    pub fn create_client(&self) -> Result<XDnsClient> {
-        XDnsClient::from_config(self)
-    }
-
-    pub fn create_server(&self) -> Result<XDnsServer> {
-        XDnsServer::from_config(self)
-    }
+    pub fn create_client(&self) -> Result<XDnsClient> { XDnsClient::from_config(self) }
+    pub fn create_server(&self) -> Result<XDnsServer> { XDnsServer::from_config(self) }
 }

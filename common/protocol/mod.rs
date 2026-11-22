@@ -76,17 +76,14 @@ impl SessionContext {
             debug_trace_origin: None,
         }
     }
-
     pub fn with_sniffing(mut self, req: crate::common::session::SniffingRequest) -> Self {
         self.sniffing_request = Some(req);
         self
     }
-
     pub fn with_forced_outbound(mut self, tag: impl Into<String>) -> Self {
         self.forced_outbound_tag = Some(tag.into());
         self
     }
-
     pub fn with_user(mut self, user: User) -> Self {
         self.user = Some(user);
         self

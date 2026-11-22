@@ -25,13 +25,11 @@ impl SocksProtocol {
     ) -> Result<()> {
         stream.write_all(&[SOCKS5_VERSION, 0x01, AUTH_NO_AUTH]).await?;
         stream.flush().await?;
-
         let mut resp = [0u8; 2];
         stream.read_exact(&mut resp).await?;
         if resp[0] != SOCKS5_VERSION || resp[1] != AUTH_NO_AUTH {
             return Err(Error::Protocol(format!("SOCKS5 auth negotiation failed: {:?}", resp)));
         }
-
         let mut req = vec![SOCKS5_VERSION, CMD_TCP_CONNECT, 0x00];
         match &target.address {
             Address::Ipv4(v4) => {
@@ -51,7 +49,6 @@ impl SocksProtocol {
         req.extend_from_slice(&target.port.to_be_bytes());
         stream.write_all(&req).await?;
         stream.flush().await?;
-
         let mut reply_hdr = [0u8; 4];
         stream.read_exact(&mut reply_hdr).await?;
         if reply_hdr[0] != SOCKS5_VERSION {
@@ -60,7 +57,6 @@ impl SocksProtocol {
         if reply_hdr[1] != STATUS_SUCCESS {
             return Err(Error::Protocol(format!("SOCKS5 server replied error status: 0x{:02X}", reply_hdr[1])));
         }
-
         let skip_len = match reply_hdr[3] {
             0x01 => 6,
             0x04 => 18,

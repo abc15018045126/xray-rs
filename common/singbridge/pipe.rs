@@ -1,7 +1,6 @@
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::timeout;
-
 use super::error::return_error;
 use crate::common::buf::{Buffer, CopyOptions, MultiBuffer, copy_stream};
 use crate::common::errors::{Error, Result};
@@ -17,17 +16,13 @@ pub struct PipeConnWrapper {
 }
 
 impl PipeConnWrapper {
-    pub fn new(reader: PipeReader, writer: PipeWriter) -> Self {
-        Self { reader, writer }
-    }
-
+    pub fn new(reader: PipeReader, writer: PipeWriter) -> Self { Self { reader, writer } }
     pub fn from_link(link: &Link) -> Self {
         Self {
             reader: link.reader.clone(),
             writer: link.writer.clone(),
         }
     }
-
     pub async fn read(&mut self) -> Result<Vec<u8>> {
         match self.reader.read_multi_buffer_timeout(READ_TIMEOUT).await {
             Ok(mb) => Ok(mb.to_vec()),
@@ -37,7 +32,6 @@ impl PipeConnWrapper {
             }
         }
     }
-
     pub async fn write(&self, data: &[u8]) -> Result<()> {
         let mut mb = MultiBuffer::new();
         let mut remaining = data;
@@ -50,24 +44,18 @@ impl PipeConnWrapper {
         }
         self.writer.write_multi_buffer(mb).await
     }
-
-    pub async fn close(&self) -> Result<()> {
-        self.writer.close().await
-    }
+    pub async fn close(&self) -> Result<()> { self.writer.close().await }
 }
 
 pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
     let (reader, writer) = link.into_parts();
     let (mut server_read, mut server_write) = tokio::io::split(server_stream);
-
     let r_task = async {
         loop {
             match timeout(READ_TIMEOUT, reader.read_multi_buffer()).await {
                 Ok(Ok(mb)) => {
                     let bytes = mb.to_vec();
-                    if bytes.is_empty() {
-                        break;
-                    }
+                    if bytes.is_empty() { break; }
                     server_write.write_all(&bytes).await?;
                     server_write.flush().await?;
                 }
@@ -81,14 +69,11 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
         let _ = server_write.shutdown().await;
         Ok::<(), Error>(())
     };
-
     let w_task = async {
         let mut buf = [0u8; 8192];
         loop {
             let n = server_read.read(&mut buf).await?;
-            if n == 0 {
-                break;
-            }
+            if n == 0 { break; }
             let mut mb = MultiBuffer::new();
             let mut b = Buffer::with_capacity(n);
             let _ = b.write(&buf[..n]);
@@ -98,7 +83,6 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
         let _ = writer.close().await;
         Ok::<(), Error>(())
     };
-
     let result = tokio::select! {
         r = r_task => r,
         w = w_task => w,
@@ -109,9 +93,6 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
     }
 }
 
-pub async fn bridge_pipe<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
-    mut reader: R,
-    mut writer: W,
-) -> Result<u64> {
+pub async fn bridge_pipe<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(mut reader: R, mut writer: W) -> Result<u64> {
     copy_stream(&mut reader, &mut writer, 4096, CopyOptions::default()).await
 }

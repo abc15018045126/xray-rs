@@ -7,35 +7,22 @@ use std::str::FromStr;
 pub struct Port(pub u16);
 
 impl Port {
-    pub fn new(val: u16) -> Self {
-        Port(val)
-    }
-
-    pub fn value(&self) -> u16 {
-        self.0
-    }
-
+    pub fn new(val: u16) -> Self { Port(val) }
+    pub fn value(&self) -> u16 { self.0 }
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 2 {
-            return Err(Error::Protocol("Port bytes must have length >= 2".into()));
-        }
+        if bytes.len() < 2 { return Err(Error::Protocol("Port bytes must have length >= 2".into())); }
         Ok(Port(u16::from_be_bytes([bytes[0], bytes[1]])))
     }
 }
 
 impl fmt::Display for Port {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.0) }
 }
 
 impl FromStr for Port {
     type Err = Error;
-
     fn from_str(s: &str) -> Result<Self> {
-        s.parse::<u16>()
-            .map(Port)
-            .map_err(|e| Error::Protocol(format!("Invalid port string '{}': {}", s, e)))
+        s.parse::<u16>().map(Port).map_err(|e| Error::Protocol(format!("Invalid port string '{}': {}", s, e)))
     }
 }
 
@@ -46,20 +33,14 @@ pub struct PortRange {
 }
 
 impl PortRange {
-    pub fn new(from: u16, to: u16) -> Self {
-        Self { from, to }
-    }
-
+    pub fn new(from: u16, to: u16) -> Self { Self { from, to } }
     pub fn single(port: u16) -> Self {
         Self {
             from: port,
             to: port,
         }
     }
-
-    pub fn contains(&self, port: Port) -> bool {
-        self.from <= port.0 && port.0 <= self.to
-    }
+    pub fn contains(&self, port: Port) -> bool { self.from <= port.0 && port.0 <= self.to }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,19 +49,8 @@ pub struct PortList {
 }
 
 impl PortList {
-    pub fn new() -> Self {
-        Self { ranges: Vec::new() }
-    }
-
-    pub fn add_range(&mut self, from: u16, to: u16) {
-        self.ranges.push(PortRange::new(from, to));
-    }
-
-    pub fn add_single(&mut self, port: u16) {
-        self.ranges.push(PortRange::single(port));
-    }
-
-    pub fn contains(&self, port: Port) -> bool {
-        self.ranges.iter().any(|r| r.contains(port))
-    }
+    pub fn new() -> Self { Self { ranges: Vec::new() } }
+    pub fn add_range(&mut self, from: u16, to: u16) { self.ranges.push(PortRange::new(from, to)); }
+    pub fn add_single(&mut self, port: u16) { self.ranges.push(PortRange::single(port)); }
+    pub fn contains(&self, port: Port) -> bool { self.ranges.iter().any(|r| r.contains(port)) }
 }

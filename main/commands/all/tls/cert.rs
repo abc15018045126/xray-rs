@@ -11,11 +11,7 @@ pub fn generate_self_signed_cert(domain: &str) -> Result<(String, String)> {
 }
 
 pub fn cmd_cert() -> Command {
-    Command::new(
-        "cert",
-        "xray tls cert [domain]",
-        "Generate self-signed TLS certificates",
-    )
+    Command::new("cert", "xray tls cert [domain]", "Generate self-signed TLS certificates")
     .with_run(|args| {
         let domain = args.first().copied().unwrap_or("example.com");
         let (cert, key) = generate_self_signed_cert(domain)?;

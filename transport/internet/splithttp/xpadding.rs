@@ -6,9 +6,7 @@ pub const PADDING_METHOD_TOKENISH: &str = "tokenish";
 pub const CHARSET_BASE62: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 pub fn rand_string_base62(n: usize) -> String {
-    if n == 0 {
-        return String::new();
-    }
+    if n == 0 { return String::new(); }
     let mut rng = rand::thread_rng();
     let mut s = String::with_capacity(n);
     for _ in 0..n {
@@ -19,16 +17,12 @@ pub fn rand_string_base62(n: usize) -> String {
 }
 
 pub fn generate_tokenish_padding(target_bytes: usize) -> String {
-    if target_bytes == 0 {
-        return String::new();
-    }
+    if target_bytes == 0 { return String::new(); }
     rand_string_base62(target_bytes)
 }
 
 pub fn generate_repeat_x(target_bytes: usize) -> String {
-    if target_bytes == 0 {
-        return String::new();
-    }
+    if target_bytes == 0 { return String::new(); }
     "X".repeat(target_bytes)
 }
 
@@ -39,12 +33,7 @@ pub fn generate_padding(method: &str, length: usize) -> String {
     }
 }
 
-pub fn apply_x_padding(
-    headers: &mut Vec<(String, String)>,
-    header_key: &str,
-    method: &str,
-    length: usize,
-) {
+pub fn apply_x_padding(headers: &mut Vec<(String, String)>, header_key: &str, method: &str, length: usize) {
     if length > 0 {
         let padding = generate_padding(method, length);
         headers.push((header_key.to_string(), padding));
@@ -54,7 +43,5 @@ pub fn apply_x_padding(
 pub struct XPadding;
 
 impl XPadding {
-    pub fn generate(method: &str, length: usize) -> String {
-        generate_padding(method, length)
-    }
+    pub fn generate(method: &str, length: usize) -> String { generate_padding(method, length) }
 }

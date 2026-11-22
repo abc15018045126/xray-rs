@@ -24,12 +24,10 @@ impl UdpHopPacketConn {
         if addrs.is_empty() { return Err("no valid hop addresses"); }
         Ok(Self { hop_addr, addrs, hop_interval_min: min, hop_interval_max: max, addr_index: Arc::new(AtomicUsize::new(0)) })
     }
-
     pub fn current_addr(&self) -> SocketAddr {
         let idx = self.addr_index.load(Ordering::Relaxed) % self.addrs.len();
         self.addrs[idx]
     }
-
     pub fn hop(&self) -> SocketAddr {
         let prev = self.addr_index.fetch_add(1, Ordering::Relaxed);
         let next_idx = (prev + 1) % self.addrs.len();

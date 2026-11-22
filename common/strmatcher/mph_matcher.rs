@@ -8,9 +8,7 @@ pub const PRIME_RK: u32 = 16777619;
 
 pub fn rolling_hash(s: &str) -> u32 {
     let mut h = 0u32;
-    for &b in s.as_bytes().iter().rev() {
-        h = h.wrapping_mul(PRIME_RK).wrapping_add(b as u32);
-    }
+    for &b in s.as_bytes().iter().rev() { h = h.wrapping_mul(PRIME_RK).wrapping_add(b as u32); }
     h
 }
 
@@ -33,7 +31,6 @@ impl MphMatcherGroup {
             count: 1,
         }
     }
-
     pub fn add_full_or_domain_pattern(&mut self, pattern: &str, t: MatcherType) {
         let h = rolling_hash(pattern);
         match t {
@@ -43,13 +40,10 @@ impl MphMatcherGroup {
                 self.rule_map.insert(dot_pattern, dot_hash);
                 self.rule_map.insert(pattern.to_string(), h);
             }
-            MatcherType::Full => {
-                self.rule_map.insert(pattern.to_string(), h);
-            }
+            MatcherType::Full => { self.rule_map.insert(pattern.to_string(), h); }
             _ => {}
         }
     }
-
     pub fn add_pattern(&mut self, pattern: &str, t: MatcherType) -> Result<u32> {
         match t {
             MatcherType::Substr => {
@@ -67,42 +61,21 @@ impl MphMatcherGroup {
         }
         Ok(self.count)
     }
-
     pub fn build(&mut self) {
-        if let Some(ac) = &mut self.ac {
-            ac.build();
-        }
+        if let Some(ac) = &mut self.ac { ac.build(); }
         self.rules = self.rule_map.keys().cloned().collect();
     }
-
-    pub fn lookup(&self, s: &str) -> bool {
-        self.rule_map.contains_key(s)
-    }
-
+    pub fn lookup(&self, s: &str) -> bool { self.rule_map.contains_key(s) }
     pub fn match_pattern(&self, pattern: &str) -> Vec<u32> {
         let bytes = pattern.as_bytes();
-        for (i, &b) in bytes.iter().enumerate() {
-            if b == b'.' && self.lookup(&pattern[i..]) {
-                return vec![1];
-            }
-        }
-        if self.lookup(pattern) {
-            return vec![1];
-        }
-        if let Some(ac) = &self.ac
-            && ac.match_str(pattern)
-        {
-            return vec![1];
-        }
+        for (i, &b) in bytes.iter().enumerate() { if b == b'.' && self.lookup(&pattern[i..]) { return vec![1]; } }
+        if self.lookup(pattern) { return vec![1]; }
+        if let Some(ac) = &self.ac && ac.match_str(pattern)
+        { return vec![1]; }
         for (m, id) in &self.other_matchers {
-            if super::strmatcher::Matcher::match_str(m, pattern) {
-                return vec![*id];
-            }
+            if super::strmatcher::Matcher::match_str(m, pattern) { return vec![*id]; }
         }
         Vec::new()
     }
-
-    pub fn size(&self) -> u32 {
-        self.count
-    }
+    pub fn size(&self) -> u32 { self.count }
 }

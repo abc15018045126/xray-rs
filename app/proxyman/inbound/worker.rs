@@ -48,22 +48,18 @@ impl StreamInboundHandler {
             downlink_counter: Arc::new(Counter::new()),
         }
     }
-
     pub fn with_reality(mut self, server: Arc<RealityServer>) -> Self {
         self.reality_server = Some(server);
         self
     }
-
     pub fn with_httpupgrade(mut self, path: Option<String>, host: Option<String>) -> Self {
         self.httpupgrade = Some((path, host));
         self
     }
-
     pub fn with_splithttp(mut self, server: Arc<SplitHttpServer>) -> Self {
         self.splithttp_server = Some(server);
         self
     }
-
     pub fn with_sniffing(mut self, sniffing: SniffingRequest) -> Self {
         self.sniffing_request = Some(sniffing);
         self
@@ -72,15 +68,8 @@ impl StreamInboundHandler {
 
 #[async_trait]
 impl InboundHandler for StreamInboundHandler {
-    fn tag(&self) -> &str {
-        self.inner.tag()
-    }
-
-    async fn handle_connection(
-        &self,
-        mut stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
+    fn tag(&self) -> &str { self.inner.tag() }
+    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         if let Some(ref reality) = self.reality_server {
             stream = reality.accept(stream).await?.ok_or(Error::Closed)?;
         } else if let Some(ref tls) = self.tls_server {
@@ -94,19 +83,11 @@ impl InboundHandler for StreamInboundHandler {
             stream = WebSocketStream::server_handshake_with_config(stream, self.ws_path.as_deref(), self.ws_host.as_deref()).await?;
         }
         let mut res = self.inner.handle_connection(stream, remote_addr).await?;
-        if res.session.sniffing_request.is_none() {
-            res.session.sniffing_request = self.sniffing_request.clone();
-        }
+        if res.session.sniffing_request.is_none() { res.session.sniffing_request = self.sniffing_request.clone(); }
         Ok(res)
     }
-
-    async fn start(&self) -> Result<()> {
-        self.inner.start().await
-    }
-
-    async fn close(&self) -> Result<()> {
-        self.inner.close().await
-    }
+    async fn start(&self) -> Result<()> { self.inner.start().await }
+    async fn close(&self) -> Result<()> { self.inner.close().await }
 }
 
 pub struct InboundWorker {
@@ -129,16 +110,11 @@ impl InboundWorker {
             downlink_counter: Arc::new(Counter::new()),
         }
     }
-
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::Relaxed)
-    }
-
+    pub fn is_running(&self) -> bool { self.running.load(Ordering::Relaxed) }
     pub fn start(&self) -> Result<()> {
         self.running.store(true, Ordering::Relaxed);
         Ok(())
     }
-
     pub fn close(&self) -> Result<()> {
         self.running.store(false, Ordering::Relaxed);
         Ok(())

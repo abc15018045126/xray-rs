@@ -4,7 +4,6 @@ use tokio_tungstenite::WebSocketStream as TungsteniteStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-
 use crate::common::net::BoxStream;
 
 pub struct WebSocketConnection {
@@ -19,24 +18,14 @@ impl WebSocketConnection {
             remote_addr: remote_addr.into(),
         }
     }
-
-    pub fn remote_addr(&self) -> &str {
-        &self.remote_addr
-    }
-
-    pub fn into_stream(self) -> BoxStream {
-        self.stream
-    }
+    pub fn remote_addr(&self) -> &str { &self.remote_addr }
+    pub fn into_stream(self) -> BoxStream { self.stream }
 }
 
-pub(crate) fn bridge_ws_stream(
-    ws_stream: TungsteniteStream<BoxStream>,
-    heartbeat_period: u32,
-) -> BoxStream {
+pub(crate) fn bridge_ws_stream(ws_stream: TungsteniteStream<BoxStream>, heartbeat_period: u32) -> BoxStream {
     let (mut ws_sink, mut ws_stream) = ws_stream.split();
     let (mut r_client, w_server) = tokio::io::duplex(64 * 1024);
     let (r_server, mut w_client) = tokio::io::duplex(64 * 1024);
-
     tokio::spawn(async move {
         use tokio::io::AsyncReadExt;
         let mut buf = [0u8; 4096];
@@ -47,7 +36,6 @@ pub(crate) fn bridge_ws_stream(
         } else {
             None
         };
-
         loop {
             tokio::select! {
                 res = r_client.read(&mut buf) => match res {
@@ -69,7 +57,6 @@ pub(crate) fn bridge_ws_stream(
             }
         }
     });
-
     tokio::spawn(async move {
         use tokio::io::AsyncWriteExt;
         while let Some(Ok(msg)) = ws_stream.next().await {
@@ -80,7 +67,6 @@ pub(crate) fn bridge_ws_stream(
             }
         }
     });
-
     Box::pin(CombinedStream { reader: r_server, writer: w_server })
 }
 
@@ -115,14 +101,12 @@ impl tokio::io::AsyncWrite for PrefixedStream {
     ) -> std::task::Poll<std::io::Result<usize>> {
         std::pin::Pin::new(&mut self.inner).poll_write(cx, buf)
     }
-
     fn poll_flush(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
         std::pin::Pin::new(&mut self.inner).poll_flush(cx)
     }
-
     fn poll_shutdown(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -154,14 +138,12 @@ impl<R: Unpin, W: tokio::io::AsyncWrite + Unpin> tokio::io::AsyncWrite for Combi
     ) -> std::task::Poll<std::io::Result<usize>> {
         std::pin::Pin::new(&mut self.writer).poll_write(cx, buf)
     }
-
     fn poll_flush(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
         std::pin::Pin::new(&mut self.writer).poll_flush(cx)
     }
-
     fn poll_shutdown(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,

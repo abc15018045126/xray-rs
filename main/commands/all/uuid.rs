@@ -11,7 +11,6 @@ pub fn cmd_uuid() -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_uuid_command() {
         let cmd = cmd_uuid();

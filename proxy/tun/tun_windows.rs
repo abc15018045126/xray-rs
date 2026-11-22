@@ -8,14 +8,12 @@ pub mod device {
     use tokio_util::sync::CancellationToken;
     use tracing::debug;
     use wintun::{Adapter, Session};
-
     pub struct WintunAsyncDevice {
         _adapter: Adapter,
         session: Arc<Session>,
         read_rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
         cancel: CancellationToken,
     }
-
     impl WintunAsyncDevice {
         pub fn create(name: &str, guid: u128, ring_capacity: u32) -> io::Result<Self> {
             let adapter = Adapter::open(name).or_else(|_| Adapter::create(name, "Xray", Some(guid)))?;
@@ -36,13 +34,8 @@ pub mod device {
             Ok(Self { _adapter: adapter, session, read_rx, cancel })
         }
     }
-
     impl AsyncRead for WintunAsyncDevice {
-        fn poll_read(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &mut ReadBuf<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
             match self.read_rx.poll_recv(cx) {
                 Poll::Ready(Some(packet)) => {
                     let n = packet.len().min(buf.remaining());
@@ -54,13 +47,8 @@ pub mod device {
             }
         }
     }
-
     impl AsyncWrite for WintunAsyncDevice {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
+        fn poll_write(self: Pin<&mut Self>, _cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
             match self.session.allocate_send_packet(buf.len() as u32) {
                 Ok(mut send_pkt) => {
                     send_pkt.copy_from_slice(buf);
@@ -73,21 +61,14 @@ pub mod device {
                 }
             }
         }
-
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> { Poll::Ready(Ok(())) }
         fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             self.cancel.cancel();
             Poll::Ready(Ok(()))
         }
     }
-
     impl Drop for WintunAsyncDevice {
-        fn drop(&mut self) {
-            self.cancel.cancel();
-        }
+        fn drop(&mut self) { self.cancel.cancel(); }
     }
 }
 

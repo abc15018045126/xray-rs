@@ -19,11 +19,7 @@ impl RandomStrategy {
             observatory: None,
         }
     }
-
-    pub fn with_fallback(
-        fallback_tag: Option<String>,
-        observatory: Option<Arc<Observatory>>,
-    ) -> Self {
+    pub fn with_fallback(fallback_tag: Option<String>, observatory: Option<Arc<Observatory>>) -> Self {
         Self {
             fallback_tag,
             observatory,
@@ -32,21 +28,13 @@ impl RandomStrategy {
 }
 
 impl Default for RandomStrategy {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl BalancingStrategy for RandomStrategy {
-    fn name(&self) -> &str {
-        "random"
-    }
-
+    fn name(&self) -> &str { "random" }
     fn pick_outbound(&self, tags: &[String]) -> Option<String> {
-        if tags.is_empty() {
-            return self.fallback_tag.clone();
-        }
-
+        if tags.is_empty() { return self.fallback_tag.clone(); }
         let alive_tags: Vec<String> = if let Some(obs) = &self.observatory {
             tags.iter()
                 .filter(|t| {
@@ -56,12 +44,10 @@ impl BalancingStrategy for RandomStrategy {
                         true
                     }
                 })
-                .cloned()
-                .collect()
+                .cloned().collect()
         } else {
             tags.to_vec()
         };
-
         if alive_tags.is_empty() {
             self.fallback_tag.clone()
         } else {
@@ -86,14 +72,9 @@ impl RoundRobinStrategy {
 }
 
 impl BalancingStrategy for RoundRobinStrategy {
-    fn name(&self) -> &str {
-        "roundRobin"
-    }
-
+    fn name(&self) -> &str { "roundRobin" }
     fn pick_outbound(&self, tags: &[String]) -> Option<String> {
-        if tags.is_empty() {
-            return self.fallback_tag.clone();
-        }
+        if tags.is_empty() { return self.fallback_tag.clone(); }
         let cur = self.index.fetch_add(1, Ordering::Relaxed);
         let selected = &tags[cur % tags.len()];
         Some(selected.clone())
@@ -115,14 +96,9 @@ impl LeastPingStrategy {
 }
 
 impl BalancingStrategy for LeastPingStrategy {
-    fn name(&self) -> &str {
-        "leastPing"
-    }
-
+    fn name(&self) -> &str { "leastPing" }
     fn pick_outbound(&self, tags: &[String]) -> Option<String> {
-        self.observatory
-            .select_best_outbound(tags)
-            .or_else(|| self.fallback_tag.clone())
+        self.observatory.select_best_outbound(tags).or_else(|| self.fallback_tag.clone())
     }
 }
 
@@ -141,14 +117,9 @@ impl LeastLoadStrategy {
 }
 
 impl BalancingStrategy for LeastLoadStrategy {
-    fn name(&self) -> &str {
-        "leastLoad"
-    }
-
+    fn name(&self) -> &str { "leastLoad" }
     fn pick_outbound(&self, tags: &[String]) -> Option<String> {
-        self.observatory
-            .select_best_outbound(tags)
-            .or_else(|| self.fallback_tag.clone())
+        self.observatory.select_best_outbound(tags).or_else(|| self.fallback_tag.clone())
     }
 }
 
@@ -175,7 +146,6 @@ impl Balancer {
             fallback_tag,
         }
     }
-
     pub fn with_candidates(
         tag: impl Into<String>,
         selectors: Vec<String>,
@@ -191,7 +161,6 @@ impl Balancer {
             fallback_tag,
         }
     }
-
     pub fn pick(&self) -> Option<String> {
         let pool = if !self.candidates.is_empty() {
             &self.candidates[..]
@@ -200,32 +169,22 @@ impl Balancer {
         };
         self.pick_outbound(pool)
     }
-
     pub fn pick_outbound(&self, candidates: &[String]) -> Option<String> {
-        let matched: Vec<String> = candidates
-            .iter()
+        let matched: Vec<String> = candidates.iter()
             .filter(|c| {
-                self.selectors.is_empty()
-                    || self.selectors.iter().any(|s| c.starts_with(s) || s == "*")
+                self.selectors.is_empty() || self.selectors.iter().any(|s| c.starts_with(s) || s == "*")
             })
-            .cloned()
-            .collect();
-
+            .cloned().collect();
         if matched.is_empty() {
             self.fallback_tag.clone()
         } else {
-            self.strategy
-                .pick_outbound(&matched)
-                .or_else(|| self.fallback_tag.clone())
+            self.strategy.pick_outbound(&matched).or_else(|| self.fallback_tag.clone())
         }
     }
 }
 
 fn rand_index(len: usize) -> usize {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos() as usize;
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().subsec_nanos() as usize;
     nanos % len
 }

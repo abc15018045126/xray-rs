@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-
 use super::crypto::StreamCipher;
 use crate::common::buf::MultiBuffer;
 use crate::common::buf::io::Writer as BufWriter;
@@ -8,9 +7,7 @@ use crate::common::errors::{Error, Result};
 
 pub fn xor_buffers(dst: &mut [u8], src: &[u8], key: &[u8]) -> Result<usize> {
     let len = dst.len().min(src.len());
-    for i in 0..len {
-        dst[i] = src[i] ^ key[i % key.len()];
-    }
+    for i in 0..len { dst[i] = src[i] ^ key[i % key.len()]; }
     Ok(len)
 }
 
@@ -20,15 +17,10 @@ pub struct CryptionReader<R, C> {
 }
 
 impl<R: AsyncRead + Unpin, C: StreamCipher> CryptionReader<R, C> {
-    pub fn new(reader: R, cipher: C) -> Self {
-        Self { reader, cipher }
-    }
-
+    pub fn new(reader: R, cipher: C) -> Self { Self { reader, cipher } }
     pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let n = self.reader.read(buf).await.map_err(Error::Io)?;
-        if n > 0 {
-            self.cipher.decrypt(&mut buf[..n])?;
-        }
+        if n > 0 { self.cipher.decrypt(&mut buf[..n])?; }
         Ok(n)
     }
 }
@@ -39,10 +31,7 @@ pub struct CryptionWriter<W, C> {
 }
 
 impl<W: AsyncWrite + Unpin, C: StreamCipher> CryptionWriter<W, C> {
-    pub fn new(writer: W, cipher: C) -> Self {
-        Self { writer, cipher }
-    }
-
+    pub fn new(writer: W, cipher: C) -> Self { Self { writer, cipher } }
     pub async fn write(&mut self, data: &mut [u8]) -> Result<usize> {
         self.cipher.encrypt(data)?;
         self.writer.write_all(data).await.map_err(Error::Io)?;

@@ -9,17 +9,12 @@ pub struct RoutingService {
 }
 
 impl RoutingService {
-    pub fn new(router: Arc<Router>) -> Self {
-        Self { router }
-    }
-
+    pub fn new(router: Arc<Router>) -> Self { Self { router } }
     pub fn test_route(&self, session: &SessionContext) -> Option<String> {
         self.router.pick_outbound(session).map(|s| s.to_string())
     }
 }
 
 impl Service for RoutingService {
-    fn service_name(&self) -> &str {
-        "xray.core.app.router.command.RoutingService"
-    }
+    fn service_name(&self) -> &str { "xray.core.app.router.command.RoutingService" }
 }

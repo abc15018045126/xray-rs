@@ -15,33 +15,17 @@ impl Instance {
             notify: Arc::new(Notify::new()),
         }
     }
-
-    pub fn done(&self) -> bool {
-        self.closed.load(Ordering::Relaxed)
-    }
-
-    pub fn is_done(&self) -> bool {
-        self.done()
-    }
-
+    pub fn done(&self) -> bool { self.closed.load(Ordering::Relaxed) }
+    pub fn is_done(&self) -> bool { self.done() }
     pub async fn wait(&self) {
-        if self.done() {
-            return;
-        }
+        if self.done() { return; }
         self.notify.notified().await;
     }
-
-    pub fn close(&self) {
-        if !self.closed.swap(true, Ordering::SeqCst) {
-            self.notify.notify_waiters();
-        }
-    }
+    pub fn close(&self) { if !self.closed.swap(true, Ordering::SeqCst) { self.notify.notify_waiters(); } }
 }
 
 impl Default for Instance {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 pub type Done = Instance;

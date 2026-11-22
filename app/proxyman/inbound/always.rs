@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
 use super::worker::InboundWorker;
 use crate::app::stats::{Counter, StatsManager, inbound_downlink_name, inbound_uplink_name};
 use crate::common::errors::Result;
@@ -37,7 +36,6 @@ impl AlwaysOnInboundHandler {
         } else {
             (None, None)
         };
-
         Self {
             tag: tag_str,
             workers: RwLock::new(Vec::new()),
@@ -47,55 +45,27 @@ impl AlwaysOnInboundHandler {
             proxy_settings,
         }
     }
-
-    pub async fn add_worker(&self, worker: InboundWorker) {
-        self.workers.write().await.push(worker);
-    }
-
-    pub fn uplink_counter(&self) -> Option<&Arc<Counter>> {
-        self.uplink_counter.as_ref()
-    }
-
-    pub fn downlink_counter(&self) -> Option<&Arc<Counter>> {
-        self.downlink_counter.as_ref()
-    }
+    pub async fn add_worker(&self, worker: InboundWorker) { self.workers.write().await.push(worker); }
+    pub fn uplink_counter(&self) -> Option<&Arc<Counter>> { self.uplink_counter.as_ref() }
+    pub fn downlink_counter(&self) -> Option<&Arc<Counter>> { self.downlink_counter.as_ref() }
 }
 
 #[async_trait]
 impl InboundHandler for AlwaysOnInboundHandler {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn start(&self) -> Result<()> {
         let workers = self.workers.read().await;
-        for w in workers.iter() {
-            w.start()?;
-        }
+        for w in workers.iter() { w.start()?; }
         Ok(())
     }
-
     async fn close(&self) -> Result<()> {
         let workers = self.workers.read().await;
-        for w in workers.iter() {
-            w.close()?;
-        }
+        for w in workers.iter() { w.close()?; }
         Ok(())
     }
-
-    fn receiver_settings(&self) -> Option<Vec<u8>> {
-        self.receiver_settings.clone()
-    }
-
-    fn proxy_settings(&self) -> Option<Vec<u8>> {
-        self.proxy_settings.clone()
-    }
-
-    async fn handle_connection(
-        &self,
-        stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
+    fn receiver_settings(&self) -> Option<Vec<u8>> { self.receiver_settings.clone() }
+    fn proxy_settings(&self) -> Option<Vec<u8>> { self.proxy_settings.clone() }
+    async fn handle_connection(&self, stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let dest = crate::common::net::Destination::from(remote_addr);
         let session = SessionContext::new(self.tag.clone(), dest);
         Ok(InboundResult { stream, session })

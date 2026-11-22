@@ -5,9 +5,7 @@ pub fn parse_version(s: &str, width: usize) -> u64 {
     let mut formatted = String::new();
     for part in parts {
         let trimmed = part.trim();
-        if let Ok(num) = trimmed.parse::<u64>() {
-            formatted.push_str(&format!("{:0width$}", num, width = width));
-        }
+        if let Ok(num) = trimmed.parse::<u64>() { formatted.push_str(&format!("{:0width$}", num, width = width)); }
     }
     formatted.parse::<u64>().unwrap_or(0)
 }
@@ -33,27 +31,22 @@ pub fn find_proto_files(root: &Path) -> Vec<PathBuf> {
     files
 }
 
-pub fn run_protogen() -> &'static str {
-    "vprotogen: complete"
-}
+pub fn run_protogen() -> &'static str { "vprotogen: complete" }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_parse_version() {
         assert_eq!(parse_version("25.1.0", 4), 2500010000);
         assert_eq!(parse_version("3.19.4", 4), 300190004);
     }
-
     #[test]
     fn test_need_to_update() {
         assert!(need_to_update("25.1.0", "24.0.0"));
         assert!(!need_to_update("24.0.0", "25.1.0"));
         assert!(!need_to_update("25.1.0", "25.1.0"));
     }
-
     #[test]
     fn test_find_proto_files() {
         let current_dir = std::env::current_dir().unwrap();

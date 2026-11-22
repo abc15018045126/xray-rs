@@ -16,25 +16,15 @@ impl StaticHosts {
             keywords: RwLock::new(Vec::new()),
         }
     }
-
     pub fn add_exact(&self, domain: &str, ips: Vec<IpAddr>) {
-        if let Ok(mut guard) = self.exact.write() {
-            guard.insert(domain.to_lowercase(), ips);
-        }
+        if let Ok(mut guard) = self.exact.write() { guard.insert(domain.to_lowercase(), ips); }
     }
-
     pub fn add_domain_suffix(&self, suffix: &str, ips: Vec<IpAddr>) {
-        if let Ok(mut guard) = self.domain_suffix.write() {
-            guard.push((suffix.to_lowercase(), ips));
-        }
+        if let Ok(mut guard) = self.domain_suffix.write() { guard.push((suffix.to_lowercase(), ips)); }
     }
-
     pub fn add_keyword(&self, keyword: &str, ips: Vec<IpAddr>) {
-        if let Ok(mut guard) = self.keywords.write() {
-            guard.push((keyword.to_lowercase(), ips));
-        }
+        if let Ok(mut guard) = self.keywords.write() { guard.push((keyword.to_lowercase(), ips)); }
     }
-
     pub fn lookup(&self, domain: &str) -> Option<Vec<IpAddr>> {
         let d = domain.to_lowercase();
         if let Ok(g) = self.exact.read() && let Some(ips) = g.get(&d) { return Some(ips.clone()); }
@@ -51,7 +41,5 @@ impl StaticHosts {
 }
 
 impl Default for StaticHosts {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
 use super::PrefixedStream;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
@@ -24,13 +23,7 @@ impl HttpClient {
             auth: None,
         }
     }
-
-    pub fn with_auth(
-        tag: impl Into<String>,
-        server: Destination,
-        username: &str,
-        password: &str,
-    ) -> Self {
+    pub fn with_auth(tag: impl Into<String>, server: Destination, username: &str, password: &str) -> Self {
         let auth_str = format!("{}:{}", username, password);
         let auth_header = format!("Basic {}", BASE64.encode(auth_str.as_bytes()));
         Self {
@@ -43,28 +36,20 @@ impl HttpClient {
 
 #[async_trait]
 impl OutboundHandler for HttpClient {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = SystemDialer::dial_tcp(&self.server).await?;
         let target = session.destination.to_string();
         let mut req = format!("CONNECT {} HTTP/1.1\r\nHost: {}\r\nProxy-Connection: Keep-Alive\r\n", target, target);
-        if let Some(auth) = &self.auth {
-            req.push_str(&format!("Proxy-Authorization: {}\r\n", auth));
-        }
+        if let Some(auth) = &self.auth { req.push_str(&format!("Proxy-Authorization: {}\r\n", auth)); }
         req.push_str("\r\n");
         stream.write_all(req.as_bytes()).await?;
         stream.flush().await?;
-
         let mut buf = vec![0u8; 4096];
         let (mut total, mut header_len, mut status_code) = (0, 0, 0);
         while total < buf.len() {
             let n = stream.read(&mut buf[total..]).await?;
-            if n == 0 {
-                return Err(Error::Closed);
-            }
+            if n == 0 { return Err(Error::Closed); }
             total += n;
             let mut headers = [httparse::EMPTY_HEADER; 32];
             let mut resp = httparse::Response::new(&mut headers);
@@ -76,7 +61,6 @@ impl OutboundHandler for HttpClient {
         if status_code != 200 {
             return Err(Error::Protocol(format!("HTTP proxy server responded with status: {}", status_code)));
         }
-
         let boxed: BoxStream = Box::pin(stream);
         if total > header_len {
             Ok(Box::pin(PrefixedStream::new(buf[header_len..total].to_vec(), boxed)))

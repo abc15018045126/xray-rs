@@ -15,19 +15,7 @@ impl UDPHopAddr {
             port_str: port_str.into(),
         }
     }
-
-    pub fn network(&self) -> &'static str {
-        "udphop"
-    }
-
-    pub fn to_string(&self) -> String {
-        format!("{}:{}", self.ip, self.port_str)
-    }
-
-    pub fn addrs(&self) -> Vec<SocketAddr> {
-        self.ports
-            .iter()
-            .map(|&p| SocketAddr::new(self.ip, p))
-            .collect()
-    }
+    pub fn network(&self) -> &'static str { "udphop" }
+    pub fn to_string(&self) -> String { format!("{}:{}", self.ip, self.port_str) }
+    pub fn addrs(&self) -> Vec<SocketAddr> { self.ports.iter().map(|&p| SocketAddr::new(self.ip, p)).collect() }
 }

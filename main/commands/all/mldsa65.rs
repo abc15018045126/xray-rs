@@ -7,9 +7,7 @@ use sha2::{Digest, Sha256};
 pub fn gen_mldsa65(input_seed: Option<&[u8]>) -> ([u8; 32], Vec<u8>) {
     let mut seed = [0u8; 32];
     if let Some(s) = input_seed {
-        if s.len() == 32 {
-            seed.copy_from_slice(s);
-        }
+        if s.len() == 32 { seed.copy_from_slice(s); }
     } else {
         rand::thread_rng().fill_bytes(&mut seed);
     }
@@ -31,26 +29,19 @@ pub fn cmd_mldsa65() -> Command {
         let mut i = 0;
         while i < args.len() {
             if args[i] == "-i" && i + 1 < args.len() {
-                if let Ok(s) = URL_SAFE_NO_PAD.decode(args[i + 1]) {
-                    input_seed = Some(s);
-                }
+                if let Ok(s) = URL_SAFE_NO_PAD.decode(args[i + 1]) { input_seed = Some(s); }
                 i += 1;
             }
             i += 1;
         }
         let (seed, verify) = gen_mldsa65(input_seed.as_deref());
-        Ok(format!(
-            "Seed: {}\nVerify: {}",
-            URL_SAFE_NO_PAD.encode(seed),
-            URL_SAFE_NO_PAD.encode(&verify)
-        ))
+        Ok(format!("Seed: {}\nVerify: {}", URL_SAFE_NO_PAD.encode(seed), URL_SAFE_NO_PAD.encode(&verify)))
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_mldsa65_command() {
         let cmd = cmd_mldsa65();

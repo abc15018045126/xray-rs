@@ -3,17 +3,10 @@ pub struct GVisorEndpoint {
 }
 
 impl GVisorEndpoint {
-    pub fn new() -> Self {
-        Self { channel_id: 1 }
-    }
-
-    pub fn id(&self) -> u64 {
-        self.channel_id
-    }
+    pub fn new() -> Self { Self { channel_id: 1 } }
+    pub fn id(&self) -> u64 { self.channel_id }
 }
 
 impl Default for GVisorEndpoint {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

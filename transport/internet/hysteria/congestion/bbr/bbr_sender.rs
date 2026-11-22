@@ -26,14 +26,9 @@ impl BbrSender {
             congestion_window: 64 * 1024,
         }
     }
-
-    pub fn pacing_rate(&self) -> Bandwidth {
-        Bandwidth(self.max_bandwidth.get_best())
-    }
+    pub fn pacing_rate(&self) -> Bandwidth { Bandwidth(self.max_bandwidth.get_best()) }
 }
 
 impl Default for BbrSender {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

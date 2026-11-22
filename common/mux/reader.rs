@@ -17,15 +17,9 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
             dest,
         }
     }
-
-    pub fn destination(&self) -> Option<&Destination> {
-        self.dest.as_ref()
-    }
-
+    pub fn destination(&self) -> Option<&Destination> { self.dest.as_ref() }
     pub async fn read_packet(&mut self) -> Result<Option<Vec<u8>>> {
-        if self.eof {
-            return Ok(None);
-        }
+        if self.eof { return Ok(None); }
         let size = match self.reader.read_u16().await {
             Ok(s) => s as usize,
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
@@ -34,7 +28,6 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
             }
             Err(e) => return Err(e.into()),
         };
-
         let mut buf = vec![0u8; size];
         self.reader.read_exact(&mut buf).await?;
         self.eof = true;
@@ -47,19 +40,14 @@ pub struct StreamReader<R> {
 }
 
 impl<R: AsyncRead + Unpin> StreamReader<R> {
-    pub fn new(reader: R) -> Self {
-        Self { reader }
-    }
-
+    pub fn new(reader: R) -> Self { Self { reader } }
     pub async fn read_chunk(&mut self) -> Result<Option<Vec<u8>>> {
         let size = match self.reader.read_u16().await {
             Ok(s) => s as usize,
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        if size == 0 {
-            return Ok(None);
-        }
+        if size == 0 { return Ok(None); }
         let mut buf = vec![0u8; size];
         self.reader.read_exact(&mut buf).await?;
         Ok(Some(buf))
@@ -71,11 +59,6 @@ pub struct FrameReader<R> {
 }
 
 impl<R: AsyncRead + Unpin> FrameReader<R> {
-    pub fn new(reader: R) -> Self {
-        Self { reader }
-    }
-
-    pub async fn read_frame(&mut self) -> Result<Frame> {
-        Frame::read_from(&mut self.reader).await
-    }
+    pub fn new(reader: R) -> Self { Self { reader } }
+    pub async fn read_frame(&mut self) -> Result<Frame> { Frame::read_from(&mut self.reader).await }
 }

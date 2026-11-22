@@ -22,14 +22,9 @@ impl Portal {
             channel_rx: Arc::new(Mutex::new(rx)),
         }
     }
-
     pub async fn dispatch(&self, stream: BoxStream) -> Result<()> {
-        self.channel_tx
-            .send(stream)
-            .await
-            .map_err(|_| Error::Closed)
+        self.channel_tx.send(stream).await.map_err(|_| Error::Closed)
     }
-
     pub async fn pull_stream(&self) -> Option<BoxStream> {
         let mut rx = self.channel_rx.lock().await;
         rx.recv().await
@@ -56,9 +51,7 @@ pub struct ReverseManager {
 }
 
 impl Default for ReverseManager {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl ReverseManager {
@@ -68,50 +61,23 @@ impl ReverseManager {
             bridges: HashMap::new(),
         }
     }
-
     pub fn with_config(config: ReverseConfig) -> Self {
         let mut portals = HashMap::new();
-        for p in config.portals {
-            portals.insert(p.tag.clone(), Arc::new(Portal::new(p.tag, p.domain)));
-        }
-
+        for p in config.portals { portals.insert(p.tag.clone(), Arc::new(Portal::new(p.tag, p.domain))); }
         let mut bridges = HashMap::new();
-        for b in config.bridges {
-            bridges.insert(b.tag.clone(), Arc::new(Bridge::new(b.tag, b.domain)));
-        }
-
+        for b in config.bridges { bridges.insert(b.tag.clone(), Arc::new(Bridge::new(b.tag, b.domain))); }
         Self { portals, bridges }
     }
-
-    pub fn register_portal(&mut self, portal: Portal) {
-        self.portals.insert(portal.tag.clone(), Arc::new(portal));
-    }
-
-    pub fn register_bridge(&mut self, bridge: Bridge) {
-        self.bridges.insert(bridge.tag.clone(), Arc::new(bridge));
-    }
-
+    pub fn register_portal(&mut self, portal: Portal) { self.portals.insert(portal.tag.clone(), Arc::new(portal)); }
+    pub fn register_bridge(&mut self, bridge: Bridge) { self.bridges.insert(bridge.tag.clone(), Arc::new(bridge)); }
     pub fn get_portal(&self, key: &str) -> Option<Arc<Portal>> {
-        if let Some(p) = self.portals.get(key) {
-            return Some(p.clone());
-        }
-        for p in self.portals.values() {
-            if p.domain == key {
-                return Some(p.clone());
-            }
-        }
+        if let Some(p) = self.portals.get(key) { return Some(p.clone()); }
+        for p in self.portals.values() { if p.domain == key { return Some(p.clone()); } }
         None
     }
-
     pub fn get_bridge(&self, key: &str) -> Option<Arc<Bridge>> {
-        if let Some(b) = self.bridges.get(key) {
-            return Some(b.clone());
-        }
-        for b in self.bridges.values() {
-            if b.domain == key {
-                return Some(b.clone());
-            }
-        }
+        if let Some(b) = self.bridges.get(key) { return Some(b.clone()); }
+        for b in self.bridges.values() { if b.domain == key { return Some(b.clone()); } }
         None
     }
 }

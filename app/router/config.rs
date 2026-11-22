@@ -9,7 +9,5 @@ pub struct RouterConfig {
 }
 
 impl RouterConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 }

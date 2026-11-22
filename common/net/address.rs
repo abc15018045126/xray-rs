@@ -3,7 +3,6 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use std::sync::LazyLock;
-
 use crate::common::errors::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -15,48 +14,27 @@ pub enum AddressFamily {
 }
 
 impl AddressFamily {
-    pub fn is_ipv4(&self) -> bool {
-        *self == AddressFamily::IPv4
-    }
-    pub fn is_ipv6(&self) -> bool {
-        *self == AddressFamily::IPv6
-    }
-    pub fn is_ip(&self) -> bool {
-        *self == AddressFamily::IPv4 || *self == AddressFamily::IPv6
-    }
-    pub fn is_domain(&self) -> bool {
-        *self == AddressFamily::Domain
-    }
+    pub fn is_ipv4(&self) -> bool { *self == AddressFamily::IPv4 }
+    pub fn is_ipv6(&self) -> bool { *self == AddressFamily::IPv6 }
+    pub fn is_ip(&self) -> bool { *self == AddressFamily::IPv4 || *self == AddressFamily::IPv6 }
+    pub fn is_domain(&self) -> bool { *self == AddressFamily::Domain }
 }
 
-pub static LOCAL_HOST_IP: LazyLock<Address> =
-    LazyLock::new(|| Address::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
+pub static LOCAL_HOST_IP: LazyLock<Address> = LazyLock::new(|| Address::Ipv4(Ipv4Addr::new(127, 0, 0, 1)));
 pub static ANY_IP: LazyLock<Address> = LazyLock::new(|| Address::Ipv4(Ipv4Addr::new(0, 0, 0, 0)));
-pub static LOCAL_HOST_DOMAIN: LazyLock<Address> =
-    LazyLock::new(|| Address::Domain("localhost".into()));
-pub static LOCAL_HOST_IPV6: LazyLock<Address> =
-    LazyLock::new(|| Address::Ipv6(Ipv6Addr::LOCALHOST));
+pub static LOCAL_HOST_DOMAIN: LazyLock<Address> = LazyLock::new(|| Address::Domain("localhost".into()));
+pub static LOCAL_HOST_IPV6: LazyLock<Address> = LazyLock::new(|| Address::Ipv6(Ipv6Addr::LOCALHOST));
 pub static ANY_IPV6: LazyLock<Address> = LazyLock::new(|| Address::Ipv6(Ipv6Addr::UNSPECIFIED));
 
-pub fn local_host_ip() -> Address {
-    Address::Ipv4(Ipv4Addr::new(127, 0, 0, 1))
-}
+pub fn local_host_ip() -> Address { Address::Ipv4(Ipv4Addr::new(127, 0, 0, 1)) }
 
-pub fn any_ip() -> Address {
-    Address::Ipv4(Ipv4Addr::new(0, 0, 0, 0))
-}
+pub fn any_ip() -> Address { Address::Ipv4(Ipv4Addr::new(0, 0, 0, 0)) }
 
-pub fn local_host_domain() -> Address {
-    Address::Domain("localhost".into())
-}
+pub fn local_host_domain() -> Address { Address::Domain("localhost".into()) }
 
-pub fn local_host_ipv6() -> Address {
-    Address::Ipv6(Ipv6Addr::LOCALHOST)
-}
+pub fn local_host_ipv6() -> Address { Address::Ipv6(Ipv6Addr::LOCALHOST) }
 
-pub fn any_ipv6() -> Address {
-    Address::Ipv6(Ipv6Addr::UNSPECIFIED)
-}
+pub fn any_ipv6() -> Address { Address::Ipv6(Ipv6Addr::UNSPECIFIED) }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Address {
@@ -78,11 +56,7 @@ impl Address {
             }
         }
     }
-
-    pub fn ipv4(v4: Ipv4Addr) -> Self {
-        Address::Ipv4(v4)
-    }
-
+    pub fn ipv4(v4: Ipv4Addr) -> Self { Address::Ipv4(v4) }
     pub fn ipv6(v6: Ipv6Addr) -> Self {
         if let Some(v4) = v6.to_ipv4_mapped() {
             Address::Ipv4(v4)
@@ -90,27 +64,11 @@ impl Address {
             Address::Ipv6(v6)
         }
     }
-
-    pub fn domain(domain: impl Into<String>) -> Self {
-        Address::Domain(domain.into())
-    }
-
-    pub fn is_ip(&self) -> bool {
-        matches!(self, Address::Ipv4(_) | Address::Ipv6(_))
-    }
-
-    pub fn is_ipv4(&self) -> bool {
-        matches!(self, Address::Ipv4(_))
-    }
-
-    pub fn is_ipv6(&self) -> bool {
-        matches!(self, Address::Ipv6(_))
-    }
-
-    pub fn is_domain(&self) -> bool {
-        matches!(self, Address::Domain(_))
-    }
-
+    pub fn domain(domain: impl Into<String>) -> Self { Address::Domain(domain.into()) }
+    pub fn is_ip(&self) -> bool { matches!(self, Address::Ipv4(_) | Address::Ipv6(_)) }
+    pub fn is_ipv4(&self) -> bool { matches!(self, Address::Ipv4(_)) }
+    pub fn is_ipv6(&self) -> bool { matches!(self, Address::Ipv6(_)) }
+    pub fn is_domain(&self) -> bool { matches!(self, Address::Domain(_)) }
     pub fn family(&self) -> AddressFamily {
         match self {
             Address::Ipv4(_) => AddressFamily::IPv4,
@@ -118,7 +76,6 @@ impl Address {
             Address::Domain(_) => AddressFamily::Domain,
         }
     }
-
     pub fn to_ip(&self) -> Option<IpAddr> {
         match self {
             Address::Ipv4(ip) => Some(IpAddr::V4(*ip)),
@@ -126,11 +83,7 @@ impl Address {
             Address::Domain(_) => None,
         }
     }
-
-    pub fn as_ip(&self) -> Option<IpAddr> {
-        self.to_ip()
-    }
-
+    pub fn as_ip(&self) -> Option<IpAddr> { self.to_ip() }
     pub fn ip_bytes(&self) -> Option<Vec<u8>> {
         match self {
             Address::Ipv4(v4) => Some(v4.octets().to_vec()),
@@ -138,7 +91,6 @@ impl Address {
             Address::Domain(_) => None,
         }
     }
-
     pub fn domain_name(&self) -> Option<&str> {
         match self {
             Address::Domain(d) => Some(d.as_str()),
@@ -159,7 +111,6 @@ impl fmt::Display for Address {
 
 impl FromStr for Address {
     type Err = Error;
-
     fn from_str(s: &str) -> Result<Self> {
         let trimmed = s.trim();
         let cleaned = trimmed.strip_prefix('[').and_then(|r| r.strip_suffix(']')).unwrap_or(trimmed);
@@ -175,31 +126,22 @@ impl FromStr for Address {
 }
 
 impl From<IpAddr> for Address {
-    fn from(ip: IpAddr) -> Self {
-        Address::ip(ip)
-    }
+    fn from(ip: IpAddr) -> Self { Address::ip(ip) }
 }
 
 impl From<Ipv4Addr> for Address {
-    fn from(v4: Ipv4Addr) -> Self {
-        Address::Ipv4(v4)
-    }
+    fn from(v4: Ipv4Addr) -> Self { Address::Ipv4(v4) }
 }
 
 impl From<Ipv6Addr> for Address {
-    fn from(v6: Ipv6Addr) -> Self {
-        Address::ipv6(v6)
-    }
+    fn from(v6: Ipv6Addr) -> Self { Address::ipv6(v6) }
 }
 
 pub fn parse_address(addr: &str) -> Address {
-    addr.parse::<Address>()
-        .unwrap_or_else(|_| Address::Domain(addr.to_string()))
+    addr.parse::<Address>().unwrap_or_else(|_| Address::Domain(addr.to_string()))
 }
 
-pub fn ip_address(ip: impl Into<IpAddr>) -> Address {
-    Address::ip(ip.into())
-}
+pub fn ip_address(ip: impl Into<IpAddr>) -> Address { Address::ip(ip.into()) }
 
 pub fn ip_address_from_bytes(bytes: &[u8]) -> Option<Address> {
     match bytes.len() {
@@ -223,6 +165,4 @@ pub fn ip_address_from_bytes(bytes: &[u8]) -> Option<Address> {
     }
 }
 
-pub fn domain_address(domain: impl Into<String>) -> Address {
-    Address::Domain(domain.into())
-}
+pub fn domain_address(domain: impl Into<String>) -> Address { Address::Domain(domain.into()) }

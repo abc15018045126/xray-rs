@@ -17,12 +17,7 @@ where
     F: Fn(SocketAddr) -> Result<TcpListener> + Send + Sync + 'static,
 {
     let mut map = TRANSPORT_LISTENERS.lock().unwrap();
-    if map.contains_key(protocol) {
-        return Err(Error::Protocol(format!(
-            "{} listener already registered",
-            protocol
-        )));
-    }
+    if map.contains_key(protocol) { return Err(Error::Protocol(format!("{} listener already registered", protocol))); }
     map.insert(protocol.to_string(), Arc::new(listener));
     Ok(())
 }
@@ -35,10 +30,7 @@ pub async fn listen_tcp(address: &Address, port: u16) -> Result<TcpListener> {
             if domain == "localhost" {
                 SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), port)
             } else {
-                return Err(Error::Protocol(format!(
-                    "Domain address not allowed for listening: {}",
-                    domain
-                )));
+                return Err(Error::Protocol(format!("Domain address not allowed for listening: {}", domain)));
             }
         }
     };

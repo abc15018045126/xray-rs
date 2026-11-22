@@ -16,15 +16,9 @@ impl TypedMessage {
             value,
         }
     }
-
-    pub fn type_name(&self) -> &str {
-        &self.r#type
-    }
-
+    pub fn type_name(&self) -> &str { &self.r#type }
     pub fn get_instance(&self) -> Result<&[u8]> {
-        if self.r#type.is_empty() {
-            return Err(Error::Config("empty message type".to_string()));
-        }
+        if self.r#type.is_empty() { return Err(Error::Config("empty message type".to_string())); }
         Ok(&self.value)
     }
 }
@@ -34,8 +28,6 @@ pub fn to_typed_message(message: Option<(&str, Vec<u8>)>) -> Option<TypedMessage
 }
 
 pub fn get_instance(message_type: &str) -> Result<Option<TypedMessage>> {
-    if message_type.is_empty() {
-        return Err(Error::Config("empty message type".to_string()));
-    }
+    if message_type.is_empty() { return Err(Error::Config("empty message type".to_string())); }
     Ok(None)
 }

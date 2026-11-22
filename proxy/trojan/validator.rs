@@ -7,37 +7,20 @@ pub struct PasswordValidator {
 }
 
 impl PasswordValidator {
-    pub fn new() -> Self {
-        Self {
-            hashes: RwLock::new(HashSet::new()),
-        }
-    }
-
+    pub fn new() -> Self { Self { hashes: RwLock::new(HashSet::new()), } }
     pub fn add_password(&self, password: &str) {
         let hash = hash_password(password);
-        if let Ok(mut guard) = self.hashes.write() {
-            guard.insert(hash);
-        }
+        if let Ok(mut guard) = self.hashes.write() { guard.insert(hash); }
     }
-
-    pub fn add(&self, password: &str) {
-        self.add_password(password);
-    }
-
+    pub fn add(&self, password: &str) { self.add_password(password); }
     pub fn del(&self, password: &str) -> bool {
         let hash = hash_password(password);
         self.hashes.write().map(|mut g| g.remove(&hash)).unwrap_or(false)
     }
-
-    pub fn get_count(&self) -> usize {
-        self.hashes.read().map(|g| g.len()).unwrap_or(0)
-    }
-
+    pub fn get_count(&self) -> usize { self.hashes.read().map(|g| g.len()).unwrap_or(0) }
     pub fn validate(&self, hash: &[u8; 56]) -> bool {
         if let Ok(guard) = self.hashes.read() {
-            if guard.is_empty() {
-                return true;
-            }
+            if guard.is_empty() { return true; }
             return guard.contains(hash);
         }
         false
@@ -45,7 +28,5 @@ impl PasswordValidator {
 }
 
 impl Default for PasswordValidator {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

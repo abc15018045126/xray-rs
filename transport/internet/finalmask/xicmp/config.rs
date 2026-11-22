@@ -12,13 +12,9 @@ pub struct XIcmpConfig {
     pub payload_size: usize,
 }
 
-fn default_icmp_id() -> u16 {
-    0x1234
-}
+fn default_icmp_id() -> u16 { 0x1234 }
 
-fn default_icmp_seq() -> u16 {
-    1
-}
+fn default_icmp_seq() -> u16 { 1 }
 
 impl Default for XIcmpConfig {
     fn default() -> Self {

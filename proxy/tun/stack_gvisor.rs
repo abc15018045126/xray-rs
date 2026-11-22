@@ -3,19 +3,12 @@ pub struct GVisorStack {
 }
 
 impl GVisorStack {
-    pub fn new() -> Self {
-        Self { mtu: 1500 }
-    }
-
-    pub fn with_mtu(mtu: u32) -> Self {
-        Self { mtu }
-    }
+    pub fn new() -> Self { Self { mtu: 1500 } }
+    pub fn with_mtu(mtu: u32) -> Self { Self { mtu } }
 }
 
 impl Default for GVisorStack {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 pub type GVisorTunStack = GVisorStack;

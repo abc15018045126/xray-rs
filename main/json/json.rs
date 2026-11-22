@@ -7,10 +7,7 @@ pub fn load_json_from_slice(data: &[u8]) -> Result<Config> {
 }
 
 pub fn load_json_configs(files: &[&str]) -> Result<Config> {
-    if files.is_empty() {
-        return Err(Error::Config("no config files specified".into()));
-    }
-
+    if files.is_empty() { return Err(Error::Config("no config files specified".into())); }
     let mut cf = Config::default();
     for (i, file) in files.iter().enumerate() {
         let content = std::fs::read_to_string(file)
@@ -31,7 +28,6 @@ pub use load_json_configs as load_json;
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_load_json_from_slice() {
         let raw = br#"{"log": {"loglevel": "info"}}"#;

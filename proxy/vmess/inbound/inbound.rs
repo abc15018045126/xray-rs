@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use uuid::Uuid;
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Network};
 use crate::common::protocol::{RequestCommand, SessionContext, User};
@@ -18,15 +17,12 @@ pub struct Server {
 impl Server {
     pub fn new(tag: impl Into<String>, users: Vec<Uuid>) -> Self {
         let validator = MemoryValidator::new();
-        for u in users {
-            let _ = validator.add(User::new(u));
-        }
+        for u in users { let _ = validator.add(User::new(u)); }
         Self {
             tag: tag.into(),
             validator: Arc::new(validator),
         }
     }
-
     pub fn with_validator(tag: impl Into<String>, validator: Arc<MemoryValidator>) -> Self {
         Self {
             tag: tag.into(),
@@ -37,10 +33,7 @@ impl Server {
 
 #[async_trait]
 impl InboundHandler for Server {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let req = RequestHeader::decode(&mut stream).await?;
         if self.validator.count() > 0 && self.validator.get(&req.user_id).is_none() {

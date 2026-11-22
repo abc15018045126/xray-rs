@@ -18,15 +18,9 @@ pub struct CacheController {
 }
 
 impl CacheController {
-    pub fn new(
-        name: String,
-        disable_cache: bool,
-        serve_stale: bool,
-        serve_expired_ttl: Duration,
-    ) -> Self {
+    pub fn new(name: String, disable_cache: bool, serve_stale: bool, serve_expired_ttl: Duration) -> Self {
         let records = Arc::new(RwLock::new(HashMap::<String, DnsRecord>::new()));
-        if !disable_cache
-            && let Ok(handle) = tokio::runtime::Handle::try_current()
+        if !disable_cache && let Ok(handle) = tokio::runtime::Handle::try_current()
         {
             let cleaner = Arc::clone(&records);
             handle.spawn(async move {
@@ -38,40 +32,28 @@ impl CacheController {
                         let before = guard.len();
                         let extra = if serve_stale { serve_expired_ttl } else { Duration::ZERO };
                         guard.retain(|_, r| now <= r.expire_at + extra);
-                        if guard.len() < before {
-                            guard.shrink_to_fit();
-                        }
+                        if guard.len() < before { guard.shrink_to_fit(); }
                     }
                 }
             });
         }
         Self { name, disable_cache, serve_stale, serve_expired_ttl, records }
     }
-
     pub fn get(&self, domain: &str) -> Option<Vec<IpAddr>> {
-        if self.disable_cache {
-            return None;
-        }
-
+        if self.disable_cache { return None; }
         let domain_lower = domain.to_lowercase();
         let guard = self.records.read().ok()?;
         let record = guard.get(&domain_lower)?;
-
         let now = Instant::now();
-        if now <= record.expire_at
-            || (self.serve_stale && now <= record.expire_at + self.serve_expired_ttl)
+        if now <= record.expire_at || (self.serve_stale && now <= record.expire_at + self.serve_expired_ttl)
         {
             Some(record.ips.clone())
         } else {
             None
         }
     }
-
     pub fn set(&self, domain: &str, ips: Vec<IpAddr>, ttl: Duration) {
-        if self.disable_cache {
-            return;
-        }
-
+        if self.disable_cache { return; }
         let domain_lower = domain.to_lowercase();
         if let Ok(mut guard) = self.records.write() {
             guard.insert(
@@ -83,7 +65,6 @@ impl CacheController {
             );
         }
     }
-
     pub fn cleanup_expired(&self) {
         let now = Instant::now();
         if let Ok(mut guard) = self.records.write() {
@@ -95,21 +76,10 @@ impl CacheController {
                     now <= r.expire_at
                 }
             });
-            if guard.len() < len_before {
-                guard.shrink_to_fit();
-            }
+            if guard.len() < len_before { guard.shrink_to_fit(); }
         }
     }
-
-    pub fn cache_cleanup(&self) {
-        self.cleanup_expired();
-    }
-
-    pub fn len(&self) -> usize {
-        self.records.read().map(|g| g.len()).unwrap_or(0)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+    pub fn cache_cleanup(&self) { self.cleanup_expired(); }
+    pub fn len(&self) -> usize { self.records.read().map(|g| g.len()).unwrap_or(0) }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 }

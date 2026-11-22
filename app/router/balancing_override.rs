@@ -13,16 +13,7 @@ impl BalancingOverride {
             target: target.into(),
         }
     }
-
-    pub fn get(&self) -> &str {
-        &self.target
-    }
-
-    pub fn put(&mut self, target: impl Into<String>) {
-        self.target = target.into();
-    }
-
-    pub fn clear(&mut self) {
-        self.target.clear();
-    }
+    pub fn get(&self) -> &str { &self.target }
+    pub fn put(&mut self, target: impl Into<String>) { self.target = target.into(); }
+    pub fn clear(&mut self) { self.target.clear(); }
 }

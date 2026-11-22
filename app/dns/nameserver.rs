@@ -12,12 +12,8 @@ use tokio::net::{TcpStream, UdpSocket};
 pub trait NameServer: Send + Sync {
     fn name(&self) -> &str;
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>>;
-    fn is_disable_cache(&self) -> bool {
-        false
-    }
-    fn routes_via_proxy(&self) -> bool {
-        false
-    }
+    fn is_disable_cache(&self) -> bool { false }
+    fn routes_via_proxy(&self) -> bool { false }
 }
 
 pub struct UdpNameServer {
@@ -34,7 +30,6 @@ impl UdpNameServer {
             timeout: Duration::from_secs(5),
         }
     }
-
     pub fn with_timeout(server_addr: SocketAddr, timeout: Duration) -> Self {
         Self {
             name: format!("udp://{}", server_addr),
@@ -46,10 +41,7 @@ impl UdpNameServer {
 
 #[async_trait]
 impl NameServer for UdpNameServer {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
+    fn name(&self) -> &str { &self.name }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         #[cfg(target_os = "windows")]
         let socket = {
@@ -84,10 +76,7 @@ impl TcpNameServer {
 
 #[async_trait]
 impl NameServer for TcpNameServer {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
+    fn name(&self) -> &str { &self.name }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let mut stream = pingora_timeout::timeout(
             self.timeout,
@@ -120,10 +109,7 @@ impl FakeDnsNameServer {
 
 #[async_trait]
 impl NameServer for FakeDnsNameServer {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
+    fn name(&self) -> &str { &self.name }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let ip = self.holder.get_fake_ip_for_domain(domain);
         Ok(vec![IpAddr::V4(ip)])
@@ -135,47 +121,31 @@ pub struct LocalNameServer {
 }
 
 impl LocalNameServer {
-    pub fn new() -> Self {
-        Self {
-            name: "local".into(),
-        }
-    }
+    pub fn new() -> Self { Self { name: "local".into(), } }
 }
 
 impl Default for LocalNameServer {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[async_trait]
 impl NameServer for LocalNameServer {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
+    fn name(&self) -> &str { &self.name }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let addr_str = format!("{}:80", domain);
         let addrs = tokio::net::lookup_host(addr_str).await.map_err(Error::Io)?;
         let ips: Vec<IpAddr> = addrs.map(|s| s.ip()).collect();
         if ips.is_empty() {
-            Err(Error::NotFound(format!(
-                "Local DNS could not resolve {}",
-                domain
-            )))
+            Err(Error::NotFound(format!("Local DNS could not resolve {}", domain)))
         } else {
             Ok(ips)
         }
     }
 }
 
-pub fn build_dns_query(domain: &str) -> Vec<u8> {
-    build_dns_query_typed(domain, 1)
-}
+pub fn build_dns_query(domain: &str) -> Vec<u8> { build_dns_query_typed(domain, 1) }
 
-pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> {
-    build_dns_query_with_ecs(domain, qtype, None)
-}
+pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> { build_dns_query_with_ecs(domain, qtype, None) }
 
 pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAddr>) -> Vec<u8> {
     let mut query = vec![
@@ -188,7 +158,6 @@ pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAd
     query.push(0x00);
     query.extend_from_slice(&qtype.to_be_bytes());
     query.extend_from_slice(&[0x00, 0x01]);
-
     if let Some(ip) = client_ip {
         match ip {
             IpAddr::V4(v4) => {
@@ -215,14 +184,11 @@ pub fn parse_dns_response(resp: &[u8], domain: &str) -> Result<Vec<IpAddr>> {
 
 pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpAddr>, u32)> {
     let n = resp.len();
-    if n < 12 {
-        return Err(Error::Protocol("DNS response too short (< 12 bytes)".into()));
-    }
+    if n < 12 { return Err(Error::Protocol("DNS response too short (< 12 bytes)".into())); }
     let rcode = resp[3] & 0x0F;
     if rcode != 0 {
         return Err(Error::NotFound(format!("DNS server returned error code {} for domain {}", rcode, domain)));
     }
-
     let qdcount = u16::from_be_bytes([resp[4], resp[5]]) as usize;
     let ancount = u16::from_be_bytes([resp[6], resp[7]]) as usize;
     let skip_name = |pos: &mut usize| {
@@ -239,32 +205,22 @@ pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpA
             *pos += 1 + len;
         }
     };
-
     let mut pos = 12;
     for _ in 0..qdcount {
         skip_name(&mut pos);
         pos += 4;
     }
-    if pos > n {
-        return Err(Error::Protocol("Malformed DNS response questions".into()));
-    }
-
+    if pos > n { return Err(Error::Protocol("Malformed DNS response questions".into())); }
     let (mut ips, mut min_ttl) = (Vec::new(), u32::MAX);
     for _ in 0..ancount {
-        if pos >= n {
-            break;
-        }
+        if pos >= n { break; }
         skip_name(&mut pos);
-        if pos + 10 > n {
-            break;
-        }
+        if pos + 10 > n { break; }
         let rtype = u16::from_be_bytes([resp[pos], resp[pos + 1]]);
         let ttl = u32::from_be_bytes([resp[pos + 4], resp[pos + 5], resp[pos + 6], resp[pos + 7]]);
         let rdlength = u16::from_be_bytes([resp[pos + 8], resp[pos + 9]]) as usize;
         pos += 10;
-        if pos + rdlength > n {
-            break;
-        }
+        if pos + rdlength > n { break; }
         match (rtype, rdlength) {
             (1, 4) => {
                 let b: [u8; 4] = resp[pos..pos + 4].try_into().unwrap();
@@ -280,7 +236,6 @@ pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpA
         }
         pos += rdlength;
     }
-
     if ips.is_empty() {
         Err(Error::NotFound(format!("No IP resolved for {}", domain)))
     } else {

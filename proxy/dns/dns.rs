@@ -1,14 +1,12 @@
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Duration;
-
 use async_trait::async_trait;
 use hickory_proto::op::{Message, OpCode, ResponseCode};
 use hickory_proto::rr::rdata::{A, AAAA};
 use hickory_proto::rr::{RData, Record, RecordType};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use pingora_timeout::timeout;
-
 use crate::app::dns::DnsClient;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination, Network};
@@ -23,9 +21,7 @@ pub struct DefaultDnsHandler {
 }
 
 impl DefaultDnsHandler {
-    pub fn new(tag: impl Into<String>) -> Self {
-        Self { tag: tag.into() }
-    }
+    pub fn new(tag: impl Into<String>) -> Self { Self { tag: tag.into() } }
 }
 
 #[derive(Clone)]
@@ -35,26 +31,19 @@ pub struct DnsOutbound {
 }
 
 impl DnsOutbound {
-    pub fn new(tag: String, dns_client: Arc<DnsClient>) -> Self {
-        Self { tag, dns_client }
-    }
-
+    pub fn new(tag: String, dns_client: Arc<DnsClient>) -> Self { Self { tag, dns_client } }
     async fn handle_dns_message(&self, raw_query: &[u8]) -> Option<Vec<u8>> {
         let req = Message::from_vec(raw_query).ok()?;
         let q = req.queries.first()?.clone();
         let domain = q.name().to_utf8();
         let clean = domain.trim_end_matches('.');
-        if clean.is_empty() {
-            return None;
-        }
-
+        if clean.is_empty() { return None; }
         let mut resp = Message::response(req.metadata.id, OpCode::Query);
         resp.metadata.authoritative = true;
         resp.metadata.recursion_desired = true;
         resp.metadata.recursion_available = true;
         resp.metadata.response_code = ResponseCode::NoError;
         resp.queries.push(q.clone());
-
         match q.query_type() {
             RecordType::A => {
                 let opt = IPOption { ipv4_enable: true, ipv6_enable: false, fake_enable: true };
@@ -83,31 +72,22 @@ impl DnsOutbound {
             }
             _ => {}
         }
-
         resp.to_vec().ok()
     }
-
     pub async fn process<S>(&self, mut stream: S, dest: Destination) -> Result<()>
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
         let is_tcp = dest.network == Network::Tcp;
         let mut buf = vec![0u8; 4096];
-
         loop {
             let query_bytes: Vec<u8> = if is_tcp {
                 let mut len_buf = [0u8; 2];
-                if !matches!(timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut len_buf)).await, Ok(Ok(_))) {
-                    break;
-                }
+                if !matches!(timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut len_buf)).await, Ok(Ok(_))) { break; }
                 let msg_len = u16::from_be_bytes(len_buf) as usize;
-                if msg_len == 0 {
-                    break;
-                }
+                if msg_len == 0 { break; }
                 let mut msg = vec![0u8; msg_len];
-                if !matches!(timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut msg)).await, Ok(Ok(_))) {
-                    break;
-                }
+                if !matches!(timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut msg)).await, Ok(Ok(_))) { break; }
                 msg
             } else {
                 match timeout(DNS_IDLE_TIMEOUT, stream.read(&mut buf)).await {
@@ -115,19 +95,14 @@ impl DnsOutbound {
                     _ => break,
                 }
             };
-
             #[cfg(debug_assertions)]
             let _dt0 = std::time::Instant::now();
             let resp_opt = self.handle_dns_message(&query_bytes).await;
             #[cfg(debug_assertions)]
             crate::debug_panel::record_stage("DNS 解析 (proxy/dns)", _dt0.elapsed());
             if let Some(resp_bytes) = resp_opt {
-                if is_tcp && stream.write_all(&(resp_bytes.len() as u16).to_be_bytes()).await.is_err() {
-                    break;
-                }
-                if stream.write_all(&resp_bytes).await.is_err() {
-                    break;
-                }
+                if is_tcp && stream.write_all(&(resp_bytes.len() as u16).to_be_bytes()).await.is_err() { break; }
+                if stream.write_all(&resp_bytes).await.is_err() { break; }
                 let _ = stream.flush().await;
             }
         }
@@ -137,10 +112,7 @@ impl DnsOutbound {
 
 #[async_trait]
 impl OutboundHandler for DnsOutbound {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let (client_io, server_io) = tokio::io::duplex(8192);
         let handler = self.clone();

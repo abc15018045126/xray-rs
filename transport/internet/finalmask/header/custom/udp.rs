@@ -1,5 +1,4 @@
 use rand::Rng;
-
 use super::config::{UDPConfig, UDPItem};
 use crate::common::errors::{Error, Result};
 
@@ -28,48 +27,29 @@ impl UdpCustomClient {
             template,
         }
     }
-
-    pub fn size(&self) -> usize {
-        self.template.len()
-    }
-
-    pub fn serialize(&self, buf: &mut [u8]) {
-        serialize_udp_items(&self.template, &self.client, buf);
-    }
-
+    pub fn size(&self) -> usize { self.template.len() }
+    pub fn serialize(&self, buf: &mut [u8]) { serialize_udp_items(&self.template, &self.client, buf); }
     pub fn matches(&self, packet: &[u8]) -> bool {
         let mut data = packet;
         for item in &self.server {
             let length = (item.rand as usize).max(item.packet.len());
-            if data.len() < length {
-                return false;
-            }
-            if !item.packet.is_empty() && &data[..item.packet.len()] != item.packet.as_slice() {
-                return false;
-            }
+            if data.len() < length { return false; }
+            if !item.packet.is_empty() && &data[..item.packet.len()] != item.packet.as_slice() { return false; }
             data = &data[length..];
         }
         true
     }
-
     pub fn wrap_payload(&self, payload: &[u8]) -> Vec<u8> {
         let mut out = vec![0u8; self.size() + payload.len()];
         self.serialize(&mut out[..self.size()]);
         out[self.size()..].copy_from_slice(payload);
         out
     }
-
     pub fn unwrap_payload<'a>(&self, packet: &'a [u8]) -> Result<&'a [u8]> {
-        if !self.matches(packet) {
-            return Err(Error::Protocol("UDP custom header mismatch".into()));
-        }
+        if !self.matches(packet) { return Err(Error::Protocol("UDP custom header mismatch".into())); }
         let mut consumed = 0;
-        for item in &self.server {
-            consumed += (item.rand as usize).max(item.packet.len());
-        }
-        if packet.len() < consumed {
-            return Err(Error::Protocol("UDP packet too short".into()));
-        }
+        for item in &self.server { consumed += (item.rand as usize).max(item.packet.len()); }
+        if packet.len() < consumed { return Err(Error::Protocol("UDP packet too short".into())); }
         Ok(&packet[consumed..])
     }
 }
@@ -113,48 +93,29 @@ impl UdpCustomServer {
             template,
         }
     }
-
-    pub fn size(&self) -> usize {
-        self.template.len()
-    }
-
-    pub fn serialize(&self, buf: &mut [u8]) {
-        serialize_udp_items(&self.template, &self.server, buf);
-    }
-
+    pub fn size(&self) -> usize { self.template.len() }
+    pub fn serialize(&self, buf: &mut [u8]) { serialize_udp_items(&self.template, &self.server, buf); }
     pub fn matches(&self, packet: &[u8]) -> bool {
         let mut data = packet;
         for item in &self.client {
             let length = (item.rand as usize).max(item.packet.len());
-            if data.len() < length {
-                return false;
-            }
-            if !item.packet.is_empty() && &data[..item.packet.len()] != item.packet.as_slice() {
-                return false;
-            }
+            if data.len() < length { return false; }
+            if !item.packet.is_empty() && &data[..item.packet.len()] != item.packet.as_slice() { return false; }
             data = &data[length..];
         }
         true
     }
-
     pub fn wrap_payload(&self, payload: &[u8]) -> Vec<u8> {
         let mut out = vec![0u8; self.size() + payload.len()];
         self.serialize(&mut out[..self.size()]);
         out[self.size()..].copy_from_slice(payload);
         out
     }
-
     pub fn unwrap_payload<'a>(&self, packet: &'a [u8]) -> Result<&'a [u8]> {
-        if !self.matches(packet) {
-            return Err(Error::Protocol("UDP custom header mismatch".into()));
-        }
+        if !self.matches(packet) { return Err(Error::Protocol("UDP custom header mismatch".into())); }
         let mut consumed = 0;
-        for item in &self.client {
-            consumed += (item.rand as usize).max(item.packet.len());
-        }
-        if packet.len() < consumed {
-            return Err(Error::Protocol("UDP packet too short".into()));
-        }
+        for item in &self.client { consumed += (item.rand as usize).max(item.packet.len()); }
+        if packet.len() < consumed { return Err(Error::Protocol("UDP packet too short".into())); }
         Ok(&packet[consumed..])
     }
 }

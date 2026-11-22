@@ -7,25 +7,13 @@ pub struct SubstrMatcher {
 }
 
 impl SubstrMatcher {
-    pub fn new(pattern: impl Into<String>) -> Self {
-        Self {
-            pattern: pattern.into(),
-        }
-    }
+    pub fn new(pattern: impl Into<String>) -> Self { Self { pattern: pattern.into(), } }
 }
 
 impl Matcher for SubstrMatcher {
-    fn match_str(&self, input: &str) -> bool {
-        input.contains(&self.pattern)
-    }
-
-    fn pattern(&self) -> &str {
-        &self.pattern
-    }
-
-    fn matcher_type(&self) -> MatcherType {
-        MatcherType::Substr
-    }
+    fn match_str(&self, input: &str) -> bool { input.contains(&self.pattern) }
+    fn pattern(&self) -> &str { &self.pattern }
+    fn matcher_type(&self) -> MatcherType { MatcherType::Substr }
 }
 
 pub struct RegexMatcher {
@@ -42,15 +30,7 @@ impl RegexMatcher {
 }
 
 impl Matcher for RegexMatcher {
-    fn match_str(&self, input: &str) -> bool {
-        self.regex.is_match(input)
-    }
-
-    fn pattern(&self) -> &str {
-        &self.pattern
-    }
-
-    fn matcher_type(&self) -> MatcherType {
-        MatcherType::Regex
-    }
+    fn match_str(&self, input: &str) -> bool { self.regex.is_match(input) }
+    fn pattern(&self) -> &str { &self.pattern }
+    fn matcher_type(&self) -> MatcherType { MatcherType::Regex }
 }

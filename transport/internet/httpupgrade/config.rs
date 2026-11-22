@@ -21,14 +21,9 @@ impl HttpUpgradeConfig {
             ..Default::default()
         }
     }
-
     pub fn get_normalized_path(&self) -> String {
-        if self.path.is_empty() {
-            return "/".to_string();
-        }
-        if !self.path.starts_with('/') {
-            return format!("/{}", self.path);
-        }
+        if self.path.is_empty() { return "/".to_string(); }
+        if !self.path.starts_with('/') { return format!("/{}", self.path); }
         self.path.clone()
     }
 }

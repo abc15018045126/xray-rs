@@ -17,7 +17,6 @@ impl QuicVarint {
         }
         Ok(val)
     }
-
     pub fn write(val: u64, buf: &mut Vec<u8>) {
         if val <= 63 {
             buf.push(val as u8);
@@ -55,19 +54,15 @@ impl TcpRequest {
             padding_len,
         }
     }
-
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         let addr_bytes = self.address.as_bytes();
         QuicVarint::write(addr_bytes.len() as u64, &mut buf);
         buf.extend_from_slice(addr_bytes);
         QuicVarint::write(self.padding_len as u64, &mut buf);
-        if self.padding_len > 0 {
-            buf.extend(std::iter::repeat_n(0u8, self.padding_len));
-        }
+        if self.padding_len > 0 { buf.extend(std::iter::repeat_n(0u8, self.padding_len)); }
         buf
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let addr_len = QuicVarint::read(reader).await? as usize;
         if addr_len == 0 || addr_len > MAX_ADDRESS_LENGTH {
@@ -86,17 +81,12 @@ impl TcpRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[tokio::test]
     async fn test_hysteria_tcp_request_roundtrip() {
         let req = TcpRequest::new("example.com:443", 32);
         let encoded = req.encode();
-
         let mut cursor = std::io::Cursor::new(encoded);
-        let decoded = TcpRequest::decode(&mut cursor)
-            .await
-            .expect("decode success");
-
+        let decoded = TcpRequest::decode(&mut cursor).await.expect("decode success");
         assert_eq!(decoded.address, "example.com:443");
         assert_eq!(decoded.padding_len, 32);
     }

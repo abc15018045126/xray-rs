@@ -4,9 +4,7 @@ use crate::main::commands::base::command::Command;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
-pub fn generate_dot_config(fields: &[&str]) -> String {
-    fields.join(".")
-}
+pub fn generate_dot_config(fields: &[&str]) -> String { fields.join(".") }
 
 pub fn cmd_vlessenc() -> Command {
     Command::new("vlessenc", "xray vlessenc", "Generate decryption/encryption json pair (VLESS Encryption)").with_run(|_| {
@@ -29,7 +27,6 @@ pub fn cmd_vlessenc() -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_vlessenc_command() {
         let cmd = cmd_vlessenc();

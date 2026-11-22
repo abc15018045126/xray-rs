@@ -5,24 +5,16 @@ use crate::transport::internet::header::{ConnectionAuthenticator, Header, Packet
 pub struct NoOpHeader;
 
 impl NoOpHeader {
-    pub fn new() -> Self {
-        Self
-    }
+    pub fn new() -> Self { Self }
 }
 
 impl Header for NoOpHeader {
-    fn size(&self) -> usize {
-        0
-    }
-    fn serialize(&self, _buffer: &mut [u8]) -> usize {
-        0
-    }
+    fn size(&self) -> usize { 0 }
+    fn serialize(&self, _buffer: &mut [u8]) -> usize { 0 }
 }
 
 impl PacketHeader for NoOpHeader {
-    fn size(&self) -> i32 {
-        0
-    }
+    fn size(&self) -> i32 { 0 }
     fn serialize(&self, _buffer: &mut [u8]) {}
 }
 
@@ -30,17 +22,10 @@ impl PacketHeader for NoOpHeader {
 pub struct NoOpConnectionHeader;
 
 impl NoOpConnectionHeader {
-    pub fn new() -> Self {
-        Self
-    }
+    pub fn new() -> Self { Self }
 }
 
 impl ConnectionAuthenticator for NoOpConnectionHeader {
-    fn client(&self, stream: BoxStream) -> BoxStream {
-        stream
-    }
-
-    fn server(&self, stream: BoxStream) -> BoxStream {
-        stream
-    }
+    fn client(&self, stream: BoxStream) -> BoxStream { stream }
+    fn server(&self, stream: BoxStream) -> BoxStream { stream }
 }

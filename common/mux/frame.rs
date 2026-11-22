@@ -48,7 +48,6 @@ impl FrameMetadata {
             global_id: [0u8; 8],
         }
     }
-
     pub fn write_to(&self, buf: &mut Vec<u8>) -> Result<()> {
         let len_pos = buf.len();
         buf.extend_from_slice(&[0, 0]);
@@ -68,25 +67,16 @@ impl FrameMetadata {
         buf[len_pos..len_pos + 2].copy_from_slice(&meta_len.to_be_bytes());
         Ok(())
     }
-
     pub fn unmarshal(&mut self, bytes: &[u8]) -> Result<usize> {
-        if bytes.len() < 2 {
-            return Err(Error::Protocol("Insufficient buffer for meta length".into()));
-        }
+        if bytes.len() < 2 { return Err(Error::Protocol("Insufficient buffer for meta length".into())); }
         let meta_len = u16::from_be_bytes([bytes[0], bytes[1]]) as usize;
-        if bytes.len() < 2 + meta_len {
-            return Err(Error::Protocol("Insufficient buffer for metadata".into()));
-        }
-        if meta_len < 4 {
-            return Err(Error::Protocol("Meta length too short".into()));
-        }
-
+        if bytes.len() < 2 + meta_len { return Err(Error::Protocol("Insufficient buffer for metadata".into())); }
+        if meta_len < 4 { return Err(Error::Protocol("Meta length too short".into())); }
         let slice = &bytes[2..2 + meta_len];
         self.session_id = u16::from_be_bytes([slice[0], slice[1]]);
         self.session_status = SessionStatus::from_u8(slice[2])
             .ok_or_else(|| Error::Protocol(format!("Invalid session status: {}", slice[2])))?;
         self.option = slice[3];
-
         if self.session_status == SessionStatus::New && slice.len() >= 8 {
             let network = if slice[4] == TARGET_NETWORK_UDP { Network::Udp } else { Network::Tcp };
             let port = u16::from_be_bytes([slice[5], slice[6]]);
@@ -112,7 +102,6 @@ impl FrameMetadata {
             };
             self.target = Some(Destination { network, address, port });
         }
-
         Ok(2 + meta_len)
     }
 }
@@ -136,7 +125,6 @@ impl Frame {
             payload,
         }
     }
-
     pub fn new_session(session_id: u16, target: Destination, payload: Vec<u8>) -> Self {
         Self {
             session_id,
@@ -146,7 +134,6 @@ impl Frame {
             payload,
         }
     }
-
     pub fn data(session_id: u16, payload: Vec<u8>) -> Self {
         Self {
             session_id,
@@ -156,7 +143,6 @@ impl Frame {
             payload,
         }
     }
-
     pub fn end(session_id: u16) -> Self {
         Self {
             session_id,
@@ -166,14 +152,11 @@ impl Frame {
             payload: Vec::new(),
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut header_buf = Vec::new();
         header_buf.extend_from_slice(&self.session_id.to_be_bytes());
         header_buf.extend_from_slice(&[self.status as u8, self.option]);
-
-        if self.status == SessionStatus::New
-            && let Some(target) = &self.target
+        if self.status == SessionStatus::New && let Some(target) = &self.target
         {
             header_buf.push(if target.network == Network::Udp { TARGET_NETWORK_UDP } else { TARGET_NETWORK_TCP });
             header_buf.extend_from_slice(&target.port.to_be_bytes());
@@ -183,41 +166,25 @@ impl Frame {
                 Address::Domain(d) => { header_buf.push(3); header_buf.push(d.len() as u8); header_buf.extend_from_slice(d.as_bytes()); }
             }
         }
-
         let total = header_buf.len() + self.payload.len();
-        if total > u16::MAX as usize {
-            return Err(Error::BufferOverflow);
-        }
+        if total > u16::MAX as usize { return Err(Error::BufferOverflow); }
         writer.write_u16(total as u16).await?;
         writer.write_all(&header_buf).await?;
-        if !self.payload.is_empty() {
-            writer.write_all(&self.payload).await?;
-        }
+        if !self.payload.is_empty() { writer.write_all(&self.payload).await?; }
         writer.flush().await?;
         Ok(())
     }
-
-    pub async fn write_to<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
-        self.encode(writer).await
-    }
-
-    pub async fn read_from<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
-        Self::decode(reader).await
-    }
-
+    pub async fn write_to<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> { self.encode(writer).await }
+    pub async fn read_from<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> { Self::decode(reader).await }
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let frame_len = reader.read_u16().await? as usize;
-        if frame_len < 4 {
-            return Err(Error::Protocol("Mux frame length too short".into()));
-        }
-
+        if frame_len < 4 { return Err(Error::Protocol("Mux frame length too short".into())); }
         let mut hdr = [0u8; 4];
         reader.read_exact(&mut hdr).await?;
         let session_id = u16::from_be_bytes([hdr[0], hdr[1]]);
         let status = SessionStatus::from_u8(hdr[2])
             .ok_or_else(|| Error::Protocol(format!("Invalid Mux status: {}", hdr[2])))?;
         let option = hdr[3];
-
         let mut bytes_read = 4;
         let target = if status == SessionStatus::New {
             let mut meta = [0u8; 4];
@@ -251,11 +218,8 @@ impl Frame {
         } else {
             None
         };
-
         let mut payload = vec![0u8; frame_len.saturating_sub(bytes_read)];
-        if !payload.is_empty() {
-            reader.read_exact(&mut payload).await?;
-        }
+        if !payload.is_empty() { reader.read_exact(&mut payload).await?; }
         Ok(Self { session_id, status, option, target, payload })
     }
 }

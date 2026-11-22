@@ -18,7 +18,6 @@ impl DnsHeader {
             domain: domain.into(),
         }
     }
-
     pub fn pack_domain_name(domain: &str, buf: &mut [u8]) -> Result<usize> {
         let mut off = 0;
         for part in domain.split('.').map(str::as_bytes).filter(|p| !p.is_empty()) {
@@ -32,7 +31,6 @@ impl DnsHeader {
         buf[off] = 0;
         Ok(off + 1)
     }
-
     pub fn serialize(&self, buf: &mut [u8]) -> Result<usize> {
         if buf.len() < 12 { return Err(Error::BufferOverflow); }
         buf[0..2].copy_from_slice(&self.id.to_be_bytes());

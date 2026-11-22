@@ -22,7 +22,6 @@ impl UotPacket {
             payload,
         }
     }
-
     pub fn encode(&self, version: UotVersion) -> Vec<u8> {
         let mut buf = Vec::new();
         if version == UotVersion::Standard { buf.push(0x00); }
@@ -36,15 +35,11 @@ impl UotPacket {
         buf.extend_from_slice(&self.payload);
         buf
     }
-
     pub fn decode(data: &[u8], version: UotVersion) -> Result<(Self, usize)> {
-        if data.len() < 7 {
-            return Err(Error::Protocol("UoT packet too short".into()));
-        }
+        if data.len() < 7 { return Err(Error::Protocol("UoT packet too short".into())); }
         let mut pos = usize::from(version == UotVersion::Standard);
         let atyp = data[pos];
         pos += 1;
-
         let address = match atyp {
             0x01 => {
                 let b: [u8; 4] = data.get(pos..pos + 4).and_then(|s| s.try_into().ok())
@@ -68,18 +63,13 @@ impl UotPacket {
             }
             _ => return Err(Error::Protocol(format!("Invalid ATYP 0x{:02x} in UoT", atyp))),
         };
-
-        if pos + 4 > data.len() {
-            return Err(Error::Protocol("Incomplete port/length in UoT".into()));
-        }
+        if pos + 4 > data.len() { return Err(Error::Protocol("Incomplete port/length in UoT".into())); }
         let port = u16::from_be_bytes([data[pos], data[pos + 1]]);
         let payload_len = u16::from_be_bytes([data[pos + 2], data[pos + 3]]) as usize;
         pos += 4;
         let payload = data.get(pos..pos + payload_len)
-            .ok_or_else(|| Error::Protocol("Incomplete payload in UoT".into()))?
-            .to_vec();
+            .ok_or_else(|| Error::Protocol("Incomplete payload in UoT".into()))?.to_vec();
         pos += payload_len;
-
         Ok((UotPacket { destination: Destination::udp(address, port), payload }, pos))
     }
 }

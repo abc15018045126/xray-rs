@@ -13,9 +13,6 @@ pub fn load_yaml_from_str(content: &str) -> Result<Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn test_yaml_format_const() {
-        assert_eq!(YAML_FORMAT, "YAML");
-    }
+    fn test_yaml_format_const() { assert_eq!(YAML_FORMAT, "YAML"); }
 }

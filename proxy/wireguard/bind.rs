@@ -11,8 +11,5 @@ impl WireGuardBind {
         let socket = UdpSocket::bind(addr).await?;
         Ok(Self { socket })
     }
-
-    pub fn local_addr(&self) -> Result<SocketAddr> {
-        Ok(self.socket.local_addr()?)
-    }
+    pub fn local_addr(&self) -> Result<SocketAddr> { Ok(self.socket.local_addr()?) }
 }

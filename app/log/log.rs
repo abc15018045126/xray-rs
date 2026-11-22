@@ -20,9 +20,7 @@ pub fn parse_mask_address(c: &str) -> Result<(u8, u8)> {
             if !m4.is_multiple_of(8) || m4 > 32 {
                 return Err(Error::Config("Log Mask: ipv4 mask must be divisible by 8 and between 0-32".into()));
             }
-            if m6 > 128 {
-                return Err(Error::Config("Log Mask: ipv6 mask must be between 0-128".into()));
-            }
+            if m6 > 128 { return Err(Error::Config("Log Mask: ipv6 mask must be between 0-128".into())); }
             Ok((m4, m6))
         }
     }
@@ -34,21 +32,12 @@ pub struct MaskedMsgWrapper {
 }
 
 impl MaskedMsgWrapper {
-    pub fn new(mask4: u8, mask6: u8) -> Self {
-        Self { mask4, mask6 }
-    }
-
+    pub fn new(mask4: u8, mask6: u8) -> Self { Self { mask4, mask6 } }
     pub fn mask_ipv4_string(&self, s: &str) -> String {
-        if self.mask4 == 32 {
-            return s.to_string();
-        }
-        if self.mask4 == 0 {
-            return "[Masked IPv4]".to_string();
-        }
+        if self.mask4 == 32 { return s.to_string(); }
+        if self.mask4 == 0 { return "[Masked IPv4]".to_string(); }
         let parts: Vec<&str> = s.split('.').collect();
-        if parts.len() != 4 {
-            return s.to_string();
-        }
+        if parts.len() != 4 { return s.to_string(); }
         let keep_parts = (self.mask4 / 8) as usize;
         let mut out = Vec::new();
         for (i, p) in parts.iter().enumerate() {
@@ -65,7 +54,6 @@ impl MaskedMsgWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_parse_mask_address_presets() {
         assert_eq!(parse_mask_address("half").unwrap(), (16, 32));
@@ -73,22 +61,18 @@ mod tests {
         assert_eq!(parse_mask_address("full").unwrap(), (0, 0));
         assert_eq!(parse_mask_address("").unwrap(), (32, 128));
     }
-
     #[test]
     fn test_parse_mask_address_custom() {
         assert_eq!(parse_mask_address("/16+/64").unwrap(), (16, 64));
         assert_eq!(parse_mask_address("/24").unwrap(), (24, 128));
         assert!(parse_mask_address("/15").is_err());
     }
-
     #[test]
     fn test_masked_msg_wrapper() {
         let wrapper = MaskedMsgWrapper::new(16, 32);
         assert_eq!(wrapper.mask_ipv4_string("192.168.1.100"), "192.168.*.*");
-
         let full_mask = MaskedMsgWrapper::new(0, 0);
         assert_eq!(full_mask.mask_ipv4_string("1.2.3.4"), "[Masked IPv4]");
-
         let no_mask = MaskedMsgWrapper::new(32, 128);
         assert_eq!(no_mask.mask_ipv4_string("1.2.3.4"), "1.2.3.4");
     }
@@ -133,17 +117,9 @@ pub struct MultiWriter {
 impl MultiWriter {
     pub fn new(path: Option<&str>) -> Self {
         let file = path.and_then(|p| {
-            if let Some(parent) = std::path::Path::new(p).parent()
-                && !parent.as_os_str().is_empty()
-            {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(p)
-                .ok()
-                .map(|f| Arc::new(Mutex::new(f)))
+            if let Some(parent) = std::path::Path::new(p).parent() && !parent.as_os_str().is_empty()
+            { let _ = std::fs::create_dir_all(parent); }
+            OpenOptions::new().create(true).append(true).open(p).ok().map(|f| Arc::new(Mutex::new(f)))
         });
         Self { file }
     }
@@ -152,40 +128,26 @@ impl MultiWriter {
 impl Write for MultiWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let _ = std::io::stdout().write_all(buf);
-        if let Some(ref f) = self.file
-            && let Ok(mut file) = f.lock()
-        {
-            let _ = file.write_all(buf);
-        }
+        if let Some(ref f) = self.file && let Ok(mut file) = f.lock()
+        { let _ = file.write_all(buf); }
         Ok(buf.len())
     }
-
     fn flush(&mut self) -> std::io::Result<()> {
         let _ = std::io::stdout().flush();
-        if let Some(ref f) = self.file
-            && let Ok(mut file) = f.lock()
-        {
-            let _ = file.flush();
-        }
+        if let Some(ref f) = self.file && let Ok(mut file) = f.lock()
+        { let _ = file.flush(); }
         Ok(())
     }
 }
 
-pub fn init_logger(level_str: &str) {
-    init_logger_ext(level_str, None);
-}
+pub fn init_logger(level_str: &str) { init_logger_ext(level_str, None); }
 
 pub fn init_logger_ext(level_str: &str, file_path: Option<&str>) {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level_str));
-
     if let Some(path) = file_path {
         let writer = MultiWriter::new(Some(path));
         let _ = fmt()
-            .with_env_filter(filter)
-            .with_target(false)
-            .with_ansi(false)
-            .with_writer(move || writer.clone())
-            .try_init();
+            .with_env_filter(filter).with_target(false).with_ansi(false).with_writer(move || writer.clone()).try_init();
     } else {
         let _ = fmt().with_env_filter(filter).with_target(false).try_init();
     }
@@ -205,10 +167,8 @@ impl LogManager {
             mask6,
         }
     }
-
     pub fn start(&self) {
     }
-
     pub fn get_level(&self) -> LogLevel {
         match self.level.load(Ordering::Relaxed) {
             0 => LogLevel::None,
@@ -219,11 +179,7 @@ impl LogManager {
             _ => LogLevel::Warning,
         }
     }
-
-    pub fn set_level(&self, level: LogLevel) {
-        self.level.store(level as u8, Ordering::Relaxed);
-    }
-
+    pub fn set_level(&self, level: LogLevel) { self.level.store(level as u8, Ordering::Relaxed); }
     pub fn mask_ip(&self, ip: &IpAddr) -> IpAddr {
         match ip {
             IpAddr::V4(v4) if self.mask4 > 0 => {
@@ -237,14 +193,7 @@ impl LogManager {
             _ => *ip,
         }
     }
-
-    pub fn format_access_log(
-        &self,
-        from_ip: Option<&IpAddr>,
-        dest: &str,
-        status: &str,
-        outbound: &str,
-    ) -> String {
+    pub fn format_access_log(&self, from_ip: Option<&IpAddr>, dest: &str, status: &str, outbound: &str) -> String {
         let from_str = match from_ip {
             Some(ip) => self.mask_ip(ip).to_string(),
             None => "unknown".to_string(),

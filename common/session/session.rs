@@ -7,9 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 static SESSION_ID_COUNTER: AtomicU32 = AtomicU32::new(1000);
 
-pub fn new_session_id() -> u32 {
-    SESSION_ID_COUNTER.fetch_add(1, Ordering::Relaxed)
-}
+pub fn new_session_id() -> u32 { SESSION_ID_COUNTER.fetch_add(1, Ordering::Relaxed) }
 
 #[derive(Debug, Clone, Default)]
 pub struct Inbound {
@@ -52,10 +50,7 @@ impl Content {
     pub fn set_attribute(&mut self, key: impl Into<String>, value: impl Into<String>) {
         self.attributes.insert(key.into(), value.into());
     }
-
-    pub fn attribute(&self, key: &str) -> Option<&str> {
-        self.attributes.get(key).map(|s| s.as_str())
-    }
+    pub fn attribute(&self, key: &str) -> Option<&str> { self.attributes.get(key).map(|s| s.as_str()) }
 }
 
 #[derive(Debug, Clone, Default)]

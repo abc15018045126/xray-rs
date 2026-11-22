@@ -22,9 +22,7 @@ pub mod udp_fullcone;
 
 pub use config::TunConfig;
 pub use handler::TunHandler;
-pub use net::{
-    DEFAULT_OUTBOUND_INTERFACE, OutboundInterface, get_outbound_interface, init_net_config,
-};
+pub use net::{DEFAULT_OUTBOUND_INTERFACE, OutboundInterface, get_outbound_interface, init_net_config};
 pub use runner::TunRunner;
 pub use runner::TunRunner as WindowsTunDevice;
 pub use stack::TunStack;

@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
@@ -28,22 +27,13 @@ impl Client {
             password: password.into(),
         }
     }
-
-    pub fn method(&self) -> &str {
-        &self.method
-    }
-
-    pub fn password(&self) -> &str {
-        &self.password
-    }
+    pub fn method(&self) -> &str { &self.method }
+    pub fn password(&self) -> &str { &self.password }
 }
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = TcpDialer::dial(&self.server_addr).await?;
         write_target_address(&mut stream, &session.destination).await?;

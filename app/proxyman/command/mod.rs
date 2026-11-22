@@ -30,7 +30,6 @@ impl HandlerService {
             outbound_manager,
         }
     }
-
     pub async fn remove_inbound(&self, tag: &str) -> Result<bool> {
         if let Some(im) = &self.inbound_manager {
             match im.remove_handler(tag).await {
@@ -41,7 +40,6 @@ impl HandlerService {
             Ok(false)
         }
     }
-
     pub async fn remove_outbound(&self, tag: &str) -> Result<bool> {
         if let Some(om) = &self.outbound_manager {
             match om.remove_handler(tag).await {
@@ -55,7 +53,5 @@ impl HandlerService {
 }
 
 impl Service for HandlerService {
-    fn service_name(&self) -> &str {
-        "xray.core.app.proxyman.command.HandlerService"
-    }
+    fn service_name(&self) -> &str { "xray.core.app.proxyman.command.HandlerService" }
 }

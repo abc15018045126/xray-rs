@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination, Network};
 use crate::common::protocol::{RequestCommand, SessionContext};
@@ -36,7 +35,6 @@ impl Client {
             ws_host: None,
         }
     }
-
     pub fn with_websocket(mut self, path: impl Into<String>, host: Option<String>) -> Self {
         self.ws_path = Some(path.into());
         self.ws_host = host;
@@ -46,10 +44,7 @@ impl Client {
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
         let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
@@ -71,7 +66,6 @@ impl OutboundHandler for Client {
         } else {
             stream
         };
-
         let command = if session.destination.network == Network::Udp { RequestCommand::Udp } else { RequestCommand::Tcp };
         RequestHeader::new(&self.password, command, session.destination.clone()).encode(&mut stream).await?;
         Ok(stream)

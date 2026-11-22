@@ -16,22 +16,10 @@ impl BridgeWorker {
             connections: AtomicU32::new(0),
         }
     }
-
-    pub fn is_active(&self) -> bool {
-        self.active
-    }
-
-    pub fn connections(&self) -> u32 {
-        self.connections.load(Ordering::SeqCst)
-    }
-
-    pub fn inc_connections(&self) {
-        self.connections.fetch_add(1, Ordering::SeqCst);
-    }
-
-    pub fn dec_connections(&self) {
-        self.connections.fetch_sub(1, Ordering::SeqCst);
-    }
+    pub fn is_active(&self) -> bool { self.active }
+    pub fn connections(&self) -> u32 { self.connections.load(Ordering::SeqCst) }
+    pub fn inc_connections(&self) { self.connections.fetch_add(1, Ordering::SeqCst); }
+    pub fn dec_connections(&self) { self.connections.fetch_sub(1, Ordering::SeqCst); }
 }
 
 pub struct ReverseBridge {
@@ -53,17 +41,14 @@ impl ReverseBridge {
             next_worker_id: AtomicU32::new(2),
         }
     }
-
     pub async fn active_worker_count(&self) -> usize {
         let guard = self.workers.lock().await;
         guard.iter().filter(|w| w.is_active()).count()
     }
-
     pub async fn total_connections(&self) -> u32 {
         let guard = self.workers.lock().await;
         guard.iter().map(|w| w.connections()).sum()
     }
-
     pub async fn spawn_worker_if_needed(&self) -> Arc<BridgeWorker> {
         let mut guard = self.workers.lock().await;
         let id = self.next_worker_id.fetch_add(1, Ordering::SeqCst);

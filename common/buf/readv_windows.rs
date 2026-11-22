@@ -5,24 +5,14 @@ pub struct WindowsVectorReader {
 }
 
 impl WindowsVectorReader {
-    pub fn new() -> Self {
-        Self { bufs: Vec::new() }
-    }
-
+    pub fn new() -> Self { Self { bufs: Vec::new() } }
     pub fn init(&mut self, buffers: &[Buffer]) {
         self.bufs.clear();
-        for b in buffers {
-            self.bufs.push(b.as_slice().to_vec());
-        }
+        for b in buffers { self.bufs.push(b.as_slice().to_vec()); }
     }
-
-    pub fn clear(&mut self) {
-        self.bufs.clear();
-    }
+    pub fn clear(&mut self) { self.bufs.clear(); }
 }
 
 impl Default for WindowsVectorReader {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

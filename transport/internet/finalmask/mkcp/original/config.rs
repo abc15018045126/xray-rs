@@ -6,9 +6,7 @@ pub struct OriginalConfig {
 }
 
 impl OriginalConfig {
-    pub fn mask(&self) -> u8 {
-        self.xor_mask
-    }
+    pub fn mask(&self) -> u8 { self.xor_mask }
 }
 
 pub type OriginalMkcpConfig = OriginalConfig;

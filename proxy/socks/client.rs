@@ -21,10 +21,7 @@ impl Client {
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = crate::transport::internet::TcpDialer::dial(&self.server).await?;
         SocksProtocol::client_handshake(&mut stream, &session.destination).await?;

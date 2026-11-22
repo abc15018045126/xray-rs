@@ -1,13 +1,9 @@
 use super::platform::must_bind_socket_on_interface;
 use crate::proxy::tun::OutboundInterface;
-
 use socket2::TcpKeepalive;
 use std::sync::{Arc, RwLock};
 use std::{net::SocketAddr, time::Duration};
-use tokio::{
-    net::{TcpSocket, TcpStream, UdpSocket},
-    time::timeout,
-};
+use tokio::{net::{TcpSocket, TcpStream, UdpSocket}, time::timeout};
 use tracing::{debug, error, trace};
 
 pub type AndroidProtectFn = Arc<dyn Fn(i32) -> bool + Send + Sync>;
@@ -15,17 +11,12 @@ pub type AndroidProtectFn = Arc<dyn Fn(i32) -> bool + Send + Sync>;
 static ANDROID_PROTECT_FN: RwLock<Option<AndroidProtectFn>> = RwLock::new(None);
 
 pub fn register_android_protect_fn(protector: Option<AndroidProtectFn>) {
-    if let Ok(mut guard) = ANDROID_PROTECT_FN.write() {
-        *guard = protector;
-    }
+    if let Ok(mut guard) = ANDROID_PROTECT_FN.write() { *guard = protector; }
 }
 
 pub fn protect_android_socket(fd: i32) -> bool {
-    if let Ok(guard) = ANDROID_PROTECT_FN.read()
-        && let Some(ref f) = *guard
-    {
-        return f(fd);
-    }
+    if let Ok(guard) = ANDROID_PROTECT_FN.read() && let Some(ref f) = *guard
+    { return f(fd); }
     true
 }
 
@@ -35,18 +26,14 @@ pub fn apply_tcp_options(s: &TcpStream) -> std::io::Result<()> {
         let sock_ref = socket2::SockRef::from(s);
         sock_ref.set_tcp_keepalive(
             &TcpKeepalive::new()
-                .with_time(Duration::from_secs(10))
-                .with_interval(Duration::from_secs(1))
-                .with_retries(3),
+                .with_time(Duration::from_secs(10)).with_interval(Duration::from_secs(1)).with_retries(3),
         )?;
     }
     #[cfg(any(target_os = "windows", target_os = "android"))]
     {
         let sock_ref = socket2::SockRef::from(s);
         sock_ref.set_tcp_keepalive(
-            &TcpKeepalive::new()
-                .with_time(Duration::from_secs(10))
-                .with_interval(Duration::from_secs(1)),
+            &TcpKeepalive::new().with_time(Duration::from_secs(10)).with_interval(Duration::from_secs(1)),
         )?;
     }
     s.set_nodelay(true)
@@ -88,19 +75,14 @@ pub async fn new_udp_socket(
             socket2::Socket::new(socket2::Domain::IPV6, socket2::Type::DGRAM, None)?,
             socket2::Domain::IPV6,
         ),
-        _ => (
-            socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::DGRAM, None)?,
-            socket2::Domain::IPV4,
-        ),
+        _ => (socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::DGRAM, None)?, socket2::Domain::IPV4),
     };
     debug!("created udp socket");
-
     #[cfg(target_os = "android")]
     {
         use std::os::fd::AsRawFd;
         protect_android_socket(socket.as_raw_fd());
     }
-
     if !cfg!(target_os = "android") {
         let dst_is_loopback = family_hint.is_some_and(|a| a.ip().is_loopback());
         match (src, iface) {
@@ -109,9 +91,7 @@ pub async fn new_udp_socket(
                     error!("failed to bind socket to interface: {}", x);
                 })?;
                 #[cfg(target_os = "windows")]
-                if let Some(addr) = src {
-                    socket.bind(&socket2::SockAddr::from(addr))?;
-                }
+                if let Some(addr) = src { socket.bind(&socket2::SockAddr::from(addr))?; }
                 trace!(iface = ?iface, "udp socket bound: {socket:?}");
             }
             (Some(src), _) => {
@@ -130,7 +110,6 @@ pub async fn new_udp_socket(
             }
         }
     }
-
     socket.set_broadcast(true)?;
     socket.set_nonblocking(true)?;
     UdpSocket::from_std(socket.into())
@@ -142,8 +121,6 @@ pub fn try_create_dualstack_socket(
 ) -> std::io::Result<(socket2::Socket, socket2::Domain)> {
     let domain = socket2::Domain::for_address(addr);
     let socket = socket2::Socket::new(domain, socket_type, None)?;
-    if domain == socket2::Domain::IPV6 {
-        let _ = socket.set_only_v6(false);
-    }
+    if domain == socket2::Domain::IPV6 { let _ = socket.set_only_v6(false); }
     Ok((socket, domain))
 }

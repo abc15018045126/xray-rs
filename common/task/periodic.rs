@@ -24,7 +24,6 @@ impl Periodic {
             handle: None,
         }
     }
-
     pub fn with_execute<F>(interval: Duration, execute: F) -> Self
     where
         F: Fn() -> Result<()> + Send + Sync + 'static,
@@ -37,15 +36,8 @@ impl Periodic {
             handle: None,
         }
     }
-
-    pub fn has_closed(&self) -> bool {
-        !self.running.load(Ordering::Relaxed)
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::Relaxed)
-    }
-
+    pub fn has_closed(&self) -> bool { !self.running.load(Ordering::Relaxed) }
+    pub fn is_running(&self) -> bool { self.running.load(Ordering::Relaxed) }
     pub fn start_execute(&mut self) -> Result<()> {
         if self.running.swap(true, Ordering::SeqCst) { return Ok(()); }
         let Some(execute) = self.execute.clone() else { return Ok(()); };
@@ -64,7 +56,6 @@ impl Periodic {
         }));
         Ok(())
     }
-
     pub fn start<F, Fut>(&mut self, mut task: F)
     where
         F: FnMut() -> Fut + Send + 'static,
@@ -88,19 +79,14 @@ impl Periodic {
             }
         }));
     }
-
     pub fn close(&mut self) {
         if self.running.swap(false, Ordering::SeqCst) {
             self.notify_stop.notify_waiters();
-            if let Some(handle) = self.handle.take() {
-                handle.abort();
-            }
+            if let Some(handle) = self.handle.take() { handle.abort(); }
         }
     }
 }
 
 impl Drop for Periodic {
-    fn drop(&mut self) {
-        self.close();
-    }
+    fn drop(&mut self) { self.close(); }
 }

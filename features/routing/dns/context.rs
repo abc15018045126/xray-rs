@@ -19,68 +19,31 @@ impl ResolvableContext {
             cached_ips: std::sync::Mutex::new(None),
         }
     }
-
-    pub fn dns_client(&self) -> &Arc<dyn DnsClient> {
-        &self.dns_client
-    }
+    pub fn dns_client(&self) -> &Arc<dyn DnsClient> { &self.dns_client }
 }
 
 impl RoutingContext for ResolvableContext {
-    fn get_inbound_tag(&self) -> &str {
-        self.inner.get_inbound_tag()
-    }
-
-    fn get_source_ips(&self) -> Vec<IpAddr> {
-        self.inner.get_source_ips()
-    }
-
-    fn get_source_port(&self) -> u16 {
-        self.inner.get_source_port()
-    }
-
+    fn get_inbound_tag(&self) -> &str { self.inner.get_inbound_tag() }
+    fn get_source_ips(&self) -> Vec<IpAddr> { self.inner.get_source_ips() }
+    fn get_source_port(&self) -> u16 { self.inner.get_source_port() }
     fn get_target_ips(&self) -> Vec<IpAddr> {
         {
             let guard = self.cached_ips.lock().unwrap();
-            if let Some(ref ips) = *guard {
-                return ips.clone();
-            }
+            if let Some(ref ips) = *guard { return ips.clone(); }
         }
-
         let existing = self.inner.get_target_ips();
         if !existing.is_empty() {
             let mut guard = self.cached_ips.lock().unwrap();
             *guard = Some(existing.clone());
             return existing;
         }
-
         Vec::new()
     }
-
-    fn get_target_port(&self) -> u16 {
-        self.inner.get_target_port()
-    }
-
-    fn get_target_domain(&self) -> Option<&str> {
-        self.inner.get_target_domain()
-    }
-
-    fn get_network(&self) -> Network {
-        self.inner.get_network()
-    }
-
-    fn get_protocol(&self) -> Option<&str> {
-        self.inner.get_protocol()
-    }
-
-    fn get_user(&self) -> Option<&str> {
-        self.inner.get_user()
-    }
-
-    fn get_attributes(&self) -> &HashMap<String, String> {
-        self.inner.get_attributes()
-    }
-
-    fn get_skip_dns_resolve(&self) -> bool {
-        self.inner.get_skip_dns_resolve()
-    }
+    fn get_target_port(&self) -> u16 { self.inner.get_target_port() }
+    fn get_target_domain(&self) -> Option<&str> { self.inner.get_target_domain() }
+    fn get_network(&self) -> Network { self.inner.get_network() }
+    fn get_protocol(&self) -> Option<&str> { self.inner.get_protocol() }
+    fn get_user(&self) -> Option<&str> { self.inner.get_user() }
+    fn get_attributes(&self) -> &HashMap<String, String> { self.inner.get_attributes() }
+    fn get_skip_dns_resolve(&self) -> bool { self.inner.get_skip_dns_resolve() }
 }

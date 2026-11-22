@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
-
 use super::buffer::Buffer;
 use super::io::Reader;
 use super::multi_buffer::MultiBuffer;
@@ -12,33 +11,21 @@ pub struct AllocStrategy {
 }
 
 impl AllocStrategy {
-    pub fn new() -> Self {
-        Self { current: 1 }
-    }
-
-    pub fn current(&self) -> u32 {
-        self.current
-    }
-
+    pub fn new() -> Self { Self { current: 1 } }
+    pub fn current(&self) -> u32 { self.current }
     pub fn adjust(&mut self, n: u32) {
         if n >= self.current {
             self.current *= 2;
         } else {
             self.current = n;
         }
-
         self.current = self.current.clamp(1, 8);
     }
-
-    pub fn alloc(&self) -> Vec<Buffer> {
-        (0..self.current).map(|_| Buffer::new()).collect()
-    }
+    pub fn alloc(&self) -> Vec<Buffer> { (0..self.current).map(|_| Buffer::new()).collect() }
 }
 
 impl Default for AllocStrategy {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 pub struct ReadVReader<R> {
@@ -53,11 +40,7 @@ impl<R: AsyncRead + Unpin> ReadVReader<R> {
             alloc: AllocStrategy::new(),
         }
     }
-
-    pub fn alloc_strategy(&self) -> &AllocStrategy {
-        &self.alloc
-    }
-
+    pub fn alloc_strategy(&self) -> &AllocStrategy { &self.alloc }
     pub async fn read_multi(&mut self, max_bytes: usize) -> Result<MultiBuffer> {
         let mut buf = vec![0u8; max_bytes];
         let n = self.reader.read(&mut buf).await.map_err(Error::Io)?;

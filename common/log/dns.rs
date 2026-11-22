@@ -21,9 +21,7 @@ impl DnsStatus {
 }
 
 impl fmt::Display for DnsStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
 }
 
 pub const DNS_QUERIED: &str = "got answer:";
@@ -66,10 +64,7 @@ impl Message for DnsLog {
         if let Some(ref err) = self.error { let _ = write!(s, " <{}>", err); }
         s
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
+    fn as_any(&self) -> &dyn std::any::Any { self }
 }
 
 pub fn format_dns_log(domain: &str, ip: &str, rtt_ms: u64) -> String {

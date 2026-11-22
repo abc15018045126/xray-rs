@@ -30,18 +30,13 @@ pub use shared::ApiClientConfig;
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_api_command_hierarchy() {
         let api_cmd = cmd_api();
         assert_eq!(api_cmd.name, "api");
         assert_eq!(api_cmd.subcommands.len(), 23);
-
-        let out = api_cmd
-            .execute(&["query-stats", "-s=127.0.0.1:10086"])
-            .unwrap();
+        let out = api_cmd.execute(&["query-stats", "-s=127.0.0.1:10086"]).unwrap();
         assert!(out.contains("127.0.0.1:10086"));
-
         let cfg = ApiClientConfig::parse(&["-s=10.0.0.1:8080"]);
         assert_eq!(cfg.server, "10.0.0.1:8080");
         assert_eq!(cfg.timeout, 5);

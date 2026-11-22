@@ -22,7 +22,6 @@ pub fn generate_chacha20_key(seed16: &[u8; 16]) -> [u8; 32] {
     hasher.update(seed16);
     let hash1 = hasher.finalize();
     key[0..16].copy_from_slice(&hash1);
-
     let mut hasher2 = Md5::new();
     hasher2.update(hash1);
     let hash2 = hasher2.finalize();
@@ -49,7 +48,6 @@ impl RequestHeader {
         let mut request_body_key = [0u8; 16];
         rng.fill_bytes(&mut request_body_iv);
         rng.fill_bytes(&mut request_body_key);
-
         Self {
             version: VMESS_VERSION,
             user_id,
@@ -60,7 +58,6 @@ impl RequestHeader {
             destination,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = Vec::with_capacity(128);
         buf.extend_from_slice(self.user_id.as_bytes());
@@ -80,15 +77,12 @@ impl RequestHeader {
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let mut hdr = [0u8; 57];
         reader.read_exact(&mut hdr).await?;
         let user_id = Uuid::from_bytes(hdr[..16].try_into().unwrap());
         let version = hdr[16];
-        if version != VMESS_VERSION {
-            return Err(Error::Protocol(format!("Unsupported VMess version: {}", version)));
-        }
+        if version != VMESS_VERSION { return Err(Error::Protocol(format!("Unsupported VMess version: {}", version))); }
         let request_body_iv: [u8; 16] = hdr[17..33].try_into().unwrap();
         let request_body_key: [u8; 16] = hdr[33..49].try_into().unwrap();
         let response_header_byte = hdr[49];
@@ -141,7 +135,6 @@ impl ResponseHeader {
             command: None,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = Vec::with_capacity(4);
         buf.push(self.response_header_byte);
@@ -152,7 +145,6 @@ impl ResponseHeader {
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let response_header_byte = reader.read_u8().await?;
         let _opt = reader.read_u8().await?;
@@ -162,7 +154,6 @@ impl ResponseHeader {
             let mut discard = vec![0u8; cmd_len];
             reader.read_exact(&mut discard).await?;
         }
-
         Ok(Self {
             response_header_byte,
             command: None,

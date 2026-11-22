@@ -13,24 +13,18 @@ impl StaticMuxPicker {
             workers: std::sync::Mutex::new(Vec::new()),
         })
     }
-
     pub fn pick_available(&self) -> Result<String> {
         let guard = self.workers.lock().unwrap();
-        if guard.is_empty() {
-            return Err(Error::NotFound("no mux client worker available".into()));
-        }
+        if guard.is_empty() { return Err(Error::NotFound("no mux client worker available".into())); }
         Ok(guard[0].clone())
     }
-
     pub fn add_worker(&self, tag: impl Into<String>) {
         let mut guard = self.workers.lock().unwrap();
         guard.push(tag.into());
     }
 }
 
-pub fn new_static_mux_picker() -> Result<StaticMuxPicker> {
-    StaticMuxPicker::new()
-}
+pub fn new_static_mux_picker() -> Result<StaticMuxPicker> { StaticMuxPicker::new() }
 
 pub struct ReversePortal {
     pub tag: String,
@@ -49,14 +43,9 @@ impl ReversePortal {
             channel_rx: Arc::new(Mutex::new(rx)),
         }
     }
-
     pub async fn dispatch(&self, stream: BoxStream) -> Result<()> {
-        self.channel_tx
-            .send(stream)
-            .await
-            .map_err(|_| Error::Closed)
+        self.channel_tx.send(stream).await.map_err(|_| Error::Closed)
     }
-
     pub async fn pull_stream(&self) -> Option<BoxStream> {
         let mut rx = self.channel_rx.lock().await;
         rx.recv().await

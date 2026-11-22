@@ -1,3 +1,1 @@
-pub fn load_system_roots() -> usize {
-    0
-}
+pub fn load_system_roots() -> usize { 0 }

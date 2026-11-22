@@ -35,7 +35,6 @@ where
             }),
         }
     }
-
     pub fn get(&self, key: &K) -> Option<V> {
         let mut inner = self.entries.lock().ok()?;
         if let Some(val) = inner.key_to_val.get(key).cloned() {
@@ -48,7 +47,6 @@ where
             None
         }
     }
-
     pub fn get_key_from_value(&self, val: &V) -> Option<K> {
         let mut inner = self.entries.lock().ok()?;
         if let Some(key) = inner.val_to_key.get(val).cloned() {
@@ -61,23 +59,18 @@ where
             None
         }
     }
-
     pub fn peek_key_from_value(&self, val: &V) -> Option<K> {
         let inner = self.entries.lock().ok()?;
         inner.val_to_key.get(val).cloned()
     }
-
     pub fn put(&self, key: K, val: V) {
         let Ok(mut inner) = self.entries.lock() else { return; };
         if let Some(old_val) = inner.key_to_val.remove(&key) {
             inner.val_to_key.remove(&old_val);
             if let Some(pos) = inner.order.iter().position(|x| x == &key) { inner.order.remove(pos); }
         } else if inner.order.len() >= self.capacity
-            && let Some(lru_key) = inner.order.pop_front()
-            && let Some(old_val) = inner.key_to_val.remove(&lru_key)
-        {
-            inner.val_to_key.remove(&old_val);
-        }
+            && let Some(lru_key) = inner.order.pop_front() && let Some(old_val) = inner.key_to_val.remove(&lru_key)
+        { inner.val_to_key.remove(&old_val); }
         inner.key_to_val.insert(key.clone(), val.clone());
         inner.val_to_key.insert(val, key.clone());
         inner.order.push_back(key);
@@ -89,27 +82,14 @@ where
     K: Clone + Eq + Hash + Send + 'static,
     V: Clone + Eq + Hash + Send + 'static,
 {
-    fn get(&self, key: &K) -> Option<V> {
-        self.get(key)
-    }
-
-    fn get_key_from_value(&self, val: &V) -> Option<K> {
-        self.get_key_from_value(val)
-    }
-
-    fn peek_key_from_value(&self, val: &V) -> Option<K> {
-        self.peek_key_from_value(val)
-    }
-
-    fn put(&self, key: K, val: V) {
-        self.put(key, val)
-    }
+    fn get(&self, key: &K) -> Option<V> { self.get(key) }
+    fn get_key_from_value(&self, val: &V) -> Option<K> { self.get_key_from_value(val) }
+    fn peek_key_from_value(&self, val: &V) -> Option<K> { self.peek_key_from_value(val) }
+    fn put(&self, key: K, val: V) { self.put(key, val) }
 }
 
 pub fn new_lru<K, V>(capacity: usize) -> LruCache<K, V>
 where
     K: Clone + Eq + Hash + Send + 'static,
     V: Clone + Eq + Hash + Send + 'static,
-{
-    LruCache::new(capacity)
-}
+{ LruCache::new(capacity) }

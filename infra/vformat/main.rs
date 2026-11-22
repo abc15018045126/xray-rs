@@ -26,7 +26,6 @@ pub fn format_source_tree(root: &Path) -> Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_find_files_to_format() {
         let current_dir = std::env::current_dir().unwrap();
@@ -34,7 +33,6 @@ mod tests {
         assert!(!files.is_empty());
         assert!(files.iter().any(|f| f.ends_with("main.rs")));
     }
-
     #[test]
     fn test_format_source_tree() {
         let current_dir = std::env::current_dir().unwrap();

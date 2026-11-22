@@ -19,20 +19,9 @@ impl QueryStrategy {
 }
 
 pub fn is_local_tld_or_dotless(domain: &str) -> bool {
-    if !domain.contains('.') {
-        return true;
-    }
+    if !domain.contains('.') { return true; }
     let lower = domain.to_lowercase();
-    let local_tlds = [
-        ".local",
-        ".localdomain",
-        ".localhost",
-        ".lan",
-        ".home.arpa",
-        ".example",
-        ".invalid",
-        ".test",
-    ];
+    let local_tlds = [".local", ".localdomain", ".localhost", ".lan", ".home.arpa", ".example", ".invalid", ".test"];
     local_tlds.iter().any(|tld| lower.ends_with(tld))
 }
 

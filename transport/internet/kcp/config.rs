@@ -28,15 +28,11 @@ impl Default for KcpConfig {
 }
 
 impl KcpConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+    pub fn new() -> Self { Self::default() }
     pub fn sending_in_flight_size(&self) -> u32 {
         let size = self.uplink_capacity * 1024 * 1024 / self.mtu / (1000 / self.tti);
         size.max(8)
     }
-
     pub fn receiving_in_flight_size(&self) -> u32 {
         let size = self.downlink_capacity * 1024 * 1024 / self.mtu / (1000 / self.tti);
         size.max(8)

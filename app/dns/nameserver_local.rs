@@ -10,35 +10,20 @@ pub struct LocalNameServer {
 }
 
 impl LocalNameServer {
-    pub fn new() -> Self {
-        Self {
-            resolver: OnceLock::new(),
-        }
-    }
-
+    pub fn new() -> Self { Self { resolver: OnceLock::new(), } }
     fn hickory(&self) -> Option<&TokioResolver> {
-        self.resolver
-            .get_or_init(|| TokioResolver::builder_tokio().ok().and_then(|b| b.build().ok()))
-            .as_ref()
+        self.resolver.get_or_init(|| TokioResolver::builder_tokio().ok().and_then(|b| b.build().ok())).as_ref()
     }
 }
 
 impl Default for LocalNameServer {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[async_trait]
 impl NameServer for LocalNameServer {
-    fn name(&self) -> &str {
-        "local"
-    }
-
-    fn is_disable_cache(&self) -> bool {
-        true
-    }
-
+    fn name(&self) -> &str { "local" }
+    fn is_disable_cache(&self) -> bool { true }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
         if let Some(r) = self.hickory() && let Ok(lookup) = r.lookup_ip(clean).await {

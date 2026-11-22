@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
-
 use crate::common::buf::{Buffer, MultiBuffer, Reader, TimeoutReader, Writer};
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
@@ -12,13 +11,8 @@ pub struct Conn {
 }
 
 impl Conn {
-    pub fn new(stream: BoxStream) -> Self {
-        Self { stream }
-    }
-
-    pub fn into_inner(self) -> BoxStream {
-        self.stream
-    }
+    pub fn new(stream: BoxStream) -> Self { Self { stream } }
+    pub fn into_inner(self) -> BoxStream { self.stream }
 }
 
 #[async_trait]
@@ -26,12 +20,7 @@ impl Reader for Conn {
     async fn read_multi_buffer(&mut self) -> Result<MultiBuffer> {
         let mut raw = [0u8; 8192];
         let n = self.stream.read(&mut raw).await.map_err(Error::Io)?;
-        if n == 0 {
-            return Err(Error::Io(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "eof",
-            )));
-        }
+        if n == 0 { return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"))); }
         let buf = Buffer::from_bytes(&raw[..n]);
         let mut mb = MultiBuffer::new();
         mb.push(buf);
@@ -44,10 +33,7 @@ impl TimeoutReader for Conn {
     async fn read_multi_buffer_timeout(&mut self, duration: Duration) -> Result<MultiBuffer> {
         match timeout(duration, self.read_multi_buffer()).await {
             Ok(res) => res,
-            Err(_) => Err(Error::Io(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "read timeout",
-            ))),
+            Err(_) => Err(Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "read timeout"))),
         }
     }
 }
@@ -57,9 +43,7 @@ impl Writer for Conn {
     async fn write_multi_buffer(&mut self, mb: MultiBuffer) -> Result<()> {
         for buffer in mb.buffers() {
             let slice = buffer.as_slice();
-            if !slice.is_empty() {
-                self.stream.write_all(slice).await.map_err(Error::Io)?;
-            }
+            if !slice.is_empty() { self.stream.write_all(slice).await.map_err(Error::Io)?; }
         }
         self.stream.flush().await.map_err(Error::Io)?;
         Ok(())
@@ -71,10 +55,7 @@ pub struct SingReader<R> {
 }
 
 impl<R: AsyncRead + Unpin> SingReader<R> {
-    pub fn new(inner: R) -> Self {
-        Self { inner }
-    }
-
+    pub fn new(inner: R) -> Self { Self { inner } }
     pub async fn read_bytes(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf).await.map_err(Error::Io)
     }

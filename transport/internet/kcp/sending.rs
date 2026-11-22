@@ -13,61 +13,37 @@ impl SendingWindow {
             total_in_flight_size: 0,
         }
     }
-
-    pub fn len(&self) -> usize {
-        self.cache.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.cache.is_empty()
-    }
-
+    pub fn len(&self) -> usize { self.cache.len() }
+    pub fn is_empty(&self) -> bool { self.cache.is_empty() }
     pub fn push(&mut self, seg: DataSegment) {
         self.total_in_flight_size += seg.payload.len() as u32;
         self.cache.push_back(seg);
     }
-
-    pub fn first_number(&self) -> Option<u32> {
-        self.cache.front().map(|s| s.number)
-    }
-
+    pub fn first_number(&self) -> Option<u32> { self.cache.front().map(|s| s.number) }
     pub fn clear(&mut self, una: u32) {
         while let Some(front) = self.cache.front() {
             if front.number.wrapping_sub(una) >= 0x7FFFFFFF {
                 let seg = self.cache.pop_front().unwrap();
-                self.total_in_flight_size = self
-                    .total_in_flight_size
-                    .saturating_sub(seg.payload.len() as u32);
+                self.total_in_flight_size = self.total_in_flight_size.saturating_sub(seg.payload.len() as u32);
             } else {
                 break;
             }
         }
     }
-
     pub fn handle_fast_ack(&mut self, number: u32, rto: u32) {
         for seg in &mut self.cache {
-            if seg.number == number || number.wrapping_sub(seg.number) > 0x7FFFFFFF {
-                break;
-            }
-            if seg.transmit > 0 && seg.timeout > rto / 3 {
-                seg.timeout -= rto / 3;
-            }
+            if seg.number == number || number.wrapping_sub(seg.number) > 0x7FFFFFFF { break; }
+            if seg.transmit > 0 && seg.timeout > rto / 3 { seg.timeout -= rto / 3; }
         }
     }
-
     pub fn acknowledge(&mut self, number: u32, current: u32) -> Option<u32> {
         if let Some(pos) = self.cache.iter().position(|s| s.number == number) {
             let seg = self.cache.remove(pos).unwrap();
-            self.total_in_flight_size = self
-                .total_in_flight_size
-                .saturating_sub(seg.payload.len() as u32);
-            if current >= seg.timestamp {
-                return Some(current - seg.timestamp);
-            }
+            self.total_in_flight_size = self.total_in_flight_size.saturating_sub(seg.payload.len() as u32);
+            if current >= seg.timestamp { return Some(current - seg.timestamp); }
         }
         None
     }
-
     pub fn flush(&mut self, current: u32, rto: u32, max_in_flight_size: u32, to_send: &mut Vec<DataSegment>) {
         let mut sent_size = 0u32;
         for seg in &mut self.cache {
@@ -87,7 +63,5 @@ impl SendingWindow {
 }
 
 impl Default for SendingWindow {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

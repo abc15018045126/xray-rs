@@ -9,16 +9,8 @@ pub struct MuxServer {
 }
 
 impl MuxServer {
-    pub fn new() -> Self {
-        Self {
-            session_manager: Arc::new(SessionManager::new()),
-        }
-    }
-
-    pub fn session_count(&self) -> usize {
-        self.session_manager.size()
-    }
-
+    pub fn new() -> Self { Self { session_manager: Arc::new(SessionManager::new()), } }
+    pub fn session_count(&self) -> usize { self.session_manager.size() }
     pub async fn dispatch_frame(&self, frame: Frame) -> Result<Option<Session>> {
         match frame.status {
             SessionStatus::New if frame.target.is_some() => {
@@ -34,16 +26,11 @@ impl MuxServer {
         }
         Ok(None)
     }
-
-    pub fn close(&self) {
-        self.session_manager.close();
-    }
+    pub fn close(&self) { self.session_manager.close(); }
 }
 
 impl Default for MuxServer {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 pub type Server = MuxServer;

@@ -12,24 +12,17 @@ pub struct PackedEncoder {
 impl PackedEncoder {
     pub fn new(tables: &[Arc<SudokuTable>], p_min: usize, p_max: usize) -> Self {
         let mut layouts = Vec::with_capacity(tables.len());
-        for t in tables {
-            layouts.push(t.layout.clone());
-        }
-        if layouts.is_empty() {
-            layouts.push(Arc::new(entropy_layout()));
-        }
-
+        for t in tables { layouts.push(t.layout.clone()); }
+        if layouts.is_empty() { layouts.push(Arc::new(entropy_layout())); }
         Self {
             layouts,
             codec: SudokuCodec::new(Vec::new(), p_min, p_max),
             group_index: 0,
         }
     }
-
     pub fn encode(&mut self, p: &[u8]) -> Result<Vec<u8>> {
         let mut out = Vec::with_capacity(p.len() * 2 + 8);
         let (mut bit_buf, mut bit_count) = (0u64, 0u8);
-
         for &b in p {
             bit_buf = (bit_buf << 8) | b as u64;
             bit_count += 8;
@@ -53,11 +46,8 @@ impl PackedEncoder {
         self.maybe_pad(&mut out, &cur_layout);
         Ok(out)
     }
-
     fn maybe_pad(&mut self, out: &mut Vec<u8>, layout: &ByteLayout) {
-        if !self.codec.should_pad() {
-            return;
-        }
+        if !self.codec.should_pad() { return; }
         if layout.padding_pool.len() == 1 {
             out.push(layout.padding_pool[0]);
             return;
@@ -82,13 +72,8 @@ pub struct PackedStreamDecoder {
 impl PackedStreamDecoder {
     pub fn new(tables: &[Arc<SudokuTable>]) -> Self {
         let mut layouts = Vec::with_capacity(tables.len());
-        for t in tables {
-            layouts.push(t.layout.clone());
-        }
-        if layouts.is_empty() {
-            layouts.push(Arc::new(entropy_layout()));
-        }
-
+        for t in tables { layouts.push(t.layout.clone()); }
+        if layouts.is_empty() { layouts.push(Arc::new(entropy_layout())); }
         Self {
             layouts,
             group_index: 0,
@@ -96,7 +81,6 @@ impl PackedStreamDecoder {
             bit_count: 0,
         }
     }
-
     pub fn decode_chunk(&mut self, input: &[u8], pending: &mut Vec<u8>) -> Result<()> {
         let (buf, cnt, idx) = decode_packed_bytes(
             &self.layouts,
@@ -111,7 +95,6 @@ impl PackedStreamDecoder {
         self.group_index = idx;
         Ok(())
     }
-
     pub fn reset(&mut self) {
         self.bit_buf = 0;
         self.bit_count = 0;

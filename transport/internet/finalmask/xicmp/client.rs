@@ -44,11 +44,7 @@ impl XIcmpClient {
             seq_status: HashMap::new(),
         }
     }
-
-    pub fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.encode_request(Some(payload)).unwrap_or_default()
-    }
-
+    pub fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.encode_request(Some(payload)).unwrap_or_default() }
     pub fn encode_request(&mut self, payload: Option<&[u8]>) -> Result<Vec<u8>> {
         let data = payload.unwrap_or(&[]);
         let typ = if self.is_ipv6 { ICMP_TYPE_ECHO_V6 } else { ICMP_TYPE_ECHO_V4 };
@@ -64,36 +60,22 @@ impl XIcmpClient {
         self.seq = if self.seq == 65535 { 1 } else { self.seq + 1 };
         Ok(pkt)
     }
-
-    pub fn unwrap_packet(&mut self, packet: &[u8]) -> Option<Vec<u8>> {
-        self.decode_reply(packet).ok().flatten()
-    }
-
+    pub fn unwrap_packet(&mut self, packet: &[u8]) -> Option<Vec<u8>> { self.decode_reply(packet).ok().flatten() }
     pub fn decode_reply(&mut self, packet: &[u8]) -> Result<Option<Vec<u8>>> {
-        if packet.len() < 8 {
-            return Err(Error::Protocol("ICMP packet too short (< 8 bytes)".into()));
-        }
-        if packet[1] != 0 {
-            return Err(Error::Protocol("ICMP reply code non-zero".into()));
-        }
+        if packet.len() < 8 { return Err(Error::Protocol("ICMP packet too short (< 8 bytes)".into())); }
+        if packet[1] != 0 { return Err(Error::Protocol("ICMP reply code non-zero".into())); }
         let expected_typ = if self.is_ipv6 { ICMP_TYPE_ECHO_REPLY_V6 } else { ICMP_TYPE_ECHO_REPLY_V4 };
         if packet[0] != expected_typ {
             return Err(Error::Protocol(format!("ICMP type mismatch: expected reply {}, got {}", expected_typ, packet[0])));
         }
-        if !verify_checksum(packet) {
-            return Err(Error::Protocol("ICMP checksum verification failed".into()));
-        }
-        if u16::from_be_bytes([packet[4], packet[5]]) != self.id {
-            return Ok(None);
-        }
+        if !verify_checksum(packet) { return Err(Error::Protocol("ICMP checksum verification failed".into())); }
+        if u16::from_be_bytes([packet[4], packet[5]]) != self.id { return Ok(None); }
         let Some(status) = self.seq_status.remove(&u16::from_be_bytes([packet[6], packet[7]])) else {
             return Ok(None);
         };
         let mut data = &packet[8..];
         if status.need_seq_byte {
-            if data.len() <= 1 || data[0] == status.seq_byte {
-                return Ok(None);
-            }
+            if data.len() <= 1 || data[0] == status.seq_byte { return Ok(None); }
             data = &data[1..];
         }
         Ok((!data.is_empty()).then(|| data.to_vec()))
@@ -108,15 +90,9 @@ pub fn calculate_checksum(data: &[u8]) -> u16 {
         sum += word as u32;
         i += 2;
     }
-    if i < data.len() {
-        sum += (data[i] as u32) << 8;
-    }
-    while (sum >> 16) > 0 {
-        sum = (sum & 0xffff) + (sum >> 16);
-    }
+    if i < data.len() { sum += (data[i] as u32) << 8; }
+    while (sum >> 16) > 0 { sum = (sum & 0xffff) + (sum >> 16); }
     !(sum as u16)
 }
 
-pub fn verify_checksum(data: &[u8]) -> bool {
-    calculate_checksum(data) == 0
-}
+pub fn verify_checksum(data: &[u8]) -> bool { calculate_checksum(data) == 0 }

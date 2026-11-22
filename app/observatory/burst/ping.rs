@@ -14,7 +14,6 @@ impl PingClient {
             timeout,
         }
     }
-
     pub async fn measure_delay(&self, _http_method: &str) -> (Duration, Result<()>) {
         if self.destination.is_empty() { return (RTT_FAILED, Err(Error::Config("empty destination".into()))); }
         let start = Instant::now();

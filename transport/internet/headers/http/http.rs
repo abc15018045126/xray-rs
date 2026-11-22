@@ -2,7 +2,6 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-
 use super::config_pb::Config;
 use super::linked_read_request::read_request;
 use crate::common::errors::{Error, Result};
@@ -18,16 +17,9 @@ pub struct HeaderWriter {
 }
 
 impl HeaderWriter {
-    pub fn new(header: Vec<u8>) -> Self {
-        Self {
-            header: Some(header),
-        }
-    }
-
+    pub fn new(header: Vec<u8>) -> Self { Self { header: Some(header), } }
     pub fn write_to_vec(&mut self, target: &mut Vec<u8>) {
-        if let Some(h) = self.header.take() {
-            target.extend_from_slice(&h);
-        }
+        if let Some(h) = self.header.take() { target.extend_from_slice(&h); }
     }
 }
 
@@ -36,17 +28,12 @@ pub struct HeaderReader {
 }
 
 impl HeaderReader {
-    pub fn new(expected_uri: Vec<String>) -> Self {
-        Self { expected_uri }
-    }
-
+    pub fn new(expected_uri: Vec<String>) -> Self { Self { expected_uri } }
     pub fn parse_and_validate(&self, raw_header: &[u8]) -> Result<()> {
         let req = read_request(raw_header)?;
         if !self.expected_uri.is_empty() {
             let found = self.expected_uri.iter().any(|u| u == &req.uri);
-            if !found {
-                return Err(Error::Protocol("Header Mismatch".into()));
-            }
+            if !found { return Err(Error::Protocol("Header Mismatch".into())); }
         }
         Ok(())
     }
@@ -76,7 +63,6 @@ impl<S> HttpStream<S> {
             expected_uris: Vec::new(),
         }
     }
-
     pub fn new_server(inner: S, response_header: Vec<u8>, expected_uris: Vec<String>) -> Self {
         Self {
             inner,
@@ -92,11 +78,7 @@ impl<S> HttpStream<S> {
 }
 
 impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         if self.prefix_pos < self.prefix_buf.len() {
             let rem = &self.prefix_buf[self.prefix_pos..];
             let n = rem.len().min(buf.remaining());
@@ -104,7 +86,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
             self.prefix_pos += n;
             return Poll::Ready(Ok(()));
         }
-
         if !self.read_header {
             let mut chunk = [0u8; 1024];
             let mut read_buf = ReadBuf::new(&mut chunk);
@@ -120,9 +101,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
                         if !self.expected_uris.is_empty()
                             && let Err(e) = HeaderReader::new(self.expected_uris.clone())
                                 .parse_and_validate(&self.header_buf[..header_end])
-                        {
-                            return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidData, format!("{:?}", e))));
-                        }
+                        { return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidData, format!("{:?}", e)))); }
                         if header_end < self.header_buf.len() {
                             self.prefix_buf = self.header_buf[header_end..].to_vec();
                             self.prefix_pos = 0;
@@ -146,7 +125,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
                 other => return other,
             }
         }
-
         Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }
@@ -165,11 +143,9 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for HttpStream<S> {
         }
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
-
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
@@ -180,10 +156,7 @@ pub struct Authenticator {
 }
 
 impl Authenticator {
-    pub fn new(config: Config) -> Self {
-        Self { config }
-    }
-
+    pub fn new(config: Config) -> Self { Self { config } }
     pub fn format_request(&self) -> Vec<u8> {
         if let Some(req) = &self.config.request {
             let method = req.get_method_value();
@@ -200,7 +173,6 @@ impl Authenticator {
             b"GET / HTTP/1.1\r\n\r\n".to_vec()
         }
     }
-
     pub fn format_response(&self) -> Vec<u8> {
         if let Some(resp) = &self.config.response {
             let version = resp.get_full_version();
@@ -217,43 +189,23 @@ impl Authenticator {
             b"HTTP/1.1 200 OK\r\n\r\n".to_vec()
         }
     }
-
-    pub fn client_stream<S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static>(
-        &self,
-        stream: S,
-    ) -> BoxStream {
+    pub fn client_stream<S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static>(&self, stream: S) -> BoxStream {
         let req_header = self.format_request();
         Box::pin(HttpStream::new_client(stream, req_header))
     }
-
-    pub fn server_stream<S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static>(
-        &self,
-        stream: S,
-    ) -> BoxStream {
+    pub fn server_stream<S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static>(&self, stream: S) -> BoxStream {
         let resp_header = self.format_response();
-        let expected_uris = self
-            .config
-            .request
-            .as_ref()
-            .map(|r| r.uri.clone())
-            .unwrap_or_default();
+        let expected_uris = self.config.request.as_ref().map(|r| r.uri.clone()).unwrap_or_default();
         Box::pin(HttpStream::new_server(stream, resp_header, expected_uris))
     }
 }
 
 impl ConnectionAuthenticator for Authenticator {
-    fn client(&self, stream: BoxStream) -> BoxStream {
-        self.client_stream(stream)
-    }
-
-    fn server(&self, stream: BoxStream) -> BoxStream {
-        self.server_stream(stream)
-    }
+    fn client(&self, stream: BoxStream) -> BoxStream { self.client_stream(stream) }
+    fn server(&self, stream: BoxStream) -> BoxStream { self.server_stream(stream) }
 }
 
-pub fn new_authenticator(config: Config) -> Authenticator {
-    Authenticator::new(config)
-}
+pub fn new_authenticator(config: Config) -> Authenticator { Authenticator::new(config) }
 
 pub struct HttpHeaderObfuscator;
 
@@ -267,7 +219,6 @@ impl HttpHeaderObfuscator {
         stream.write_all(req.as_bytes()).await.map_err(Error::Io)?;
         Ok(())
     }
-
     pub async fn server_read_request<R: AsyncRead + Unpin>(reader: &mut R) -> Result<(String, Vec<u8>)> {
         let (mut buf, mut chunk) = (Vec::new(), [0u8; 1]);
         while buf.len() < MAX_HEADER_LENGTH {

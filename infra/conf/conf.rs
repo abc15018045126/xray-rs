@@ -1,7 +1,6 @@
 pub const CONF_DIR: &str = "conf";
 
 use std::collections::HashMap;
-
 use crate::app::router::{DomainMatcher, IpMatcher, Router, Rule};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Destination, Network};
@@ -262,9 +261,7 @@ impl MultiServerSettings {
     }
 }
 
-fn parse_fragment_config(
-    fm: &FinalmaskConfigJson,
-) -> Option<crate::transport::internet::finalmask::fragment::Config> {
+fn parse_fragment_config(fm: &FinalmaskConfigJson) -> Option<crate::transport::internet::finalmask::fragment::Config> {
     let tcp_layers = fm.tcp.as_ref()?;
     for layer in tcp_layers {
         if layer.mask_type.eq_ignore_ascii_case("fragment") {
@@ -313,10 +310,7 @@ fn parse_fragment_config(
     None
 }
 
-fn parse_multi_settings(
-    raw: Option<serde_json::Value>,
-    proto: &str,
-) -> Result<MultiServerSettings> {
+fn parse_multi_settings(raw: Option<serde_json::Value>, proto: &str) -> Result<MultiServerSettings> {
     let mut s: MultiServerSettings = serde_json::from_value(raw.unwrap_or_default())
         .map_err(|e| Error::Config(format!("Invalid {} outbound settings: {}", proto, e)))?;
     s.normalize_flat_outbound();
@@ -327,14 +321,9 @@ fn sub_tag_for(tag: &str, len: usize, idx: usize) -> String {
     if len == 1 { tag.to_string() } else { format!("{}#{}", tag, idx) }
 }
 
-fn build_optional_tls(
-    ss: Option<&StreamSettingsConfig>,
-    addr: &str,
-) -> Result<(Option<TlsClient>, Option<String>)> {
+fn build_optional_tls(ss: Option<&StreamSettingsConfig>, addr: &str) -> Result<(Option<TlsClient>, Option<String>)> {
     let Some(ss) = ss else { return Ok((None, None)) };
-    if ss.security.as_deref() != Some("tls") {
-        return Ok((None, None));
-    }
+    if ss.security.as_deref() != Some("tls") { return Ok((None, None)); }
     let cfg = ss.tls_settings.clone().unwrap_or_default();
     let sni = cfg.server_name.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| addr.to_string());
     let alpn = cfg.alpn.unwrap_or_default().into_iter().map(String::into_bytes).collect();
@@ -350,8 +339,7 @@ fn build_optional_tls(
 fn parse_json_str_array(v: &serde_json::Value, key: &str) -> Vec<String> {
     v.get(key)
         .and_then(|a| a.as_array())
-        .map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect())
-        .unwrap_or_default()
+        .map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default()
 }
 
 fn parse_sniffing(
@@ -360,9 +348,7 @@ fn parse_sniffing(
 ) -> Option<crate::common::session::SniffingRequest> {
     let v = v?;
     let enabled = v.get("enabled").and_then(|b| b.as_bool()).unwrap_or(false);
-    if require_enabled && !enabled {
-        return None;
-    }
+    if require_enabled && !enabled { return None; }
     Some(crate::common::session::SniffingRequest {
         enabled,
         metadata_only: v.get("metadataOnly").and_then(|b| b.as_bool()).unwrap_or(false),
@@ -373,10 +359,7 @@ fn parse_sniffing(
 }
 
 fn parse_client_uuids(clients: &[UserConfig]) -> Result<Vec<Uuid>> {
-    clients
-        .iter()
-        .map(|c| Uuid::from_str(&c.id).map_err(|e| Error::Config(format!("Invalid UUID: {}", e))))
-        .collect()
+    clients.iter().map(|c| Uuid::from_str(&c.id).map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))).collect()
 }
 
 fn wrap_pingora_multi_outbound(
@@ -384,12 +367,8 @@ fn wrap_pingora_multi_outbound(
     handlers: Vec<Arc<dyn OutboundHandler>>,
     labels: Vec<String>,
 ) -> Result<Arc<dyn OutboundHandler>> {
-    if handlers.len() == 1 {
-        return Ok(handlers.into_iter().next().unwrap());
-    }
-    let lb = Arc::new(
-        crate::app::pingora_bridge::PingoraUpstreamBalancer::from_labels_ketama(labels)?,
-    );
+    if handlers.len() == 1 { return Ok(handlers.into_iter().next().unwrap()); }
+    let lb = Arc::new(crate::app::pingora_bridge::PingoraUpstreamBalancer::from_labels_ketama(labels)?);
     Ok(Arc::new(crate::app::pingora_bridge::PingoraPooledOutbound::new(
         tag,
         handlers,
@@ -414,22 +393,15 @@ impl Config {
         let mut outbounds = HashMap::new();
         let mut default_outbound_tag = None;
         let dns_client = Arc::new(build_dns_client(self.dns.as_ref()));
-
         for (i, out_cfg) in self.outbounds.into_iter().enumerate() {
             let tag = out_cfg.tag.unwrap_or_else(|| format!("outbound-{}", i));
-            if default_outbound_tag.is_none() {
-                default_outbound_tag = Some(tag.clone());
-            }
-
+            if default_outbound_tag.is_none() { default_outbound_tag = Some(tag.clone()); }
             let handler: Arc<dyn OutboundHandler> = match out_cfg.protocol.to_lowercase().as_str() {
                 "freedom" | "direct" => Arc::new(p::freedom::Handler::new(&tag)),
                 "blackhole" | "block" => {
                     let resp_type = out_cfg
                         .settings
-                        .as_ref()
-                        .and_then(|s| s.get("response"))
-                        .and_then(|r| r.get("type"))
-                        .and_then(|t| t.as_str())
+                        .as_ref().and_then(|s| s.get("response")).and_then(|r| r.get("type")).and_then(|t| t.as_str())
                         .map(|t| match t.to_lowercase().as_str() {
                             "http" | "http403" => p::blackhole::ResponseType::Http403,
                             "http500" => p::blackhole::ResponseType::Http500,
@@ -441,9 +413,7 @@ impl Config {
                 "vless" => build_vless_outbound(&tag, out_cfg.settings, out_cfg.stream_settings)?,
                 "trojan" => {
                     let s = parse_multi_settings(out_cfg.settings, "Trojan")?;
-                    if s.servers.is_empty() {
-                        return Err(Error::Config("Trojan servers list is empty".into()));
-                    }
+                    if s.servers.is_empty() { return Err(Error::Config("Trojan servers list is empty".into())); }
                     let (mut hs, mut lbs) = (Vec::with_capacity(s.servers.len()), Vec::with_capacity(s.servers.len()));
                     for (idx, srv) in s.servers.iter().enumerate() {
                         let addr = srv.address.as_deref().unwrap_or("127.0.0.1");
@@ -460,9 +430,7 @@ impl Config {
                 }
                 "shadowsocks" => {
                     let s = parse_multi_settings(out_cfg.settings, "Shadowsocks")?;
-                    if s.servers.is_empty() {
-                        return Err(Error::Config("Shadowsocks servers list is empty".into()));
-                    }
+                    if s.servers.is_empty() { return Err(Error::Config("Shadowsocks servers list is empty".into())); }
                     let (mut hs, mut lbs) = (Vec::with_capacity(s.servers.len()), Vec::with_capacity(s.servers.len()));
                     for (idx, srv) in s.servers.iter().enumerate() {
                         let addr = srv.address.as_deref().unwrap_or("127.0.0.1");
@@ -479,9 +447,7 @@ impl Config {
                 }
                 "vmess" => {
                     let s = parse_multi_settings(out_cfg.settings, "VMess")?;
-                    if s.vnext.is_empty() {
-                        return Err(Error::Config("VMess vnext is empty".into()));
-                    }
+                    if s.vnext.is_empty() { return Err(Error::Config("VMess vnext is empty".into())); }
                     let (mut hs, mut lbs) = (Vec::with_capacity(s.vnext.len()), Vec::with_capacity(s.vnext.len()));
                     for (idx, srv) in s.vnext.iter().enumerate() {
                         let user = srv.users.first().ok_or_else(|| Error::Config("VMess users is empty".into()))?;
@@ -498,9 +464,7 @@ impl Config {
                 }
                 "socks" => {
                     let s = parse_multi_settings(out_cfg.settings, "SOCKS")?;
-                    if s.servers.is_empty() {
-                        return Err(Error::Config("SOCKS servers list is empty".into()));
-                    }
+                    if s.servers.is_empty() { return Err(Error::Config("SOCKS servers list is empty".into())); }
                     let (mut hs, mut lbs) = (Vec::with_capacity(s.servers.len()), Vec::with_capacity(s.servers.len()));
                     for (idx, srv) in s.servers.iter().enumerate() {
                         let addr = srv.address.as_deref().unwrap_or("127.0.0.1");
@@ -514,9 +478,7 @@ impl Config {
                 }
                 "http" => {
                     let s = parse_multi_settings(out_cfg.settings, "HTTP")?;
-                    if s.servers.is_empty() {
-                        return Err(Error::Config("HTTP servers list is empty".into()));
-                    }
+                    if s.servers.is_empty() { return Err(Error::Config("HTTP servers list is empty".into())); }
                     let (mut hs, mut lbs) = (Vec::with_capacity(s.servers.len()), Vec::with_capacity(s.servers.len()));
                     for (idx, srv) in s.servers.iter().enumerate() {
                         let addr = srv.address.as_deref().unwrap_or("127.0.0.1");
@@ -544,31 +506,21 @@ impl Config {
                     let addr_str = raw.get("address").and_then(|v| v.as_str()).unwrap_or("127.0.0.1");
                     let port_val = raw.get("port").and_then(|v| v.as_u64()).unwrap_or(443) as u16;
                     let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
-                    let hy_cfg: p::hysteria::HysteriaConfig =
-                        serde_json::from_value(raw).unwrap_or_default();
+                    let hy_cfg: p::hysteria::HysteriaConfig = serde_json::from_value(raw).unwrap_or_default();
                     Arc::new(p::hysteria::HysteriaClient::new(&tag, dest, hy_cfg))
                 }
                 "dns" => Arc::new(p::DnsOutbound::new(tag.clone(), dns_client.clone())),
-                other => {
-                    return Err(Error::Unsupported(format!(
-                        "Outbound protocol '{}' is not supported",
-                        other
-                    )));
-                }
+                other => { return Err(Error::Unsupported(format!("Outbound protocol '{}' is not supported", other))); }
             };
-
             outbounds.insert(tag, handler);
         }
-
         for (i, in_cfg) in self.inbounds.into_iter().enumerate() {
             let tag = in_cfg.tag.unwrap_or_else(|| format!("inbound-{}", i));
             let proto = in_cfg.protocol.to_lowercase();
             if proto == "tun" {
                 let st = in_cfg.settings.as_ref();
                 let tun_name = st.and_then(|s| s.get("name")?.as_str()).unwrap_or("xray_tun");
-                let mtu = st
-                    .and_then(|s| s.get("mtu").or_else(|| s.get("MTU"))?.as_u64())
-                    .unwrap_or(1500) as usize;
+                let mtu = st.and_then(|s| s.get("mtu").or_else(|| s.get("MTU"))?.as_u64()).unwrap_or(1500) as usize;
                 let mut gateway_v4: ipnet::Ipv4Net = "172.18.0.1/30".parse().unwrap();
                 let mut gateway_v6: Option<ipnet::Ipv6Net> = None;
                 if let Some(gws) = st.and_then(|s| s.get("gateway")?.as_array()) {
@@ -611,25 +563,19 @@ impl Config {
                 })));
                 continue;
             }
-
             let listen_ip = in_cfg.listen.as_deref().unwrap_or("0.0.0.0");
             let port_val = in_cfg.port.unwrap_or(0);
-            if port_val == 0 {
-                continue;
-            }
+            if port_val == 0 { continue; }
             let bind_addr: SocketAddr = format!("{}:{}", listen_ip, port_val)
                 .parse()
                 .map_err(|e| Error::Config(format!("Invalid listen address '{}:{}': {}", listen_ip, port_val, e)))?;
-
             let handler: Arc<dyn InboundHandler> = match proto.as_str() {
                 "socks" | "socks5" => Arc::new(p::socks::Server::new(&tag)),
                 "http" => Arc::new(p::http::Server::new(&tag)),
                 "mixed" => Arc::new(p::mixed::Server::new(&tag)),
                 "vless" => {
                     let s = parse_multi_settings(in_cfg.settings, "VLESS")?;
-                    if let Some(ref dec) = s.decryption
-                        && !dec.is_empty()
-                        && !dec.eq_ignore_ascii_case("none")
+                    if let Some(ref dec) = s.decryption && !dec.is_empty() && !dec.eq_ignore_ascii_case("none")
                     {
                         return Err(Error::Config(format!(
                             "VLESS inbound '{}' unsupported decryption '{}': only 'none' is supported",
@@ -637,9 +583,7 @@ impl Config {
                         )));
                     }
                     let mut srv = p::vless::InboundServer::new(&tag, parse_client_uuids(&s.clients)?);
-                    if let Some(fb) = s.fallbacks && !fb.is_empty() {
-                        srv = srv.with_fallbacks(fb);
-                    }
+                    if let Some(fb) = s.fallbacks && !fb.is_empty() { srv = srv.with_fallbacks(fb); }
                     Arc::new(srv)
                 }
                 "trojan" => {
@@ -670,39 +614,19 @@ impl Config {
                 }
                 other => return Err(Error::Unsupported(format!("Inbound protocol '{}' is not supported", other))),
             };
-
             let sniffing_req = parse_sniffing(in_cfg.sniffing.as_ref(), true);
-
-            let handler: Arc<dyn InboundHandler> = if let Some(ref stream_cfg) =
-                in_cfg.stream_settings
+            let handler: Arc<dyn InboundHandler> = if let Some(ref stream_cfg) = in_cfg.stream_settings
             {
-                let security = stream_cfg
-                    .security
-                    .as_deref()
-                    .unwrap_or("none")
-                    .to_ascii_lowercase();
-                let network = stream_cfg
-                    .network
-                    .as_deref()
-                    .unwrap_or("tcp")
-                    .to_ascii_lowercase();
-
+                let security = stream_cfg.security.as_deref().unwrap_or("none").to_ascii_lowercase();
+                let network = stream_cfg.network.as_deref().unwrap_or("tcp").to_ascii_lowercase();
                 let tls_server = if security == "tls" {
                     let tls_cfg = stream_cfg.tls_settings.as_ref().ok_or_else(|| {
-                        Error::Config(format!(
-                            "Inbound '{}' has security='tls' but missing tlsSettings",
-                            tag
-                        ))
+                        Error::Config(format!("Inbound '{}' has security='tls' but missing tlsSettings", tag))
                     })?;
                     let alpn: Vec<Vec<u8>> = tls_cfg
                         .alpn
-                        .as_ref()
-                        .map(|list| list.iter().map(|s| s.as_bytes().to_vec()).collect())
-                        .unwrap_or_default();
-                    let cert_cfg = tls_cfg
-                        .certificates
-                        .as_ref()
-                        .and_then(|c| c.first())
+                        .as_ref().map(|list| list.iter().map(|s| s.as_bytes().to_vec()).collect()).unwrap_or_default();
+                    let cert_cfg = tls_cfg.certificates.as_ref().and_then(|c| c.first())
                         .ok_or_else(|| {
                             Error::Config(format!(
                                 "Inbound '{}' has security='tls' but missing tlsSettings.certificates",
@@ -713,20 +637,14 @@ impl Config {
                         cert_cfg.certificate_file.as_deref(),
                         cert_cfg.key_file.as_deref(),
                     ) {
-                        crate::transport::internet::TlsServer::from_pem_files(
-                            cert_file, key_file, alpn,
-                        )?
+                        crate::transport::internet::TlsServer::from_pem_files(cert_file, key_file, alpn)?
                     } else if let (Some(cert_lines), Some(key_lines)) = (
                         cert_cfg.certificate.as_ref(),
                         cert_cfg.key.as_ref(),
                     ) {
                         let cert_pem = cert_lines.join("\n");
                         let key_pem = key_lines.join("\n");
-                        crate::transport::internet::TlsServer::from_pem(
-                            cert_pem.as_bytes(),
-                            key_pem.as_bytes(),
-                            alpn,
-                        )?
+                        crate::transport::internet::TlsServer::from_pem(cert_pem.as_bytes(), key_pem.as_bytes(), alpn)?
                     } else {
                         return Err(Error::Config(format!(
                             "Inbound '{}' tlsSettings.certificates requires certificateFile/keyFile or certificate/key",
@@ -737,31 +655,21 @@ impl Config {
                 } else {
                     None
                 };
-
                 let reality_server = if security == "reality" {
                     let rc = stream_cfg.reality_settings.as_ref().ok_or_else(|| {
-                        Error::Config(format!(
-                            "Inbound '{}' has security='reality' but missing realitySettings",
-                            tag
-                        ))
+                        Error::Config(format!("Inbound '{}' has security='reality' but missing realitySettings", tag))
                     })?;
-                    Some(Arc::new(
-                        crate::transport::internet::reality::RealityServer::new(rc)?,
-                    ))
+                    Some(Arc::new(crate::transport::internet::reality::RealityServer::new(rc)?))
                 } else {
                     None
                 };
-
                 let is_xhttp = network == "xhttp" || network == "splithttp";
                 let splithttp_server = if is_xhttp {
                     let x_cfg = stream_cfg.xhttp_settings.clone().unwrap_or_default();
-                    Some(Arc::new(
-                        crate::transport::internet::splithttp::SplitHttpServer::new(x_cfg),
-                    ))
+                    Some(Arc::new(crate::transport::internet::splithttp::SplitHttpServer::new(x_cfg)))
                 } else {
                     None
                 };
-
                 let is_httpupgrade = !is_xhttp && network == "httpupgrade";
                 let httpupgrade_pair = if is_httpupgrade {
                     let hu = stream_cfg.httpupgrade_settings.as_ref();
@@ -771,7 +679,6 @@ impl Config {
                 } else {
                     None
                 };
-
                 let is_ws = !is_xhttp && !is_httpupgrade && (network == "ws" || network == "websocket");
                 let (ws_path, ws_host) = if is_ws {
                     let ws_cfg = stream_cfg.ws_settings.as_ref();
@@ -779,9 +686,7 @@ impl Config {
                     let host = ws_cfg.and_then(|w| {
                         w.host.clone().or_else(|| {
                             w.headers.as_ref().and_then(|h| {
-                                h.iter()
-                                    .find(|(k, _)| k.eq_ignore_ascii_case("host"))
-                                    .map(|(_, v)| v.clone())
+                                h.iter().find(|(k, _)| k.eq_ignore_ascii_case("host")).map(|(_, v)| v.clone())
                             })
                         })
                     });
@@ -789,53 +694,37 @@ impl Config {
                 } else {
                     (None, None)
                 };
-
                 if tls_server.is_some()
                     || reality_server.is_some()
-                    || is_ws
-                    || httpupgrade_pair.is_some()
-                    || splithttp_server.is_some()
-                    || sniffing_req.is_some()
+                    || is_ws || httpupgrade_pair.is_some() || splithttp_server.is_some() || sniffing_req.is_some()
                 {
                     let mut wrapped = crate::app::proxyman::inbound::StreamInboundHandler::new(
                         handler, tls_server, is_ws, ws_path, ws_host,
                     );
-                    if let Some(r_srv) = reality_server {
-                        wrapped = wrapped.with_reality(r_srv);
-                    }
+                    if let Some(r_srv) = reality_server { wrapped = wrapped.with_reality(r_srv); }
                     if let Some((hu_path, hu_host)) = httpupgrade_pair {
                         wrapped = wrapped.with_httpupgrade(hu_path, hu_host);
                     }
-                    if let Some(xhttp_srv) = splithttp_server {
-                        wrapped = wrapped.with_splithttp(xhttp_srv);
-                    }
-                    if let Some(sniff) = sniffing_req {
-                        wrapped = wrapped.with_sniffing(sniff);
-                    }
+                    if let Some(xhttp_srv) = splithttp_server { wrapped = wrapped.with_splithttp(xhttp_srv); }
+                    if let Some(sniff) = sniffing_req { wrapped = wrapped.with_sniffing(sniff); }
                     Arc::new(wrapped)
                 } else {
                     handler
                 }
             } else if let Some(sniff) = sniffing_req {
                 Arc::new(
-                    crate::app::proxyman::inbound::StreamInboundHandler::new(
-                        handler, None, false, None, None,
-                    )
+                    crate::app::proxyman::inbound::StreamInboundHandler::new(handler, None, false, None, None)
                     .with_sniffing(sniff),
                 )
             } else {
                 handler
             };
-
             inbounds.push((bind_addr, handler));
         }
-
         let rules = build_routing_rules(self.routing);
-
         let router = Router::new(rules, default_outbound_tag.clone());
         dns_client.attach_routing(router.clone(), outbounds.clone());
         crate::transport::internet::tcp::dialer::init_system_dialer_dns(dns_client.clone());
-
         Ok(BuiltConfig {
             inbounds,
             tun_devices,
@@ -852,14 +741,8 @@ fn build_vless_outbound(
     stream_settings: Option<StreamSettingsConfig>,
 ) -> Result<Arc<dyn OutboundHandler>> {
     let settings = parse_multi_settings(settings_val, "VLESS")?;
-    if settings.vnext.is_empty() {
-        return Err(Error::Config("VLESS vnext is empty".into()));
-    }
-
-    let (mut handlers, mut lbs) = (
-        Vec::with_capacity(settings.vnext.len()),
-        Vec::with_capacity(settings.vnext.len()),
-    );
+    if settings.vnext.is_empty() { return Err(Error::Config("VLESS vnext is empty".into())); }
+    let (mut handlers, mut lbs) = (Vec::with_capacity(settings.vnext.len()), Vec::with_capacity(settings.vnext.len()));
     for (v_idx, server) in settings.vnext.iter().enumerate() {
         let user = server.users.first().ok_or_else(|| Error::Config("VLESS users is empty".into()))?;
         let user_uuid = Uuid::from_str(&user.id).map_err(|e| Error::Config(format!("Invalid UUID: {}", e)))?;
@@ -868,18 +751,14 @@ fn build_vless_outbound(
         let dest = Destination::from_str(&format!("{}:{}", addr_str, port_val))?;
         let sub_tag = sub_tag_for(tag, settings.vnext.len(), v_idx);
         lbs.push(format!("{}:{}", addr_str, port_val));
-
         let (mut tls_client, mut tls_sni, mut reality_client) = (None, None, None);
         let (mut ws_path, mut ws_host, mut ws_headers, mut ws_heartbeat) = (None, None, HashMap::new(), 0u32);
         let (mut xhttp_cfg, mut httpupgrade_cfg, mut fragment_cfg) = (None, None, None);
-
         if let Some(ref ss) = stream_settings {
             fragment_cfg = ss.finalmask.as_ref().and_then(parse_fragment_config);
             let net = ss.network.as_deref().unwrap_or("tcp").to_ascii_lowercase();
             let is_xhttp = matches!(net.as_str(), "xhttp" | "splithttp") || ss.xhttp_settings.is_some();
-            if is_xhttp {
-                xhttp_cfg = Some(ss.xhttp_settings.clone().unwrap_or_default());
-            }
+            if is_xhttp { xhttp_cfg = Some(ss.xhttp_settings.clone().unwrap_or_default()); }
             let is_hu = !is_xhttp && (net == "httpupgrade" || ss.httpupgrade_settings.is_some());
             if is_hu {
                 let hu = ss.httpupgrade_settings.as_ref();
@@ -907,7 +786,6 @@ fn build_vless_outbound(
                     }
                 }
             }
-
             match ss.security.as_deref() {
                 Some("tls") => {
                     let tls_cfg = ss.tls_settings.clone().unwrap_or_default();
@@ -932,8 +810,7 @@ fn build_vless_outbound(
                         .server_name
                         .as_deref()
                         .filter(|s| !s.trim().is_empty())
-                        .or_else(|| rc.server_names.first().map(String::as_str))
-                        .unwrap_or(addr_str);
+                        .or_else(|| rc.server_names.first().map(String::as_str)).unwrap_or(addr_str);
                     let pub_key = rc.public_key.as_deref().ok_or_else(|| {
                         Error::Config(format!("Outbound '{}' has security='reality' but missing publicKey/password", tag))
                     })?;
@@ -944,52 +821,32 @@ fn build_vless_outbound(
                 }
                 _ => {}
             }
-
-            if is_ws && ws_host.is_none() {
-                ws_host = tls_sni.clone().or_else(|| Some(addr_str.to_string()));
-            }
+            if is_ws && ws_host.is_none() { ws_host = tls_sni.clone().or_else(|| Some(addr_str.to_string())); }
         }
-
         let is_ws_tls = ws_path.is_some() && tls_client.is_some();
         let mut client = p::vless::OutboundClient::new(&sub_tag, dest, user_uuid, tls_client, tls_sni, ws_path, ws_host)
-            .with_ws_headers(ws_headers)
-            .with_ws_heartbeat(ws_heartbeat);
-        if let Some(ref flow) = user.flow
-            && !flow.is_empty()
-        {
-            client = client.with_flow(flow.clone());
-        }
+            .with_ws_headers(ws_headers).with_ws_heartbeat(ws_heartbeat);
+        if let Some(ref flow) = user.flow && !flow.is_empty()
+        { client = client.with_flow(flow.clone()); }
         let testpre = user.testpre.unwrap_or_else(|| if is_ws_tls && !client.has_ws_early_data() { 3 } else { 0 });
-        if testpre > 0 {
-            client = client.with_testpre_idle(testpre, user.testpre_idle.unwrap_or(45));
-        }
-        if let Some(rc) = reality_client {
-            client = client.with_reality(rc);
-        }
-        if let Some(f_cfg) = fragment_cfg {
-            client = client.with_fragment(f_cfg);
-        }
-        if let Some(x_cfg) = xhttp_cfg {
-            client = client.with_splithttp(x_cfg);
-        }
+        if testpre > 0 { client = client.with_testpre_idle(testpre, user.testpre_idle.unwrap_or(45)); }
+        if let Some(rc) = reality_client { client = client.with_reality(rc); }
+        if let Some(f_cfg) = fragment_cfg { client = client.with_fragment(f_cfg); }
+        if let Some(x_cfg) = xhttp_cfg { client = client.with_splithttp(x_cfg); }
         if let Some((hu_path, hu_host, hu_headers)) = httpupgrade_cfg {
             client = client.with_httpupgrade(hu_path, hu_host, hu_headers);
         }
         handlers.push(Arc::new(client) as Arc<dyn OutboundHandler>);
     }
-
     wrap_pingora_multi_outbound(tag, handlers, lbs)
 }
 
 fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
     let mut rules = Vec::new();
     let Some(rule_configs) = routing.and_then(|r| r.rules) else { return rules };
-
     for r_cfg in rule_configs {
         let mut rule = Rule::new(&r_cfg.outbound_tag);
-        if let Some(in_tags) = r_cfg.inbound_tag {
-            rule.inbound_tags = in_tags;
-        }
+        if let Some(in_tags) = r_cfg.inbound_tag { rule.inbound_tags = in_tags; }
         if let Some(domains) = r_cfg.domain {
             rule.domain_matchers.extend(domains.iter().map(|d| DomainMatcher::parse(d)));
         }
@@ -1030,9 +887,7 @@ fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
                 _ => None,
             };
         }
-        if let Some(proc_list) = r_cfg.process {
-            rule.process = proc_list;
-        }
+        if let Some(proc_list) = r_cfg.process { rule.process = proc_list; }
         rules.push(rule);
     }
     rules
@@ -1041,42 +896,27 @@ fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
 fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::DnsClient {
     let mut client = crate::app::dns::DnsClient::new();
     let Some(val) = dns_val else { return client };
-
     if let Some(qs) = val.get("queryStrategy").and_then(|v| v.as_str()) {
         client.set_query_strategy(crate::app::dns::config::QueryStrategy::from_str(qs));
     }
-    if let Some(dc) = val.get("disableCache").and_then(|v| v.as_bool()) {
-        client.set_disable_cache(dc);
-    }
-    if let Some(df) = val.get("disableFallback").and_then(|v| v.as_bool()) {
-        client.set_disable_fallback(df);
-    }
+    if let Some(dc) = val.get("disableCache").and_then(|v| v.as_bool()) { client.set_disable_cache(dc); }
+    if let Some(df) = val.get("disableFallback").and_then(|v| v.as_bool()) { client.set_disable_fallback(df); }
     if let Some(dfim) = val.get("disableFallbackIfMatch").and_then(|v| v.as_bool()) {
         client.set_disable_fallback_if_match(dfim);
     }
-
     if let Some(hosts_obj) = val.get("hosts").and_then(|h| h.as_object()) {
         for (domain, ip_val) in hosts_obj {
             let ips: Vec<std::net::IpAddr> = match ip_val {
                 serde_json::Value::String(s) => s.parse().into_iter().collect(),
-                serde_json::Value::Array(arr) => arr
-                    .iter()
-                    .filter_map(|x| x.as_str()?.parse().ok())
-                    .collect(),
+                serde_json::Value::Array(arr) => arr.iter().filter_map(|x| x.as_str()?.parse().ok()).collect(),
                 _ => Vec::new(),
             };
-            if !ips.is_empty() {
-                client.add_host(domain, ips);
-            }
+            if !ips.is_empty() { client.add_host(domain, ips); }
         }
     }
-
     let default_dns_tag = val.get("tag").and_then(|v| v.as_str()).map(str::to_string);
     let default_client_ip = val
-        .get("clientIp")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<std::net::IpAddr>().ok());
-
+        .get("clientIp").and_then(|v| v.as_str()).and_then(|s| s.parse::<std::net::IpAddr>().ok());
     if let Some(servers_arr) = val.get("servers").and_then(|s| s.as_array()) {
         for s in servers_arr {
             if let Some(addr) = s.as_str() {
@@ -1103,18 +943,13 @@ fn build_dns_client(dns_val: Option<&serde_json::Value>) -> crate::app::dns::Dns
                     skip_fallback: obj.get("skipFallback").and_then(|v| v.as_bool()).unwrap_or(false),
                     query_strategy: obj
                         .get("queryStrategy")
-                        .and_then(|v| v.as_str())
-                        .map(crate::app::dns::config::QueryStrategy::from_str),
+                        .and_then(|v| v.as_str()).map(crate::app::dns::config::QueryStrategy::from_str),
                     tag: obj
-                        .get("tag")
-                        .and_then(|v| v.as_str())
-                        .map(str::to_string)
-                        .or_else(|| default_dns_tag.clone()),
+                        .get("tag").and_then(|v| v.as_str()).map(str::to_string).or_else(|| default_dns_tag.clone()),
                     client_ip: obj
                         .get("clientIp")
                         .and_then(|v| v.as_str())
-                        .and_then(|x| x.parse::<std::net::IpAddr>().ok())
-                        .or(default_client_ip),
+                        .and_then(|x| x.parse::<std::net::IpAddr>().ok()).or(default_client_ip),
                 });
             }
         }

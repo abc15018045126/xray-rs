@@ -19,17 +19,12 @@ impl SrtpHeader {
             number: rng.r#gen(),
         }
     }
-
-    pub fn size(&self) -> usize {
-        4
-    }
-
+    pub fn size(&self) -> usize { 4 }
     pub fn serialize(&mut self, buf: &mut [u8]) {
         self.number = self.number.wrapping_add(1);
         buf[0..2].copy_from_slice(&self.header.to_be_bytes());
         buf[2..4].copy_from_slice(&self.number.to_be_bytes());
     }
-
     pub fn write_header(&mut self) -> [u8; 4] {
         let mut b = [0u8; 4];
         self.serialize(&mut b);
@@ -38,7 +33,5 @@ impl SrtpHeader {
 }
 
 impl Default for SrtpHeader {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

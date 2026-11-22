@@ -6,9 +6,5 @@ pub struct SalamanderConfig {
 }
 
 impl SalamanderConfig {
-    pub fn new(password: impl Into<String>) -> Self {
-        Self {
-            password: password.into(),
-        }
-    }
+    pub fn new(password: impl Into<String>) -> Self { Self { password: password.into(), } }
 }

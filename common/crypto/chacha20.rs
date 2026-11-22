@@ -12,18 +12,12 @@ impl ChaCha20Cipher {
         let cipher = ChaCha20Poly1305::new(key_ref);
         Self { cipher }
     }
-
     pub fn encrypt(&self, nonce: &[u8; 12], plaintext: &[u8]) -> Result<Vec<u8>> {
         let n = Nonce::from_slice(nonce);
-        self.cipher
-            .encrypt(n, plaintext)
-            .map_err(|e| Error::Crypto(e.to_string()))
+        self.cipher.encrypt(n, plaintext).map_err(|e| Error::Crypto(e.to_string()))
     }
-
     pub fn decrypt(&self, nonce: &[u8; 12], ciphertext: &[u8]) -> Result<Vec<u8>> {
         let n = Nonce::from_slice(nonce);
-        self.cipher
-            .decrypt(n, ciphertext)
-            .map_err(|e| Error::Crypto(e.to_string()))
+        self.cipher.decrypt(n, ciphertext).map_err(|e| Error::Crypto(e.to_string()))
     }
 }

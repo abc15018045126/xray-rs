@@ -5,7 +5,6 @@ use tokio_rustls::rustls::{
     pki_types::{CertificateDer, ServerName, UnixTime},
 };
 use tokio_rustls::{TlsAcceptor, TlsConnector};
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 
@@ -23,7 +22,6 @@ impl ServerCertVerifier for NoCertificateVerification {
     ) -> std::result::Result<ServerCertVerified, RustlsError> {
         Ok(ServerCertVerified::assertion())
     }
-
     fn verify_tls12_signature(
         &self,
         _message: &[u8],
@@ -32,7 +30,6 @@ impl ServerCertVerifier for NoCertificateVerification {
     ) -> std::result::Result<HandshakeSignatureValid, RustlsError> {
         Ok(HandshakeSignatureValid::assertion())
     }
-
     fn verify_tls13_signature(
         &self,
         _message: &[u8],
@@ -41,7 +38,6 @@ impl ServerCertVerifier for NoCertificateVerification {
     ) -> std::result::Result<HandshakeSignatureValid, RustlsError> {
         Ok(HandshakeSignatureValid::assertion())
     }
-
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
         vec![
             SignatureScheme::RSA_PKCS1_SHA256,
@@ -121,7 +117,6 @@ impl TlsClient {
     pub fn new(server_name: &str, allow_insecure: bool, alpn: Vec<Vec<u8>>) -> Result<Self> {
         Self::new_with_fingerprint(server_name, allow_insecure, alpn, "")
     }
-
     pub fn new_with_fingerprint(
         _server_name: &str,
         allow_insecure: bool,
@@ -130,12 +125,8 @@ impl TlsClient {
     ) -> Result<Self> {
         let mut root_store = rustls::RootCertStore::empty();
         root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-
         let mut provider = rustls::crypto::ring::default_provider();
-        if !fingerprint.is_empty() {
-            apply_fingerprint(&mut provider, fingerprint);
-        }
-
+        if !fingerprint.is_empty() { apply_fingerprint(&mut provider, fingerprint); }
         let builder = ClientConfig::builder_with_provider(Arc::new(provider))
             .with_safe_default_protocol_versions()
             .map_err(|e| Error::Protocol(format!("TLS config protocol version error: {}", e)))?;
@@ -147,21 +138,14 @@ impl TlsClient {
         config.alpn_protocols = if alpn.is_empty() { vec![b"http/1.1".to_vec()] } else { alpn };
         Ok(Self { connector: TlsConnector::from(Arc::new(config)) })
     }
-
     pub async fn connect(&self, domain: &str, stream: BoxStream) -> Result<BoxStream> {
         let clean_domain = domain.trim();
         let server_name = ServerName::try_from(clean_domain.to_string()).map_err(|e| {
             Error::Protocol(format!("Invalid TLS server name '{}': {}", clean_domain, e))
         })?;
-        let tls_stream = self
-            .connector
-            .connect(server_name, stream)
-            .await
+        let tls_stream = self.connector.connect(server_name, stream).await
             .map_err(|e| {
-                Error::Protocol(format!(
-                    "TLS handshake failed with '{}': {}",
-                    clean_domain, e
-                ))
+                Error::Protocol(format!("TLS handshake failed with '{}': {}", clean_domain, e))
             })?;
         Ok(Box::pin(tls_stream))
     }
@@ -174,12 +158,9 @@ pub struct TlsServer {
 impl TlsServer {
     pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>) -> Result<Self> {
         let certs = vec![CertificateDer::from(cert_der)];
-        let key = rustls_pki_types::PrivateKeyDer::Pkcs8(
-            rustls_pki_types::PrivatePkcs8KeyDer::from(key_der),
-        );
+        let key = rustls_pki_types::PrivateKeyDer::Pkcs8(rustls_pki_types::PrivatePkcs8KeyDer::from(key_der));
         Self::from_der_with_alpn(certs, key, Vec::new())
     }
-
     pub fn from_der_with_alpn(
         certs: Vec<CertificateDer<'static>>,
         key: rustls_pki_types::PrivateKeyDer<'static>,
@@ -189,49 +170,32 @@ impl TlsServer {
             .with_safe_default_protocol_versions()
             .map_err(|e| Error::Protocol(format!("TLS server protocol error: {}", e)))?
             .with_no_client_auth()
-            .with_single_cert(certs, key)
-            .map_err(|e| Error::Protocol(format!("TLS server single cert error: {}", e)))?;
+            .with_single_cert(certs, key).map_err(|e| Error::Protocol(format!("TLS server single cert error: {}", e)))?;
         if !alpn.is_empty() { config.alpn_protocols = alpn; }
         Ok(Self { acceptor: TlsAcceptor::from(Arc::new(config)) })
     }
-
     pub fn from_pem(cert_pem: &[u8], key_pem: &[u8], alpn: Vec<Vec<u8>>) -> Result<Self> {
         use rustls_pki_types::pem::PemObject;
-
         let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(cert_pem)
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| Error::Config(format!("Failed to parse TLS certificate PEM: {}", e)))?;
-        if certs.is_empty() {
-            return Err(Error::Config(
-                "No valid certificates found in TLS certificate PEM".into(),
-            ));
-        }
-
+        if certs.is_empty() { return Err(Error::Config("No valid certificates found in TLS certificate PEM".into())); }
         let key = rustls_pki_types::PrivateKeyDer::from_pem_slice(key_pem)
             .map_err(|e| Error::Config(format!("Failed to parse TLS private key PEM: {}", e)))?;
-
         Self::from_der_with_alpn(certs, key, alpn)
     }
-
     pub fn from_pem_files(cert_path: &str, key_path: &str, alpn: Vec<Vec<u8>>) -> Result<Self> {
         let cert_pem = std::fs::read(cert_path).map_err(|e| {
-            Error::Config(format!(
-                "Failed to read TLS certificateFile '{}': {}",
-                cert_path, e
-            ))
+            Error::Config(format!("Failed to read TLS certificateFile '{}': {}", cert_path, e))
         })?;
         let key_pem = std::fs::read(key_path).map_err(|e| {
             Error::Config(format!("Failed to read TLS keyFile '{}': {}", key_path, e))
         })?;
         Self::from_pem(&cert_pem, &key_pem, alpn)
     }
-
     pub async fn accept(&self, stream: BoxStream) -> Result<BoxStream> {
         let tls_stream = self
-            .acceptor
-            .accept(stream)
-            .await
-            .map_err(|e| Error::Protocol(format!("TLS accept failed: {}", e)))?;
+            .acceptor.accept(stream).await.map_err(|e| Error::Protocol(format!("TLS accept failed: {}", e)))?;
         Ok(Box::pin(tls_stream))
     }
 }
@@ -239,50 +203,30 @@ impl TlsServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_apply_fingerprint_chrome_vs_firefox() {
         let mut chrome_provider = rustls::crypto::ring::default_provider();
         apply_fingerprint(&mut chrome_provider, "chrome");
-
         let mut firefox_provider = rustls::crypto::ring::default_provider();
         apply_fingerprint(&mut firefox_provider, "firefox");
-
         let chrome_pos_aes256 = chrome_provider
-            .cipher_suites
-            .iter()
-            .position(|s| s.suite() == rustls::CipherSuite::TLS13_AES_256_GCM_SHA384)
-            .unwrap();
+            .cipher_suites.iter().position(|s| s.suite() == rustls::CipherSuite::TLS13_AES_256_GCM_SHA384).unwrap();
         let chrome_pos_chacha = chrome_provider
             .cipher_suites
-            .iter()
-            .position(|s| s.suite() == rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256)
-            .unwrap();
+            .iter().position(|s| s.suite() == rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256).unwrap();
         assert!(chrome_pos_aes256 < chrome_pos_chacha);
-
         let firefox_pos_aes256 = firefox_provider
-            .cipher_suites
-            .iter()
-            .position(|s| s.suite() == rustls::CipherSuite::TLS13_AES_256_GCM_SHA384)
-            .unwrap();
+            .cipher_suites.iter().position(|s| s.suite() == rustls::CipherSuite::TLS13_AES_256_GCM_SHA384).unwrap();
         let firefox_pos_chacha = firefox_provider
             .cipher_suites
-            .iter()
-            .position(|s| s.suite() == rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256)
-            .unwrap();
+            .iter().position(|s| s.suite() == rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256).unwrap();
         assert!(firefox_pos_chacha < firefox_pos_aes256);
     }
-
     #[test]
     fn test_tls_client_creation_with_fingerprints() {
         for fp in &["chrome", "firefox", "safari", "edge", "random", ""] {
-            let client =
-                TlsClient::new_with_fingerprint("example.com", true, vec![b"h2".to_vec()], fp);
-            assert!(
-                client.is_ok(),
-                "failed to create client with fingerprint '{}'",
-                fp
-            );
+            let client = TlsClient::new_with_fingerprint("example.com", true, vec![b"h2".to_vec()], fp);
+            assert!(client.is_ok(), "failed to create client with fingerprint '{}'", fp);
         }
     }
 }

@@ -13,11 +13,7 @@ pub fn generate_ech_keypair() -> ([u8; 32], Vec<u8>) {
 }
 
 pub fn cmd_ech() -> Command {
-    Command::new(
-        "ech",
-        "xray tls ech",
-        "Generate ECH (Encrypted Client Hello) keys",
-    )
+    Command::new("ech", "xray tls ech", "Generate ECH (Encrypted Client Hello) keys")
     .with_run(|_args| {
         let (priv_k, ech_config) = generate_ech_keypair();
         Ok(format!(

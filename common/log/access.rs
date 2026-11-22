@@ -26,9 +26,7 @@ impl AccessStatus {
 }
 
 impl fmt::Display for AccessStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.as_str()) }
 }
 
 #[derive(Debug, Clone)]
@@ -63,38 +61,27 @@ impl Message for AccessMessage {
         builder.push_str(self.status.as_str());
         builder.push(' ');
         builder.push_str(&self.to);
-
         if !self.detour.is_empty() {
             builder.push_str(" [");
             builder.push_str(&self.detour);
             builder.push(']');
         }
-
         if !self.reason.is_empty() {
             builder.push(' ');
             builder.push_str(&self.reason);
         }
-
         if !self.email.is_empty() {
             builder.push_str(" email: ");
             builder.push_str(&self.email);
         }
-
         builder
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
+    fn as_any(&self) -> &dyn std::any::Any { self }
 }
 
-pub fn context_with_access_message(ctx: &Context, msg: Arc<AccessMessage>) {
-    ctx.set("access_message", msg);
-}
+pub fn context_with_access_message(ctx: &Context, msg: Arc<AccessMessage>) { ctx.set("access_message", msg); }
 
-pub fn access_message_from_context(ctx: &Context) -> Option<Arc<AccessMessage>> {
-    ctx.get("access_message")
-}
+pub fn access_message_from_context(ctx: &Context) -> Option<Arc<AccessMessage>> { ctx.get("access_message") }
 
 #[derive(Debug, Clone)]
 pub struct AccessLogMessage {
@@ -110,15 +97,8 @@ impl AccessLogMessage {
             Some(addr) => addr.to_string(),
             None => "-".to_string(),
         };
-        format!(
-            "{} {} {} [{}]",
-            from_str,
-            self.status.as_str(),
-            self.to,
-            self.reason
-        )
+        format!("{} {} {} [{}]", from_str, self.status.as_str(), self.to, self.reason)
     }
-
     pub fn to_access_message(&self) -> AccessMessage {
         AccessMessage {
             from: match self.from {

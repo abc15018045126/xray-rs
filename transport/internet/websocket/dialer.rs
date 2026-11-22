@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::oneshot;
-
 use super::config::WebSocketConfig;
 use super::ws::WebSocketStream;
 use crate::common::errors::Result;
@@ -12,18 +11,12 @@ use crate::common::net::{BoxStream, Destination};
 use crate::transport::internet::tcp::TcpDialer;
 
 pub fn parse_ws_early_data(raw_path: &str) -> (String, usize) {
-    let Some((base, query)) = raw_path.split_once('?') else {
-        return (raw_path.to_string(), 0);
-    };
+    let Some((base, query)) = raw_path.split_once('?') else { return (raw_path.to_string(), 0); };
     let mut ed = 0usize;
     let mut kept = Vec::new();
     for pair in query.split('&') {
-        if pair.is_empty() {
-            continue;
-        }
-        if let Some((k, v)) = pair.split_once('=')
-            && k == "ed"
-            && let Ok(n) = v.parse::<usize>()
+        if pair.is_empty() { continue; }
+        if let Some((k, v)) = pair.split_once('=') && k == "ed" && let Ok(n) = v.parse::<usize>()
         {
             ed = n;
             continue;
@@ -73,26 +66,14 @@ impl DelayDialConn {
             wakers: Vec::new(),
         }
     }
-
     fn register_waker(&mut self, waker: &Waker) {
-        if !self.wakers.iter().any(|w| w.will_wake(waker)) {
-            self.wakers.push(waker.clone());
-        }
+        if !self.wakers.iter().any(|w| w.will_wake(waker)) { self.wakers.push(waker.clone()); }
     }
-
-    fn wake_all(&mut self) {
-        for w in self.wakers.drain(..) {
-            w.wake();
-        }
-    }
+    fn wake_all(&mut self) { for w in self.wakers.drain(..) { w.wake(); } }
 }
 
 impl AsyncRead for DelayDialConn {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         match &mut self.state {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_read(cx, buf),
             DelayDialState::Closed => Poll::Ready(Ok(())),
@@ -105,11 +86,7 @@ impl AsyncRead for DelayDialConn {
 }
 
 impl AsyncWrite for DelayDialConn {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
         loop {
             match &mut self.state {
                 DelayDialState::Idle => {
@@ -131,9 +108,7 @@ impl AsyncWrite for DelayDialConn {
                         let (was_ed, n) = (*sent_as_ed, *ed_len);
                         self.state = DelayDialState::Connected(stream);
                         self.wake_all();
-                        if was_ed {
-                            return Poll::Ready(Ok(n.min(buf.len())));
-                        }
+                        if was_ed { return Poll::Ready(Ok(n.min(buf.len()))); }
                     }
                     Poll::Ready(res) => {
                         let msg = match res {
@@ -152,14 +127,12 @@ impl AsyncWrite for DelayDialConn {
             }
         }
     }
-
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut self.state {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_flush(cx),
             _ => Poll::Ready(Ok(())),
         }
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         match &mut self.state {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_shutdown(cx),
@@ -179,11 +152,7 @@ impl AsyncWrite for DelayDialConn {
 }
 
 impl Drop for DelayDialConn {
-    fn drop(&mut self) {
-        if let DelayDialState::Dialing { handle, .. } = &self.state {
-            handle.abort();
-        }
-    }
+    fn drop(&mut self) { if let DelayDialState::Dialing { handle, .. } = &self.state { handle.abort(); } }
 }
 
 pub struct WebSocketDialer;

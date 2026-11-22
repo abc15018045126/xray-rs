@@ -6,6 +6,4 @@ pub mod handler_test;
 
 pub use handler::DefaultOutboundHandler;
 pub use outbound::*;
-pub use uot::{
-    UOT_LEGACY_MAGIC_ADDRESS, UOT_MAGIC_ADDRESS, UotPacket, UotVersion, is_uot_destination,
-};
+pub use uot::{UOT_LEGACY_MAGIC_ADDRESS, UOT_MAGIC_ADDRESS, UotPacket, UotVersion, is_uot_destination};

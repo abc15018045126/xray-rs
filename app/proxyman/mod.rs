@@ -20,19 +20,12 @@ pub struct InboundManager {
 }
 
 impl InboundManager {
-    pub fn new(inbounds: Vec<(SocketAddr, Arc<dyn InboundHandler>)>) -> Self {
-        Self { inbounds }
-    }
-
+    pub fn new(inbounds: Vec<(SocketAddr, Arc<dyn InboundHandler>)>) -> Self { Self { inbounds } }
     pub async fn start(&self, dispatcher: Arc<DefaultDispatcher>) -> Result<Vec<JoinHandle<()>>> {
         let mut tasks = Vec::new();
-
         for (addr, handler) in &self.inbounds {
-            if let Some(task) = spawn_pingora_inbound(*addr, handler.clone(), dispatcher.clone()) {
-                tasks.push(task);
-            }
+            if let Some(task) = spawn_pingora_inbound(*addr, handler.clone(), dispatcher.clone()) { tasks.push(task); }
         }
-
         Ok(tasks)
     }
 }

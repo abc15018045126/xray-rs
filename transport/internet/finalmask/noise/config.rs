@@ -19,9 +19,7 @@ pub struct NoiseItem {
     pub delay_max: i64,
 }
 
-fn default_rand_range_max() -> i32 {
-    255
-}
+fn default_rand_range_max() -> i32 { 255 }
 
 impl Default for NoiseItem {
     fn default() -> Self {

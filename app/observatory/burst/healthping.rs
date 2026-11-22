@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::time::Duration;
-
 use super::config_pb::HealthPingConfig;
 use super::healthping_result::{HealthPingRTTS, HealthPingStats};
 
@@ -31,24 +30,12 @@ impl Default for HealthPingSettings {
 impl From<&HealthPingConfig> for HealthPingSettings {
     fn from(cfg: &HealthPingConfig) -> Self {
         let mut settings = Self::default();
-        if !cfg.destination.is_empty() {
-            settings.destination = cfg.destination.clone();
-        }
-        if !cfg.connectivity.is_empty() {
-            settings.connectivity = cfg.connectivity.clone();
-        }
-        if cfg.interval > 0 {
-            settings.interval = Duration::from_nanos(cfg.interval as u64);
-        }
-        if cfg.sampling_count > 0 {
-            settings.sampling_count = cfg.sampling_count as usize;
-        }
-        if cfg.timeout > 0 {
-            settings.timeout = Duration::from_nanos(cfg.timeout as u64);
-        }
-        if !cfg.http_method.is_empty() {
-            settings.http_method = cfg.http_method.clone();
-        }
+        if !cfg.destination.is_empty() { settings.destination = cfg.destination.clone(); }
+        if !cfg.connectivity.is_empty() { settings.connectivity = cfg.connectivity.clone(); }
+        if cfg.interval > 0 { settings.interval = Duration::from_nanos(cfg.interval as u64); }
+        if cfg.sampling_count > 0 { settings.sampling_count = cfg.sampling_count as usize; }
+        if cfg.timeout > 0 { settings.timeout = Duration::from_nanos(cfg.timeout as u64); }
+        if !cfg.http_method.is_empty() { settings.http_method = cfg.http_method.clone(); }
         settings
     }
 }
@@ -65,7 +52,6 @@ impl HealthPing {
             results: RwLock::new(HashMap::new()),
         }
     }
-
     pub fn put_rtt(&self, tag: &str, rtt: Duration) {
         let mut guard = self.results.write().unwrap();
         let entry = guard.entry(tag.to_string()).or_insert_with(|| {
@@ -76,18 +62,14 @@ impl HealthPing {
         });
         entry.put(rtt);
     }
-
     pub fn get_stats(&self, tag: &str) -> Option<HealthPingStats> {
         let mut guard = self.results.write().unwrap();
         guard.get_mut(tag).map(|entry| entry.get())
     }
-
     pub fn all_stats(&self) -> HashMap<String, HealthPingStats> {
         let mut guard = self.results.write().unwrap();
         let mut out = HashMap::new();
-        for (tag, entry) in guard.iter_mut() {
-            out.insert(tag.clone(), entry.get());
-        }
+        for (tag, entry) in guard.iter_mut() { out.insert(tag.clone(), entry.get()); }
         out
     }
 }

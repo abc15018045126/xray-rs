@@ -20,17 +20,13 @@ pub struct ReverseConfig {
 }
 
 impl ReverseConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+    pub fn new() -> Self { Self::default() }
     pub fn add_bridge(&mut self, tag: impl Into<String>, domain: impl Into<String>) {
         self.bridges.push(BridgeConfig {
             tag: tag.into(),
             domain: domain.into(),
         });
     }
-
     pub fn add_portal(&mut self, tag: impl Into<String>, domain: impl Into<String>) {
         self.portals.push(PortalConfig {
             tag: tag.into(),

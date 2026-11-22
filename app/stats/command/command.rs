@@ -7,23 +7,12 @@ pub struct StatsCommandServer {
 }
 
 impl StatsCommandServer {
-    pub fn new(stats_manager: Arc<StatsManager>) -> Self {
-        Self { stats_manager }
-    }
-
+    pub fn new(stats_manager: Arc<StatsManager>) -> Self { Self { stats_manager } }
     pub fn get_stat_value(&self, name: &str) -> i64 {
-        self.stats_manager
-            .get_counter(name)
-            .map(|c| c.value())
-            .unwrap_or(0)
+        self.stats_manager.get_counter(name).map(|c| c.value()).unwrap_or(0)
     }
-
     pub fn query_stats(&self, pattern: &str) -> HashMap<String, i64> {
         let counters = self.stats_manager.all_counters();
-        counters
-            .into_iter()
-            .filter(|(name, _)| name.contains(pattern))
-            .map(|(name, c)| (name, c.value()))
-            .collect()
+        counters.into_iter().filter(|(name, _)| name.contains(pattern)).map(|(name, c)| (name, c.value())).collect()
     }
 }

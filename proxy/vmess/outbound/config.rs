@@ -7,7 +7,5 @@ pub struct OutboundConfig {
 }
 
 impl OutboundConfig {
-    pub fn receiver(&self) -> String {
-        format!("{}:{}", self.receiver_address, self.receiver_port)
-    }
+    pub fn receiver(&self) -> String { format!("{}:{}", self.receiver_address, self.receiver_port) }
 }

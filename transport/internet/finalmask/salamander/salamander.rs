@@ -47,15 +47,9 @@ fn blake2b_compress(h: &mut [u64; 8], block: &[u8; 128], t: u128, last: bool) {
     v[8..].copy_from_slice(&IV);
     v[12] ^= t as u64;
     v[13] ^= (t >> 64) as u64;
-    if last {
-        v[14] ^= !0u64;
-    }
-
+    if last { v[14] ^= !0u64; }
     let mut m = [0u64; 16];
-    for i in 0..16 {
-        m[i] = u64::from_le_bytes(block[i * 8..(i + 1) * 8].try_into().unwrap());
-    }
-
+    for i in 0..16 { m[i] = u64::from_le_bytes(block[i * 8..(i + 1) * 8].try_into().unwrap()); }
     for r in 0..12 {
         let s = &SIGMA[r % 10];
         g(&mut v, 0, 4, 8, 12, m[s[0]], m[s[1]]);
@@ -67,10 +61,7 @@ fn blake2b_compress(h: &mut [u64; 8], block: &[u8; 128], t: u128, last: bool) {
         g(&mut v, 2, 7, 8, 13, m[s[12]], m[s[13]]);
         g(&mut v, 3, 4, 9, 14, m[s[14]], m[s[15]]);
     }
-
-    for i in 0..8 {
-        h[i] ^= v[i] ^ v[i + 8];
-    }
+    for i in 0..8 { h[i] ^= v[i] ^ v[i + 8]; }
 }
 
 pub fn blake2b_256(key: &[u8], data: &[u8]) -> [u8; 32] {
@@ -103,67 +94,40 @@ pub struct SalamanderObfuscator {
 impl SalamanderObfuscator {
     pub fn new(psk: Vec<u8>) -> Result<Self> {
         if psk.len() < SM_PSK_MIN_LEN {
-            return Err(Error::Config(format!(
-                "Salamander PSK must be at least {} bytes",
-                SM_PSK_MIN_LEN
-            )));
+            return Err(Error::Config(format!("Salamander PSK must be at least {} bytes", SM_PSK_MIN_LEN)));
         }
         Ok(Self { psk })
     }
-
-    pub fn key(&self, salt: &[u8]) -> [u8; SM_KEY_LEN] {
-        blake2b_256(&self.psk, salt)
-    }
-
+    pub fn key(&self, salt: &[u8]) -> [u8; SM_KEY_LEN] { blake2b_256(&self.psk, salt) }
     pub fn obfuscate(&self, input: &[u8]) -> Vec<u8> {
         let mut out = vec![0u8; input.len() + SM_SALT_LEN];
         self.obfuscate_slice(input, &mut out);
         out
     }
-
     pub fn deobfuscate(&self, input: &[u8]) -> Result<Vec<u8>> {
-        if input.len() <= SM_SALT_LEN {
-            return Err(Error::Protocol("Salamander packet too short".into()));
-        }
+        if input.len() <= SM_SALT_LEN { return Err(Error::Protocol("Salamander packet too short".into())); }
         let mut out = vec![0u8; input.len() - SM_SALT_LEN];
         let n = self.deobfuscate_slice(input, &mut out);
-        if n == 0 {
-            return Err(Error::Protocol("Salamander deobfuscate failed".into()));
-        }
+        if n == 0 { return Err(Error::Protocol("Salamander deobfuscate failed".into())); }
         Ok(out)
     }
-
     pub fn obfuscate_slice(&self, input: &[u8], output: &mut [u8]) -> usize {
         let out_len = input.len() + SM_SALT_LEN;
-        if output.len() < out_len {
-            return 0;
-        }
-
+        if output.len() < out_len { return 0; }
         let mut salt = [0u8; SM_SALT_LEN];
         rand::thread_rng().fill(&mut salt);
         output[..SM_SALT_LEN].copy_from_slice(&salt);
-
         let key = self.key(&salt);
-        for (i, &b) in input.iter().enumerate() {
-            output[i + SM_SALT_LEN] = b ^ key[i % SM_KEY_LEN];
-        }
+        for (i, &b) in input.iter().enumerate() { output[i + SM_SALT_LEN] = b ^ key[i % SM_KEY_LEN]; }
         out_len
     }
-
     pub fn deobfuscate_slice(&self, input: &[u8], output: &mut [u8]) -> usize {
-        if input.len() <= SM_SALT_LEN {
-            return 0;
-        }
+        if input.len() <= SM_SALT_LEN { return 0; }
         let out_len = input.len() - SM_SALT_LEN;
-        if output.len() < out_len {
-            return 0;
-        }
-
+        if output.len() < out_len { return 0; }
         let salt = &input[..SM_SALT_LEN];
         let key = self.key(salt);
-        for (i, &b) in input[SM_SALT_LEN..].iter().enumerate() {
-            output[i] = b ^ key[i % SM_KEY_LEN];
-        }
+        for (i, &b) in input[SM_SALT_LEN..].iter().enumerate() { output[i] = b ^ key[i % SM_KEY_LEN]; }
         out_len
     }
 }

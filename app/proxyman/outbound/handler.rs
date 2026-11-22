@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use std::sync::Arc;
-
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;
@@ -20,7 +19,6 @@ impl DefaultOutboundHandler {
             proxy_protocol: None,
         }
     }
-
     pub fn with_inner(tag: impl Into<String>, inner: Arc<dyn OutboundHandler>) -> Self {
         Self {
             tag: tag.into(),
@@ -28,27 +26,18 @@ impl DefaultOutboundHandler {
             proxy_protocol: None,
         }
     }
-
     pub fn with_proxy_protocol(mut self, version: u32) -> Self {
         self.proxy_protocol = Some(version);
         self
     }
-
-    pub fn inner(&self) -> Option<Arc<dyn OutboundHandler>> {
-        self.inner.clone()
-    }
+    pub fn inner(&self) -> Option<Arc<dyn OutboundHandler>> { self.inner.clone() }
 }
 
 #[async_trait]
 impl OutboundHandler for DefaultOutboundHandler {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
-        if let Some(inner) = &self.inner {
-            return inner.connect(session).await;
-        }
+        if let Some(inner) = &self.inner { return inner.connect(session).await; }
         crate::transport::internet::TcpDialer::dial(&session.destination).await
     }
 }

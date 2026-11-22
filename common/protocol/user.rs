@@ -27,7 +27,6 @@ impl User {
             level: 0,
         }
     }
-
     pub fn with_email(id: Uuid, email: impl Into<String>, level: u32) -> Self {
         Self {
             id,

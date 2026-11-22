@@ -40,9 +40,7 @@ pub mod sockopt_test;
 #[cfg(test)]
 pub mod system_listener_test;
 
-pub use finalmask::{
-    FragmentConfig, Fragmenter, NoiseConfig, NoiseGenerator, SalamanderObfuscator,
-};
+pub use finalmask::{FragmentConfig, Fragmenter, NoiseConfig, NoiseGenerator, SalamanderObfuscator};
 pub use grpc::GrpcStream;
 pub use happy_eyeballs::{HappyEyeballsConfig, sort_ips};
 pub use httpupgrade::HttpUpgradeStream;

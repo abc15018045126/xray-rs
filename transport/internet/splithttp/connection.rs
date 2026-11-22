@@ -34,53 +34,31 @@ impl SplitConn {
             closed: AtomicBool::new(false),
         }
     }
-
-    pub fn local_addr(&self) -> Option<SocketAddr> {
-        self.local_addr
-    }
-
-    pub fn remote_addr(&self) -> Option<SocketAddr> {
-        self.remote_addr
-    }
-
+    pub fn local_addr(&self) -> Option<SocketAddr> { self.local_addr }
+    pub fn remote_addr(&self) -> Option<SocketAddr> { self.remote_addr }
     pub fn trigger_close(&self) {
-        if !self.closed.swap(true, Ordering::SeqCst)
-            && let Some(ref cb) = self.on_close
-        {
-            cb();
-        }
+        if !self.closed.swap(true, Ordering::SeqCst) && let Some(ref cb) = self.on_close
+        { cb(); }
     }
 }
 
 impl Drop for SplitConn {
-    fn drop(&mut self) {
-        self.trigger_close();
-    }
+    fn drop(&mut self) { self.trigger_close(); }
 }
 
 impl AsyncRead for SplitConn {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         self.reader.as_mut().poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for SplitConn {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         self.writer.as_mut().poll_write(cx, buf)
     }
-
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.writer.as_mut().poll_flush(cx)
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.trigger_close();
         self.writer.as_mut().poll_shutdown(cx)
@@ -99,8 +77,5 @@ impl SplitHttpConnection {
             seq_id: AtomicU64::new(0),
         }
     }
-
-    pub fn next_seq(&self) -> u64 {
-        self.seq_id.fetch_add(1, Ordering::SeqCst)
-    }
+    pub fn next_seq(&self) -> u64 { self.seq_id.fetch_add(1, Ordering::SeqCst) }
 }

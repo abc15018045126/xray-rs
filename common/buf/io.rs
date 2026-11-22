@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use std::time::Duration;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
-
 use crate::common::buf::MultiBuffer;
 use crate::common::errors::{Error, Result};
 
@@ -20,10 +19,7 @@ pub trait Writer: Send + Sync {
     async fn write_multi_buffer(&mut self, mb: MultiBuffer) -> Result<()>;
 }
 
-pub async fn write_all_bytes<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    payload: &[u8],
-) -> Result<usize> {
+pub async fn write_all_bytes<W: AsyncWrite + Unpin>(writer: &mut W, payload: &[u8]) -> Result<usize> {
     writer.write_all(payload).await.map_err(Error::Io)?;
     Ok(payload.len())
 }

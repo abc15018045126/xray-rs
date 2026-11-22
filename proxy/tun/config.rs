@@ -18,9 +18,7 @@ pub struct TunConfig {
     pub strict_route: bool,
 }
 
-fn default_gateway() -> Ipv4Net {
-    "172.19.0.1/30".parse().unwrap()
-}
+fn default_gateway() -> Ipv4Net { "172.19.0.1/30".parse().unwrap() }
 
 impl Default for TunConfig {
     fn default() -> Self {

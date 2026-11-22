@@ -4,24 +4,15 @@ pub const TUN_FD_ENV_KEY: &str = "xray.tun.fd";
 pub const TUN_FD_ENV_ALT_KEY: &str = "XRAY_TUN_FD";
 
 pub fn read_android_tun_fd_from_env() -> Result<i32> {
-    let raw = std::env::var(TUN_FD_ENV_KEY)
-        .or_else(|_| std::env::var(TUN_FD_ENV_ALT_KEY))
+    let raw = std::env::var(TUN_FD_ENV_KEY).or_else(|_| std::env::var(TUN_FD_ENV_ALT_KEY))
         .map_err(|_| {
             Error::Config(format!(
                 "Android TUN fd not set (expected env '{}' or '{}')",
                 TUN_FD_ENV_KEY, TUN_FD_ENV_ALT_KEY
             ))
         })?;
-    let fd: i32 = raw
-        .trim()
-        .parse()
-        .map_err(|e| Error::Config(format!("Invalid Android TUN fd '{}': {}", raw, e)))?;
-    if fd <= 0 {
-        return Err(Error::Config(format!(
-            "Android TUN fd must be positive, got {}",
-            fd
-        )));
-    }
+    let fd: i32 = raw.trim().parse().map_err(|e| Error::Config(format!("Invalid Android TUN fd '{}': {}", raw, e)))?;
+    if fd <= 0 { return Err(Error::Config(format!("Android TUN fd must be positive, got {}", fd))); }
     Ok(fd)
 }
 
@@ -34,17 +25,14 @@ mod imp {
     use std::task::{Context, Poll};
     use tokio::io::unix::AsyncFd;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-
     pub struct AndroidTunDevice {
         inner: AsyncFd<OwnedFd>,
     }
-
     impl AndroidTunDevice {
         pub fn from_env() -> Result<Self> {
             let fd = read_android_tun_fd_from_env()?;
             Self::from_raw_fd(fd)
         }
-
         pub fn from_raw_fd(fd: i32) -> Result<Self> {
             let dup_fd = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 0) };
             if dup_fd < 0 { return Err(Error::Io(io::Error::last_os_error())); }
@@ -58,12 +46,8 @@ mod imp {
             let inner = AsyncFd::new(unsafe { OwnedFd::from_raw_fd(dup_fd) }).map_err(Error::Io)?;
             Ok(Self { inner })
         }
-
-        pub fn raw_fd(&self) -> i32 {
-            self.inner.as_raw_fd()
-        }
+        pub fn raw_fd(&self) -> i32 { self.inner.as_raw_fd() }
     }
-
     impl AsyncRead for AndroidTunDevice {
         fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
             loop {
@@ -84,7 +68,6 @@ mod imp {
             }
         }
     }
-
     impl AsyncWrite for AndroidTunDevice {
         fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
             loop {
@@ -102,14 +85,8 @@ mod imp {
                 }
             }
         }
-
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> { Poll::Ready(Ok(())) }
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> { Poll::Ready(Ok(())) }
     }
 }
 

@@ -12,12 +12,6 @@ pub const TYPE_FAKE_DNS: &str = "fake_dns";
 
 pub trait Feature: Send + Sync {
     fn feature_type(&self) -> &'static str;
-
-    fn start(&self) -> Result<()> {
-        Ok(())
-    }
-
-    fn close(&self) -> Result<()> {
-        Ok(())
-    }
+    fn start(&self) -> Result<()> { Ok(()) }
+    fn close(&self) -> Result<()> { Ok(()) }
 }

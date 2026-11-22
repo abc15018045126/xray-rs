@@ -10,9 +10,7 @@ pub struct GrpcDialer {
 }
 
 impl GrpcDialer {
-    pub fn new(config: GrpcConfig) -> Self {
-        Self { config }
-    }
+    pub fn new(config: GrpcConfig) -> Self { Self { config } }
 }
 
 #[async_trait]

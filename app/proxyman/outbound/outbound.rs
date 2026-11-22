@@ -25,63 +25,36 @@ impl DefaultOutboundManager {
             running: RwLock::new(false),
         }
     }
-
-    pub async fn select_handlers(
-        &self,
-        selector: &dyn HandlerSelector,
-    ) -> Vec<Arc<dyn OutboundHandler>> {
+    pub async fn select_handlers(&self, selector: &dyn HandlerSelector) -> Vec<Arc<dyn OutboundHandler>> {
         let tagged = self.tagged_handlers.read().await;
         let tags: Vec<String> = tagged.keys().cloned().collect();
         let selected_tags = selector.select(&tags);
-
         let mut result = Vec::new();
-        for tag in selected_tags {
-            if let Some(h) = tagged.get(&tag) {
-                result.push(h.clone());
-            }
-        }
+        for tag in selected_tags { if let Some(h) = tagged.get(&tag) { result.push(h.clone()); } }
         result
     }
-
     pub async fn start(&self) -> Result<()> {
         let mut running = self.running.write().await;
         *running = true;
-
         let tagged = self.tagged_handlers.read().await;
-        for handler in tagged.values() {
-            handler.start().await?;
-        }
-
+        for handler in tagged.values() { handler.start().await?; }
         let untagged = self.untagged_handlers.read().await;
-        for handler in untagged.iter() {
-            handler.start().await?;
-        }
-
+        for handler in untagged.iter() { handler.start().await?; }
         Ok(())
     }
-
     pub async fn close(&self) -> Result<()> {
         let mut running = self.running.write().await;
         *running = false;
-
         let tagged = self.tagged_handlers.read().await;
-        for handler in tagged.values() {
-            handler.close().await?;
-        }
-
+        for handler in tagged.values() { handler.close().await?; }
         let untagged = self.untagged_handlers.read().await;
-        for handler in untagged.iter() {
-            handler.close().await?;
-        }
-
+        for handler in untagged.iter() { handler.close().await?; }
         Ok(())
     }
 }
 
 impl Default for DefaultOutboundManager {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[async_trait]
@@ -90,29 +63,16 @@ impl OutboundManager for DefaultOutboundManager {
         let tagged = self.tagged_handlers.read().await;
         tagged.get(tag).cloned()
     }
-
     async fn get_default_handler(&self) -> Option<Arc<dyn OutboundHandler>> {
         let def = self.default_handler.read().await;
-        if def.is_some() {
-            return def.clone();
-        }
-
+        if def.is_some() { return def.clone(); }
         let untagged = self.untagged_handlers.read().await;
-        if let Some(first) = untagged.first() {
-            return Some(first.clone());
-        }
-
+        if let Some(first) = untagged.first() { return Some(first.clone()); }
         let order = self.tagged_order.read().await;
         let tagged = self.tagged_handlers.read().await;
-        for tag in order.iter() {
-            if let Some(h) = tagged.get(tag) {
-                return Some(h.clone());
-            }
-        }
-
+        for tag in order.iter() { if let Some(h) = tagged.get(tag) { return Some(h.clone()); } }
         tagged.values().next().cloned()
     }
-
     async fn add_handler(&self, handler: Arc<dyn OutboundHandler>) -> Result<()> {
         let tag = handler.tag().to_string();
         let pooled: Arc<dyn OutboundHandler> = Arc::new(PingoraPooledOutbound::new(
@@ -127,15 +87,12 @@ impl OutboundManager for DefaultOutboundManager {
             untagged.push(pooled);
         } else {
             let mut order = self.tagged_order.write().await;
-            if !order.contains(&tag) {
-                order.push(tag.clone());
-            }
+            if !order.contains(&tag) { order.push(tag.clone()); }
             let mut tagged = self.tagged_handlers.write().await;
             tagged.insert(tag, pooled);
         }
         Ok(())
     }
-
     async fn remove_handler(&self, tag: &str) -> Result<()> {
         let mut order = self.tagged_order.write().await;
         order.retain(|t| t != tag);
@@ -143,22 +100,14 @@ impl OutboundManager for DefaultOutboundManager {
         if tagged.remove(tag).is_some() {
             Ok(())
         } else {
-            Err(Error::NotFound(format!(
-                "Outbound handler not found: {}",
-                tag
-            )))
+            Err(Error::NotFound(format!("Outbound handler not found: {}", tag)))
         }
     }
-
     async fn list_handlers(&self) -> Vec<Arc<dyn OutboundHandler>> {
         let mut list = Vec::new();
         let order = self.tagged_order.read().await;
         let tagged = self.tagged_handlers.read().await;
-        for tag in order.iter() {
-            if let Some(h) = tagged.get(tag) {
-                list.push(h.clone());
-            }
-        }
+        for tag in order.iter() { if let Some(h) = tagged.get(tag) { list.push(h.clone()); } }
         let untagged = self.untagged_handlers.read().await;
         list.extend(untagged.iter().cloned());
         list

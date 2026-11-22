@@ -42,14 +42,10 @@ pub struct Fragmenter {
 }
 
 impl Fragmenter {
-    pub fn new(config: FragmentConfig) -> Self {
-        Self { config }
-    }
-
+    pub fn new(config: FragmentConfig) -> Self { Self { config } }
     pub fn is_tls_client_hello(buf: &[u8]) -> bool {
         buf.len() > 5 && buf[0] == 0x16 && buf[1] == 0x03 && buf[5] == 0x01
     }
-
     pub async fn write_fragmented<W: AsyncWrite + Unpin>(&self, writer: &mut W, data: &[u8]) -> Result<()> {
         if self.config.packets == "tlshello" && !Self::is_tls_client_hello(data) {
             writer.write_all(data).await?;

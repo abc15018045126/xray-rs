@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-
 use super::io::{Reader, TimeoutReader, Writer};
 use crate::app::stats::Counter;
 use crate::common::errors::{Error, Result};
@@ -16,20 +15,15 @@ pub struct CopyOptions {
 }
 
 impl CopyOptions {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+    pub fn new() -> Self { Self::default() }
     pub fn with_timer(mut self, timer: Arc<ActivityTimer>) -> Self {
         self.timer = Some(timer);
         self
     }
-
     pub fn with_counter(mut self, counter: Arc<Counter>) -> Self {
         self.counter = Some(counter);
         self
     }
-
     pub fn with_size_counter(mut self, size: Arc<AtomicI64>) -> Self {
         self.size_counter = Some(size);
         self

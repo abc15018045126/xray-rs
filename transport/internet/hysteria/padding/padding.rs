@@ -9,14 +9,9 @@ pub struct Padding {
 }
 
 impl Padding {
-    pub fn new(min: usize, max: usize) -> Self {
-        Self { min, max }
-    }
-
+    pub fn new(min: usize, max: usize) -> Self { Self { min, max } }
     pub fn generate_string(&self) -> String {
-        if self.min >= self.max {
-            return String::new();
-        }
+        if self.min >= self.max { return String::new(); }
         let mut rng = rand::thread_rng();
         let n = rng.gen_range(self.min..self.max);
         let mut bs = Vec::with_capacity(n);

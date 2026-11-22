@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Network};
 use crate::common::protocol::SessionContext;
@@ -25,10 +24,7 @@ impl Server {
 
 #[async_trait]
 impl InboundHandler for Server {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let header = SessionHeader::decode(&mut stream).await?;
         if header.header_type != HEADER_TYPE_CLIENT {

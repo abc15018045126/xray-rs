@@ -9,10 +9,7 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+    pub fn new() -> Self { Self::default() }
     pub fn with_addr(addr: SocketAddr) -> Self {
         Self {
             addr: Some(addr),
@@ -23,11 +20,6 @@ impl Peer {
 }
 
 impl HasLatency for Peer {
-    fn connection_latency(&self) -> &dyn Latency {
-        &self.conn_latency
-    }
-
-    fn handshake_latency(&self) -> &dyn Latency {
-        &self.handshake_latency
-    }
+    fn connection_latency(&self) -> &dyn Latency { &self.conn_latency }
+    fn handshake_latency(&self) -> &dyn Latency { &self.handshake_latency }
 }

@@ -5,11 +5,6 @@ pub struct HealthPinger {
 }
 
 impl HealthPinger {
-    pub fn new(timeout: Duration) -> Self {
-        Self { timeout }
-    }
-
-    pub fn timeout(&self) -> Duration {
-        self.timeout
-    }
+    pub fn new(timeout: Duration) -> Self { Self { timeout } }
+    pub fn timeout(&self) -> Duration { self.timeout }
 }

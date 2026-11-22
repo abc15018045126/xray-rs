@@ -28,7 +28,6 @@ impl DomainMatcher {
         else if let Some(r) = lower.strip_prefix("keyword:") { Self::Keyword(r.to_string()) }
         else { Self::Plain(lower) }
     }
-
     pub fn matches(&self, domain: &str) -> bool {
         let d = domain.to_lowercase();
         match self {
@@ -77,7 +76,6 @@ impl IpMatcher {
         }
         IpAddr::from_str(s).ok().map(Self::Exact)
     }
-
     pub fn matches(&self, ip: &IpAddr) -> bool {
         match self {
             IpMatcher::Exact(target_ip) => ip == target_ip,
@@ -87,12 +85,8 @@ impl IpMatcher {
             },
             IpMatcher::CidrV4(net, mask) => {
                 if let IpAddr::V4(v4) = ip {
-                    if *mask == 0 {
-                        return true;
-                    }
-                    if *mask > 32 {
-                        return false;
-                    }
+                    if *mask == 0 { return true; }
+                    if *mask > 32 { return false; }
                     let net_u32 = u32::from_be_bytes(net.octets());
                     let ip_u32 = u32::from_be_bytes(v4.octets());
                     let mask_u32 = !((1u32 << (32 - mask)) - 1);
@@ -103,12 +97,8 @@ impl IpMatcher {
             }
             IpMatcher::CidrV6(net, mask) => {
                 if let IpAddr::V6(v6) = ip {
-                    if *mask == 0 {
-                        return true;
-                    }
-                    if *mask > 128 {
-                        return false;
-                    }
+                    if *mask == 0 { return true; }
+                    if *mask > 128 { return false; }
                     let net_u128 = u128::from_be_bytes(net.octets());
                     let ip_u128 = u128::from_be_bytes(v6.octets());
                     let mask_u128 = !((1u128 << (128 - mask)) - 1);
@@ -157,7 +147,6 @@ impl Rule {
             process: Vec::new(),
         }
     }
-
     pub fn with_balancer(balancer_tag: impl Into<String>) -> Self {
         Self {
             tag: String::new(),
@@ -175,23 +164,13 @@ impl Rule {
             process: Vec::new(),
         }
     }
-
     pub fn matches_destination_ip(&self, ip: &IpAddr) -> bool {
-        if self.ip_matchers.is_empty() {
-            return false;
-        }
-        for matcher in &self.ip_matchers {
-            if matcher.matches(ip) {
-                return true;
-            }
-        }
+        if self.ip_matchers.is_empty() { return false; }
+        for matcher in &self.ip_matchers { if matcher.matches(ip) { return true; } }
         false
     }
-
     pub fn matches_process(&self, src: Option<std::net::SocketAddr>, is_tcp: bool) -> bool {
-        if self.process.is_empty() {
-            return true;
-        }
+        if self.process.is_empty() { return true; }
         let Some(src) = src else { return false };
         let Ok(Some(info)) = crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp) else {
             return false;
@@ -212,72 +191,39 @@ impl Rule {
             }
         })
     }
-
     pub fn matches(&self, session: &SessionContext) -> bool {
         if !self.process.is_empty()
             && !self.matches_process(session.source, session.destination.network == Network::Tcp)
-        {
-            return false;
-        }
-        if !self.inbound_tags.is_empty()
-            && !self.inbound_tags.iter().any(|tag| tag == &session.inbound_tag)
-        {
-            return false;
-        }
-        if self.network.is_some_and(|net| net != session.destination.network) {
-            return false;
-        }
-
+        { return false; }
+        if !self.inbound_tags.is_empty() && !self.inbound_tags.iter().any(|tag| tag == &session.inbound_tag)
+        { return false; }
+        if self.network.is_some_and(|net| net != session.destination.network) { return false; }
         let target_port = session.destination.port;
         if (!self.ports.is_empty() || !self.port_ranges.is_empty())
             && !self.ports.contains(&target_port)
             && !self.port_ranges.iter().any(|&(s, e)| (s..=e).contains(&target_port))
-        {
-            return false;
-        }
-        if !self.source_ports.is_empty()
-            && !self.source_ports.contains(&session.source.map(|s| s.port()).unwrap_or(0))
-        {
-            return false;
-        }
+        { return false; }
+        if !self.source_ports.is_empty() && !self.source_ports.contains(&session.source.map(|s| s.port()).unwrap_or(0))
+        { return false; }
         if !self.source_ip_matchers.is_empty()
             && !session.source.is_some_and(|s| {
                 let ip = s.ip();
                 self.source_ip_matchers.iter().any(|m| m.matches(&ip))
             })
-        {
-            return false;
-        }
+        { return false; }
         if !self.protocols.is_empty()
             && !session
                 .sniffed_protocol
-                .as_deref()
-                .is_some_and(|proto| self.protocols.iter().any(|p| p.eq_ignore_ascii_case(proto)))
-        {
-            return false;
-        }
+                .as_deref().is_some_and(|proto| self.protocols.iter().any(|p| p.eq_ignore_ascii_case(proto)))
+        { return false; }
         if !self.user_emails.is_empty()
-            && !session
-                .user
-                .as_ref()
-                .is_some_and(|u| self.user_emails.iter().any(|e| e == &u.email))
-        {
-            return false;
-        }
-
+            && !session.user.as_ref().is_some_and(|u| self.user_emails.iter().any(|e| e == &u.email))
+        { return false; }
         let (has_dom, has_ip) = (!self.domain_matchers.is_empty(), !self.ip_matchers.is_empty());
-        if !has_dom && !has_ip {
-            return true;
-        }
+        if !has_dom && !has_ip { return true; }
         if has_dom
-            && session
-                .sniffed_domain
-                .as_deref()
-                .is_some_and(|d| self.domain_matchers.iter().any(|m| m.matches(d)))
-        {
-            return true;
-        }
-
+            && session.sniffed_domain.as_deref().is_some_and(|d| self.domain_matchers.iter().any(|m| m.matches(d)))
+        { return true; }
         match &session.destination.address {
             Address::Domain(d) => has_dom && self.domain_matchers.iter().any(|m| m.matches(d)),
             addr => has_ip && addr.as_ip().is_some_and(|ip| self.ip_matchers.iter().any(|m| m.matches(&ip))),

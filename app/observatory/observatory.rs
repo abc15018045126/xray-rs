@@ -33,11 +33,7 @@ pub struct Observatory {
 }
 
 impl Observatory {
-    pub fn new(
-        probe_url: impl Into<String>,
-        probe_interval: Duration,
-        subject_selectors: Vec<String>,
-    ) -> Self {
+    pub fn new(probe_url: impl Into<String>, probe_interval: Duration, subject_selectors: Vec<String>) -> Self {
         Self {
             probe_url: probe_url.into(),
             probe_interval,
@@ -45,29 +41,12 @@ impl Observatory {
             statuses: RwLock::new(HashMap::new()),
         }
     }
-
-    pub fn probe_url(&self) -> &str {
-        &self.probe_url
-    }
-
-    pub fn probe_interval(&self) -> Duration {
-        self.probe_interval
-    }
-
-    pub fn subject_selectors(&self) -> &[String] {
-        &self.subject_selectors
-    }
-
-    pub fn record_result(
-        &self,
-        tag: &str,
-        delay: Duration,
-        alive: bool,
-        error_reason: Option<String>,
-    ) {
+    pub fn probe_url(&self) -> &str { &self.probe_url }
+    pub fn probe_interval(&self) -> Duration { self.probe_interval }
+    pub fn subject_selectors(&self) -> &[String] { &self.subject_selectors }
+    pub fn record_result(&self, tag: &str, delay: Duration, alive: bool, error_reason: Option<String>) {
         self.record_status(tag, alive, delay.as_millis() as u64, error_reason);
     }
-
     pub fn record_status(&self, tag: &str, alive: bool, delay_ms: u64, error_reason: Option<String>) {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
         if let Ok(mut guard) = self.statuses.write() {
@@ -77,34 +56,24 @@ impl Observatory {
             else { e.last_error_reason = error_reason; }
         }
     }
-
     pub fn get_status(&self, tag: &str) -> Option<OutboundStatus> {
         let guard = self.statuses.read().ok()?;
         guard.get(tag).cloned()
     }
-
-    pub fn get_best_outbound(&self, candidates: &[String]) -> Option<String> {
-        self.select_best_outbound(candidates)
-    }
-
+    pub fn get_best_outbound(&self, candidates: &[String]) -> Option<String> { self.select_best_outbound(candidates) }
     pub fn select_best_outbound(&self, candidates: &[String]) -> Option<String> {
         let guard = self.statuses.read().ok()?;
         let mut best_tag = None;
         let mut min_delay = u64::MAX;
-
         for tag in candidates {
-            if let Some(status) = guard.get(tag)
-                && status.alive
-                && status.delay_ms < min_delay
+            if let Some(status) = guard.get(tag) && status.alive && status.delay_ms < min_delay
             {
                 min_delay = status.delay_ms;
                 best_tag = Some(tag.clone());
             }
         }
-
         best_tag.or_else(|| candidates.first().cloned())
     }
-
     pub fn all_statuses(&self) -> Vec<OutboundStatus> {
         let guard = self.statuses.read().unwrap();
         guard.values().cloned().collect()

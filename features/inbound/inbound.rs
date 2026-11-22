@@ -14,28 +14,11 @@ pub struct InboundResult {
 #[async_trait]
 pub trait InboundHandler: Send + Sync {
     fn tag(&self) -> &str;
-
-    async fn start(&self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&self) -> Result<()> {
-        Ok(())
-    }
-
-    fn receiver_settings(&self) -> Option<Vec<u8>> {
-        None
-    }
-
-    fn proxy_settings(&self) -> Option<Vec<u8>> {
-        None
-    }
-
-    async fn handle_connection(
-        &self,
-        stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult>;
+    async fn start(&self) -> Result<()> { Ok(()) }
+    async fn close(&self) -> Result<()> { Ok(()) }
+    fn receiver_settings(&self) -> Option<Vec<u8>> { None }
+    fn proxy_settings(&self) -> Option<Vec<u8>> { None }
+    async fn handle_connection(&self, stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult>;
 }
 
 #[async_trait]
@@ -46,6 +29,4 @@ pub trait InboundManager: Send + Sync {
     async fn list_handlers(&self) -> Vec<Arc<dyn InboundHandler>>;
 }
 
-pub fn manager_type() -> &'static str {
-    TYPE_INBOUND_MANAGER
-}
+pub fn manager_type() -> &'static str { TYPE_INBOUND_MANAGER }

@@ -16,25 +16,10 @@ impl H1Conn {
             stream: BufReader::new(stream),
         }
     }
-
-    pub fn inc_unread(&mut self) {
-        self.unread_responses_count += 1;
-    }
-
-    pub fn dec_unread(&mut self) {
-        if self.unread_responses_count > 0 {
-            self.unread_responses_count -= 1;
-        }
-    }
-
-    pub async fn write_all(&mut self, src: &[u8]) -> io::Result<()> {
-        self.stream.get_mut().write_all(src).await
-    }
-
-    pub async fn flush(&mut self) -> io::Result<()> {
-        self.stream.get_mut().flush().await
-    }
-
+    pub fn inc_unread(&mut self) { self.unread_responses_count += 1; }
+    pub fn dec_unread(&mut self) { if self.unread_responses_count > 0 { self.unread_responses_count -= 1; } }
+    pub async fn write_all(&mut self, src: &[u8]) -> io::Result<()> { self.stream.get_mut().write_all(src).await }
+    pub async fn flush(&mut self) -> io::Result<()> { self.stream.get_mut().flush().await }
     pub async fn read_response_status(&mut self) -> io::Result<u16> {
         let (mut line, mut byte) = (String::new(), [0u8; 1]);
         loop {
@@ -56,28 +41,18 @@ impl H1Conn {
 }
 
 impl AsyncRead for H1Conn {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.stream).poll_read(cx, buf)
     }
 }
 
 impl AsyncWrite for H1Conn {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         Pin::new(self.stream.get_mut()).poll_write(cx, buf)
     }
-
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(self.stream.get_mut()).poll_flush(cx)
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(self.stream.get_mut()).poll_shutdown(cx)
     }

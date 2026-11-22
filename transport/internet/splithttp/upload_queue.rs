@@ -11,15 +11,11 @@ pub struct Packet {
 }
 
 impl Ord for Packet {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.seq.cmp(&self.seq)
-    }
+    fn cmp(&self, other: &Self) -> Ordering { other.seq.cmp(&self.seq) }
 }
 
 impl PartialOrd for Packet {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
 pub struct UploadQueueInner {
@@ -47,21 +43,15 @@ impl UploadQueue {
             notify: Arc::new(Notify::new()),
         }
     }
-
     pub async fn push(&self, payload: Vec<u8>, seq: u64) -> Result<()> {
         let mut inner = self.inner.lock().await;
-        if inner.closed {
-            return Err(Error::Closed);
-        }
-        if inner.heap.len() >= inner.max_packets {
-            return Err(Error::Protocol("packet queue is too large".into()));
-        }
+        if inner.closed { return Err(Error::Closed); }
+        if inner.heap.len() >= inner.max_packets { return Err(Error::Protocol("packet queue is too large".into())); }
         inner.heap.push(Packet { payload, seq });
         drop(inner);
         self.notify.notify_waiters();
         Ok(())
     }
-
     pub async fn push_bytes(&self, data: Vec<u8>) -> Result<()> {
         let seq = {
             let inner = self.inner.lock().await;
@@ -69,7 +59,6 @@ impl UploadQueue {
         };
         self.push(data, seq).await
     }
-
     pub async fn pop(&self) -> Option<Vec<u8>> {
         let mut buf = vec![0u8; 65535];
         let n = self.read(&mut buf).await.ok()?;
@@ -80,7 +69,6 @@ impl UploadQueue {
             Some(buf)
         }
     }
-
     pub async fn read(&self, buf: &mut [u8]) -> Result<usize> {
         let mut inner = self.inner.lock().await;
         let mut written = 0;
@@ -101,7 +89,6 @@ impl UploadQueue {
         }
         Ok(written)
     }
-
     pub async fn pop_wait(&self) -> Option<Vec<u8>> {
         let mut buf = vec![0u8; 65535];
         loop {
@@ -111,20 +98,16 @@ impl UploadQueue {
                 buf.truncate(n);
                 return Some(buf);
             }
-            if self.is_closed().await {
-                return None;
-            }
+            if self.is_closed().await { return None; }
             notified.await;
         }
     }
-
     pub async fn close(&self) {
         let mut inner = self.inner.lock().await;
         inner.closed = true;
         drop(inner);
         self.notify.notify_waiters();
     }
-
     pub async fn is_closed(&self) -> bool {
         let inner = self.inner.lock().await;
         inner.closed

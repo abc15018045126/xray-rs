@@ -14,22 +14,14 @@ impl UUID {
         bytes[8] = (bytes[8] & 0x3f) | 0x80;
         UUID(bytes)
     }
-
-    pub fn bytes(&self) -> &[u8; 16] {
-        &self.0
-    }
-
-    pub fn to_bytes(&self) -> [u8; 16] {
-        self.0
-    }
-
+    pub fn bytes(&self) -> &[u8; 16] { &self.0 }
+    pub fn to_bytes(&self) -> [u8; 16] { self.0 }
     pub fn equals(&self, another: Option<&UUID>) -> bool {
         match another {
             Some(a) => self.0 == a.0,
             None => false,
         }
     }
-
     pub fn to_string_formatted(&self) -> String {
         format!(
             "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
@@ -54,11 +46,7 @@ impl UUID {
 }
 
 pub fn parse_bytes(b: &[u8]) -> Result<UUID> {
-    if b.len() != 16 {
-        return Err(Error::Protocol(
-            "invalid UUID: slice must be 16 bytes".into(),
-        ));
-    }
+    if b.len() != 16 { return Err(Error::Protocol("invalid UUID: slice must be 16 bytes".into())); }
     let mut out = [0u8; 16];
     out.copy_from_slice(b);
     Ok(UUID(out))
@@ -87,27 +75,17 @@ pub fn parse_string(str: &str) -> Result<UUID> {
 }
 
 impl fmt::Display for UUID {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string_formatted())
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.to_string_formatted()) }
 }
 
 impl From<uuid::Uuid> for UUID {
-    fn from(u: uuid::Uuid) -> Self {
-        UUID(*u.as_bytes())
-    }
+    fn from(u: uuid::Uuid) -> Self { UUID(*u.as_bytes()) }
 }
 
 impl From<UUID> for uuid::Uuid {
-    fn from(u: UUID) -> Self {
-        uuid::Uuid::from_bytes(u.0)
-    }
+    fn from(u: UUID) -> Self { uuid::Uuid::from_bytes(u.0) }
 }
 
-pub fn new_uuid() -> uuid::Uuid {
-    uuid::Uuid::new_v4()
-}
+pub fn new_uuid() -> uuid::Uuid { uuid::Uuid::new_v4() }
 
-pub fn parse_uuid(s: &str) -> Option<uuid::Uuid> {
-    uuid::Uuid::parse_str(s).ok()
-}
+pub fn parse_uuid(s: &str) -> Option<uuid::Uuid> { uuid::Uuid::parse_str(s).ok() }

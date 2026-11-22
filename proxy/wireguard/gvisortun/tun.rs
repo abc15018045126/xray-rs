@@ -3,19 +3,12 @@ pub struct GVisorWireguardTun {
 }
 
 impl GVisorWireguardTun {
-    pub fn new() -> Self {
-        Self { name: "wg0".into() }
-    }
-
-    pub fn device_name(&self) -> &str {
-        &self.name
-    }
+    pub fn new() -> Self { Self { name: "wg0".into() } }
+    pub fn device_name(&self) -> &str { &self.name }
 }
 
 impl Default for GVisorWireguardTun {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 pub type GVisorTunDevice = GVisorWireguardTun;

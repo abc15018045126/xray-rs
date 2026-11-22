@@ -5,7 +5,6 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[allow(unused_imports)]
 use tokio::net::UdpSocket;
-
 use super::nameserver::{NameServer, build_dns_query_with_ecs, parse_dns_response};
 use super::nameserver_doh::DohRoutingCtx;
 use crate::common::errors::{Error, Result};
@@ -31,13 +30,11 @@ impl UdpNameServer {
             client_ip: None,
         }
     }
-
     pub fn new_local_with_ecs(server_addr: SocketAddr, client_ip: Option<IpAddr>) -> Self {
         let mut s = Self::new(server_addr);
         s.client_ip = client_ip;
         s
     }
-
     pub fn new_routed(
         server_addr: SocketAddr,
         tag: Option<String>,
@@ -52,7 +49,6 @@ impl UdpNameServer {
             client_ip,
         }
     }
-
     pub fn with_timeout(server_addr: SocketAddr, timeout: Duration) -> Self {
         Self {
             server_addr,
@@ -62,22 +58,14 @@ impl UdpNameServer {
             client_ip: None,
         }
     }
-
-    pub fn server_addr(&self) -> SocketAddr {
-        self.server_addr
-    }
+    pub fn server_addr(&self) -> SocketAddr { self.server_addr }
 }
 
 #[async_trait]
 impl NameServer for UdpNameServer {
-    fn name(&self) -> &str {
-        "udp"
-    }
-
+    fn name(&self) -> &str { "udp" }
     fn routes_via_proxy(&self) -> bool {
-        let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) else {
-            return false;
-        };
+        let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) else { return false; };
         let addr = match self.server_addr.ip() {
             IpAddr::V4(v4) => Address::Ipv4(v4),
             IpAddr::V6(v6) => Address::Ipv6(v6),
@@ -87,11 +75,9 @@ impl NameServer for UdpNameServer {
         let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
         !matches!(picked, "direct" | "freedom" | "dns" | "block" | "blackhole")
     }
-
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
         let query_a = build_dns_query_with_ecs(clean, 1, self.client_ip);
-
         if let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) {
             let dest = Destination::udp(Address::ip(self.server_addr.ip()), self.server_addr.port());
             let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), dest);
@@ -99,21 +85,17 @@ impl NameServer for UdpNameServer {
             if matches!(picked, "block" | "blackhole") {
                 return Err(Error::Protocol(format!("UDP DNS server '{}' blocked by routing rule", self.server_addr)));
             }
-            if !matches!(picked, "direct" | "freedom" | "dns")
-                && let Some(outbound) = ctx.outbounds.get(picked)
+            if !matches!(picked, "direct" | "freedom" | "dns") && let Some(outbound) = ctx.outbounds.get(picked)
             {
                 let mut stream = pingora_timeout::timeout(self.timeout, outbound.connect(&session))
-                    .await
-                    .map_err(|_| Error::Timeout)??;
+                    .await.map_err(|_| Error::Timeout)??;
                 stream.write_all(&query_a).await?;
                 let mut buf = [0u8; 2048];
                 let n = pingora_timeout::timeout(self.timeout, stream.read(&mut buf))
-                    .await
-                    .map_err(|_| Error::Timeout)??;
+                    .await.map_err(|_| Error::Timeout)??;
                 return parse_dns_response(&buf[..n], clean);
             }
         }
-
         #[cfg(any(target_os = "windows", target_os = "android"))]
         let socket = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
@@ -121,13 +103,10 @@ impl NameServer for UdpNameServer {
         };
         #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
         let socket = UdpSocket::bind(if self.server_addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" }).await?;
-
         socket.connect(self.server_addr).await?;
         socket.send(&query_a).await?;
         let mut buf = [0u8; 2048];
-        let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut buf))
-            .await
-            .map_err(|_| Error::Timeout)??;
+        let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut buf)).await.map_err(|_| Error::Timeout)??;
         parse_dns_response(&buf[..n], clean)
     }
 }

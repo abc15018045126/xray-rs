@@ -15,10 +15,7 @@ pub struct LoggerService {
 }
 
 impl LoggerService {
-    pub fn new(log_manager: Arc<LogManager>) -> Self {
-        Self { log_manager }
-    }
-
+    pub fn new(log_manager: Arc<LogManager>) -> Self { Self { log_manager } }
     pub fn restart_logger(&self) -> Result<()> {
         self.log_manager.start();
         Ok(())
@@ -26,7 +23,5 @@ impl LoggerService {
 }
 
 impl Service for LoggerService {
-    fn service_name(&self) -> &str {
-        "xray.core.app.log.command.LoggerService"
-    }
+    fn service_name(&self) -> &str { "xray.core.app.log.command.LoggerService" }
 }

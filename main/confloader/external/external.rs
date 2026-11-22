@@ -22,9 +22,7 @@ pub fn fetch_http_content(target: &str) -> Result<Vec<u8>> {
     if !target.starts_with("http://") && !target.starts_with("https://") {
         return Err(Error::Other(format!("invalid scheme: {}", target)));
     }
-    Err(Error::Other(format!(
-        "remote http config fetching from {target} requires live network connection"
-    )))
+    Err(Error::Other(format!("remote http config fetching from {target} requires live network connection")))
 }
 
 pub fn fetch_unix_socket_http_content(target: &str) -> Result<Vec<u8>> {
@@ -38,27 +36,17 @@ pub fn fetch_unix_socket_http_content(target: &str) -> Result<Vec<u8>> {
     Err(Error::Other(format!("unix socket connection to {socket_path} not available")))
 }
 
-pub fn init_external_loader() {
-    set_effective_config_file_loader(config_loader);
-}
+pub fn init_external_loader() { set_effective_config_file_loader(config_loader); }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_external_scheme_validation() {
         let err = fetch_http_content("ftp://example.com/conf").unwrap_err();
         assert!(err.to_string().contains("invalid scheme"));
-
-        let sock_err =
-            fetch_unix_socket_http_content("http+unix://relative/test.sock").unwrap_err();
-        assert!(
-            sock_err
-                .to_string()
-                .contains("unix socket path must be absolute")
-        );
-
+        let sock_err = fetch_unix_socket_http_content("http+unix://relative/test.sock").unwrap_err();
+        assert!(sock_err.to_string().contains("unix socket path must be absolute"));
         let no_ext_err = fetch_unix_socket_http_content("http+unix:///tmp/socketfile").unwrap_err();
         assert!(no_ext_err.to_string().contains(".sock"));
     }

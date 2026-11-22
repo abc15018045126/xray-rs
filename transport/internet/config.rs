@@ -12,36 +12,21 @@ fn get_config_creator_registry() -> &'static RwLock<HashMap<String, ConfigCreato
     CONFIG_CREATOR_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
 }
 
-pub fn register_protocol_config_creator(
-    name: impl Into<String>,
-    creator: ConfigCreator,
-) -> Result<()> {
+pub fn register_protocol_config_creator(name: impl Into<String>, creator: ConfigCreator) -> Result<()> {
     let registry = get_config_creator_registry();
-    let mut map = registry
-        .write()
-        .map_err(|_| Error::Other("lock error".into()))?;
+    let mut map = registry.write().map_err(|_| Error::Other("lock error".into()))?;
     let key = name.into();
-    if map.contains_key(&key) {
-        return Err(Error::Config(format!(
-            "protocol {} already registered",
-            key
-        )));
-    }
+    if map.contains_key(&key) { return Err(Error::Config(format!("protocol {} already registered", key))); }
     map.insert(key, creator);
     Ok(())
 }
 
 pub fn create_transport_config(name: &str) -> Result<serde_json::Value> {
     let registry = get_config_creator_registry();
-    let map = registry
-        .read()
-        .map_err(|_| Error::Other("lock error".into()))?;
+    let map = registry.read().map_err(|_| Error::Other("lock error".into()))?;
     match map.get(name) {
         Some(creator) => Ok(creator()),
-        None => Err(Error::NotFound(format!(
-            "unknown transport protocol: {}",
-            name
-        ))),
+        None => Err(Error::NotFound(format!("unknown transport protocol: {}", name))),
     }
 }
 
@@ -60,10 +45,7 @@ const STRATEGY_TABLE: &[[u8; 3]] = &[
 ];
 
 impl DomainStrategy {
-    fn idx(self) -> usize {
-        self as usize
-    }
-
+    fn idx(self) -> usize { self as usize }
     pub fn has_strategy(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -72,7 +54,6 @@ impl DomainStrategy {
             false
         }
     }
-
     pub fn force_ip(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -81,7 +62,6 @@ impl DomainStrategy {
             false
         }
     }
-
     pub fn prefer_ip4(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -90,7 +70,6 @@ impl DomainStrategy {
             true
         }
     }
-
     pub fn prefer_ip6(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -99,7 +78,6 @@ impl DomainStrategy {
             true
         }
     }
-
     pub fn has_fallback(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -108,7 +86,6 @@ impl DomainStrategy {
             false
         }
     }
-
     pub fn fallback_ip4(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -117,7 +94,6 @@ impl DomainStrategy {
             false
         }
     }
-
     pub fn fallback_ip6(self) -> bool {
         let i = self.idx();
         if i < STRATEGY_TABLE.len() {
@@ -126,7 +102,6 @@ impl DomainStrategy {
             false
         }
     }
-
     pub fn get_dynamic_strategy(self, is_ipv4: bool, is_ipv6: bool) -> DomainStrategy {
         match self {
             DomainStrategy::UseIp => {
@@ -160,21 +135,13 @@ impl StreamConfig {
             &self.protocol_name
         }
     }
-
     pub fn get_effective_transport_settings(&self) -> Option<&TransportConfig> {
         let proto = self.get_effective_protocol();
-        self.transport_settings
-            .iter()
-            .find(|s| s.protocol_name == proto)
+        self.transport_settings.iter().find(|s| s.protocol_name == proto)
     }
-
-    pub fn has_security_settings(&self) -> bool {
-        !self.security_settings.is_empty()
-    }
+    pub fn has_security_settings(&self) -> bool { !self.security_settings.is_empty() }
 }
 
 impl ProxyConfig {
-    pub fn has_tag(&self) -> bool {
-        !self.tag.is_empty()
-    }
+    pub fn has_tag(&self) -> bool { !self.tag.is_empty() }
 }

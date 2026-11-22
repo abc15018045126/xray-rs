@@ -7,10 +7,7 @@ pub struct Cidr {
 }
 
 impl Cidr {
-    pub fn new(ip: IpAddr, prefix: u8) -> Self {
-        Self { ip, prefix }
-    }
-
+    pub fn new(ip: IpAddr, prefix: u8) -> Self { Self { ip, prefix } }
     pub fn parse(s: &str) -> Option<Self> {
         let mut parts = s.split('/');
         let ip_str = parts.next()?;
@@ -24,7 +21,6 @@ impl Cidr {
         };
         Some(Self { ip, prefix })
     }
-
     pub fn contains(&self, target: &IpAddr) -> bool {
         match (self.ip, target) {
             (IpAddr::V4(net), IpAddr::V4(tgt)) => self.prefix == 0 || (self.prefix <= 32 && {
@@ -42,12 +38,8 @@ impl Cidr {
 
 pub trait GeoIpMatcher: Send + Sync {
     fn matches_ip(&self, ip: &IpAddr) -> bool;
-    fn any_match(&self, ips: &[IpAddr]) -> bool {
-        ips.iter().any(|ip| self.matches_ip(ip))
-    }
-    fn all_match(&self, ips: &[IpAddr]) -> bool {
-        !ips.is_empty() && ips.iter().all(|ip| self.matches_ip(ip))
-    }
+    fn any_match(&self, ips: &[IpAddr]) -> bool { ips.iter().any(|ip| self.matches_ip(ip)) }
+    fn all_match(&self, ips: &[IpAddr]) -> bool { !ips.is_empty() && ips.iter().all(|ip| self.matches_ip(ip)) }
     fn filter_ips(&self, ips: &[IpAddr]) -> (Vec<IpAddr>, Vec<IpAddr>) {
         let mut matched = Vec::new();
         let mut unmatched = Vec::new();
@@ -68,17 +60,9 @@ pub struct HeuristicGeoIpMatcher {
 }
 
 impl HeuristicGeoIpMatcher {
-    pub fn new(cidrs: Vec<Cidr>, reverse: bool) -> Self {
-        Self { cidrs, reverse }
-    }
-
-    pub fn toggle_reverse(&mut self) {
-        self.reverse = !self.reverse;
-    }
-
-    pub fn set_reverse(&mut self, reverse: bool) {
-        self.reverse = reverse;
-    }
+    pub fn new(cidrs: Vec<Cidr>, reverse: bool) -> Self { Self { cidrs, reverse } }
+    pub fn toggle_reverse(&mut self) { self.reverse = !self.reverse; }
+    pub fn set_reverse(&mut self, reverse: bool) { self.reverse = reverse; }
 }
 
 impl GeoIpMatcher for HeuristicGeoIpMatcher {

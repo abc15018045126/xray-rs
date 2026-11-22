@@ -19,11 +19,7 @@ impl ByteSize {
     pub const TB: ByteSize = ByteSize(TB);
     pub const PB: ByteSize = ByteSize(PB);
     pub const EB: ByteSize = ByteSize(EB);
-
-    pub fn new(val: u64) -> Self {
-        ByteSize(val)
-    }
-
+    pub fn new(val: u64) -> Self { ByteSize(val) }
     pub fn parse(&mut self, s: &str) -> Result<()> {
         let s = s.trim().to_uppercase();
         let i = s.find(char::is_alphabetic).ok_or_else(|| Error::Protocol("invalid or unsupported unit".into()))?;
@@ -43,7 +39,6 @@ impl ByteSize {
         self.0 = (bytes * mult) as u64;
         Ok(())
     }
-
     pub fn to_string_formatted(&self) -> String {
         if self.0 == 0 { return "0".into(); }
         let (div, unit) = [(EB, "EB"), (PB, "PB"), (TB, "TB"), (GB, "GB"), (MB, "MB"), (KB, "KB")]
@@ -55,30 +50,19 @@ impl ByteSize {
 
 impl Deref for ByteSize {
     type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl PartialEq<u64> for ByteSize {
-    fn eq(&self, other: &u64) -> bool {
-        self.0 == *other
-    }
+    fn eq(&self, other: &u64) -> bool { self.0 == *other }
 }
 
 impl PartialEq<ByteSize> for u64 {
-    fn eq(&self, other: &ByteSize) -> bool {
-        *self == other.0
-    }
+    fn eq(&self, other: &ByteSize) -> bool { *self == other.0 }
 }
 
 impl fmt::Display for ByteSize {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string_formatted())
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "{}", self.to_string_formatted()) }
 }
 
-pub fn format_bytes(bytes: u64) -> String {
-    ByteSize(bytes).to_string_formatted()
-}
+pub fn format_bytes(bytes: u64) -> String { ByteSize(bytes).to_string_formatted() }

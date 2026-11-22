@@ -24,9 +24,7 @@ pub fn discard_overflow() -> OptionFn {
 
 pub fn new_with_options(opts: Vec<OptionFn>) -> (Reader, Writer) {
     let mut opt = PipeOption::new();
-    for o in opts {
-        o(&mut opt);
-    }
+    for o in opts { o(&mut opt); }
     new_pipe(opt)
 }
 

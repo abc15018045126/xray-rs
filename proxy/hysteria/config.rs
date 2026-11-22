@@ -10,9 +10,7 @@ pub struct HysteriaConfig {
     pub down_mbps: u64,
 }
 
-fn default_speed() -> u64 {
-    100
-}
+fn default_speed() -> u64 { 100 }
 
 impl HysteriaConfig {
     pub fn new(auth: impl Into<String>, up_mbps: u64, down_mbps: u64) -> Self {

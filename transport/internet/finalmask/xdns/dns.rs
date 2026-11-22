@@ -33,42 +33,24 @@ impl Name {
     pub fn new(labels: Vec<Vec<u8>>) -> Result<Self> {
         let mut total_len = 1;
         for label in &labels {
-            if label.is_empty() {
-                return Err(Error::Protocol("name contains a zero-length label".into()));
-            }
-            if label.len() > 63 {
-                return Err(Error::Protocol(
-                    "name contains a label longer than 63 octets".into(),
-                ));
-            }
+            if label.is_empty() { return Err(Error::Protocol("name contains a zero-length label".into())); }
+            if label.len() > 63 { return Err(Error::Protocol("name contains a label longer than 63 octets".into())); }
             total_len += 1 + label.len();
         }
-        if total_len > 255 {
-            return Err(Error::Protocol("name is longer than 255 octets".into()));
-        }
+        if total_len > 255 { return Err(Error::Protocol("name is longer than 255 octets".into())); }
         Ok(Self { labels })
     }
-
     pub fn parse(s: &str) -> Result<Self> {
         let trimmed = s.trim_end_matches('.');
-        if trimmed.is_empty() {
-            return Ok(Self { labels: Vec::new() });
-        }
+        if trimmed.is_empty() { return Ok(Self { labels: Vec::new() }); }
         let labels: Vec<Vec<u8>> = trimmed.split('.').map(|p| p.as_bytes().to_vec()).collect();
         Self::new(labels)
     }
-
     pub fn trim_suffix(&self, suffix: &Name) -> Option<Name> {
-        if self.labels.len() < suffix.labels.len() {
-            return None;
-        }
+        if self.labels.len() < suffix.labels.len() { return None; }
         let split_idx = self.labels.len() - suffix.labels.len();
         let (fore, aft) = self.labels.split_at(split_idx);
-        for (a, b) in aft.iter().zip(suffix.labels.iter()) {
-            if !a.eq_ignore_ascii_case(b) {
-                return None;
-            }
-        }
+        for (a, b) in aft.iter().zip(suffix.labels.iter()) { if !a.eq_ignore_ascii_case(b) { return None; } }
         Some(Name {
             labels: fore.to_vec(),
         })
@@ -77,18 +59,11 @@ impl Name {
 
 impl fmt::Display for Name {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.labels.is_empty() {
-            return write!(f, ".");
-        }
+        if self.labels.is_empty() { return write!(f, "."); }
         for (i, label) in self.labels.iter().enumerate() {
-            if i > 0 {
-                write!(f, ".")?;
-            }
+            if i > 0 { write!(f, ".")?; }
             for &b in label {
-                if b == b'-'
-                    || b.is_ascii_digit()
-                    || b.is_ascii_uppercase()
-                    || b.is_ascii_lowercase()
+                if b == b'-' || b.is_ascii_digit() || b.is_ascii_uppercase() || b.is_ascii_lowercase()
                 {
                     write!(f, "{}", b as char)?;
                 } else {
@@ -129,53 +104,31 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn opcode(&self) -> u16 {
-        (self.flags >> 11) & 0x0F
-    }
-
-    pub fn rcode(&self) -> u16 {
-        self.flags & 0x0F
-    }
-
-    pub fn pack(&self) -> Result<Vec<u8>> {
-        self.to_wire_format()
-    }
-
+    pub fn new() -> Self { Self::default() }
+    pub fn opcode(&self) -> u16 { (self.flags >> 11) & 0x0F }
+    pub fn rcode(&self) -> u16 { self.flags & 0x0F }
+    pub fn pack(&self) -> Result<Vec<u8>> { self.to_wire_format() }
     pub fn to_wire_format(&self) -> Result<Vec<u8>> {
         let mut builder = MessageBuilder::new();
         builder.write_message(self)?;
         Ok(builder.bytes().to_vec())
     }
-
-    pub fn unpack(bytes: &[u8]) -> Result<Self> {
-        Self::from_wire_format(bytes)
-    }
-
+    pub fn unpack(bytes: &[u8]) -> Result<Self> { Self::from_wire_format(bytes) }
     pub fn from_wire_format(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 12 {
-            return Err(Error::Protocol("DNS message too short".into()));
-        }
+        if bytes.len() < 12 { return Err(Error::Protocol("DNS message too short".into())); }
         let u16_be = |i: usize| u16::from_be_bytes([bytes[i], bytes[i + 1]]);
         let (id, flags) = (u16_be(0), u16_be(2));
         let (qdcount, ancount, nscount, arcount) =
             (u16_be(4) as usize, u16_be(6) as usize, u16_be(8) as usize, u16_be(10) as usize);
-
         let mut offset = 12;
         let mut questions = Vec::with_capacity(qdcount);
         for _ in 0..qdcount {
             let (name, next_off) = Self::read_name(bytes, offset)?;
             offset = next_off;
-            if offset + 4 > bytes.len() {
-                return Err(Error::Protocol("Truncated DNS question".into()));
-            }
+            if offset + 4 > bytes.len() { return Err(Error::Protocol("Truncated DNS question".into())); }
             questions.push(Question { name, qtype: u16_be(offset), qclass: u16_be(offset + 2) });
             offset += 4;
         }
-
         let mut read_rrs = |count: usize| -> Result<Vec<ResourceRecord>> {
             let mut out = Vec::with_capacity(count);
             for _ in 0..count {
@@ -186,20 +139,15 @@ impl Message {
             Ok(out)
         };
         let (answers, authority, additional) = (read_rrs(ancount)?, read_rrs(nscount)?, read_rrs(arcount)?);
-        if offset < bytes.len() {
-            return Err(Error::Protocol("trailing bytes after message".into()));
-        }
+        if offset < bytes.len() { return Err(Error::Protocol("trailing bytes after message".into())); }
         Ok(Self { id, flags, questions, answers, authority, additional })
     }
-
     fn read_name(bytes: &[u8], mut offset: usize) -> Result<(Name, usize)> {
         let (mut labels, mut jumps, mut return_offset) = (Vec::new(), 0, None);
         while offset < bytes.len() {
             let len_byte = bytes[offset];
             offset += 1;
-            if len_byte == 0 {
-                break;
-            }
+            if len_byte == 0 { break; }
             match len_byte & 0xC0 {
                 0x00 => {
                     let label_len = (len_byte & 0x3F) as usize;
@@ -224,7 +172,6 @@ impl Message {
         }
         Ok((Name::new(labels)?, return_offset.unwrap_or(offset)))
     }
-
     fn read_rr(bytes: &[u8], offset: usize) -> Result<(RR, usize)> {
         let (name, off) = Self::read_name(bytes, offset)?;
         if off + 10 > bytes.len() { return Err(Error::Protocol("Truncated RR header".into())); }
@@ -254,19 +201,12 @@ impl MessageBuilder {
             name_cache: HashMap::new(),
         }
     }
-
-    pub fn bytes(&self) -> &[u8] {
-        &self.buf
-    }
-
+    pub fn bytes(&self) -> &[u8] { &self.buf }
     pub fn write_name(&mut self, name: &Name) {
         for i in 0..name.labels.len() {
-            let suffix_name = Name {
-                labels: name.labels[i..].to_vec(),
-            };
+            let suffix_name = Name { labels: name.labels[i..].to_vec(), };
             let key = suffix_name.to_string();
-            if let Some(&ptr) = self.name_cache.get(&key)
-                && (ptr & 0x3fff) == ptr
+            if let Some(&ptr) = self.name_cache.get(&key) && (ptr & 0x3fff) == ptr
             {
                 let comp = 0xc000 | (ptr as u16);
                 self.buf.extend_from_slice(&comp.to_be_bytes());
@@ -279,27 +219,21 @@ impl MessageBuilder {
         }
         self.buf.push(0);
     }
-
     pub fn write_question(&mut self, q: &Question) {
         self.write_name(&q.name);
         self.buf.extend_from_slice(&q.qtype.to_be_bytes());
         self.buf.extend_from_slice(&q.qclass.to_be_bytes());
     }
-
     pub fn write_rr(&mut self, rr: &RR) -> Result<()> {
         self.write_name(&rr.name);
         self.buf.extend_from_slice(&rr.rrtype.to_be_bytes());
         self.buf.extend_from_slice(&rr.class.to_be_bytes());
         self.buf.extend_from_slice(&rr.ttl.to_be_bytes());
-        if rr.data.len() > 65535 {
-            return Err(Error::Protocol("integer overflow".into()));
-        }
-        self.buf
-            .extend_from_slice(&(rr.data.len() as u16).to_be_bytes());
+        if rr.data.len() > 65535 { return Err(Error::Protocol("integer overflow".into())); }
+        self.buf.extend_from_slice(&(rr.data.len() as u16).to_be_bytes());
         self.buf.extend_from_slice(&rr.data);
         Ok(())
     }
-
     pub fn write_message(&mut self, msg: &Message) -> Result<()> {
         self.buf.extend_from_slice(&msg.id.to_be_bytes());
         self.buf.extend_from_slice(&msg.flags.to_be_bytes());
@@ -314,9 +248,7 @@ impl MessageBuilder {
 }
 
 impl Default for MessageBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 pub fn encode_rdata_txt(p: &[u8]) -> Vec<u8> {
@@ -335,15 +267,11 @@ pub fn encode_rdata_txt(p: &[u8]) -> Vec<u8> {
 pub fn decode_rdata_txt(p: &[u8]) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     let mut offset = 0;
-    if p.is_empty() {
-        return Err(Error::Protocol("unexpected eof in TXT RDATA".into()));
-    }
+    if p.is_empty() { return Err(Error::Protocol("unexpected eof in TXT RDATA".into())); }
     while offset < p.len() {
         let n = p[offset] as usize;
         offset += 1;
-        if offset + n > p.len() {
-            return Err(Error::Protocol("unexpected eof in TXT RDATA".into()));
-        }
+        if offset + n > p.len() { return Err(Error::Protocol("unexpected eof in TXT RDATA".into())); }
         buf.extend_from_slice(&p[offset..offset + n]);
         offset += n;
     }
@@ -376,9 +304,7 @@ pub fn base32_decode(s: &str) -> Result<Vec<u8>> {
     let mut buffer = 0u64;
     let mut bits_left = 0;
     for c in s.chars() {
-        if c.is_whitespace() {
-            continue;
-        }
+        if c.is_whitespace() { continue; }
         let val = match c {
             'A'..='Z' => (c as u8 - b'A') as u64,
             'a'..='z' => (c as u8 - b'a') as u64,

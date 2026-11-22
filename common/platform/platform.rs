@@ -19,9 +19,7 @@ pub const XUDP_BASE_KEY: &str = "xray.xudp.basekey";
 pub const TUN_FD_KEY: &str = "xray.tun.fd";
 pub const MPH_CACHE_PATH: &str = "xray.mph.cache";
 
-pub fn normalize_env_name(name: &str) -> String {
-    name.trim().replace('.', "_").to_uppercase()
-}
+pub fn normalize_env_name(name: &str) -> String { name.trim().replace('.', "_").to_uppercase() }
 
 #[derive(Debug, Clone)]
 pub struct EnvFlag {
@@ -36,36 +34,21 @@ impl EnvFlag {
             alt_name: normalize_env_name(name),
         }
     }
-
     pub fn get_value<F: FnOnce() -> String>(&self, default_value: F) -> String {
-        if let Ok(v) = env::var(&self.name) {
-            return v;
-        }
-        if !self.alt_name.is_empty()
-            && let Ok(v) = env::var(&self.alt_name)
-        {
-            return v;
-        }
+        if let Ok(v) = env::var(&self.name) { return v; }
+        if !self.alt_name.is_empty() && let Ok(v) = env::var(&self.alt_name)
+        { return v; }
         default_value()
     }
-
-    pub fn get_value_str(&self, default_val: &str) -> String {
-        self.get_value(|| default_val.to_string())
-    }
-
+    pub fn get_value_str(&self, default_val: &str) -> String { self.get_value(|| default_val.to_string()) }
     pub fn get_value_as_int(&self, default_val: i32) -> i32 {
         let s = self.get_value(|| "".to_string());
-        if s.is_empty() {
-            return default_val;
-        }
+        if s.is_empty() { return default_val; }
         s.parse().unwrap_or(default_val)
     }
-
     pub fn get_value_as_bool(&self, default_val: bool) -> bool {
         let s = self.get_value(|| "".to_string());
-        if s.is_empty() {
-            return default_val;
-        }
+        if s.is_empty() { return default_val; }
         match s.to_lowercase().as_str() {
             "true" | "1" | "yes" | "on" => true,
             "false" | "0" | "no" | "off" => false,
@@ -75,11 +58,8 @@ impl EnvFlag {
 }
 
 pub fn get_executable_dir() -> PathBuf {
-    if let Ok(exe) = env::current_exe()
-        && let Some(parent) = exe.parent()
-    {
-        return parent.to_path_buf();
-    }
+    if let Ok(exe) = env::current_exe() && let Some(parent) = exe.parent()
+    { return parent.to_path_buf(); }
     PathBuf::from(".")
 }
 
@@ -96,61 +76,39 @@ pub fn get_conf_dir_path() -> String {
 
 pub fn get_asset_location(file: &str) -> PathBuf {
     #[cfg(target_os = "windows")]
-    {
-        crate::common::platform::windows::get_asset_location(file)
-    }
+    { crate::common::platform::windows::get_asset_location(file) }
     #[cfg(not(target_os = "windows"))]
-    {
-        crate::common::platform::others::get_asset_location(file)
-    }
+    { crate::common::platform::others::get_asset_location(file) }
 }
 
 pub fn get_cert_location(file: &str) -> PathBuf {
     #[cfg(target_os = "windows")]
-    {
-        crate::common::platform::windows::get_cert_location(file)
-    }
+    { crate::common::platform::windows::get_cert_location(file) }
     #[cfg(not(target_os = "windows"))]
-    {
-        crate::common::platform::others::get_cert_location(file)
-    }
+    { crate::common::platform::others::get_cert_location(file) }
 }
 
 pub fn line_separator() -> &'static str {
     #[cfg(target_os = "windows")]
-    {
-        crate::common::platform::windows::line_separator()
-    }
+    { crate::common::platform::windows::line_separator() }
     #[cfg(not(target_os = "windows"))]
-    {
-        crate::common::platform::others::line_separator()
-    }
+    { crate::common::platform::others::line_separator() }
 }
 
 pub fn get_os_name() -> &'static str {
     #[cfg(target_os = "windows")]
-    {
-        "windows"
-    }
+    { "windows" }
     #[cfg(target_os = "linux")]
-    {
-        "linux"
-    }
+    { "linux" }
     #[cfg(target_os = "macos")]
-    {
-        "darwin"
-    }
+    { "darwin" }
     #[cfg(target_os = "freebsd")]
-    {
-        "freebsd"
-    }
+    { "freebsd" }
     #[cfg(not(any(
         target_os = "windows",
         target_os = "linux",
         target_os = "macos",
         target_os = "freebsd"
     )))]
-    {
-        "unknown"
-    }
+    { "unknown" }
 }

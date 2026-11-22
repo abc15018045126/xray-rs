@@ -11,15 +11,8 @@ pub struct WebSocketHub {
 }
 
 impl WebSocketHub {
-    pub async fn listen(addr: SocketAddr) -> Result<Self> {
-        Self::listen_with_config(addr, None, None).await
-    }
-
-    pub async fn listen_with_config(
-        addr: SocketAddr,
-        path: Option<String>,
-        host: Option<String>,
-    ) -> Result<Self> {
+    pub async fn listen(addr: SocketAddr) -> Result<Self> { Self::listen_with_config(addr, None, None).await }
+    pub async fn listen_with_config(addr: SocketAddr, path: Option<String>, host: Option<String>) -> Result<Self> {
         let tcp_hub = TcpHub::listen(addr).await?;
         Ok(Self {
             tcp_hub,
@@ -27,11 +20,7 @@ impl WebSocketHub {
             host,
         })
     }
-
-    pub fn local_addr(&self) -> SocketAddr {
-        self.tcp_hub.local_addr()
-    }
-
+    pub fn local_addr(&self) -> SocketAddr { self.tcp_hub.local_addr() }
     pub async fn accept(&self) -> Result<(BoxStream, SocketAddr)> {
         let (raw_stream, remote_addr) = self.tcp_hub.accept().await?;
         let ws_stream = WebSocketStream::server_handshake_with_config(

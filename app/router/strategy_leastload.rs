@@ -84,7 +84,6 @@ impl LeastLoadStrategy {
             fallback_tag,
         }
     }
-
     pub fn with_config(
         settings: StrategyLeastLoadConfig,
         fallback_tag: Option<String>,
@@ -99,18 +98,12 @@ impl LeastLoadStrategy {
 }
 
 impl BalancingStrategy for LeastLoadStrategy {
-    fn name(&self) -> &str {
-        "leastLoad"
-    }
-
+    fn name(&self) -> &str { "leastLoad" }
     fn pick_outbound(&self, tags: &[String]) -> Option<String> {
         if tags.is_empty() { return self.fallback_tag.clone(); }
-        if let Some(best) = self.observatory.as_ref().and_then(|o| o.select_best_outbound(tags)) {
-            return Some(best);
-        }
+        if let Some(best) = self.observatory.as_ref().and_then(|o| o.select_best_outbound(tags)) { return Some(best); }
         let mut nodes: Vec<LeastLoadNode> = tags.iter().enumerate()
-            .map(|(i, tag)| { let c = 100 + (i as u64 * 50); LeastLoadNode::new(tag, c, c) })
-            .collect();
+            .map(|(i, tag)| { let c = 100 + (i as u64 * 50); LeastLoadNode::new(tag, c, c) }).collect();
         leastload_sort(&mut nodes);
         select_least_load(&nodes, &self.settings.baselines, self.settings.expected)
             .first().map(|n| n.tag.clone()).or_else(|| self.fallback_tag.clone())

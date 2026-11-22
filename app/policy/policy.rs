@@ -41,19 +41,8 @@ pub struct PolicyManager {
 }
 
 impl PolicyManager {
-    pub fn new(levels: HashMap<u32, SessionPolicy>, system: SystemPolicy) -> Self {
-        Self { levels, system }
-    }
-
-    pub fn for_level(&self, level: u32) -> SessionPolicy {
-        self.levels.get(&level).cloned().unwrap_or_default()
-    }
-
-    pub fn for_system(&self) -> &SystemPolicy {
-        &self.system
-    }
-
-    pub fn set_level(&mut self, level: u32, policy: SessionPolicy) {
-        self.levels.insert(level, policy);
-    }
+    pub fn new(levels: HashMap<u32, SessionPolicy>, system: SystemPolicy) -> Self { Self { levels, system } }
+    pub fn for_level(&self, level: u32) -> SessionPolicy { self.levels.get(&level).cloned().unwrap_or_default() }
+    pub fn for_system(&self) -> &SystemPolicy { &self.system }
+    pub fn set_level(&mut self, level: u32, policy: SessionPolicy) { self.levels.insert(level, policy); }
 }

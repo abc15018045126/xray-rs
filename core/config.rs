@@ -1,6 +1,4 @@
-use super::format::{
-    CONFIG_FORMAT_JSON, CONFIG_FORMAT_PROTOBUF, CONFIG_FORMAT_TOML, CONFIG_FORMAT_YAML,
-};
+use super::format::{CONFIG_FORMAT_JSON, CONFIG_FORMAT_PROTOBUF, CONFIG_FORMAT_TOML, CONFIG_FORMAT_YAML};
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
 use std::collections::HashMap;
@@ -44,10 +42,7 @@ static LOADERS_BY_NAME: LazyLock<RwLock<HashMap<String, ConfigLoader>>> = LazyLo
     map.insert(CONFIG_FORMAT_JSON.to_string(), json_loader as ConfigLoader);
     map.insert(CONFIG_FORMAT_YAML.to_string(), json_loader as ConfigLoader);
     map.insert(CONFIG_FORMAT_TOML.to_string(), json_loader as ConfigLoader);
-    map.insert(
-        CONFIG_FORMAT_PROTOBUF.to_string(),
-        json_loader as ConfigLoader,
-    );
+    map.insert(CONFIG_FORMAT_PROTOBUF.to_string(), json_loader as ConfigLoader);
     RwLock::new(map)
 });
 
@@ -64,10 +59,8 @@ static LOADERS_BY_EXT: LazyLock<RwLock<HashMap<String, String>>> = LazyLock::new
 });
 
 fn json_loader(data: &[u8]) -> Result<Config> {
-    let s = std::str::from_utf8(data)
-        .map_err(|e| Error::Config(format!("Invalid UTF-8 in config: {}", e)))?;
-    serde_json::from_str(s)
-        .map_err(|e| Error::Config(format!("Failed to parse JSON config: {}", e)))
+    let s = std::str::from_utf8(data).map_err(|e| Error::Config(format!("Invalid UTF-8 in config: {}", e)))?;
+    serde_json::from_str(s).map_err(|e| Error::Config(format!("Failed to parse JSON config: {}", e)))
 }
 
 pub fn register_config_loader(format: ConfigFormat) -> Result<()> {
@@ -104,9 +97,7 @@ pub fn get_format_by_extension(ext: &str) -> String {
     }
 }
 
-pub fn get_format(filename: &str) -> String {
-    get_format_by_extension(&get_extension(filename))
-}
+pub fn get_format(filename: &str) -> String { get_format_by_extension(&get_extension(filename)) }
 
 pub fn load_config(format_name: &str, data: &[u8]) -> Result<Config> {
     let fmt = if format_name == "auto" {
@@ -114,13 +105,9 @@ pub fn load_config(format_name: &str, data: &[u8]) -> Result<Config> {
     } else {
         format_name
     };
-
-    let guard = LOADERS_BY_NAME
-        .read()
-        .map_err(|_| Error::Config("Config loader lock poisoned".into()))?;
+    let guard = LOADERS_BY_NAME.read().map_err(|_| Error::Config("Config loader lock poisoned".into()))?;
     let loader = guard
-        .get(&fmt.to_lowercase())
-        .ok_or_else(|| Error::Config(format!("Unsupported config format: {}", format_name)))?;
+        .get(&fmt.to_lowercase()).ok_or_else(|| Error::Config(format!("Unsupported config format: {}", format_name)))?;
     loader(data)
 }
 

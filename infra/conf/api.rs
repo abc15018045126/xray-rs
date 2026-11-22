@@ -15,7 +15,6 @@ impl ApiConfig {
             services: Vec::new(),
         }
     }
-
     pub fn with_service(mut self, service: impl Into<String>) -> Self {
         self.services.push(service.into());
         self

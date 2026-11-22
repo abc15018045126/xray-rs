@@ -19,7 +19,6 @@ impl Addons {
             seed: Vec::new(),
         }
     }
-
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         if !self.flow.is_empty() {
@@ -35,34 +34,26 @@ impl Addons {
         }
         buf
     }
-
     pub fn decode(bytes: &[u8]) -> Self {
         let mut flow = String::new();
         let mut seed = Vec::new();
         let mut idx = 0;
-
         while idx < bytes.len() {
             let tag_wire = bytes[idx];
             idx += 1;
             let field_num = tag_wire >> 3;
-            if idx >= bytes.len() {
-                break;
-            }
+            if idx >= bytes.len() { break; }
             let len = bytes[idx] as usize;
             idx += 1;
-            if idx + len > bytes.len() {
-                break;
-            }
+            if idx + len > bytes.len() { break; }
             let data = &bytes[idx..idx + len];
             idx += len;
-
             match field_num {
                 1 => flow = String::from_utf8_lossy(data).to_string(),
                 2 => seed = data.to_vec(),
                 _ => {}
             }
         }
-
         Self { flow, seed }
     }
 }
@@ -84,7 +75,6 @@ impl RequestHeader {
             addons: Addons::default(),
         }
     }
-
     pub fn encode_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::new();
         buf.push(VLESS_VERSION);
@@ -101,20 +91,16 @@ impl RequestHeader {
         }
         buf
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let buf = self.encode_bytes();
         writer.write_all(&buf).await?;
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let mut head = [0u8; 18];
         reader.read_exact(&mut head).await?;
-        if head[0] != VLESS_VERSION {
-            return Err(Error::Protocol(format!("Unsupported VLESS version: {}", head[0])));
-        }
+        if head[0] != VLESS_VERSION { return Err(Error::Protocol(format!("Unsupported VLESS version: {}", head[0]))); }
         let user_id = Uuid::from_bytes(head[1..17].try_into().unwrap());
         let addons = if head[17] > 0 {
             let mut addons_buf = vec![0u8; head[17] as usize];
@@ -123,7 +109,6 @@ impl RequestHeader {
         } else {
             Addons::default()
         };
-
         let mut meta = [0u8; 4];
         reader.read_exact(&mut meta).await?;
         let command = RequestCommand::from_u8(meta[0])
@@ -163,31 +148,21 @@ pub struct ResponseHeader {
 }
 
 impl ResponseHeader {
-    pub fn new() -> Self {
-        Self {
-            addons: Addons::default(),
-        }
-    }
-
+    pub fn new() -> Self { Self { addons: Addons::default(), } }
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = Vec::new();
         buf.push(VLESS_VERSION);
         let addons_bytes = self.addons.encode();
         buf.push(addons_bytes.len() as u8);
         buf.extend_from_slice(&addons_bytes);
-
         writer.write_all(&buf).await?;
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let version = reader.read_u8().await?;
         if version != VLESS_VERSION {
-            return Err(Error::Protocol(format!(
-                "Unsupported VLESS response version: {}",
-                version
-            )));
+            return Err(Error::Protocol(format!("Unsupported VLESS response version: {}", version)));
         }
         let addons_len = reader.read_u8().await? as usize;
         let addons = if addons_len > 0 {

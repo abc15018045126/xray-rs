@@ -19,16 +19,11 @@ pub fn fake_udp_linux(addr: SocketAddr, _mark: u32) -> Result<tokio::net::UdpSoc
     }
 }
 
-pub fn is_tproxy_supported() -> bool {
-    cfg!(target_os = "linux")
-}
+pub fn is_tproxy_supported() -> bool { cfg!(target_os = "linux") }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn test_is_tproxy_supported_flag() {
-        let _ = is_tproxy_supported();
-    }
+    fn test_is_tproxy_supported_flag() { let _ = is_tproxy_supported(); }
 }

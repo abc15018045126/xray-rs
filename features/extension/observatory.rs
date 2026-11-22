@@ -14,16 +14,11 @@ pub struct Observation {
 pub trait ObservatoryFeature: Feature {
     async fn get_observation(&self, tag: &str) -> Result<Option<Observation>>;
     async fn list_observations(&self) -> Vec<Observation>;
-
-    fn select_outbound(&self, tags: &[String]) -> Option<String> {
-        tags.first().cloned()
-    }
+    fn select_outbound(&self, tags: &[String]) -> Option<String> { tags.first().cloned() }
 }
 
 pub trait BurstObservatory: ObservatoryFeature {
     fn check(&self, tags: &[String]);
 }
 
-pub fn observatory_type() -> &'static str {
-    TYPE_OBSERVATORY
-}
+pub fn observatory_type() -> &'static str { TYPE_OBSERVATORY }

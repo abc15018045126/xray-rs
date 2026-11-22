@@ -8,23 +8,15 @@ pub trait RoutingContext: Send + Sync {
     fn get_source_port(&self) -> u16;
     fn get_target_ips(&self) -> Vec<IpAddr>;
     fn get_target_port(&self) -> u16;
-    fn get_local_ips(&self) -> Vec<IpAddr> {
-        Vec::new()
-    }
-    fn get_local_port(&self) -> u16 {
-        0
-    }
+    fn get_local_ips(&self) -> Vec<IpAddr> { Vec::new() }
+    fn get_local_port(&self) -> u16 { 0 }
     fn get_target_domain(&self) -> Option<&str>;
     fn get_network(&self) -> Network;
     fn get_protocol(&self) -> Option<&str>;
     fn get_user(&self) -> Option<&str>;
-    fn get_vless_route(&self) -> u16 {
-        0
-    }
+    fn get_vless_route(&self) -> u16 { 0 }
     fn get_attributes(&self) -> &HashMap<String, String>;
-    fn get_skip_dns_resolve(&self) -> bool {
-        false
-    }
+    fn get_skip_dns_resolve(&self) -> bool { false }
 }
 
 #[derive(Debug, Clone)]
@@ -53,51 +45,15 @@ impl RouteContext {
 }
 
 impl RoutingContext for RouteContext {
-    fn get_inbound_tag(&self) -> &str {
-        &self.inbound_tag
-    }
-
-    fn get_source_ips(&self) -> Vec<IpAddr> {
-        self.source.map(|s| vec![s.ip()]).unwrap_or_default()
-    }
-
-    fn get_source_port(&self) -> u16 {
-        self.source.map(|s| s.port()).unwrap_or(0)
-    }
-
-    fn get_target_ips(&self) -> Vec<IpAddr> {
-        self.destination
-            .address
-            .to_ip()
-            .map(|ip| vec![ip])
-            .unwrap_or_default()
-    }
-
-    fn get_target_port(&self) -> u16 {
-        self.destination.port
-    }
-
-    fn get_target_domain(&self) -> Option<&str> {
-        self.destination.address.domain_name()
-    }
-
-    fn get_network(&self) -> Network {
-        self.destination.network
-    }
-
-    fn get_protocol(&self) -> Option<&str> {
-        self.protocol.as_deref()
-    }
-
-    fn get_user(&self) -> Option<&str> {
-        self.user_email.as_deref()
-    }
-
-    fn get_attributes(&self) -> &HashMap<String, String> {
-        &self.attributes
-    }
-
-    fn get_skip_dns_resolve(&self) -> bool {
-        self.skip_dns_resolve
-    }
+    fn get_inbound_tag(&self) -> &str { &self.inbound_tag }
+    fn get_source_ips(&self) -> Vec<IpAddr> { self.source.map(|s| vec![s.ip()]).unwrap_or_default() }
+    fn get_source_port(&self) -> u16 { self.source.map(|s| s.port()).unwrap_or(0) }
+    fn get_target_ips(&self) -> Vec<IpAddr> { self.destination.address.to_ip().map(|ip| vec![ip]).unwrap_or_default() }
+    fn get_target_port(&self) -> u16 { self.destination.port }
+    fn get_target_domain(&self) -> Option<&str> { self.destination.address.domain_name() }
+    fn get_network(&self) -> Network { self.destination.network }
+    fn get_protocol(&self) -> Option<&str> { self.protocol.as_deref() }
+    fn get_user(&self) -> Option<&str> { self.user_email.as_deref() }
+    fn get_attributes(&self) -> &HashMap<String, String> { &self.attributes }
+    fn get_skip_dns_resolve(&self) -> bool { self.skip_dns_resolve }
 }

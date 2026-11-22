@@ -11,9 +11,7 @@ pub mod reader;
 pub mod singbridge_test;
 
 pub use destination::{Socksaddr, from_destination, to_destination, to_network, to_socksaddr};
-pub use dialer::{
-    SingDialer, SingDialerTrait, XrayDialer, XrayOutboundDialer, dial_singbox_bridge,
-};
+pub use dialer::{SingDialer, SingDialerTrait, XrayDialer, XrayOutboundDialer, dial_singbox_bridge};
 pub use error::{is_closed_or_canceled, return_error, return_result, wrap_sing_error};
 pub use handler::{Dispatcher, Metadata, SingHandler, TcpConnectionHandler, UdpConnectionHandler};
 pub use logger::{ContextLogger, SingLogger, XrayLogger};

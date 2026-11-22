@@ -27,7 +27,6 @@ impl ActivityTimer {
             task_handle: Mutex::new(None),
         }
     }
-
     pub fn with_callback<F>(timeout: Duration, on_timeout: F) -> Arc<Self>
     where
         F: FnOnce() + Send + 'static,
@@ -43,31 +42,21 @@ impl ActivityTimer {
         timer.set_timeout(timeout);
         timer
     }
-
     pub fn update(&self) {
         let elapsed = self.start_time.elapsed().as_millis() as u64;
         self.last_activity.store(elapsed, Ordering::SeqCst);
     }
-
     pub fn is_timeout(&self) -> bool {
         let last = self.last_activity.load(Ordering::SeqCst);
         let current = self.start_time.elapsed().as_millis() as u64;
         let timeout_millis = self.timeout.lock().unwrap().as_millis() as u64;
         current.saturating_sub(last) >= timeout_millis
     }
-
-    pub fn is_timed_out(&self) -> bool {
-        self.is_timeout()
-    }
-
+    pub fn is_timed_out(&self) -> bool { self.is_timeout() }
     pub fn finish(&self) {
-        if !self.consumed.swap(true, Ordering::SeqCst)
-            && let Some(cb) = self.on_timeout.lock().unwrap().take()
-        {
-            cb();
-        }
+        if !self.consumed.swap(true, Ordering::SeqCst) && let Some(cb) = self.on_timeout.lock().unwrap().take()
+        { cb(); }
     }
-
     pub fn set_timeout(self: &Arc<Self>, timeout: Duration) {
         if self.consumed.load(Ordering::Relaxed) { return; }
         if timeout.is_zero() { self.finish(); return; }
@@ -88,24 +77,17 @@ impl ActivityTimer {
 }
 
 impl ActivityUpdater for ActivityTimer {
-    fn update(&self) {
-        self.update();
-    }
+    fn update(&self) { self.update(); }
 }
 
 impl Drop for ActivityTimer {
     fn drop(&mut self) {
-        if let Ok(mut guard) = self.task_handle.lock()
-            && let Some(handle) = guard.take()
-        {
-            handle.abort();
-        }
+        if let Ok(mut guard) = self.task_handle.lock() && let Some(handle) = guard.take()
+        { handle.abort(); }
     }
 }
 
 pub fn cancel_after_inactivity<F>(on_timeout: F, timeout: Duration) -> Arc<ActivityTimer>
 where
     F: FnOnce() + Send + 'static,
-{
-    ActivityTimer::with_callback(timeout, on_timeout)
-}
+{ ActivityTimer::with_callback(timeout, on_timeout) }

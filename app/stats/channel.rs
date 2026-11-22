@@ -19,44 +19,23 @@ impl StatsChannel {
             running: Arc::new(AtomicBool::new(true)),
         }
     }
-
     pub fn from_config(config: &ChannelConfig) -> Self {
-        Self::new(
-            config.buffer_size.max(0) as usize,
-            config.subscriber_limit.max(0) as usize,
-        )
+        Self::new(config.buffer_size.max(0) as usize, config.subscriber_limit.max(0) as usize)
     }
-
     pub fn subscribe(&self) -> Result<broadcast::Receiver<i64>> {
-        if !self.is_running() {
-            return Err(Error::Closed);
-        }
+        if !self.is_running() { return Err(Error::Closed); }
         if self.subscriber_limit > 0 && self.tx.receiver_count() >= self.subscriber_limit {
-            return Err(Error::Config(
-                "Stats channel subscriber limit reached".into(),
-            ));
+            return Err(Error::Config("Stats channel subscriber limit reached".into()));
         }
         Ok(self.tx.subscribe())
     }
-
     pub fn publish(&self, value: i64) -> Result<usize> {
-        if !self.is_running() {
-            return Err(Error::Closed);
-        }
+        if !self.is_running() { return Err(Error::Closed); }
         self.tx.send(value).map_err(|_| Error::Closed)
     }
-
-    pub fn subscriber_count(&self) -> usize {
-        self.tx.receiver_count()
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.running.load(Ordering::SeqCst)
-    }
-
-    pub fn close(&self) {
-        self.running.store(false, Ordering::SeqCst);
-    }
+    pub fn subscriber_count(&self) -> usize { self.tx.receiver_count() }
+    pub fn is_running(&self) -> bool { self.running.load(Ordering::SeqCst) }
+    pub fn close(&self) { self.running.store(false, Ordering::SeqCst); }
 }
 
 pub type Channel = StatsChannel;

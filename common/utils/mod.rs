@@ -31,57 +31,32 @@ where
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    pub fn new() -> Self {
-        Self {
-            inner: RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub fn load(&self, key: &K) -> Option<V> {
-        self.inner.read().ok()?.get(key).cloned()
-    }
-
-    pub fn store(&self, key: K, val: V) {
-        if let Ok(mut guard) = self.inner.write() {
-            guard.insert(key, val);
-        }
-    }
-
+    pub fn new() -> Self { Self { inner: RwLock::new(HashMap::new()), } }
+    pub fn load(&self, key: &K) -> Option<V> { self.inner.read().ok()?.get(key).cloned() }
+    pub fn store(&self, key: K, val: V) { if let Ok(mut guard) = self.inner.write() { guard.insert(key, val); } }
     pub fn delete(&self, key: &K) -> Option<V> {
         let mut guard = self.inner.write().ok()?;
         guard.remove(key)
     }
-
-    pub fn len(&self) -> usize {
-        self.inner.read().map(|g| g.len()).unwrap_or(0)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+    pub fn len(&self) -> usize { self.inner.read().map(|g| g.len()).unwrap_or(0) }
+    pub fn is_empty(&self) -> bool { self.len() == 0 }
 }
 
 impl<K, V> Default for TypedSyncMap<K, V>
 where
     K: Eq + Hash + Clone,
     V: Clone,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
+{ fn default() -> Self { Self::new() } }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_h2_base62_padding_generation() {
         let pad = h2_base62_pad(10);
         assert!(!pad.is_empty());
         assert!(pad.len() >= 10);
     }
-
     #[test]
     fn test_typed_sync_map_operations() {
         let map = TypedSyncMap::<String, i32>::new();

@@ -8,15 +8,11 @@ use std::net::IpAddr;
 pub struct LocalDnsClient;
 
 impl LocalDnsClient {
-    pub fn new() -> Self {
-        Self
-    }
+    pub fn new() -> Self { Self }
 }
 
 impl Feature for LocalDnsClient {
-    fn feature_type(&self) -> &'static str {
-        TYPE_DNS_CLIENT
-    }
+    fn feature_type(&self) -> &'static str { TYPE_DNS_CLIENT }
 }
 
 #[async_trait]
@@ -25,12 +21,7 @@ impl DnsClient for LocalDnsClient {
         let addrs = tokio::net::lookup_host(format!("{}:0", domain)).await?;
         Ok(addrs.map(|a| a.ip()).collect())
     }
-
-    async fn lookup_ip_with_option(
-        &self,
-        domain: &str,
-        option: IPOption,
-    ) -> Result<(Vec<IpAddr>, u32)> {
+    async fn lookup_ip_with_option(&self, domain: &str, option: IPOption) -> Result<(Vec<IpAddr>, u32)> {
         let addrs = tokio::net::lookup_host(format!("{}:0", domain)).await?;
         let mut ips = Vec::new();
         for addr in addrs {
@@ -41,9 +32,7 @@ impl DnsClient for LocalDnsClient {
                 _ => {}
             }
         }
-        if ips.is_empty() {
-            return Err(Error::NotFound("Empty DNS response".into()));
-        }
+        if ips.is_empty() { return Err(Error::NotFound("Empty DNS response".into())); }
         Ok((ips, DEFAULT_TTL))
     }
 }

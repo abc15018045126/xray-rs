@@ -13,7 +13,6 @@ impl HysteriaContext {
             require_datagram: false,
         }
     }
-
     pub fn with_require_datagram(mut self, require: bool) -> Self {
         self.require_datagram = require;
         self
@@ -25,21 +24,17 @@ pub fn context_with_require_datagram(mut ctx: HysteriaContext, udp: bool) -> Hys
     ctx
 }
 
-pub fn require_datagram_from_context(ctx: &HysteriaContext) -> bool {
-    ctx.require_datagram
-}
+pub fn require_datagram_from_context(ctx: &HysteriaContext) -> bool { ctx.require_datagram }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::net::Destination;
-
     #[test]
     fn test_hysteria_context_datagram() {
         let session = SessionContext::new("hysteria-in", Destination::default());
         let ctx = HysteriaContext::new(session);
         assert!(!require_datagram_from_context(&ctx));
-
         let ctx2 = context_with_require_datagram(ctx, true);
         assert!(require_datagram_from_context(&ctx2));
     }

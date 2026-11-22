@@ -16,7 +16,6 @@ impl Socksaddr {
             port,
         }
     }
-
     pub fn new_fqdn(fqdn: impl Into<String>, port: u16) -> Self {
         Self {
             fqdn: Some(fqdn.into()),
@@ -24,28 +23,14 @@ impl Socksaddr {
             port,
         }
     }
-
-    pub fn is_fqdn(&self) -> bool {
-        self.fqdn.as_ref().is_some_and(|s| !s.is_empty())
-    }
-
-    pub fn is_ip(&self) -> bool {
-        self.addr.is_some()
-    }
-
-    pub fn fqdn_str(&self) -> &str {
-        self.fqdn.as_deref().unwrap_or("")
-    }
-
-    pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        self.addr.map(|ip| SocketAddr::new(ip, self.port))
-    }
+    pub fn is_fqdn(&self) -> bool { self.fqdn.as_ref().is_some_and(|s| !s.is_empty()) }
+    pub fn is_ip(&self) -> bool { self.addr.is_some() }
+    pub fn fqdn_str(&self) -> &str { self.fqdn.as_deref().unwrap_or("") }
+    pub fn to_socket_addr(&self) -> Option<SocketAddr> { self.addr.map(|ip| SocketAddr::new(ip, self.port)) }
 }
 
 impl From<SocketAddr> for Socksaddr {
-    fn from(s: SocketAddr) -> Self {
-        Self::new_ip(s.ip(), s.port())
-    }
+    fn from(s: SocketAddr) -> Self { Self::new_ip(s.ip(), s.port()) }
 }
 
 pub fn to_network(network: &str) -> Network {
@@ -82,6 +67,4 @@ pub fn to_socksaddr(destination: &Destination) -> Socksaddr {
     }
 }
 
-pub fn from_destination(dest: &Destination) -> Option<SocketAddr> {
-    dest.to_socket_addr()
-}
+pub fn from_destination(dest: &Destination) -> Option<SocketAddr> { dest.to_socket_addr() }

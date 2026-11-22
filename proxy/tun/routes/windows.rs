@@ -1,8 +1,5 @@
 use ipnet::IpNet;
-use std::{
-    io,
-    net::SocketAddr,
-};
+use std::{io, net::SocketAddr};
 use tracing::{debug, error, info, warn};
 use windows::Win32::{
     Foundation::ERROR_OBJECT_ALREADY_EXISTS,
@@ -11,9 +8,7 @@ use windows::Win32::{
         IP_ADDRESS_PREFIX, InitializeIpForwardEntry, MIB_IPFORWARD_ROW2,
         MIB_UNICASTIPADDRESS_ROW,
     },
-    Networking::WinSock::{
-        AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET,
-    },
+    Networking::WinSock::{ AF_INET, AF_INET6, IpPrefixOriginManual, IpSuffixOriginManual, SOCKADDR_INET, },
 };
 
 use super::super::config::TunConfig;
@@ -22,10 +17,7 @@ use super::super::net::OutboundInterface;
 pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     warn!("adding route to destination {} via {}", dest, via.name);
     let mut row = MIB_IPFORWARD_ROW2::default();
-    unsafe {
-        InitializeIpForwardEntry(&mut row);
-    }
-
+    unsafe { InitializeIpForwardEntry(&mut row); }
     row.InterfaceIndex = via.index;
     row.DestinationPrefix = IP_ADDRESS_PREFIX {
         Prefix: SocketAddr::new(dest.addr(), 0).into(),
@@ -33,23 +25,12 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     };
     let metric = 0;
     let next_hop: SocketAddr = if dest.addr().is_ipv4() {
-        (
-            via.addr_v4
-                .ok_or_else(|| io::Error::other("tun interface has no ipv4 address"))?,
-            0,
-        )
-            .into()
+        (via.addr_v4.ok_or_else(|| io::Error::other("tun interface has no ipv4 address"))?, 0).into()
     } else {
-        (
-            via.addr_v6
-                .ok_or_else(|| io::Error::other("tun interface has no ipv6 address"))?,
-            0,
-        )
-            .into()
+        (via.addr_v6.ok_or_else(|| io::Error::other("tun interface has no ipv6 address"))?, 0).into()
     };
     row.NextHop = next_hop.into();
     row.Metric = metric;
-
     if let Err(e) = unsafe { CreateIpForwardEntry2(&row) }.to_hresult().ok() {
         if e.code().0 == ERROR_OBJECT_ALREADY_EXISTS.0 as i32 || e.code().0 as u32 == 0x80071392 {
             warn!("route to destination {} via {} already exists", dest, via.name);
@@ -65,10 +46,7 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
 pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     warn!("deleting route to destination {} via {}", dest, via.name);
     let mut row = MIB_IPFORWARD_ROW2::default();
-    unsafe {
-        InitializeIpForwardEntry(&mut row);
-    }
-
+    unsafe { InitializeIpForwardEntry(&mut row); }
     row.InterfaceIndex = via.index;
     row.DestinationPrefix = IP_ADDRESS_PREFIX {
         Prefix: SocketAddr::new(dest.addr(), 0).into(),
@@ -88,14 +66,8 @@ pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
         }
     };
     row.NextHop = next_hop.into();
-
     let res = unsafe { DeleteIpForwardEntry2(&row) }.to_hresult();
-    if let Err(e) = res.ok() {
-        debug!(
-            "delete route to destination {} via {}: {}",
-            dest, via.name, e
-        );
-    }
+    if let Err(e) = res.ok() { debug!("delete route to destination {} via {}: {}", dest, via.name, e); }
     Ok(())
 }
 
@@ -104,17 +76,14 @@ pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()>
     let mut addr_inet = SOCKADDR_INET::default();
     match addr_net {
         IpNet::V4(ipv4_net) => {
-            addr_inet.Ipv4.sin_family =
-                windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET.0);
+            addr_inet.Ipv4.sin_family = windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET.0);
             addr_inet.Ipv4.sin_addr.S_un.S_addr = u32::from_le_bytes(ipv4_net.addr().octets());
         }
         IpNet::V6(ipv6_net) => {
-            addr_inet.Ipv6.sin6_family =
-                windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET6.0);
+            addr_inet.Ipv6.sin6_family = windows::Win32::Networking::WinSock::ADDRESS_FAMILY(AF_INET6.0);
             addr_inet.Ipv6.sin6_addr.u.Byte = ipv6_net.addr().octets();
         }
     }
-
     let row = MIB_UNICASTIPADDRESS_ROW {
         InterfaceIndex: iface.index, Address: addr_inet, OnLinkPrefixLength: addr_net.prefix_len(),
         PrefixOrigin: IpPrefixOriginManual, SuffixOrigin: IpSuffixOriginManual,
@@ -139,9 +108,7 @@ pub fn maybe_routes_clean_up(cfg: &TunConfig, tun_name: &str) -> io::Result<()> 
                 let _ = delete_route(&via, &v6_2);
             }
         }
-        for r in &cfg.routes {
-            let _ = delete_route(&via, r);
-        }
+        for r in &cfg.routes { let _ = delete_route(&via, r); }
     }
     Ok(())
 }

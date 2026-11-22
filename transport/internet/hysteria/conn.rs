@@ -13,26 +13,12 @@ impl HysteriaConn {
             bytes_recv: Arc::new(AtomicU64::new(0)),
         }
     }
-
-    pub fn record_sent(&self, n: usize) {
-        self.bytes_sent.fetch_add(n as u64, Ordering::Relaxed);
-    }
-
-    pub fn record_recv(&self, n: usize) {
-        self.bytes_recv.fetch_add(n as u64, Ordering::Relaxed);
-    }
-
-    pub fn total_sent(&self) -> u64 {
-        self.bytes_sent.load(Ordering::Relaxed)
-    }
-
-    pub fn total_recv(&self) -> u64 {
-        self.bytes_recv.load(Ordering::Relaxed)
-    }
+    pub fn record_sent(&self, n: usize) { self.bytes_sent.fetch_add(n as u64, Ordering::Relaxed); }
+    pub fn record_recv(&self, n: usize) { self.bytes_recv.fetch_add(n as u64, Ordering::Relaxed); }
+    pub fn total_sent(&self) -> u64 { self.bytes_sent.load(Ordering::Relaxed) }
+    pub fn total_recv(&self) -> u64 { self.bytes_recv.load(Ordering::Relaxed) }
 }
 
 impl Default for HysteriaConn {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

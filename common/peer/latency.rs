@@ -15,35 +15,20 @@ pub struct AverageLatency {
 }
 
 impl AverageLatency {
-    pub fn new(initial: u64) -> Self {
-        Self {
-            value: AtomicU64::new(initial),
-        }
-    }
-
+    pub fn new(initial: u64) -> Self { Self { value: AtomicU64::new(initial), } }
     pub fn update(&self, new_val: u64) {
         let mut current = self.value.load(Ordering::Relaxed);
         loop {
             let next = (current + new_val * 2) / 3;
-            match self.value.compare_exchange_weak(
-                current,
-                next,
-                Ordering::Relaxed,
-                Ordering::Relaxed,
-            ) {
+            match self.value.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
                 Ok(_) => break,
                 Err(actual) => current = actual,
             }
         }
     }
-
-    pub fn value(&self) -> u64 {
-        self.value.load(Ordering::Relaxed)
-    }
+    pub fn value(&self) -> u64 { self.value.load(Ordering::Relaxed) }
 }
 
 impl Latency for AverageLatency {
-    fn value(&self) -> u64 {
-        self.value()
-    }
+    fn value(&self) -> u64 { self.value() }
 }

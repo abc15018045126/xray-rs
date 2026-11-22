@@ -16,8 +16,7 @@ pub enum CipherType {
 
 pub fn derive_subkey(key: &[u8], salt: &[u8], subkey: &mut [u8]) -> Result<()> {
     let hk = Hkdf::<Sha1>::new(Some(salt), key);
-    hk.expand(b"ss-subkey", subkey)
-        .map_err(|e| Error::Crypto(format!("HKDF subkey derivation failed: {:?}", e)))
+    hk.expand(b"ss-subkey", subkey).map_err(|e| Error::Crypto(format!("HKDF subkey derivation failed: {:?}", e)))
 }
 
 pub async fn read_target_address<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Destination> {
@@ -62,14 +61,12 @@ impl ShadowsocksUdpPacket {
             payload,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         write_target_address(writer, &self.destination).await?;
         writer.write_all(&self.payload).await?;
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let destination = read_target_address(reader).await?;
         let mut payload = Vec::new();

@@ -33,11 +33,7 @@ pub struct Buffer {
 }
 
 impl Default for Buffer {
-    fn default() -> Self {
-        Self {
-            per_connection: 512 * 1024,
-        }
-    }
+    fn default() -> Self { Self { per_connection: 512 * 1024, } }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -63,19 +59,13 @@ pub struct SessionPolicy {
 
 pub type Policy = SessionPolicy;
 
-pub fn default_buffer_policy() -> Buffer {
-    Buffer::default()
-}
+pub fn default_buffer_policy() -> Buffer { Buffer::default() }
 
-pub fn session_default() -> SessionPolicy {
-    SessionPolicy::default()
-}
+pub fn session_default() -> SessionPolicy { SessionPolicy::default() }
 
 pub trait PolicyManager: Feature {
     fn for_level(&self, level: u32) -> SessionPolicy;
     fn for_system(&self) -> SystemPolicy;
 }
 
-pub fn manager_type() -> &'static str {
-    TYPE_POLICY_MANAGER
-}
+pub fn manager_type() -> &'static str { TYPE_POLICY_MANAGER }

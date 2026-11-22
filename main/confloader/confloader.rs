@@ -7,9 +7,7 @@ pub type ConfigFileLoader = fn(&str) -> Result<Vec<u8>>;
 static EFFECTIVE_LOADER: RwLock<Option<ConfigFileLoader>> = RwLock::new(None);
 
 pub fn set_effective_config_file_loader(loader: ConfigFileLoader) {
-    if let Ok(mut guard) = EFFECTIVE_LOADER.write() {
-        *guard = Some(loader);
-    }
+    if let Ok(mut guard) = EFFECTIVE_LOADER.write() { *guard = Some(loader); }
 }
 
 pub fn load_config(file: &str) -> Result<Vec<u8>> {
@@ -34,23 +32,15 @@ pub fn load_config_from_str(content: &str) -> Result<Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_confloader_load_from_str() {
         let json_str = r#"{"log": {"loglevel": "warning"}}"#;
         let cfg = load_config_from_str(json_str).unwrap();
-        assert_eq!(
-            cfg.log.as_ref().unwrap().loglevel.as_deref(),
-            Some("warning")
-        );
+        assert_eq!(cfg.log.as_ref().unwrap().loglevel.as_deref(), Some("warning"));
     }
-
     #[test]
     fn test_confloader_custom_loader() {
-        fn dummy_loader(path: &str) -> Result<Vec<u8>> {
-            Ok(format!(r#"{{"tag": "{}"}}"#, path).into_bytes())
-        }
-
+        fn dummy_loader(path: &str) -> Result<Vec<u8>> { Ok(format!(r#"{{"tag": "{}"}}"#, path).into_bytes()) }
         set_effective_config_file_loader(dummy_loader);
         let res = load_config("custom-test.json").unwrap();
         assert_eq!(res, br#"{"tag": "custom-test.json"}"#);

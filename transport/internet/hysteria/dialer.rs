@@ -7,11 +7,6 @@ pub struct HysteriaDialer {
 }
 
 impl HysteriaDialer {
-    pub fn new(config: HysteriaTransportConfig) -> Self {
-        Self { config }
-    }
-
-    pub async fn dial(&self, _addr: SocketAddr) -> HysteriaConn {
-        HysteriaConn::new()
-    }
+    pub fn new(config: HysteriaTransportConfig) -> Self { Self { config } }
+    pub async fn dial(&self, _addr: SocketAddr) -> HysteriaConn { HysteriaConn::new() }
 }

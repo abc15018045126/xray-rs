@@ -18,17 +18,11 @@ pub trait Header: Send + Sync {
 pub struct NoneHeader;
 
 impl Header for NoneHeader {
-    fn size(&self) -> usize {
-        0
-    }
-    fn serialize(&self, _buffer: &mut [u8]) -> usize {
-        0
-    }
+    fn size(&self) -> usize { 0 }
+    fn serialize(&self, _buffer: &mut [u8]) -> usize { 0 }
 }
 
 impl PacketHeader for NoneHeader {
-    fn size(&self) -> i32 {
-        0
-    }
+    fn size(&self) -> i32 { 0 }
     fn serialize(&self, _buffer: &mut [u8]) {}
 }

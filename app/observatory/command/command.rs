@@ -1,9 +1,7 @@
 use super::command_grpc_pb::ObservatoryService as IObservatoryService;
 use super::command_pb::{GetOutboundStatusRequest, GetOutboundStatusResponse};
 use crate::app::observatory::Observatory;
-use crate::app::observatory::config_pb::{
-    ObservationResult, OutboundStatus as ProtoOutboundStatus,
-};
+use crate::app::observatory::config_pb::{ObservationResult, OutboundStatus as ProtoOutboundStatus};
 use crate::common::errors::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -13,13 +11,8 @@ pub struct ObservatoryCommandServer {
 }
 
 impl ObservatoryCommandServer {
-    pub fn new(observatory: Arc<Observatory>) -> Self {
-        Self { observatory }
-    }
-
-    pub fn get_outbound_status(&self, tag: &str) -> Option<bool> {
-        self.observatory.get_status(tag).map(|s| s.alive)
-    }
+    pub fn new(observatory: Arc<Observatory>) -> Self { Self { observatory } }
+    pub fn get_outbound_status(&self, tag: &str) -> Option<bool> { self.observatory.get_status(tag).map(|s| s.alive) }
 }
 
 #[async_trait]

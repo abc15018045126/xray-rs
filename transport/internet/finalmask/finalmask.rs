@@ -18,99 +18,51 @@ pub trait HeaderMask: Send + Sync {
 }
 
 impl HeaderMask for DtlsPacketConn {
-    fn size(&self) -> usize {
-        self.size()
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet)
-    }
+    fn size(&self) -> usize { self.size() }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet) }
 }
 
 impl HeaderMask for WeChatPacketConn {
-    fn size(&self) -> usize {
-        self.size()
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet)
-    }
+    fn size(&self) -> usize { self.size() }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet) }
 }
 
 impl HeaderMask for DnsPacketConn {
-    fn size(&self) -> usize {
-        self.size()
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet)
-    }
+    fn size(&self) -> usize { self.size() }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet) }
 }
 
 impl HeaderMask for SrtpPacketConn {
-    fn size(&self) -> usize {
-        4
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet)
-    }
+    fn size(&self) -> usize { 4 }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet) }
 }
 
 impl HeaderMask for UtpPacketConn {
-    fn size(&self) -> usize {
-        4
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet)
-    }
+    fn size(&self) -> usize { 4 }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet) }
 }
 
 impl HeaderMask for WireguardPacketConn {
-    fn size(&self) -> usize {
-        4
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet)
-    }
+    fn size(&self) -> usize { 4 }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet) }
 }
 
 impl HeaderMask for UdpCustomClient {
-    fn size(&self) -> usize {
-        self.size()
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet).ok()
-    }
+    fn size(&self) -> usize { self.size() }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet).ok() }
 }
 
 impl HeaderMask for UdpCustomServer {
-    fn size(&self) -> usize {
-        self.size()
-    }
-    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> {
-        self.wrap_payload(payload)
-    }
-    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        self.unwrap_payload(packet).ok()
-    }
+    fn size(&self) -> usize { self.size() }
+    fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8> { self.wrap_payload(payload) }
+    fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> { self.unwrap_payload(packet).ok() }
 }
 
 pub struct HeaderManager {
@@ -118,45 +70,25 @@ pub struct HeaderManager {
 }
 
 impl HeaderManager {
-    pub fn new(headers: Vec<Box<dyn HeaderMask>>) -> Self {
-        Self { headers }
-    }
-
-    pub fn total_size(&self) -> usize {
-        self.headers.iter().map(|h| h.size()).sum()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.headers.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.headers.len()
-    }
-
+    pub fn new(headers: Vec<Box<dyn HeaderMask>>) -> Self { Self { headers } }
+    pub fn total_size(&self) -> usize { self.headers.iter().map(|h| h.size()).sum() }
+    pub fn is_empty(&self) -> bool { self.headers.is_empty() }
+    pub fn len(&self) -> usize { self.headers.len() }
     pub fn wrap_outgoing(&mut self, payload: &[u8]) -> Result<Vec<u8>> {
         if self.total_size() + payload.len() > UDP_SIZE {
-            return Err(Error::Protocol(
-                "packet size exceeds finalmask UDP limit".into(),
-            ));
+            return Err(Error::Protocol("packet size exceeds finalmask UDP limit".into()));
         }
         let mut buf = payload.to_vec();
-        for h in self.headers.iter_mut().rev() {
-            buf = h.wrap_packet(&buf);
-        }
+        for h in self.headers.iter_mut().rev() { buf = h.wrap_packet(&buf); }
         Ok(buf)
     }
-
     pub fn unwrap_incoming<'a>(&self, packet: &'a [u8]) -> Result<&'a [u8]> {
         let sum = self.total_size();
-        if packet.len() < sum {
-            return Err(Error::Protocol("packet too short for header stack".into()));
-        }
+        if packet.len() < sum { return Err(Error::Protocol("packet too short for header stack".into())); }
         let mut current = packet;
         for h in &self.headers {
             current = h
-                .unwrap_packet(current)
-                .ok_or_else(|| Error::Protocol("finalmask header validation failed".into()))?;
+                .unwrap_packet(current).ok_or_else(|| Error::Protocol("finalmask header validation failed".into()))?;
         }
         Ok(current)
     }
@@ -175,51 +107,29 @@ pub struct UdpmaskManager {
 }
 
 impl UdpmaskManager {
-    pub fn new(headers: Option<HeaderManager>, masks: Vec<Box<dyn UdpMask>>) -> Self {
-        Self { headers, masks }
-    }
-
+    pub fn new(headers: Option<HeaderManager>, masks: Vec<Box<dyn UdpMask>>) -> Self { Self { headers, masks } }
     pub fn wrap_client(&mut self, payload: &[u8]) -> Result<Vec<u8>> {
         let mut current = payload.to_vec();
-        for mask in &mut self.masks {
-            current = mask.wrap_client(&current)?;
-        }
-        if let Some(ref mut hm) = self.headers {
-            current = hm.wrap_outgoing(&current)?;
-        }
+        for mask in &mut self.masks { current = mask.wrap_client(&current)?; }
+        if let Some(ref mut hm) = self.headers { current = hm.wrap_outgoing(&current)?; }
         Ok(current)
     }
-
     pub fn unwrap_client<'a>(&'a self, packet: &'a [u8]) -> Result<&'a [u8]> {
         let mut current = packet;
-        if let Some(ref hm) = self.headers {
-            current = hm.unwrap_incoming(current)?;
-        }
-        for mask in &self.masks {
-            current = mask.unwrap_client(current)?;
-        }
+        if let Some(ref hm) = self.headers { current = hm.unwrap_incoming(current)?; }
+        for mask in &self.masks { current = mask.unwrap_client(current)?; }
         Ok(current)
     }
-
     pub fn wrap_server(&mut self, payload: &[u8]) -> Result<Vec<u8>> {
         let mut current = payload.to_vec();
-        for mask in &mut self.masks {
-            current = mask.wrap_server(&current)?;
-        }
-        if let Some(ref mut hm) = self.headers {
-            current = hm.wrap_outgoing(&current)?;
-        }
+        for mask in &mut self.masks { current = mask.wrap_server(&current)?; }
+        if let Some(ref mut hm) = self.headers { current = hm.wrap_outgoing(&current)?; }
         Ok(current)
     }
-
     pub fn unwrap_server<'a>(&'a self, packet: &'a [u8]) -> Result<&'a [u8]> {
         let mut current = packet;
-        if let Some(ref hm) = self.headers {
-            current = hm.unwrap_incoming(current)?;
-        }
-        for mask in &self.masks {
-            current = mask.unwrap_server(current)?;
-        }
+        if let Some(ref hm) = self.headers { current = hm.unwrap_incoming(current)?; }
+        for mask in &self.masks { current = mask.unwrap_server(current)?; }
         Ok(current)
     }
 }
@@ -233,25 +143,13 @@ pub struct TcpmaskManager {
 }
 
 impl TcpmaskManager {
-    pub fn new(masks: Vec<Arc<dyn TcpMask>>) -> Self {
-        Self { masks }
-    }
-
-    pub fn len(&self) -> usize {
-        self.masks.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.masks.is_empty()
-    }
+    pub fn new(masks: Vec<Arc<dyn TcpMask>>) -> Self { Self { masks } }
+    pub fn len(&self) -> usize { self.masks.len() }
+    pub fn is_empty(&self) -> bool { self.masks.is_empty() }
 }
 
 pub trait TcpMaskConn {
-    fn splice(&self) -> bool {
-        true
-    }
+    fn splice(&self) -> bool { true }
 }
 
-pub fn unwrap_tcp_mask<T: TcpMaskConn>(conn: &T) -> bool {
-    conn.splice()
-}
+pub fn unwrap_tcp_mask<T: TcpMaskConn>(conn: &T) -> bool { conn.splice() }

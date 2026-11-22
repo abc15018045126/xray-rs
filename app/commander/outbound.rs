@@ -18,28 +18,16 @@ impl CommanderOutbound {
             commander,
         }
     }
-
-    pub fn commander(&self) -> &Arc<Commander> {
-        &self.commander
-    }
+    pub fn commander(&self) -> &Arc<Commander> { &self.commander }
 }
 
 #[async_trait]
 impl OutboundHandler for CommanderOutbound {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
         let (client, _) = tokio::io::duplex(1024);
         Ok(Box::pin(client))
     }
-
-    async fn start(&self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&self) -> Result<()> {
-        Ok(())
-    }
+    async fn start(&self) -> Result<()> { Ok(()) }
+    async fn close(&self) -> Result<()> { Ok(()) }
 }

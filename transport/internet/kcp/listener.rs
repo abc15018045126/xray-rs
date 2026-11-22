@@ -19,7 +19,6 @@ impl KcpListener {
             sessions: Arc::new(RwLock::new(HashMap::new())),
         })
     }
-
     pub async fn get_session(&self, conv: u16) -> Option<KcpConnection> {
         let guard = self.sessions.read().await;
         guard.get(&conv).cloned()

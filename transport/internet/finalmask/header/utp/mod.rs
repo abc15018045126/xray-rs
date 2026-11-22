@@ -21,17 +21,12 @@ impl UtpHeader {
             connection_id: rng.r#gen(),
         }
     }
-
-    pub fn size(&self) -> usize {
-        4
-    }
-
+    pub fn size(&self) -> usize { 4 }
     pub fn serialize(&self, buf: &mut [u8]) {
         buf[0..2].copy_from_slice(&self.connection_id.to_be_bytes());
         buf[2] = self.header;
         buf[3] = self.extension;
     }
-
     pub fn write_header(&self) -> [u8; 4] {
         let mut b = [0u8; 4];
         self.serialize(&mut b);
@@ -40,7 +35,5 @@ impl UtpHeader {
 }
 
 impl Default for UtpHeader {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

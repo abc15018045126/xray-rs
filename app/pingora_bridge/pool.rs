@@ -39,30 +39,12 @@ impl PingoraStreamPool {
             next_id: AtomicUsize::new(1),
         }
     }
-
-    pub fn get(&self, key: u64) -> Option<BoxStream> {
-        self.pool.get(&key)
-    }
-
-    pub fn put(&self, key: u64, stream: BoxStream) {
-        self.put_inner(key, stream, None);
-    }
-
-    pub fn put_with_permit(
-        &self,
-        key: u64,
-        stream: BoxStream,
-        permit: tokio::sync::OwnedSemaphorePermit,
-    ) {
+    pub fn get(&self, key: u64) -> Option<BoxStream> { self.pool.get(&key) }
+    pub fn put(&self, key: u64, stream: BoxStream) { self.put_inner(key, stream, None); }
+    pub fn put_with_permit(&self, key: u64, stream: BoxStream, permit: tokio::sync::OwnedSemaphorePermit) {
         self.put_inner(key, stream, Some(permit));
     }
-
-    fn put_inner(
-        &self,
-        key: u64,
-        stream: BoxStream,
-        permit: Option<tokio::sync::OwnedSemaphorePermit>,
-    ) {
+    fn put_inner(&self, key: u64, stream: BoxStream, permit: Option<tokio::sync::OwnedSemaphorePermit>) {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let meta = ConnectionMeta::new(key, id as _);
         let (notify_evicted, watch_use) = self.pool.put(&meta, stream);
@@ -71,8 +53,7 @@ impl PingoraStreamPool {
         tokio::spawn(async move {
             let _permit = permit;
             let (_close_tx, close_rx) = tokio::sync::watch::channel(false);
-            pool.idle_timeout(&meta, Some(timeout), notify_evicted, close_rx, watch_use)
-                .await;
+            pool.idle_timeout(&meta, Some(timeout), notify_evicted, close_rx, watch_use).await;
         });
     }
 }
@@ -103,7 +84,6 @@ impl PingoraUpstreamBalancer {
         }
         Ok((Backends::new(discovery::Static::new(set)), labels))
     }
-
     fn build_backends_from_labels(labels: Vec<String>) -> Result<(Backends, Vec<String>)> {
         let mut set = BTreeSet::new();
         for (idx, _label) in labels.iter().enumerate() {
@@ -114,7 +94,6 @@ impl PingoraUpstreamBalancer {
         }
         Ok((Backends::new(discovery::Static::new(set)), labels))
     }
-
     pub fn from_addrs(addrs: &[SocketAddr]) -> Result<Self> {
         let (backends, labels) = Self::build_backends_from_addrs(addrs)?;
         let lb = LoadBalancer::<RoundRobin>::from_backends(backends);
@@ -124,7 +103,6 @@ impl PingoraUpstreamBalancer {
             labels,
         })
     }
-
     pub fn from_labels(labels: Vec<String>) -> Result<Self> {
         let (backends, labels) = Self::build_backends_from_labels(labels)?;
         let lb = LoadBalancer::<RoundRobin>::from_backends(backends);
@@ -134,7 +112,6 @@ impl PingoraUpstreamBalancer {
             labels,
         })
     }
-
     pub fn from_labels_ketama(labels: Vec<String>) -> Result<Self> {
         let (backends, labels) = Self::build_backends_from_labels(labels)?;
         let lb = LoadBalancer::<KetamaHashing>::from_backends(backends);
@@ -144,36 +121,22 @@ impl PingoraUpstreamBalancer {
             labels,
         })
     }
-
-    pub fn select(&self) -> Option<Backend> {
-        self.select_with_key(b"")
-    }
-
+    pub fn select(&self) -> Option<Backend> { self.select_with_key(b"") }
     pub fn select_with_key(&self, key: &[u8]) -> Option<Backend> {
         match &self.inner {
             BalancerInner::RoundRobin(lb) => lb.select(key, 256),
             BalancerInner::Ketama(lb) => lb.select(key, 256),
         }
     }
-
-    pub fn select_index(&self) -> Option<usize> {
-        self.select_index_for_key(b"")
-    }
-
+    pub fn select_index(&self) -> Option<usize> { self.select_index_for_key(b"") }
     pub fn select_index_for_key(&self, key: &[u8]) -> Option<usize> {
         let backend = self.select_with_key(key)?;
         let addr_str = backend.addr.to_string();
-        if let Some(pos) = self.labels.iter().position(|l| l == &addr_str) {
-            return Some(pos);
-        }
-        if let Some(port_str) = addr_str.rsplit(':').next()
-            && let Ok(port) = port_str.parse::<usize>()
-            && port >= 10000
+        if let Some(pos) = self.labels.iter().position(|l| l == &addr_str) { return Some(pos); }
+        if let Some(port_str) = addr_str.rsplit(':').next() && let Ok(port) = port_str.parse::<usize>() && port >= 10000
         {
             let idx = port - 10000;
-            if idx < self.labels.len() {
-                return Some(idx);
-            }
+            if idx < self.labels.len() { return Some(idx); }
         }
         Some(0)
     }
@@ -195,7 +158,6 @@ impl PingoraUpstreamBalancer {
             rr: AtomicUsize::new(0),
         })
     }
-
     pub fn from_labels(labels: Vec<String>) -> Result<Self> {
         Ok(Self {
             labels,
@@ -203,7 +165,6 @@ impl PingoraUpstreamBalancer {
             rr: AtomicUsize::new(0),
         })
     }
-
     pub fn from_labels_ketama(labels: Vec<String>) -> Result<Self> {
         Ok(Self {
             labels,
@@ -211,15 +172,9 @@ impl PingoraUpstreamBalancer {
             rr: AtomicUsize::new(0),
         })
     }
-
-    pub fn select_index(&self) -> Option<usize> {
-        self.select_index_for_key(b"")
-    }
-
+    pub fn select_index(&self) -> Option<usize> { self.select_index_for_key(b"") }
     pub fn select_index_for_key(&self, key: &[u8]) -> Option<usize> {
-        if self.labels.is_empty() {
-            return None;
-        }
+        if self.labels.is_empty() { return None; }
         if self.use_hash && !key.is_empty() {
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
             key.hash(&mut hasher);

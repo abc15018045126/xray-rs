@@ -13,9 +13,7 @@ use windows::{
 
 use crate::proxy::tun::OutboundInterface;
 
-fn new_io_error(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error {
-    io::Error::other(e)
-}
+fn new_io_error(e: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> io::Error { io::Error::other(e) }
 
 pub fn must_bind_socket_on_interface(
     socket: &socket2::Socket,
@@ -39,30 +37,17 @@ pub fn must_bind_socket_on_interface(
         Ok(())
     };
     apply(unicast_opt)?;
-    if is_udp {
-        apply(multicast_opt)?;
-    }
+    if is_udp { apply(multicast_opt)?; }
     Ok(())
 }
 
 fn is_udp_socket(socket: SOCKET) -> io::Result<bool> {
     let mut optval = [0u8; 4];
     let mut optlen: i32 = 4;
-    let ret = unsafe {
-        getsockopt(
-            socket,
-            SOL_SOCKET,
-            SO_TYPE,
-            PSTR::from_raw(optval.as_mut_ptr()),
-            &mut optlen,
-        )
-    };
+    let ret = unsafe { getsockopt(socket, SOL_SOCKET, SO_TYPE, PSTR::from_raw(optval.as_mut_ptr()), &mut optlen) };
     if ret != 0 {
         let last_err = io::Error::last_os_error();
-        tracing::warn!(
-            "getsockopt failed when determining socket type: {:?}",
-            last_err
-        );
+        tracing::warn!("getsockopt failed when determining socket type: {:?}", last_err);
         return Err(last_err);
     }
     Ok(WINSOCK_SOCKET_TYPE(i32::from_ne_bytes(optval)) == SOCK_DGRAM)

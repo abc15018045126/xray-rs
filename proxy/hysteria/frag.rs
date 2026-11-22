@@ -19,14 +19,8 @@ impl UDPMessage {
             data,
         }
     }
-
-    pub fn header_size(&self) -> usize {
-        8 + 2 + self.address.len()
-    }
-
-    pub fn size(&self) -> usize {
-        self.header_size() + self.data.len()
-    }
+    pub fn header_size(&self) -> usize { 8 + 2 + self.address.len() }
+    pub fn size(&self) -> usize { self.header_size() + self.data.len() }
 }
 
 pub fn frag_udp_message(m: &UDPMessage, max_size: usize) -> Vec<UDPMessage> {
@@ -59,15 +53,9 @@ impl Defragger {
             size: 0,
         }
     }
-
     pub fn feed(&mut self, m: UDPMessage) -> Option<UDPMessage> {
-        if m.frag_count <= 1 {
-            return Some(m);
-        }
-        if m.frag_id >= m.frag_count {
-            return None;
-        }
-
+        if m.frag_count <= 1 { return Some(m); }
+        if m.frag_id >= m.frag_count { return None; }
         let fid = m.frag_id as usize;
         if m.packet_id != self.pkt_id || m.frag_count as usize != self.frags.len() {
             self.pkt_id = m.packet_id;
@@ -84,9 +72,7 @@ impl Defragger {
                 let mut data = Vec::with_capacity(self.size);
                 let first = self.frags[0].as_ref().unwrap();
                 let (address, session_id, packet_id) = (first.address.clone(), first.session_id, first.packet_id);
-                for f in self.frags.iter().flatten() {
-                    data.extend_from_slice(&f.data);
-                }
+                for f in self.frags.iter().flatten() { data.extend_from_slice(&f.data); }
                 self.frags.clear();
                 (self.count, self.size) = (0, 0);
                 return Some(UDPMessage { session_id, packet_id, frag_id: 0, frag_count: 1, address, data });
@@ -97,31 +83,21 @@ impl Defragger {
 }
 
 impl Default for Defragger {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_hysteria_frag_and_defrag() {
         let original_data = vec![0x42u8; 1000];
         let msg = UDPMessage::new(1, 100, "1.2.3.4:53".into(), original_data.clone());
-
         let frags = frag_udp_message(&msg, 300);
         assert!(frags.len() > 1);
-
         let mut defragger = Defragger::new();
         let mut assembled = None;
-        for frag in frags {
-            if let Some(res) = defragger.feed(frag) {
-                assembled = Some(res);
-            }
-        }
-
+        for frag in frags { if let Some(res) = defragger.feed(frag) { assembled = Some(res); } }
         assert!(assembled.is_some());
         let final_msg = assembled.unwrap();
         assert_eq!(final_msg.data, original_data);

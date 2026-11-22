@@ -10,9 +10,7 @@ pub struct GrpcTlsAuthInfo {
 }
 
 impl GrpcTlsAuthInfo {
-    pub fn auth_type(&self) -> &'static str {
-        "tls"
-    }
+    pub fn auth_type(&self) -> &'static str { "tls" }
 }
 
 #[derive(Debug, Clone)]
@@ -23,21 +21,13 @@ pub struct GrpcTlsCredentials {
 impl GrpcTlsCredentials {
     pub fn new(config: TlsConfig) -> Self {
         let mut cfg = config;
-        if cfg.next_protocol.is_empty() {
-            cfg.next_protocol = vec!["h2".to_string()];
-        }
+        if cfg.next_protocol.is_empty() { cfg.next_protocol = vec!["h2".to_string()]; }
         Self { config: cfg }
     }
-
-    pub fn server_name(&self) -> &str {
-        &self.config.server_name
-    }
-
+    pub fn server_name(&self) -> &str { &self.config.server_name }
     pub fn override_server_name(&mut self, server_name: impl Into<String>) {
         self.config.server_name = server_name.into();
     }
 }
 
-pub fn is_grpc_alpn(alpns: &[Vec<u8>]) -> bool {
-    alpns.iter().any(|a| a == b"h2")
-}
+pub fn is_grpc_alpn(alpns: &[Vec<u8>]) -> bool { alpns.iter().any(|a| a == b"h2") }

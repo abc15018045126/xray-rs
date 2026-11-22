@@ -10,10 +10,7 @@ pub enum RequestCommand {
 }
 
 impl RequestCommand {
-    pub fn to_u8(&self) -> u8 {
-        *self as u8
-    }
-
+    pub fn to_u8(&self) -> u8 { *self as u8 }
     pub fn from_u8(b: u8) -> Option<Self> {
         match b {
             0x01 => Some(RequestCommand::Tcp),

@@ -17,10 +17,8 @@ mod tests {
     use std::time::{Duration, Instant};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
-
     use crate::common::net::BoxStream;
     use crate::features::inbound::InboundHandler;
-
     #[tokio::test]
     async fn test_pingora_pool_put_and_get() {
         let pool = PingoraStreamPool::new(16, Duration::from_secs(30));
@@ -29,7 +27,6 @@ mod tests {
         pool.put(key, Box::pin(a));
         assert!(pool.get(key).is_some(), "Expected pooled stream to be returned");
         assert!(pool.get(key).is_none(), "Expected pool to be empty after get");
-
         let short_pool = PingoraStreamPool::new(4, Duration::from_millis(60));
         let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
         let permit = sem.clone().acquire_owned().await.unwrap();
@@ -41,24 +38,15 @@ mod tests {
             short_pool.get(key).is_none(),
             "Expired stream should be actively removed by pingora-pool::idle_timeout"
         );
-        assert_eq!(
-            sem.available_permits(),
-            1,
-            "Semaphore permit must be released automatically on idle expiration"
-        );
+        assert_eq!(sem.available_permits(), 1, "Semaphore permit must be released automatically on idle expiration");
     }
-
     #[tokio::test]
     async fn test_pingora_load_balancer_round_robin() {
-        let addrs: Vec<SocketAddr> = vec![
-            "127.0.0.1:10001".parse().unwrap(),
-            "127.0.0.1:10002".parse().unwrap(),
-        ];
+        let addrs: Vec<SocketAddr> = vec!["127.0.0.1:10001".parse().unwrap(), "127.0.0.1:10002".parse().unwrap()];
         let lb = PingoraUpstreamBalancer::from_addrs(&addrs).expect("LB init");
         let b1 = lb.select().expect("first backend");
         let b2 = lb.select().expect("second backend");
         assert_ne!(b1.addr, b2.addr, "RoundRobin should alternate backends");
-
         let ketama = PingoraUpstreamBalancer::from_labels_ketama(vec![
             "worker-a1.dev:443".into(),
             "worker-a2.dev:443".into(),
@@ -69,11 +57,9 @@ mod tests {
         let k2 = ketama.select_index_for_key(b"www.google.com").unwrap();
         assert_eq!(k1, k2, "Ketama consistent hashing should stick same domain");
     }
-
     #[tokio::test]
     async fn test_pingora_http_inbound_connect_and_plain_http() {
         let handler = PingoraHttpInbound::new("pg-http");
-
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let client_task = tokio::spawn(async move {
@@ -82,8 +68,7 @@ mod tests {
                 .write_all(
                     b"GET http://example.com/file.jar HTTP/1.1\r\nHost: example.com\r\nProxy-Connection: keep-alive\r\n\r\n",
                 )
-                .await
-                .unwrap();
+                .await.unwrap();
         });
         let (sock, remote) = listener.accept().await.unwrap();
         let mut res = handler.handle_connection(Box::pin(sock), remote).await.unwrap();
@@ -98,19 +83,13 @@ mod tests {
             forwarded
         );
         client_task.await.unwrap();
-
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let start = Instant::now();
         for _ in 0..50 {
             let client_task = tokio::spawn(async move {
                 let mut client = tokio::net::TcpStream::connect(addr).await.unwrap();
-                client
-                    .write_all(
-                        b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n",
-                    )
-                    .await
-                    .unwrap();
+                client.write_all(b"CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n").await.unwrap();
                 let mut resp = [0u8; 128];
                 let n = client.read(&mut resp).await.unwrap();
                 assert!(String::from_utf8_lossy(&resp[..n]).contains("200"));
@@ -119,12 +98,10 @@ mod tests {
                 let en = client.read(&mut echo).await.unwrap();
                 assert_eq!(&echo[..en], b"pong-payload");
             });
-
             let (sock, remote) = listener.accept().await.unwrap();
             let box_sock: BoxStream = Box::pin(sock);
             let mut res = handler.handle_connection(box_sock, remote).await.unwrap();
             assert_eq!(res.session.destination.port, 443);
-
             let mut buf = [0u8; 16];
             let n = res.stream.read(&mut buf).await.unwrap();
             assert_eq!(&buf[..n], b"ping-payload");
@@ -134,7 +111,6 @@ mod tests {
         }
         println!("[BENCH] pingora-http x50 CONNECT roundtrips: {:?}", start.elapsed());
     }
-
     #[tokio::test]
     async fn test_pingora_core_inbound_to_outbound_e2e() {
         use crate::app::dispatcher::DefaultDispatcher;
@@ -143,7 +119,6 @@ mod tests {
         use crate::proxy::freedom::Handler as FreedomHandler;
         use std::collections::HashMap;
         use std::sync::Arc;
-
         let echo_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let echo_addr = echo_listener.local_addr().unwrap();
         let echo_task = tokio::spawn(async move {
@@ -153,11 +128,9 @@ mod tests {
             s.write_all(&buf[..n]).await.unwrap();
             s.flush().await.unwrap();
         });
-
         let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let inbound_addr = probe.local_addr().unwrap();
         drop(probe);
-
         let mut outbounds: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
         outbounds.insert("direct".to_string(), Arc::new(FreedomHandler::new("direct")));
         let dispatcher = Arc::new(
@@ -165,27 +138,21 @@ mod tests {
                 .with_default_outbound("direct"),
         );
         let inbound_handler = Arc::new(PingoraHttpInbound::new("pg-core-in"));
-
         let inbound_task = spawn_pingora_inbound(inbound_addr, inbound_handler, dispatcher)
             .expect("Pingora-core inbound should spawn");
-
         tokio::time::sleep(Duration::from_millis(80)).await;
-
         let mut client = PingoraCoreConnector::dial_tcp(inbound_addr)
-            .await
-            .expect("PingoraCoreConnector dial to inbound");
+            .await.expect("PingoraCoreConnector dial to inbound");
         let req = format!("CONNECT {} HTTP/1.1\r\nHost: {}\r\n\r\n", echo_addr, echo_addr);
         client.write_all(req.as_bytes()).await.unwrap();
         let mut hdr = [0u8; 128];
         let hn = client.read(&mut hdr).await.unwrap();
         assert!(String::from_utf8_lossy(&hdr[..hn]).contains("200"));
-
         client.write_all(b"hello-pingora-core").await.unwrap();
         client.flush().await.unwrap();
         let mut reply = [0u8; 64];
         let rn = client.read(&mut reply).await.unwrap();
         assert_eq!(&reply[..rn], b"hello-pingora-core");
-
         inbound_task.abort();
         echo_task.await.unwrap();
     }

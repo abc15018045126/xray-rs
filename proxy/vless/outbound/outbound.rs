@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::{Notify, Semaphore};
 use uuid::Uuid;
-
 use crate::app::pingora_bridge::{PingoraStreamPool, pool_key};
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination, Network};
@@ -75,7 +74,6 @@ impl DialParams {
         )
         .await
     }
-
     async fn dial_and_handshake_with_ed(
         &self,
         early_data: Option<&[u8]>,
@@ -89,10 +87,8 @@ impl DialParams {
                 trace_ctx,
             ),
         )
-        .await
-        .map_err(|_| Error::Protocol("VLESS outbound dial/handshake timed out (15s)".into()))?
+        .await.map_err(|_| Error::Protocol("VLESS outbound dial/handshake timed out (15s)".into()))?
     }
-
     async fn dial_and_handshake_inner(
         &self,
         early_data: Option<&[u8]>,
@@ -111,7 +107,6 @@ impl DialParams {
             let dialer = crate::transport::internet::splithttp::dialer::SplitHttpDialer::new(xhttp_cfg.clone());
             return dialer.dial_with_client(Arc::new(client), &self.server_addr).await;
         }
-
         #[cfg(debug_assertions)]
         let trace_step = |step: &str, t0: std::time::Instant, detail: String| {
             if let Some((tid, origin)) = trace_ctx {
@@ -124,23 +119,19 @@ impl DialParams {
                 );
             }
         };
-
         #[cfg(debug_assertions)]
         let _tcp_t0 = std::time::Instant::now();
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
         #[cfg(debug_assertions)]
         trace_step("3. 外层 TCP 建连 (RTT 1)", _tcp_t0, format!("server={}", self.server_addr));
-
         let tcp_stream: BoxStream = match &self.fragment_cfg {
             Some(f_cfg) => Box::pin(crate::transport::internet::finalmask::fragment::FragmentConn::new_client(f_cfg.clone(), tcp_stream)),
             None => tcp_stream,
         };
-
         let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
             crate::common::net::Address::Domain(d) => d.as_str(),
             _ => "localhost",
         });
-
         let stream = if let Some(tls) = &self.tls_client {
             let (target_sni, is_reality) = match &self.reality_client {
                 Some(r) => (r.server_name.as_str(), true),
@@ -164,7 +155,6 @@ impl DialParams {
         } else {
             tcp_stream
         };
-
         let stream = if let Some(ref hu_path) = self.httpupgrade_path {
             let host_hdr = self.httpupgrade_host.as_deref().unwrap_or(sni);
             crate::transport::internet::httpupgrade::HttpUpgradeStream::client_handshake(
@@ -207,7 +197,6 @@ impl DialParams {
         } else {
             stream
         };
-
         Ok(stream)
     }
 }
@@ -245,74 +234,48 @@ impl Client {
             testpre: 0, testpre_idle_secs: DEFAULT_TESTPRE_IDLE_SECS, pre_conns: OnceLock::new(),
         }
     }
-
-    pub fn has_ws_early_data(&self) -> bool {
-        self.dial_params.ws_ed > 0
-    }
-
+    pub fn has_ws_early_data(&self) -> bool { self.dial_params.ws_ed > 0 }
     pub fn with_ws_headers(mut self, headers: HashMap<String, String>) -> Self {
         self.dial_params.ws_headers = headers;
         self
     }
-
     pub fn with_ws_heartbeat(mut self, secs: u32) -> Self {
         self.dial_params.ws_heartbeat = secs;
         self
     }
-
     pub fn with_splithttp(mut self, cfg: crate::transport::internet::SplitHttpConfig) -> Self {
         self.dial_params.splithttp_cfg = Some(cfg);
         self
     }
-
-    pub fn with_httpupgrade(
-        mut self,
-        path: String,
-        host: Option<String>,
-        headers: HashMap<String, String>,
-    ) -> Self {
+    pub fn with_httpupgrade(mut self, path: String, host: Option<String>, headers: HashMap<String, String>) -> Self {
         self.dial_params.httpupgrade_path = Some(path);
         self.dial_params.httpupgrade_host = host;
         self.dial_params.httpupgrade_headers = headers;
         self
     }
-
-    pub fn with_fragment(
-        mut self,
-        cfg: crate::transport::internet::finalmask::fragment::Config,
-    ) -> Self {
+    pub fn with_fragment(mut self, cfg: crate::transport::internet::finalmask::fragment::Config) -> Self {
         self.dial_params.fragment_cfg = Some(cfg);
         self
     }
-
     pub fn with_flow(mut self, flow: impl Into<String>) -> Self {
         self.flow = Some(flow.into());
         self
     }
-
     pub fn with_encryption(mut self, enc: impl Into<String>) -> Self {
         self.encryption = Some(enc.into());
         self
     }
-
     pub fn with_reality(mut self, client: RealityClient) -> Self {
         self.dial_params.reality_client = Some(Arc::new(client));
         self
     }
-
-    pub fn with_testpre(self, count: u32) -> Self {
-        self.with_testpre_idle(count, DEFAULT_TESTPRE_IDLE_SECS)
-    }
-
+    pub fn with_testpre(self, count: u32) -> Self { self.with_testpre_idle(count, DEFAULT_TESTPRE_IDLE_SECS) }
     pub fn with_testpre_idle(mut self, count: u32, idle_secs: u32) -> Self {
         self.testpre = count;
         self.testpre_idle_secs = idle_secs;
-        if count > 0 && tokio::runtime::Handle::try_current().is_ok() {
-            let _ = self.init_pre_conns();
-        }
+        if count > 0 && tokio::runtime::Handle::try_current().is_ok() { let _ = self.init_pre_conns(); }
         self
     }
-
     fn init_pre_conns(&self) -> &PingoraPrePool {
         self.pre_conns.get_or_init(|| {
             let cap = (self.testpre as usize).max(1);
@@ -325,13 +288,11 @@ impl Client {
             let closed = Arc::new(AtomicBool::new(false));
             let epoch = Instant::now();
             let last_activity_ms = Arc::new(AtomicU64::new(0));
-
             let mode = if idle_sleep_ms == 0 { "continuous mode" } else { "auto-sleep" };
             tracing::info!(
                 "VLESS outbound '{}': starting Pingora testpre pool ({} workers, {}s TTL, {})",
                 self.tag, self.testpre, ttl_secs, mode
             );
-
             for _ in 0..self.testpre {
                 let (pool, wake, slots, closed, last_act, params, tag) = (
                     pool.clone(),
@@ -344,11 +305,9 @@ impl Client {
                 );
                 let is_idle = move || {
                     idle_sleep_ms > 0
-                        && (epoch.elapsed().as_millis() as u64)
-                            .saturating_sub(last_act.load(Ordering::Relaxed))
+                        && (epoch.elapsed().as_millis() as u64).saturating_sub(last_act.load(Ordering::Relaxed))
                             >= idle_sleep_ms
                 };
-
                 tokio::spawn(async move {
                     while !closed.load(Ordering::Relaxed) {
                         if is_idle() {
@@ -356,9 +315,7 @@ impl Client {
                             continue;
                         }
                         let Ok(permit) = slots.clone().acquire_owned().await else { break };
-                        if closed.load(Ordering::Relaxed) {
-                            break;
-                        }
+                        if closed.load(Ordering::Relaxed) { break; }
                         if is_idle() {
                             drop(permit);
                             wake.notified().await;
@@ -379,15 +336,12 @@ impl Client {
                     }
                 });
             }
-
             PingoraPrePool { pool, key, wake_refill, refill_slots, closed, epoch, last_activity_ms }
         })
     }
-
     async fn take_or_dial(&self, session: &SessionContext) -> Result<BoxStream> {
         #[cfg(debug_assertions)]
         let trace_ctx = session.debug_trace_id.zip(session.debug_trace_origin);
-
         if self.dial_params.ws_ed > 0 && self.testpre == 0 {
             let params = self.dial_params.clone();
             let dial_fn: crate::transport::internet::websocket::DialWsFn = Arc::new(move |ed| {
@@ -400,7 +354,6 @@ impl Client {
             });
             return Ok(Box::pin(DelayDialConn::new(dial_fn, self.dial_params.ws_ed)));
         }
-
         if self.testpre > 0 {
             let pre_pool = self.init_pre_conns();
             pre_pool.touch_activity();
@@ -424,17 +377,13 @@ impl Client {
                 return Ok(conn);
             }
         }
-
         self.dial_params.dial_and_handshake_with_ed(None, #[cfg(debug_assertions)] trace_ctx).await
     }
 }
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let stream = self.take_or_dial(session).await?;
         let command = if session.destination.network == Network::Udp { RequestCommand::Udp } else { RequestCommand::Tcp };
@@ -472,7 +421,6 @@ impl VlessStream {
             header_flush_timer: None,
         }
     }
-
     pub fn with_pending_header(inner: BoxStream, is_udp: bool, header: Vec<u8>) -> Self {
         Self {
             inner,
@@ -485,7 +433,6 @@ impl VlessStream {
             header_flush_timer: None,
         }
     }
-
     fn flush_pending_write(&mut self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         while !self.pending_write.is_empty() {
             match Pin::new(&mut self.inner).poll_write(cx, &self.pending_write) {
@@ -497,7 +444,6 @@ impl VlessStream {
         }
         Poll::Ready(Ok(()))
     }
-
     fn promote_pending_header(&mut self) {
         if let Some(hdr) = self.pending_header.take() {
             self.header_flush_timer = None;
@@ -513,25 +459,14 @@ impl VlessStream {
 }
 
 impl AsyncRead for VlessStream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         if self.pending_header.is_some()
             && self
                 .header_flush_timer
                 .get_or_insert_with(|| Box::pin(tokio::time::sleep(Duration::from_millis(500))))
-                .as_mut()
-                .poll(cx)
-                .is_ready()
-        {
-            self.promote_pending_header();
-        }
-        if !self.pending_write.is_empty() {
-            let _ = self.flush_pending_write(cx);
-        }
-
+                .as_mut().poll(cx).is_ready()
+        { self.promote_pending_header(); }
+        if !self.pending_write.is_empty() { let _ = self.flush_pending_write(cx); }
         loop {
             if self.header_parsed {
                 if self.is_udp {
@@ -558,15 +493,12 @@ impl AsyncRead for VlessStream {
                     return Pin::new(&mut self.inner).poll_read(cx, buf);
                 }
             }
-
             let mut temp_buf = [0u8; 2048];
             let mut temp_read_buf = ReadBuf::new(&mut temp_buf);
             match Pin::new(&mut self.inner).poll_read(cx, &mut temp_read_buf) {
                 Poll::Ready(Ok(())) => {
                     let filled = temp_read_buf.filled();
-                    if filled.is_empty() {
-                        return Poll::Ready(Ok(()));
-                    }
+                    if filled.is_empty() { return Poll::Ready(Ok(())); }
                     self.pending_buf.extend_from_slice(filled);
                     if !self.header_parsed && self.pending_buf.len() >= 2 {
                         let header_len = 2 + self.pending_buf[1] as usize;
@@ -583,11 +515,7 @@ impl AsyncRead for VlessStream {
 }
 
 impl AsyncWrite for VlessStream {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
         if !self.pending_write.is_empty() {
             match self.flush_pending_write(cx) {
                 Poll::Ready(Ok(())) => {}
@@ -595,23 +523,14 @@ impl AsyncWrite for VlessStream {
                 Poll::Pending => return Poll::Pending,
             }
         }
-
         let payload = if self.is_udp && buf.len() > u16::MAX as usize { &buf[..u16::MAX as usize] } else { buf };
-        if self.pending_header.is_none() && !self.is_udp {
-            return Pin::new(&mut self.inner).poll_write(cx, payload);
-        }
-
+        if self.pending_header.is_none() && !self.is_udp { return Pin::new(&mut self.inner).poll_write(cx, payload); }
         let mut frame = Vec::with_capacity(
             self.pending_header.as_ref().map_or(0, Vec::len) + if self.is_udp { 2 } else { 0 } + payload.len(),
         );
-        if let Some(ref hdr) = self.pending_header {
-            frame.extend_from_slice(hdr);
-        }
-        if self.is_udp {
-            frame.extend_from_slice(&(payload.len() as u16).to_be_bytes());
-        }
+        if let Some(ref hdr) = self.pending_header { frame.extend_from_slice(hdr); }
+        if self.is_udp { frame.extend_from_slice(&(payload.len() as u16).to_be_bytes()); }
         frame.extend_from_slice(payload);
-
         match Pin::new(&mut self.inner).poll_write(cx, &frame) {
             Poll::Ready(Ok(0)) => Poll::Ready(Ok(0)),
             Poll::Ready(Ok(written)) => {
@@ -627,7 +546,6 @@ impl AsyncWrite for VlessStream {
             other => other,
         }
     }
-
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         self.promote_pending_header();
         match self.flush_pending_write(cx) {
@@ -635,7 +553,6 @@ impl AsyncWrite for VlessStream {
             other => other,
         }
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         self.promote_pending_header();
         match self.flush_pending_write(cx) {
@@ -652,63 +569,45 @@ pub use Client as Handler;
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     #[tokio::test]
     async fn test_vless_stream_tcp_coalesce_and_strip_header() {
         let (client_io, mut server_io) = tokio::io::duplex(4096);
         let header = vec![0x00, 0x01, 0x02];
         let mut stream = VlessStream::with_pending_header(Box::pin(client_io), false, header);
-
         stream.write_all(b"hello").await.unwrap();
         stream.flush().await.unwrap();
-
         let mut buf = [0u8; 32];
         let n = server_io.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n], b"\x00\x01\x02hello");
-
         server_io.write_all(&[0x00, 0x00, b'o', b'k']).await.unwrap();
         let n = stream.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n], b"ok");
     }
-
     #[tokio::test]
     async fn test_vless_stream_udp_length_framing() {
         let (client_io, mut server_io) = tokio::io::duplex(4096);
         let header = vec![0x00, 0xaa];
         let mut stream = VlessStream::with_pending_header(Box::pin(client_io), true, header);
-
         stream.write_all(b"ping1").await.unwrap();
         stream.write_all(b"ping22").await.unwrap();
         stream.flush().await.unwrap();
-
         let mut buf = [0u8; 64];
         let n = server_io.read(&mut buf).await.unwrap();
-        assert_eq!(
-            &buf[..n],
-            b"\x00\xaa\x00\x05ping1\x00\x06ping22"
-        );
-
-        server_io
-            .write_all(&[0x00, 0x00, 0x00, 0x03, b'a', b'c', b'k', 0x00, 0x02, b'o', b'k'])
-            .await
-            .unwrap();
-
+        assert_eq!(&buf[..n], b"\x00\xaa\x00\x05ping1\x00\x06ping22");
+        server_io.write_all(&[0x00, 0x00, 0x00, 0x03, b'a', b'c', b'k', 0x00, 0x02, b'o', b'k']).await.unwrap();
         let n1 = stream.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n1], b"ack");
         let n2 = stream.read(&mut buf).await.unwrap();
         assert_eq!(&buf[..n2], b"ok");
     }
-
     #[tokio::test]
     async fn test_vless_testpre_idle_auto_sleep_and_wake() {
         use std::sync::atomic::AtomicUsize;
         use tokio::net::TcpListener;
-
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let accepted = Arc::new(AtomicUsize::new(0));
         let accepted_bg = accepted.clone();
-
         let accept_task = tokio::spawn(async move {
             loop {
                 if let Ok((_sock, _)) = listener.accept().await {
@@ -722,29 +621,15 @@ mod tests {
                 }
             }
         });
-
         let dest = Destination::from_ip_port(addr.ip(), addr.port());
-        let client = Client::new("proxy", dest, Uuid::nil(), None, None, None, None)
-            .with_testpre_idle(1, 1);
-
+        let client = Client::new("proxy", dest, Uuid::nil(), None, None, None, None).with_testpre_idle(1, 1);
         tokio::time::sleep(Duration::from_millis(250)).await;
         assert_eq!(accepted.load(Ordering::SeqCst), 1);
-
         tokio::time::sleep(Duration::from_millis(1200)).await;
-        assert_eq!(
-            accepted.load(Ordering::SeqCst),
-            1,
-            "worker must stay asleep while idle instead of redialing"
-        );
-
+        assert_eq!(accepted.load(Ordering::SeqCst), 1, "worker must stay asleep while idle instead of redialing");
         client.init_pre_conns().touch_activity();
         tokio::time::sleep(Duration::from_millis(250)).await;
-        assert_eq!(
-            accepted.load(Ordering::SeqCst),
-            2,
-            "worker must wake and refill on new activity"
-        );
-
+        assert_eq!(accepted.load(Ordering::SeqCst), 2, "worker must wake and refill on new activity");
         drop(client);
         accept_task.abort();
     }

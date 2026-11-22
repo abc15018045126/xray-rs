@@ -34,19 +34,16 @@ impl TrojanRequestHeader {
             destination,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = Vec::with_capacity(128);
         buf.extend_from_slice(&self.password_hash);
         buf.extend_from_slice(CRLF);
-
         let cmd_byte = match self.command {
             RequestCommand::Tcp => 1,
             RequestCommand::Udp => 3,
             RequestCommand::Mux | RequestCommand::Rvs => 1,
         };
         buf.push(cmd_byte);
-
         match &self.destination.address {
             Address::Ipv4(v4) => {
                 buf.push(1);
@@ -62,22 +59,17 @@ impl TrojanRequestHeader {
                 buf.extend_from_slice(&v6.octets());
             }
         }
-
         buf.extend_from_slice(&self.destination.port.to_be_bytes());
         buf.extend_from_slice(CRLF);
-
         writer.write_all(&buf).await?;
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let mut hdr = [0u8; 60];
         reader.read_exact(&mut hdr).await?;
         let password_hash: [u8; 56] = hdr[..56].try_into().unwrap();
-        if &hdr[56..58] != CRLF {
-            return Err(Error::Protocol("Invalid Trojan CRLF after password hash".into()));
-        }
+        if &hdr[56..58] != CRLF { return Err(Error::Protocol("Invalid Trojan CRLF after password hash".into())); }
         let command = match hdr[58] {
             1 => RequestCommand::Tcp,
             3 => RequestCommand::Udp,
@@ -104,9 +96,7 @@ impl TrojanRequestHeader {
         };
         let mut tail = [0u8; 4];
         reader.read_exact(&mut tail).await?;
-        if &tail[2..4] != CRLF {
-            return Err(Error::Protocol("Invalid Trojan CRLF after destination".into()));
-        }
+        if &tail[2..4] != CRLF { return Err(Error::Protocol("Invalid Trojan CRLF after destination".into())); }
         let port = u16::from_be_bytes([tail[0], tail[1]]);
         let destination = if command == RequestCommand::Udp {
             Destination::udp(address, port)
@@ -130,7 +120,6 @@ impl TrojanUdpPacket {
             payload,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = Vec::new();
         match &self.destination.address {
@@ -146,7 +135,6 @@ impl TrojanUdpPacket {
         writer.flush().await?;
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let address = match reader.read_u8().await? {
             1 => {
@@ -167,12 +155,9 @@ impl TrojanUdpPacket {
             }
             other => return Err(Error::Protocol(format!("Invalid Trojan UDP address type: {}", other))),
         };
-
         let mut tail = [0u8; 6];
         reader.read_exact(&mut tail).await?;
-        if &tail[4..6] != CRLF {
-            return Err(Error::Protocol("Invalid Trojan UDP CRLF".into()));
-        }
+        if &tail[4..6] != CRLF { return Err(Error::Protocol("Invalid Trojan UDP CRLF".into())); }
         let port = u16::from_be_bytes([tail[0], tail[1]]);
         let mut payload = vec![0u8; u16::from_be_bytes([tail[2], tail[3]]) as usize];
         reader.read_exact(&mut payload).await?;

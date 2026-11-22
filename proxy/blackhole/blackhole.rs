@@ -7,24 +7,17 @@ pub struct BlackholeHandler {
 }
 
 impl BlackholeHandler {
-    pub fn new(config: BlackholeConfig) -> Self {
-        Self { config }
-    }
-
+    pub fn new(config: BlackholeConfig) -> Self { Self { config } }
     pub async fn handle<W: AsyncWrite + Unpin>(&self, mut writer: W) -> Result<()> {
         match self.config.response {
             ResponseType::None => Ok(()),
             ResponseType::Http403 => {
-                writer
-                    .write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
-                    .await?;
+                writer.write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n").await?;
                 writer.flush().await?;
                 Ok(())
             }
             ResponseType::Http500 => {
-                writer
-                    .write_all(b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n")
-                    .await?;
+                writer.write_all(b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n").await?;
                 writer.flush().await?;
                 Ok(())
             }
@@ -49,7 +42,6 @@ impl Handler {
             response: ResponseType::None,
         }
     }
-
     pub fn with_response(tag: impl Into<String>, response: ResponseType) -> Self {
         Self {
             tag: tag.into(),
@@ -60,10 +52,7 @@ impl Handler {
 
 #[async_trait]
 impl OutboundHandler for Handler {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
         let (mut client_stream, server_stream) = tokio::io::duplex(1024);
         let msg: Option<&'static [u8]> = match self.response {

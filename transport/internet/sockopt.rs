@@ -21,20 +21,15 @@ pub struct SocketOptions {
 pub type SocketConfig = SocketOptions;
 
 impl SocketOptions {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+    pub fn new() -> Self { Self::default() }
     pub fn with_mark(mut self, mark: u32) -> Self {
         self.mark = mark;
         self
     }
-
     pub fn with_tfo(mut self, tfo: i32) -> Self {
         self.tfo = tfo;
         self
     }
-
     pub fn parse_tfo_value(&self) -> i32 {
         if self.tfo == 0 {
             -1
@@ -46,10 +41,6 @@ impl SocketOptions {
     }
 }
 
-pub fn is_tcp_socket(network: &str) -> bool {
-    matches!(network, "tcp" | "tcp4" | "tcp6")
-}
+pub fn is_tcp_socket(network: &str) -> bool { matches!(network, "tcp" | "tcp4" | "tcp6") }
 
-pub fn is_udp_socket(network: &str) -> bool {
-    matches!(network, "udp" | "udp4" | "udp6")
-}
+pub fn is_udp_socket(network: &str) -> bool { matches!(network, "udp" | "udp4" | "udp6") }

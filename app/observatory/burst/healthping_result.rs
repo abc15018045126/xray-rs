@@ -46,7 +46,6 @@ impl HealthPingRTTS {
             stats: None,
         }
     }
-
     pub fn put(&mut self, d: Duration) {
         if self.rtts.is_empty() {
             self.rtts = vec![PingRTT::default(); self.capacity];
@@ -58,7 +57,6 @@ impl HealthPingRTTS {
         self.rtts[idx].time = Some(now);
         self.rtts[idx].value = d;
     }
-
     fn calc_index(&self, step: usize) -> isize {
         if self.idx < 0 {
             0
@@ -66,11 +64,7 @@ impl HealthPingRTTS {
             ((self.idx as usize + step) % self.capacity) as isize
         }
     }
-
-    pub fn get(&mut self) -> HealthPingStats {
-        self.get_statistics()
-    }
-
+    pub fn get(&mut self) -> HealthPingStats { self.get_statistics() }
     pub fn get_statistics(&self) -> HealthPingStats {
         let mut stats = HealthPingStats {
             all: 0,
@@ -82,7 +76,6 @@ impl HealthPingRTTS {
         };
         let now = Instant::now();
         let (mut sum_nanos, mut valid_rtts) = (0u64, Vec::new());
-
         for rtt in &self.rtts {
             if rtt.time.is_some_and(|t| now.duration_since(t) <= self.validity) && rtt.value != Duration::ZERO {
                 if rtt.value == RTT_FAILED {
@@ -95,7 +88,6 @@ impl HealthPingRTTS {
                 }
             }
         }
-
         let cnt = valid_rtts.len();
         stats.all = cnt + stats.fail;
         if cnt == 0 {
@@ -114,7 +106,6 @@ impl HealthPingRTTS {
         stats.deviation = Duration::from_nanos(std_nanos);
         stats
     }
-
     pub fn get_with_cache(&mut self) -> HealthPingStats {
         let now = Instant::now();
         let should_update = match (self.stats.as_ref(), self.last_update_at, self.idx) {
@@ -128,7 +119,6 @@ impl HealthPingRTTS {
             }
             _ => true,
         };
-
         if should_update {
             let s = self.get_statistics();
             self.stats = Some(s.clone());
@@ -138,15 +128,11 @@ impl HealthPingRTTS {
             self.stats.clone().unwrap()
         }
     }
-
     fn find_outdated(&self, now: Instant) -> bool {
         for i in (self.capacity - 1)..(2 * self.capacity) {
             let idx = i % self.capacity;
-            if let Some(t) = self.rtts[idx].time
-                && now.duration_since(t) > self.validity
-            {
-                return true;
-            }
+            if let Some(t) = self.rtts[idx].time && now.duration_since(t) > self.validity
+            { return true; }
         }
         false
     }

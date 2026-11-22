@@ -29,19 +29,14 @@ impl SudokuConfig {
             custom_tables: Vec::new(),
         }
     }
-
     pub fn normalized_ascii(&self) -> Result<String> {
         let mode = self.ascii.trim().to_ascii_lowercase();
         match mode.as_str() {
             "" | "entropy" | "prefer_entropy" => Ok("prefer_entropy".to_string()),
             "ascii" | "prefer_ascii" => Ok("prefer_ascii".to_string()),
-            _ => Err(Error::Config(format!(
-                "invalid sudoku ascii mode: {}",
-                self.ascii
-            ))),
+            _ => Err(Error::Config(format!("invalid sudoku ascii mode: {}", self.ascii))),
         }
     }
-
     pub fn normalized_custom_patterns(&self, mode: &str) -> Result<Vec<String>> {
         if mode == "prefer_ascii" { return Ok(vec![String::new()]); }
         let mut raw = self.custom_tables.clone();
@@ -55,7 +50,6 @@ impl SudokuConfig {
         if patterns.is_empty() { patterns.push(String::new()); }
         Ok(patterns)
     }
-
     pub fn normalize_custom_table(pattern: &str) -> Result<String> {
         let cleaned: String = pattern.trim().to_ascii_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
         if cleaned.len() != 8 { return Err(Error::Config(format!("customTable must be 8 chars, got {}", cleaned.len()))); }
@@ -73,13 +67,10 @@ impl SudokuConfig {
         }
         Ok(cleaned)
     }
-
     pub fn normalized_padding(&self) -> (usize, usize) {
         let p_min = self.padding_min.min(100) as usize;
         let mut p_max = self.padding_max.min(100) as usize;
-        if p_max < p_min {
-            p_max = p_min;
-        }
+        if p_max < p_min { p_max = p_min; }
         (p_min, p_max)
     }
 }

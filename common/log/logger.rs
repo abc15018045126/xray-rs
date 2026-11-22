@@ -5,16 +5,13 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-
 use super::log::{Handler, LogLevel, Message, register_handler};
 use super::log_pb::Severity;
 use crate::common::platform;
 
 pub trait Writer: Send + Sync {
     fn write_str(&mut self, s: &str) -> std::io::Result<()>;
-    fn close(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
+    fn close(&mut self) -> std::io::Result<()> { Ok(()) }
 }
 
 pub type WriterCreator = Arc<dyn Fn() -> Option<Box<dyn Writer>> + Send + Sync>;
@@ -47,30 +44,19 @@ impl Writer for FileWriter {
         self.file.write_all(s.as_bytes())?;
         self.file.flush()
     }
-    fn close(&mut self) -> std::io::Result<()> {
-        self.file.flush()
-    }
+    fn close(&mut self) -> std::io::Result<()> { self.file.flush() }
 }
 
-pub fn create_stdout_log_writer() -> WriterCreator {
-    Arc::new(|| Some(Box::new(StdoutWriter)))
-}
+pub fn create_stdout_log_writer() -> WriterCreator { Arc::new(|| Some(Box::new(StdoutWriter))) }
 
-pub fn create_stderr_log_writer() -> WriterCreator {
-    Arc::new(|| Some(Box::new(StderrWriter)))
-}
+pub fn create_stderr_log_writer() -> WriterCreator { Arc::new(|| Some(Box::new(StderrWriter))) }
 
 pub fn create_file_log_writer(path: &str) -> std::io::Result<WriterCreator> {
     let _ = OpenOptions::new().create(true).append(true).open(path)?;
-
     let path_buf = path.to_string();
     Ok(Arc::new(move || {
         OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path_buf)
-            .ok()
-            .map(|f| Box::new(FileWriter { file: f }) as Box<dyn Writer>)
+            .create(true).append(true).open(&path_buf).ok().map(|f| Box::new(FileWriter { file: f }) as Box<dyn Writer>)
     }))
 }
 
@@ -85,7 +71,6 @@ impl GeneralLogger {
         let (tx, rx) = sync_channel::<String>(128);
         let done = Arc::new(AtomicBool::new(false));
         let done_clone = done.clone();
-
         let worker = thread::spawn(move || {
             let Some(mut writer) = creator() else { return };
             let rx: Receiver<String> = rx;
@@ -94,9 +79,7 @@ impl GeneralLogger {
                 match rx.recv_timeout(Duration::from_millis(50)) {
                     Ok(msg) => { let _ = writer.write_str(&format!("{}{}", msg, sep)); }
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) if done_clone.load(Ordering::SeqCst) => {
-                        while let Ok(msg) = rx.try_recv() {
-                            let _ = writer.write_str(&format!("{}{}", msg, sep));
-                        }
+                        while let Ok(msg) = rx.try_recv() { let _ = writer.write_str(&format!("{}{}", msg, sep)); }
                         break;
                     }
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
@@ -105,35 +88,24 @@ impl GeneralLogger {
             }
             let _ = writer.close();
         });
-
         Arc::new(Self { sender: tx, done, worker: Mutex::new(Some(worker)) })
     }
-
     pub fn close(&self) {
         self.done.store(true, Ordering::SeqCst);
-        if let Ok(mut guard) = self.worker.lock()
-            && let Some(handle) = guard.take()
-        {
-            let _ = handle.join();
-        }
+        if let Ok(mut guard) = self.worker.lock() && let Some(handle) = guard.take()
+        { let _ = handle.join(); }
     }
 }
 
 impl Handler for GeneralLogger {
-    fn handle(&self, msg: &dyn Message) {
-        let _ = self.sender.try_send(msg.to_log_string());
-    }
+    fn handle(&self, msg: &dyn Message) { let _ = self.sender.try_send(msg.to_log_string()); }
 }
 
 impl Drop for GeneralLogger {
-    fn drop(&mut self) {
-        self.close();
-    }
+    fn drop(&mut self) { self.close(); }
 }
 
-pub fn new_logger(creator: WriterCreator) -> Arc<GeneralLogger> {
-    GeneralLogger::new(creator)
-}
+pub fn new_logger(creator: WriterCreator) -> Arc<GeneralLogger> { GeneralLogger::new(creator) }
 
 pub struct SeverityLogger {
     inner: Arc<GeneralLogger>,
@@ -141,17 +113,13 @@ pub struct SeverityLogger {
 }
 
 impl SeverityLogger {
-    pub fn new(inner: Arc<GeneralLogger>, log_level: Severity) -> Self {
-        Self { inner, log_level }
-    }
+    pub fn new(inner: Arc<GeneralLogger>, log_level: Severity) -> Self { Self { inner, log_level } }
 }
 
 impl Handler for SeverityLogger {
     fn handle(&self, msg: &dyn Message) {
         if let Some(sev) = msg.severity() {
-            if sev.number() <= self.log_level.number() {
-                self.inner.handle(msg);
-            }
+            if sev.number() <= self.log_level.number() { self.inner.handle(msg); }
         } else {
             self.inner.handle(msg);
         }
@@ -169,23 +137,12 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new(level: LogLevel) -> Self {
-        Self {
-            level: AtomicUsize::new(level.number() as usize),
-        }
-    }
-
-    pub fn set_level(&self, level: LogLevel) {
-        self.level.store(level.number() as usize, Ordering::SeqCst);
-    }
-
+    pub fn new(level: LogLevel) -> Self { Self { level: AtomicUsize::new(level.number() as usize), } }
+    pub fn set_level(&self, level: LogLevel) { self.level.store(level.number() as usize, Ordering::SeqCst); }
     pub fn is_enabled(&self, level: LogLevel) -> bool {
         (level.number() as usize) <= self.level.load(Ordering::Relaxed)
     }
-
     pub fn log(&self, level: LogLevel, msg: &str) {
-        if self.is_enabled(level) {
-            println!("[{}] {}", level.as_str(), msg);
-        }
+        if self.is_enabled(level) { println!("[{}] {}", level.as_str(), msg); }
     }
 }

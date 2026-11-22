@@ -40,7 +40,6 @@ pub fn validate_version(core_version: &str, min_version: &str, max_version: &str
             )));
         }
     }
-
     if !max_version.is_empty() {
         let cmp = compare_versions(max_version, core_version)?;
         if cmp < 0 {
@@ -50,25 +49,21 @@ pub fn validate_version(core_version: &str, min_version: &str, max_version: &str
             )));
         }
     }
-
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::*;
-
     #[test]
     fn test_version_compare_and_validate() {
         assert_eq!(compare_versions("1.8.0", "1.8.0").unwrap(), 0);
         assert_eq!(compare_versions("1.8.1", "1.8.0").unwrap(), 1);
         assert_eq!(compare_versions("1.7.0", "1.8.0").unwrap(), -1);
-
         assert!(validate_version("1.8.4", "1.8.0", "1.9.0").is_ok());
         assert!(validate_version("1.7.9", "1.8.0", "1.9.0").is_err());
         assert!(validate_version("1.9.1", "1.8.0", "1.9.0").is_err());
     }
-
     #[test]
     fn test_version_config_pb() {
         let cfg = VersionConfig {
@@ -78,10 +73,8 @@ mod tests {
         };
         assert_eq!(cfg.core_version, "26.3.27");
         assert!(validate_version(&cfg.core_version, &cfg.min_version, &cfg.max_version).is_ok());
-
         let ver = Version::new(cfg).unwrap();
         assert_eq!(ver.config.core_version, "26.3.27");
-
         let bad_cfg = VersionConfig {
             core_version: "24.0.0".into(),
             min_version: "25.0.0".into(),

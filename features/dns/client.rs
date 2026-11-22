@@ -27,9 +27,7 @@ impl Default for IPOption {
 pub struct RCodeError(pub u16);
 
 impl fmt::Display for RCodeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "rcode: {}", self.0)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "rcode: {}", self.0) }
 }
 
 impl std::error::Error for RCodeError {}
@@ -37,18 +35,9 @@ impl std::error::Error for RCodeError {}
 #[async_trait]
 pub trait DnsClient: Feature {
     async fn lookup_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
-        self.lookup_ip_with_option(domain, IPOption::default())
-            .await
-            .map(|(ips, _)| ips)
+        self.lookup_ip_with_option(domain, IPOption::default()).await.map(|(ips, _)| ips)
     }
-
-    async fn lookup_ip_with_option(
-        &self,
-        domain: &str,
-        option: IPOption,
-    ) -> Result<(Vec<IpAddr>, u32)>;
+    async fn lookup_ip_with_option(&self, domain: &str, option: IPOption) -> Result<(Vec<IpAddr>, u32)>;
 }
 
-pub fn client_type() -> &'static str {
-    TYPE_DNS_CLIENT
-}
+pub fn client_type() -> &'static str { TYPE_DNS_CLIENT }

@@ -7,9 +7,5 @@ pub struct LoopbackConfig {
 }
 
 impl LoopbackConfig {
-    pub fn new(inbound_tag: impl Into<String>) -> Self {
-        Self {
-            inbound_tag: inbound_tag.into(),
-        }
-    }
+    pub fn new(inbound_tag: impl Into<String>) -> Self { Self { inbound_tag: inbound_tag.into(), } }
 }

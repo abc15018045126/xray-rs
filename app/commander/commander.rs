@@ -21,21 +21,13 @@ impl Commander {
             services: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-
     pub async fn register_service(&self, service: Arc<dyn Service>) {
         let mut guard = self.services.write().await;
         guard.insert(service.service_name().to_string(), service);
     }
-
     pub async fn get_service(&self, name: &str) -> Result<Arc<dyn Service>> {
         let guard = self.services.read().await;
-        guard
-            .get(name)
-            .cloned()
-            .ok_or_else(|| Error::NotFound(format!("Service {} not found in Commander", name)))
+        guard.get(name).cloned().ok_or_else(|| Error::NotFound(format!("Service {} not found in Commander", name)))
     }
-
-    pub async fn service_count(&self) -> usize {
-        self.services.read().await.len()
-    }
+    pub async fn service_count(&self) -> usize { self.services.read().await.len() }
 }

@@ -19,7 +19,6 @@ impl XmuxClient {
         } else {
             None
         };
-
         Self {
             id,
             open_usage: AtomicI32::new(0),
@@ -29,41 +28,23 @@ impl XmuxClient {
             is_closed: false,
         }
     }
-
     pub fn is_reusable(&self) -> bool {
-        if self.is_closed {
-            return false;
-        }
-        if self.left_usage.load(Ordering::SeqCst) == 0 {
-            return false;
-        }
-        if self.left_requests.load(Ordering::SeqCst) <= 0 {
-            return false;
-        }
-        if let Some(exp) = self.unreusable_at
-            && Instant::now() >= exp
-        {
-            return false;
-        }
+        if self.is_closed { return false; }
+        if self.left_usage.load(Ordering::SeqCst) == 0 { return false; }
+        if self.left_requests.load(Ordering::SeqCst) <= 0 { return false; }
+        if let Some(exp) = self.unreusable_at && Instant::now() >= exp
+        { return false; }
         true
     }
-
     pub fn acquire(&self) -> bool {
-        if !self.is_reusable() {
-            return false;
-        }
+        if !self.is_reusable() { return false; }
         self.open_usage.fetch_add(1, Ordering::SeqCst);
         let left = self.left_usage.load(Ordering::SeqCst);
-        if left > 0 {
-            self.left_usage.fetch_sub(1, Ordering::SeqCst);
-        }
+        if left > 0 { self.left_usage.fetch_sub(1, Ordering::SeqCst); }
         self.left_requests.fetch_sub(1, Ordering::SeqCst);
         true
     }
-
-    pub fn release(&self) {
-        self.open_usage.fetch_sub(1, Ordering::SeqCst);
-    }
+    pub fn release(&self) { self.open_usage.fetch_sub(1, Ordering::SeqCst); }
 }
 
 pub struct XmuxManager {
@@ -77,13 +58,7 @@ pub struct XmuxManager {
 }
 
 impl XmuxManager {
-    pub fn new(
-        max_concurrency: i32,
-        max_connections: usize,
-        max_reuse: i32,
-        max_requests: i32,
-        max_secs: u64,
-    ) -> Self {
+    pub fn new(max_concurrency: i32, max_connections: usize, max_reuse: i32, max_requests: i32, max_secs: u64) -> Self {
         Self {
             max_concurrency: max_concurrency.max(1),
             max_connections: max_connections.max(1),
@@ -94,7 +69,6 @@ impl XmuxManager {
             next_id: 1,
         }
     }
-
     pub async fn get_client(&mut self) -> Arc<Mutex<XmuxClient>> {
         self.clients.retain(|c| c.try_lock().map_or(true, |g| g.is_reusable()));
         for c in &self.clients {
@@ -110,14 +84,8 @@ impl XmuxManager {
         self.clients.push(client.clone());
         client
     }
-
-    pub fn default_mux() -> Self {
-        Self::new(8, 4, 100, 1000, 300)
-    }
-
-    pub async fn register(&mut self, _session_id: String) {
-        let _ = self.get_client().await;
-    }
+    pub fn default_mux() -> Self { Self::new(8, 4, 100, 1000, 300) }
+    pub async fn register(&mut self, _session_id: String) { let _ = self.get_client().await; }
 }
 
 pub type SplitHttpMux = XmuxManager;

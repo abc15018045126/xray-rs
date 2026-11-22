@@ -24,8 +24,6 @@ pub use full_matcher::{FullMatcher, FullMatcherGroup};
 pub use matchers::{RegexMatcher, SubstrMatcher};
 pub use mph_matcher::{MphMatcherGroup, PRIME_RK, rolling_hash};
 pub use mph_matcher_compact::CompactMatcher;
-pub use strmatcher::{
-    IndexMatcher, IndexMatcherGroup, Matcher, MatcherEntry, MatcherGroup, MatcherType,
-};
+pub use strmatcher::{IndexMatcher, IndexMatcherGroup, Matcher, MatcherEntry, MatcherGroup, MatcherType};
 #[cfg(test)]
 mod scen_strmatcher_test;

@@ -9,7 +9,5 @@ pub struct InboundConfig {
 }
 
 impl InboundConfig {
-    pub fn is_valid(&self) -> bool {
-        self.decryption.is_empty() || self.decryption == "none"
-    }
+    pub fn is_valid(&self) -> bool { self.decryption.is_empty() || self.decryption == "none" }
 }

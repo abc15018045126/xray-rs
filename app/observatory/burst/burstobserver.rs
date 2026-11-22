@@ -1,8 +1,6 @@
 use super::config_pb::Config;
 use super::healthping::{HealthPing, HealthPingSettings};
-use crate::app::observatory::config_pb::{
-    HealthPingMeasurementResult, ObservationResult, OutboundStatus,
-};
+use crate::app::observatory::config_pb::{HealthPingMeasurementResult, ObservationResult, OutboundStatus};
 use std::sync::Arc;
 
 pub struct Observer {
@@ -19,23 +17,13 @@ impl Observer {
             },
             None => HealthPingSettings::default(),
         };
-
         Self {
             config,
             hp: Arc::new(HealthPing::new(settings)),
         }
     }
-
-    pub fn get_observation(&self) -> ObservationResult {
-        ObservationResult {
-            status: self.create_result(),
-        }
-    }
-
-    pub fn record_rtt(&self, tag: &str, rtt: std::time::Duration) {
-        self.hp.put_rtt(tag, rtt);
-    }
-
+    pub fn get_observation(&self) -> ObservationResult { ObservationResult { status: self.create_result(), } }
+    pub fn record_rtt(&self, tag: &str, rtt: std::time::Duration) { self.hp.put_rtt(tag, rtt); }
     pub fn create_result(&self) -> Vec<OutboundStatus> {
         self.hp.all_stats().into_iter().map(|(outbound_tag, s)| OutboundStatus {
             alive: s.all != s.fail && s.all > 0,

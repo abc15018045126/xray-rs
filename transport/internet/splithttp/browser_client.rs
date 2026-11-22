@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::AsyncRead;
-
 use super::client::DialerClient;
 use super::config::SplitHttpConfig;
 use crate::common::errors::{Error, Result};
@@ -24,10 +23,7 @@ impl BrowserDialerClient {
 
 #[async_trait]
 impl DialerClient for BrowserDialerClient {
-    fn is_closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst)
-    }
-
+    fn is_closed(&self) -> bool { self.closed.load(Ordering::SeqCst) }
     async fn open_stream(
         &self,
         _url: &str,
@@ -40,25 +36,12 @@ impl DialerClient for BrowserDialerClient {
         Option<SocketAddr>,
     )> {
         if body.is_some() {
-            return Err(Error::Protocol(
-                "bidirectional streaming for browser dialer not implemented yet".into(),
-            ));
+            return Err(Error::Protocol("bidirectional streaming for browser dialer not implemented yet".into()));
         }
-        Err(Error::Protocol(
-            "browser dialer not active or available".into(),
-        ))
+        Err(Error::Protocol("browser dialer not active or available".into()))
     }
-
-    async fn post_packet(
-        &self,
-        _url: &str,
-        _session_id: &str,
-        _seq_str: &str,
-        _payload: Vec<u8>,
-    ) -> Result<()> {
-        Err(Error::Protocol(
-            "browser dialer not active or available".into(),
-        ))
+    async fn post_packet(&self, _url: &str, _session_id: &str, _seq_str: &str, _payload: Vec<u8>) -> Result<()> {
+        Err(Error::Protocol("browser dialer not active or available".into()))
     }
 }
 

@@ -19,11 +19,7 @@ impl DtlsHeader {
             length: 17,
         }
     }
-
-    pub fn size(&self) -> usize {
-        13
-    }
-
+    pub fn size(&self) -> usize { 13 }
     pub fn serialize(&mut self, buf: &mut [u8]) {
         buf[0] = 23;
         buf[1] = 254;
@@ -35,11 +31,8 @@ impl DtlsHeader {
         self.sequence = self.sequence.wrapping_add(1);
         buf[11..13].copy_from_slice(&self.length.to_be_bytes());
         self.length = self.length.wrapping_add(17);
-        if self.length > 100 {
-            self.length = self.length.saturating_sub(50);
-        }
+        if self.length > 100 { self.length = self.length.saturating_sub(50); }
     }
-
     pub fn write_header(&mut self) -> [u8; 13] {
         let mut b = [0u8; 13];
         self.serialize(&mut b);
@@ -48,7 +41,5 @@ impl DtlsHeader {
 }
 
 impl Default for DtlsHeader {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

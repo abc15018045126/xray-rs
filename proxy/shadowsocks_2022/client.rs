@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;
@@ -15,11 +14,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(
-        tag: impl Into<String>,
-        server_addr: Destination,
-        config: Shadowsocks2022Config,
-    ) -> Self {
+    pub fn new(tag: impl Into<String>, server_addr: Destination, config: Shadowsocks2022Config) -> Self {
         Self {
             tag: tag.into(),
             server_addr,
@@ -30,10 +25,7 @@ impl Client {
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = TcpDialer::dial(&self.server_addr).await?;
         let req = SessionHeader::new_client(session.destination.clone());

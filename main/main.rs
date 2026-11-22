@@ -20,7 +20,6 @@ struct Cli {
         help = "Path to the JSON configuration file"
     )]
     config: Option<PathBuf>,
-
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -85,11 +84,7 @@ fn find_config_path(cli: &Cli) -> Option<PathBuf> {
     match &cli.command {
         Some(Commands::Run { config }) => Some(config.clone()),
         Some(Commands::Test { config }) => Some(config.clone()),
-        None => Some(
-            cli.config
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("config.json")),
-        ),
+        None => Some(cli.config.clone().unwrap_or_else(|| PathBuf::from("config.json"))),
         _ => None,
     }
 }
@@ -98,23 +93,14 @@ fn find_config_path(cli: &Cli) -> Option<PathBuf> {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let (mut log_level, mut log_file) = ("info".to_string(), None);
-
     if let Some(cfg_path) = find_config_path(&cli)
         && let Ok(content) = std::fs::read_to_string(resolve_path(&cfg_path))
-        && let Ok(cfg) = serde_json::from_str::<Config>(&content)
-        && let Some(log_cfg) = cfg.log
+        && let Ok(cfg) = serde_json::from_str::<Config>(&content) && let Some(log_cfg) = cfg.log
     {
-        if let Some(level) = log_cfg.loglevel.filter(|s| !s.is_empty()) {
-            log_level = level;
-        }
-        log_file = log_cfg
-            .error
-            .or(log_cfg.access)
-            .filter(|s| !s.is_empty());
+        if let Some(level) = log_cfg.loglevel.filter(|s| !s.is_empty()) { log_level = level; }
+        log_file = log_cfg.error.or(log_cfg.access).filter(|s| !s.is_empty());
     }
-
     init_logger_ext(&log_level, log_file.as_deref());
-
     match cli.command {
         Some(Commands::Version) => println!("Xray-core {} (Rust 1:1 Edition)", env!("CARGO_PKG_VERSION")),
         Some(Commands::Uuid) => println!("{}", uuid::Uuid::new_v4()),
@@ -150,7 +136,6 @@ async fn main() -> Result<()> {
         Some(Commands::Run { config }) => run_instance(config).await?,
         None => run_instance(cli.config.unwrap_or_else(|| PathBuf::from("config.json"))).await?,
     }
-
     Ok(())
 }
 

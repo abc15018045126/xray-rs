@@ -17,10 +17,7 @@ pub struct SessionHeader {
 
 impl SessionHeader {
     pub fn new_client(destination: Destination) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let session_id = rand::thread_rng().r#gen();
         Self {
             header_type: HEADER_TYPE_CLIENT,
@@ -29,12 +26,8 @@ impl SessionHeader {
             destination: Some(destination),
         }
     }
-
     pub fn new_server(session_id: u64) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         Self {
             header_type: HEADER_TYPE_SERVER,
             timestamp: now,
@@ -42,12 +35,10 @@ impl SessionHeader {
             destination: None,
         }
     }
-
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         writer.write_u8(self.header_type).await?;
         writer.write_u64(self.timestamp).await?;
         writer.write_u64(self.session_id).await?;
-
         if self.header_type == HEADER_TYPE_CLIENT {
             if let Some(dest) = &self.destination {
                 let dest_str = dest.to_string();
@@ -60,7 +51,6 @@ impl SessionHeader {
         }
         Ok(())
     }
-
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let (header_type, timestamp, session_id) = (reader.read_u8().await?, reader.read_u64().await?, reader.read_u64().await?);
         let destination = if header_type == HEADER_TYPE_CLIENT {

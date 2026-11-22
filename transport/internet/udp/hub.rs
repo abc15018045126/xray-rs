@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
-
 use crate::common::buf::Buffer;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, Destination, Port};
@@ -49,13 +48,8 @@ impl Hub {
                 HubOption::ReceiveOriginalDestination(r) => recv_orig_dest = r,
             }
         }
-        if stream_settings
-            .and_then(|ss| ss.socket_settings.as_ref())
-            .is_some_and(|s| s.receive_original_dest_address)
-        {
-            recv_orig_dest = true;
-        }
-
+        if stream_settings.and_then(|ss| ss.socket_settings.as_ref()).is_some_and(|s| s.receive_original_dest_address)
+        { recv_orig_dest = true; }
         let bind_addr = match address.domain_name() {
             Some("localhost") => Address::ip([127, 0, 0, 1].into()),
             Some(domain) => return Err(Error::Other(format!("domain address is not allowed for listening: {}", domain))),
@@ -63,11 +57,9 @@ impl Hub {
         };
         let ip = bind_addr.to_ip().ok_or_else(|| Error::Other("invalid IP address".into()))?;
         let socket = Arc::new(UdpSocket::bind(SocketAddr::new(ip, port.value())).await?);
-
         let (cache_tx, cache_rx) = mpsc::channel(capacity);
         let closed = Arc::new(AtomicBool::new(false));
         let (s_clone, closed_clone) = (socket.clone(), closed.clone());
-
         tokio::spawn(async move {
             let (mut payload, mut oob) = (vec![0u8; 65535], vec![0u8; 256]);
             while !closed_clone.load(Ordering::Relaxed) {
@@ -88,54 +80,26 @@ impl Hub {
                 }
             }
         });
-
         Ok(Self { socket, cache_rx, capacity, recv_orig_dest, closed })
     }
-
     pub async fn bind(addr: SocketAddr) -> Result<Self> {
         let address = Address::from(addr.ip());
         let port = Port::new(addr.port());
         Self::listen_udp(&address, port, None, &[]).await
     }
-
-    pub async fn recv(&mut self) -> Option<UdpPacket> {
-        self.cache_rx.recv().await
-    }
-
+    pub async fn recv(&mut self) -> Option<UdpPacket> { self.cache_rx.recv().await }
     pub async fn write_to(&self, payload: &[u8], dest: &Destination) -> Result<usize> {
         if let Some(target) = dest.to_socket_addr() {
-            self.socket
-                .send_to(payload, target)
-                .await
-                .map_err(Error::Io)
+            self.socket.send_to(payload, target).await.map_err(Error::Io)
         } else {
-            Err(Error::Other(format!(
-                "cannot resolve destination: {:?}",
-                dest
-            )))
+            Err(Error::Other(format!("cannot resolve destination: {:?}", dest)))
         }
     }
-
     pub async fn send_to(&self, payload: &[u8], target: SocketAddr) -> Result<usize> {
-        self.socket
-            .send_to(payload, target)
-            .await
-            .map_err(Error::Io)
+        self.socket.send_to(payload, target).await.map_err(Error::Io)
     }
-
-    pub fn local_addr(&self) -> Result<SocketAddr> {
-        self.socket.local_addr().map_err(Error::Io)
-    }
-
-    pub fn close(&self) {
-        self.closed.store(true, Ordering::SeqCst);
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.capacity
-    }
-
-    pub fn receive_original_destination(&self) -> bool {
-        self.recv_orig_dest
-    }
+    pub fn local_addr(&self) -> Result<SocketAddr> { self.socket.local_addr().map_err(Error::Io) }
+    pub fn close(&self) { self.closed.store(true, Ordering::SeqCst); }
+    pub fn capacity(&self) -> usize { self.capacity }
+    pub fn receive_original_destination(&self) -> bool { self.recv_orig_dest }
 }

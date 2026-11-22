@@ -17,12 +17,9 @@ impl MetricsConfig {
             listen: String::new(),
         }
     }
-
     pub fn build(&self) -> Result<MetricsConfigProto> {
         if self.listen.is_empty() && self.tag.is_empty() {
-            return Err(Error::Config(
-                "Metrics must have a tag or listen address.".into(),
-            ));
+            return Err(Error::Config("Metrics must have a tag or listen address.".into()));
         }
         let tag = if self.tag.is_empty() {
             "Metrics".to_string()

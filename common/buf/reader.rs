@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
-
 use crate::common::buf::buffer::Buffer;
 use crate::common::buf::io::Reader;
 use crate::common::buf::multi_buffer::MultiBuffer;
@@ -9,12 +8,7 @@ use crate::common::errors::{Error, Result};
 pub async fn read_buffer<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Buffer> {
     let mut raw = [0u8; 8192];
     let n = reader.read(&mut raw).await.map_err(Error::Io)?;
-    if n == 0 {
-        return Err(Error::Io(std::io::Error::new(
-            std::io::ErrorKind::UnexpectedEof,
-            "eof",
-        )));
-    }
+    if n == 0 { return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"))); }
     let mut b = Buffer::with_capacity(n);
     let _ = b.write(&raw[..n]);
     Ok(b)
@@ -34,11 +28,7 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
             buffer_size: buffer_size.max(2048),
         }
     }
-
-    pub fn buffered_bytes(&self) -> usize {
-        self.cached.len()
-    }
-
+    pub fn buffered_bytes(&self) -> usize { self.cached.len() }
     pub async fn read_buffer(&mut self) -> Result<Option<Buffer>> {
         let mut buf = vec![0u8; self.buffer_size];
         let n = self.inner.read(&mut buf).await.map_err(Error::Io)?;
@@ -48,7 +38,6 @@ impl<R: AsyncRead + Unpin> BufferedReader<R> {
             Ok(Some(Buffer::from_bytes(&buf[..n])))
         }
     }
-
     pub async fn read_at_most(&mut self, max_size: usize) -> Result<MultiBuffer> {
         if self.cached.is_empty() && let Some(b) = self.read_buffer().await? { self.cached.push(b); }
         let (mut out, mut needed) = (MultiBuffer::new(), max_size);
@@ -76,17 +65,13 @@ impl<R: AsyncRead + Send + Sync + Unpin> Reader for BufferedReader<R> {
             self.cached.clear();
             return Ok(mb);
         }
-
         match self.read_buffer().await? {
             Some(b) => {
                 let mut mb = MultiBuffer::new();
                 mb.push(b);
                 Ok(mb)
             }
-            None => Err(Error::Io(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "eof",
-            ))),
+            None => Err(Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"))),
         }
     }
 }
@@ -96,9 +81,7 @@ pub struct SingleReader<R> {
 }
 
 impl<R: AsyncRead + Unpin> SingleReader<R> {
-    pub fn new(inner: R) -> Self {
-        Self { inner }
-    }
+    pub fn new(inner: R) -> Self { Self { inner } }
 }
 
 #[async_trait]
@@ -116,9 +99,7 @@ pub struct PacketReader<R> {
 }
 
 impl<R: AsyncRead + Unpin> PacketReader<R> {
-    pub fn new(inner: R) -> Self {
-        Self { inner }
-    }
+    pub fn new(inner: R) -> Self { Self { inner } }
 }
 
 #[async_trait]

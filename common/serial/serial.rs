@@ -20,27 +20,21 @@ pub fn write_uint64<W: Write>(writer: &mut W, value: u64) -> std::io::Result<usi
     Ok(8)
 }
 
-pub async fn read_u16<R: AsyncRead + Unpin>(reader: &mut R) -> Result<u16> {
-    Ok(reader.read_u16().await?)
-}
+pub async fn read_u16<R: AsyncRead + Unpin>(reader: &mut R) -> Result<u16> { Ok(reader.read_u16().await?) }
 
 pub async fn write_u16<W: AsyncWrite + Unpin>(writer: &mut W, val: u16) -> Result<()> {
     writer.write_u16(val).await?;
     Ok(())
 }
 
-pub async fn read_u32<R: AsyncRead + Unpin>(reader: &mut R) -> Result<u32> {
-    Ok(reader.read_u32().await?)
-}
+pub async fn read_u32<R: AsyncRead + Unpin>(reader: &mut R) -> Result<u32> { Ok(reader.read_u32().await?) }
 
 pub async fn write_u32<W: AsyncWrite + Unpin>(writer: &mut W, val: u32) -> Result<()> {
     writer.write_u32(val).await?;
     Ok(())
 }
 
-pub async fn read_u64<R: AsyncRead + Unpin>(reader: &mut R) -> Result<u64> {
-    Ok(reader.read_u64().await?)
-}
+pub async fn read_u64<R: AsyncRead + Unpin>(reader: &mut R) -> Result<u64> { Ok(reader.read_u64().await?) }
 
 pub async fn write_u64<W: AsyncWrite + Unpin>(writer: &mut W, val: u64) -> Result<()> {
     writer.write_u64(val).await?;

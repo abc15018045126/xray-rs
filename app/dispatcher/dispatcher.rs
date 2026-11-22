@@ -18,9 +18,7 @@ pub struct DispatcherBuilder {
 }
 
 impl Default for DispatcherBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 impl DispatcherBuilder {
@@ -35,17 +33,11 @@ impl DispatcherBuilder {
             fakedns: None,
         }
     }
-
     pub fn with_router(mut self, router: Arc<dyn RouterFeature>) -> Self {
         self.router = Some(router);
         self
     }
-
-    pub fn add_outbound(
-        mut self,
-        tag: impl Into<String>,
-        outbound: Arc<dyn OutboundHandler>,
-    ) -> Self {
+    pub fn add_outbound(mut self, tag: impl Into<String>, outbound: Arc<dyn OutboundHandler>) -> Self {
         let tag_str = tag.into();
         let pooled: Arc<dyn OutboundHandler> = Arc::new(
             crate::app::pingora_bridge::PingoraPooledOutbound::new(
@@ -59,50 +51,34 @@ impl DispatcherBuilder {
         self.outbounds.insert(tag_str, pooled);
         self
     }
-
     pub fn with_default_outbound(mut self, tag: impl Into<String>) -> Self {
         self.default_outbound_tag = Some(tag.into());
         self
     }
-
     pub fn with_outbound_manager(mut self, om: Arc<dyn OutboundManager>) -> Self {
         self.outbound_manager = Some(om);
         self
     }
-
     pub fn with_policy(mut self, policy: Arc<dyn PolicyManager>) -> Self {
         self.policy = Some(policy);
         self
     }
-
     pub fn with_stats(mut self, stats: Arc<dyn StatsManagerTrait>) -> Self {
         self.stats = Some(stats);
         self
     }
-
     pub fn with_fakedns(mut self, fakedns: Arc<FakeDnsHolder>) -> Self {
         self.fakedns = Some(fakedns);
         self
     }
-
     pub fn build(self) -> Option<DefaultDispatcher> {
         let router = self.router?;
         let mut d = DefaultDispatcher::new(self.outbounds, router);
-        if let Some(tag) = self.default_outbound_tag {
-            d = d.with_default_outbound(tag);
-        }
-        if let Some(om) = self.outbound_manager {
-            d = d.with_outbound_manager(om);
-        }
-        if let Some(p) = self.policy {
-            d = d.with_policy(p);
-        }
-        if let Some(s) = self.stats {
-            d = d.with_stats(s);
-        }
-        if let Some(f) = self.fakedns {
-            d = d.with_fakedns(f);
-        }
+        if let Some(tag) = self.default_outbound_tag { d = d.with_default_outbound(tag); }
+        if let Some(om) = self.outbound_manager { d = d.with_outbound_manager(om); }
+        if let Some(p) = self.policy { d = d.with_policy(p); }
+        if let Some(s) = self.stats { d = d.with_stats(s); }
+        if let Some(f) = self.fakedns { d = d.with_fakedns(f); }
         Some(d)
     }
 }

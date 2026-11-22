@@ -16,7 +16,6 @@ pub struct VersionConfig {
 
 impl Buildable for VersionConfig {
     type Output = ProtoVersionConfig;
-
     fn build(self) -> Result<Self::Output> {
         Ok(ProtoVersionConfig {
             core_version: CORE_VERSION.to_string(),
@@ -29,7 +28,6 @@ impl Buildable for VersionConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_version_config_build() {
         let v_conf = VersionConfig {

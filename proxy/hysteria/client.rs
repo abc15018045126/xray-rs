@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use tokio::io::AsyncWriteExt;
-
 use super::config::HysteriaConfig;
 use super::protocol::TcpRequest;
 use crate::common::errors::{Error, Result};
@@ -27,19 +26,13 @@ impl HysteriaClient {
 
 #[async_trait]
 impl OutboundHandler for HysteriaClient {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = SystemDialer::dial_tcp(&self.server).await?;
-
         let req = TcpRequest::new(session.destination.to_string(), 0);
         let frame = req.encode();
-
         stream.write_all(&frame).await.map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
-
         Ok(Box::pin(stream))
     }
 }

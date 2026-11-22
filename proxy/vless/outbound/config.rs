@@ -9,7 +9,5 @@ pub struct OutboundConfig {
 }
 
 impl OutboundConfig {
-    pub fn endpoint(&self) -> String {
-        format!("{}:{}", self.address, self.port)
-    }
+    pub fn endpoint(&self) -> String { format!("{}:{}", self.address, self.port) }
 }

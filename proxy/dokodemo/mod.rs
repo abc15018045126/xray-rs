@@ -34,19 +34,11 @@ impl Server {
 
 #[async_trait]
 impl InboundHandler for Server {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
-    async fn handle_connection(
-        &self,
-        stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
+    fn tag(&self) -> &str { &self.tag }
+    async fn handle_connection(&self, stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let mut session = SessionContext::new(&self.tag, self.destination.clone());
         session.source = Some(remote_addr);
         session.destination.network = self.network;
-
         Ok(InboundResult { stream, session })
     }
 }

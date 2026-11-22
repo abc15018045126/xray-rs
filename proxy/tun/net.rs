@@ -12,7 +12,6 @@ pub static TUN_SOMARK: LazyLock<tokio::sync::RwLock<Option<u32>>> = LazyLock::ne
 pub async fn init_net_config(tun_somark: Option<u32>) {
     *DEFAULT_OUTBOUND_INTERFACE.write().await = get_outbound_interface();
     *TUN_SOMARK.write().await = tun_somark;
-
     trace!(
         "default outbound interface: {:?}, tun somark: {:?}",
         *DEFAULT_OUTBOUND_INTERFACE.read().await,
@@ -55,15 +54,8 @@ impl From<NetworkInterface> for OutboundInterface {
 pub fn get_interface_by_name(name: &str) -> Option<OutboundInterface> {
     let now = std::time::Instant::now();
     let outbound = network_interface::NetworkInterface::show()
-        .ok()?
-        .into_iter()
-        .find(|iface| iface.name == name)?
-        .into();
-    trace!(
-        "found interface by name: {:?}, took: {}ms",
-        outbound,
-        now.elapsed().as_millis()
-    );
+        .ok()?.into_iter().find(|iface| iface.name == name)?.into();
+    trace!("found interface by name: {:?}, took: {}ms", outbound, now.elapsed().as_millis());
     Some(outbound)
 }
 

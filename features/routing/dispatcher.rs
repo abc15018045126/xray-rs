@@ -14,6 +14,4 @@ pub trait DispatcherFeature: Send + Sync {
     async fn dispatch(&self, inbound_stream: BoxStream, session: SessionContext) -> Result<()>;
 }
 
-pub fn dispatcher_type() -> &'static str {
-    TYPE_DISPATCHER
-}
+pub fn dispatcher_type() -> &'static str { TYPE_DISPATCHER }

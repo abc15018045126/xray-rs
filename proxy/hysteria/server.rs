@@ -24,21 +24,12 @@ impl HysteriaServer {
 
 #[async_trait]
 impl InboundHandler for HysteriaServer {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
-    async fn handle_connection(
-        &self,
-        mut stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
+    fn tag(&self) -> &str { &self.tag }
+    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
         let req = TcpRequest::decode(&mut stream).await?;
         let dest = Destination::from_str(&req.address)?;
-
         let mut session = SessionContext::new(&self.tag, dest);
         session.source = Some(remote_addr);
-
         Ok(InboundResult { stream, session })
     }
 }

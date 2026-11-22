@@ -24,14 +24,12 @@ pub fn cmd_x25519() -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_x25519_command() {
         let cmd = cmd_x25519();
         let res = cmd.execute(&[]).unwrap();
         assert!(res.contains("PrivateKey:"));
         assert!(res.contains("Password (PublicKey):"));
-
         let std_res = cmd.execute(&["--std-encoding"]).unwrap();
         assert!(std_res.contains("PrivateKey:"));
     }

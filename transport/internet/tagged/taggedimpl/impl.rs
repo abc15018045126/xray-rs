@@ -10,8 +10,7 @@ pub async fn dial_tagged_outbound(
     dest: Destination,
     tag: String,
 ) -> Result<BoxStream> {
-    let d = dispatcher
-        .ok_or_else(|| Error::Other("dispatcher required for tagged outbound dial".into()))?;
+    let d = dispatcher.ok_or_else(|| Error::Other("dispatcher required for tagged outbound dial".into()))?;
     let (client_stream, server_stream) = tokio::io::duplex(65536);
     let session = SessionContext::new(tag, dest);
     let d_clone = d.clone();

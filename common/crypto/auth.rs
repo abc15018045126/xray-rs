@@ -15,7 +15,6 @@ impl Authentication {
         out.copy_from_slice(&result);
         Ok(out)
     }
-
     pub fn verify_hmac_sha256(key: &[u8], data: &[u8], expected: &[u8]) -> bool {
         if let Ok(mut mac) = HmacSha256::new_from_slice(key) {
             mac.update(data);

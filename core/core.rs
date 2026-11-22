@@ -6,9 +6,7 @@ pub const BUILD: &str = "Custom";
 pub const CODENAME: &str = "Xray, Penetrates Everything.";
 pub const INTRO: &str = "A unified platform for anti-censorship.";
 
-pub fn version() -> String {
-    format!("{}.{}.{}", VERSION_X, VERSION_Y, VERSION_Z)
-}
+pub fn version() -> String { format!("{}.{}.{}", VERSION_X, VERSION_Y, VERSION_Z) }
 
 pub fn version_statement() -> Vec<String> {
     let v_str = format!(

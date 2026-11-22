@@ -25,7 +25,6 @@ impl Segment {
             Segment::CmdOnly(s) => s.conv,
         }
     }
-
     pub fn command(&self) -> u8 {
         match self {
             Segment::Data(_) => COMMAND_DATA,
@@ -33,7 +32,6 @@ impl Segment {
             Segment::CmdOnly(s) => s.cmd,
         }
     }
-
     pub fn byte_size(&self) -> usize {
         match self {
             Segment::Data(s) => s.byte_size(),
@@ -41,7 +39,6 @@ impl Segment {
             Segment::CmdOnly(s) => s.byte_size(),
         }
     }
-
     pub fn serialize(&self, buf: &mut [u8]) -> Result<usize> {
         match self {
             Segment::Data(s) => s.serialize(buf),
@@ -76,16 +73,10 @@ impl DataSegment {
             transmit: 0,
         }
     }
-
-    pub fn byte_size(&self) -> usize {
-        DATA_SEGMENT_OVERHEAD + self.payload.len()
-    }
-
+    pub fn byte_size(&self) -> usize { DATA_SEGMENT_OVERHEAD + self.payload.len() }
     pub fn serialize(&self, buf: &mut [u8]) -> Result<usize> {
         let total = self.byte_size();
-        if buf.len() < total {
-            return Err(Error::BufferOverflow);
-        }
+        if buf.len() < total { return Err(Error::BufferOverflow); }
         buf[0..2].copy_from_slice(&self.conv.to_be_bytes());
         buf[2] = COMMAND_DATA;
         buf[3] = self.option;
@@ -96,16 +87,13 @@ impl DataSegment {
         buf[18..total].copy_from_slice(&self.payload);
         Ok(total)
     }
-
     pub fn decode(buf: &[u8]) -> Result<Self> {
-        let (seg, _) = read_segment(buf)
-            .ok_or_else(|| Error::Protocol("failed to parse data segment".into()))?;
+        let (seg, _) = read_segment(buf).ok_or_else(|| Error::Protocol("failed to parse data segment".into()))?;
         match seg {
             Segment::Data(d) => Ok(d),
             _ => Err(Error::Protocol("expected data segment".into())),
         }
     }
-
     pub fn parse(conv: u16, option: u8, buf: &[u8]) -> Option<(Self, &[u8])> {
         if buf.len() < 14 { return None; }
         let data_len = u16::from_be_bytes([buf[12], buf[13]]) as usize;
@@ -147,36 +135,18 @@ impl AckSegment {
             limit: lim,
         }
     }
-
     pub fn put_timestamp(&mut self, timestamp: u32) {
-        if timestamp.wrapping_sub(self.timestamp) < 0x7FFFFFFF {
-            self.timestamp = timestamp;
-        }
+        if timestamp.wrapping_sub(self.timestamp) < 0x7FFFFFFF { self.timestamp = timestamp; }
     }
-
     pub fn put_number(&mut self, number: u32) {
-        if self.number_list.len() < self.limit {
-            self.number_list.push(number);
-        }
+        if self.number_list.len() < self.limit { self.number_list.push(number); }
     }
-
-    pub fn is_full(&self) -> bool {
-        self.number_list.len() >= self.limit
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.number_list.is_empty()
-    }
-
-    pub fn byte_size(&self) -> usize {
-        17 + self.number_list.len() * 4
-    }
-
+    pub fn is_full(&self) -> bool { self.number_list.len() >= self.limit }
+    pub fn is_empty(&self) -> bool { self.number_list.is_empty() }
+    pub fn byte_size(&self) -> usize { 17 + self.number_list.len() * 4 }
     pub fn serialize(&self, buf: &mut [u8]) -> Result<usize> {
         let total = self.byte_size();
-        if buf.len() < total {
-            return Err(Error::BufferOverflow);
-        }
+        if buf.len() < total { return Err(Error::BufferOverflow); }
         buf[0..2].copy_from_slice(&self.conv.to_be_bytes());
         buf[2] = COMMAND_ACK;
         buf[3] = self.option;
@@ -184,7 +154,6 @@ impl AckSegment {
         buf[8..12].copy_from_slice(&self.receiving_next.to_be_bytes());
         buf[12..16].copy_from_slice(&self.timestamp.to_be_bytes());
         buf[16] = self.number_list.len() as u8;
-
         let mut offset = 17;
         for &num in &self.number_list {
             buf[offset..offset + 4].copy_from_slice(&num.to_be_bytes());
@@ -192,16 +161,13 @@ impl AckSegment {
         }
         Ok(total)
     }
-
     pub fn decode(buf: &[u8]) -> Result<Self> {
-        let (seg, _) = read_segment(buf)
-            .ok_or_else(|| Error::Protocol("failed to parse ack segment".into()))?;
+        let (seg, _) = read_segment(buf).ok_or_else(|| Error::Protocol("failed to parse ack segment".into()))?;
         match seg {
             Segment::Ack(a) => Ok(a),
             _ => Err(Error::Protocol("expected ack segment".into())),
         }
     }
-
     pub fn parse(conv: u16, option: u8, buf: &[u8]) -> Option<(Self, &[u8])> {
         if buf.len() < 13 { return None; }
         let count = buf[12] as usize;
@@ -240,15 +206,9 @@ impl CmdOnlySegment {
             peer_rto: 0,
         }
     }
-
-    pub fn byte_size(&self) -> usize {
-        16
-    }
-
+    pub fn byte_size(&self) -> usize { 16 }
     pub fn serialize(&self, buf: &mut [u8]) -> Result<usize> {
-        if buf.len() < 16 {
-            return Err(Error::BufferOverflow);
-        }
+        if buf.len() < 16 { return Err(Error::BufferOverflow); }
         buf[0..2].copy_from_slice(&self.conv.to_be_bytes());
         buf[2] = self.cmd;
         buf[3] = self.option;
@@ -257,11 +217,8 @@ impl CmdOnlySegment {
         buf[12..16].copy_from_slice(&self.peer_rto.to_be_bytes());
         Ok(16)
     }
-
     pub fn parse(conv: u16, cmd: u8, option: u8, buf: &[u8]) -> Option<(Self, &[u8])> {
-        if buf.len() < 12 {
-            return None;
-        }
+        if buf.len() < 12 { return None; }
         let sending_next = u32::from_be_bytes(buf[0..4].try_into().unwrap());
         let receiving_next = u32::from_be_bytes(buf[4..8].try_into().unwrap());
         let peer_rto = u32::from_be_bytes(buf[8..12].try_into().unwrap());
@@ -280,14 +237,11 @@ impl CmdOnlySegment {
 }
 
 pub fn read_segment(buf: &[u8]) -> Option<(Segment, &[u8])> {
-    if buf.len() < 4 {
-        return None;
-    }
+    if buf.len() < 4 { return None; }
     let conv = u16::from_be_bytes([buf[0], buf[1]]);
     let cmd = buf[2];
     let opt = buf[3];
     let rest = &buf[4..];
-
     match cmd {
         COMMAND_DATA => {
             let (seg, remaining) = DataSegment::parse(conv, opt, rest)?;

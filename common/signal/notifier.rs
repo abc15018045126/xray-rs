@@ -16,7 +16,6 @@ impl Notifier {
             broadcast,
         }
     }
-
     pub fn with_capacity(capacity: usize) -> Self {
         let (broadcast, _) = broadcast::channel(capacity.max(1));
         Self {
@@ -24,28 +23,18 @@ impl Notifier {
             broadcast,
         }
     }
-
     pub fn signal(&self) {
         self.notify.notify_one();
         let _ = self.broadcast.send(());
     }
-
     pub fn notify(&self) -> usize {
         self.signal();
         self.broadcast.receiver_count()
     }
-
-    pub async fn wait(&self) {
-        self.notify.notified().await;
-    }
-
-    pub fn subscribe(&self) -> broadcast::Receiver<()> {
-        self.broadcast.subscribe()
-    }
+    pub async fn wait(&self) { self.notify.notified().await; }
+    pub fn subscribe(&self) -> broadcast::Receiver<()> { self.broadcast.subscribe() }
 }
 
 impl Default for Notifier {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

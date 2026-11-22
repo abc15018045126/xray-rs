@@ -115,9 +115,7 @@ impl TrafficState {
 pub fn is_complete_record(data: &[u8]) -> bool {
     let mut i = 0;
     while i < data.len() {
-        if i + 5 > data.len() || data[i] != 0x17 || data[i + 1] != 0x03 || data[i + 2] != 0x03 {
-            return false;
-        }
+        if i + 5 > data.len() || data[i] != 0x17 || data[i + 1] != 0x03 || data[i + 2] != 0x03 { return false; }
         let record_len = u16::from_be_bytes([data[i + 3], data[i + 4]]) as usize;
         if record_len == 0 || data.len() - (i + 5) < record_len { return false; }
         i += 5 + record_len;
@@ -155,7 +153,6 @@ pub fn xtls_unpadding(data: &[u8], state: &mut TrafficState, is_uplink: bool) ->
         let s = &mut state.outbound;
         (&mut s.remaining_command, &mut s.remaining_content, &mut s.remaining_padding, &mut s.current_command)
     };
-
     let (mut cursor, len) = (0, data.len());
     if *rem_cmd == -1 && *rem_content == -1 && *rem_pad == -1 {
         if len >= 21 && &data[..16] == state.user_uuid.as_slice() {
@@ -165,7 +162,6 @@ pub fn xtls_unpadding(data: &[u8], state: &mut TrafficState, is_uplink: bool) ->
             return data.to_vec();
         }
     }
-
     let mut result = Vec::new();
     while cursor < len {
         if *rem_cmd > 0 {
@@ -190,7 +186,6 @@ pub fn xtls_unpadding(data: &[u8], state: &mut TrafficState, is_uplink: bool) ->
             cursor += n;
             *rem_pad -= n as i32;
         }
-
         if *rem_cmd <= 0 && *rem_content <= 0 && *rem_pad <= 0 {
             if *cur_cmd == COMMAND_PADDING_CONTINUE as i32 {
                 *rem_cmd = 5;
@@ -205,11 +200,8 @@ pub fn xtls_unpadding(data: &[u8], state: &mut TrafficState, is_uplink: bool) ->
 }
 
 pub fn xtls_filter_tls(data: &[u8], s: &mut TrafficState) {
-    if data.is_empty() {
-        return;
-    }
+    if data.is_empty() { return; }
     s.number_of_packet_to_filter -= 1;
-
     if data.len() >= 6 {
         if &data[..3] == TLS_SERVER_HANDSHAKE_START && data[5] == TLS_HANDSHAKE_TYPE_SERVER_HELLO {
             s.remaining_server_hello = u16::from_be_bytes([data[3], data[4]]) as i32 + 5;
@@ -217,15 +209,12 @@ pub fn xtls_filter_tls(data: &[u8], s: &mut TrafficState) {
             s.is_tls = true;
             if data.len() >= 79 && s.remaining_server_hello >= 79 {
                 let off = 44 + data[43] as usize;
-                if data.len() >= off + 2 {
-                    s.cipher = u16::from_be_bytes([data[off], data[off + 1]]);
-                }
+                if data.len() >= off + 2 { s.cipher = u16::from_be_bytes([data[off], data[off + 1]]); }
             }
         } else if &data[..2] == TLS_CLIENT_HANDSHAKE_START && data[5] == TLS_HANDSHAKE_TYPE_CLIENT_HELLO {
             s.is_tls = true;
         }
     }
-
     if s.remaining_server_hello > 0 {
         let end = (s.remaining_server_hello as usize).min(data.len());
         s.remaining_server_hello -= data.len() as i32;
@@ -260,11 +249,7 @@ pub struct DefaultUserManager {
 }
 
 impl DefaultUserManager {
-    pub fn new() -> Self {
-        Self {
-            users: std::sync::RwLock::new(HashMap::new()),
-        }
-    }
+    pub fn new() -> Self { Self { users: std::sync::RwLock::new(HashMap::new()), } }
 }
 
 impl UserManager for DefaultUserManager {
@@ -273,14 +258,10 @@ impl UserManager for DefaultUserManager {
         map.insert(email.to_string(), level);
         Ok(())
     }
-
     fn remove_user(&self, email: &str) -> crate::common::errors::Result<()> {
         let mut map = self.users.write().unwrap();
         map.remove(email);
         Ok(())
     }
-
-    fn get_users_count(&self) -> usize {
-        self.users.read().map(|m| m.len()).unwrap_or(0)
-    }
+    fn get_users_count(&self) -> usize { self.users.read().map(|m| m.len()).unwrap_or(0) }
 }

@@ -6,17 +6,11 @@ pub struct HysteriaHub {
 }
 
 impl HysteriaHub {
-    pub fn new() -> Self {
-        Self {
-            connections: Mutex::new(HashMap::new()),
-        }
-    }
-
+    pub fn new() -> Self { Self { connections: Mutex::new(HashMap::new()), } }
     pub fn register(&self, id: u64, tag: String) {
         let mut guard = self.connections.lock().unwrap();
         guard.insert(id, tag);
     }
-
     pub fn remove(&self, id: u64) {
         let mut guard = self.connections.lock().unwrap();
         guard.remove(&id);
@@ -24,7 +18,5 @@ impl HysteriaHub {
 }
 
 impl Default for HysteriaHub {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

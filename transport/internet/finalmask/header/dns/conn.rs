@@ -21,15 +21,8 @@ impl DnsPacketConn {
             cached_header: buf,
         })
     }
-
-    pub fn header(&self) -> &DnsHeader {
-        &self.header
-    }
-
-    pub fn size(&self) -> usize {
-        self.cached_header.len()
-    }
-
+    pub fn header(&self) -> &DnsHeader { &self.header }
+    pub fn size(&self) -> usize { self.cached_header.len() }
     pub fn wrap_payload(&self, payload: &[u8]) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.cached_header.len() + payload.len());
         out.extend_from_slice(&self.cached_header);
@@ -40,11 +33,8 @@ impl DnsPacketConn {
         out.extend_from_slice(payload);
         out
     }
-
     pub fn unwrap_payload<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
-        if packet.len() < self.size() {
-            return None;
-        }
+        if packet.len() < self.size() { return None; }
         Some(&packet[self.size()..])
     }
 }

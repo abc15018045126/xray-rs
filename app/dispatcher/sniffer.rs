@@ -11,14 +11,8 @@ pub struct SniffResult {
 }
 
 impl SniffResult {
-    pub fn protocol(&self) -> &str {
-        &self.protocol
-    }
-
-    pub fn domain(&self) -> &str {
-        &self.domain
-    }
-
+    pub fn protocol(&self) -> &str { &self.protocol }
+    pub fn domain(&self) -> &str { &self.domain }
     pub fn composite_result(domain_res: SniffResult, proto_res: SniffResult) -> Self {
         Self {
             protocol: proto_res.protocol,
@@ -32,21 +26,14 @@ pub struct Sniffer {
 }
 
 impl Sniffer {
-    pub fn new(fakedns: Option<Arc<FakeDnsHolder>>) -> Self {
-        Self { fakedns }
-    }
-
-    pub fn new_sniffer(fakedns: Option<Arc<FakeDnsHolder>>) -> Self {
-        Self::new(fakedns)
-    }
-
+    pub fn new(fakedns: Option<Arc<FakeDnsHolder>>) -> Self { Self { fakedns } }
+    pub fn new_sniffer(fakedns: Option<Arc<FakeDnsHolder>>) -> Self { Self::new(fakedns) }
     pub fn sniff_metadata(&self, ip: IpAddr) -> Option<SniffResult> {
         self.sniff_ip(ip).map(|domain| SniffResult {
             protocol: "fakedns".into(),
             domain,
         })
     }
-
     pub fn sniff_ip(&self, ip: IpAddr) -> Option<String> {
         if let Some(fdns) = &self.fakedns {
             match ip {
@@ -57,7 +44,6 @@ impl Sniffer {
             None
         }
     }
-
     pub fn is_in_fake_ip_pool(&self, ip: &IpAddr) -> bool {
         if let Some(fdns) = &self.fakedns {
             fdns.is_fake_ip(ip)
@@ -65,13 +51,10 @@ impl Sniffer {
             false
         }
     }
-
     pub fn sniff(&self, payload: &[u8], network: Network) -> Result<SniffResult> {
         if network == Network::Tcp && payload.len() >= 5 && payload[0] == 0x16 && payload[1] == 0x03
             && let Some(domain) = Self::sniff_tls_sni(payload)
-        {
-            return Ok(SniffResult { protocol: "tls".into(), domain });
-        }
+        { return Ok(SniffResult { protocol: "tls".into(), domain }); }
         if network == Network::Tcp && payload.len() >= 10 && let Some(domain) = Self::sniff_http_host(payload) {
             return Ok(SniffResult { protocol: "http".into(), domain });
         }
@@ -83,31 +66,19 @@ impl Sniffer {
         }
         Err(Error::Protocol("unknown content".into()))
     }
-
     pub fn sniff_tls_sni(payload: &[u8]) -> Option<String> {
         let u16_be = |i: usize| u16::from_be_bytes([payload[i], payload[i + 1]]) as usize;
-        if payload.len() < 43 || payload[5] != 0x01 {
-            return None;
-        }
+        if payload.len() < 43 || payload[5] != 0x01 { return None; }
         let mut pos = 43;
-        if pos >= payload.len() {
-            return None;
-        }
+        if pos >= payload.len() { return None; }
         pos += 1 + payload[pos] as usize;
-        if pos + 2 > payload.len() {
-            return None;
-        }
+        if pos + 2 > payload.len() { return None; }
         pos += 2 + u16_be(pos);
-        if pos + 1 > payload.len() {
-            return None;
-        }
+        if pos + 1 > payload.len() { return None; }
         pos += 1 + payload[pos] as usize;
-        if pos + 2 > payload.len() {
-            return None;
-        }
+        if pos + 2 > payload.len() { return None; }
         let end_ext = (pos + 2 + u16_be(pos)).min(payload.len());
         pos += 2;
-
         while pos + 4 <= end_ext {
             let (ext_type, ext_len) = (u16_be(pos), u16_be(pos + 2));
             pos += 4;
@@ -121,7 +92,6 @@ impl Sniffer {
         }
         None
     }
-
     pub fn sniff_http_host(payload: &[u8]) -> Option<String> {
         let text = std::str::from_utf8(payload).ok()?;
         for line in text.lines() {
@@ -129,18 +99,13 @@ impl Sniffer {
             if lower.starts_with("host:") {
                 let host = line[5..].trim();
                 let domain = host.split(':').next()?.trim();
-                if !domain.is_empty() {
-                    return Some(domain.to_string());
-                }
+                if !domain.is_empty() { return Some(domain.to_string()); }
             }
         }
         None
     }
-
     pub fn sniff_quic_sni(payload: &[u8]) -> Option<String> {
-        if payload.len() > 100 && (payload[0] & 0x80 != 0) {
-            return Self::sniff_tls_sni(&payload[40..]);
-        }
+        if payload.len() > 100 && (payload[0] & 0x80 != 0) { return Self::sniff_tls_sni(&payload[40..]); }
         None
     }
 }

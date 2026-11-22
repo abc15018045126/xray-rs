@@ -2,7 +2,6 @@
 mod imp {
 use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
-
 use async_trait::async_trait;
 use pingora_core::apps::ServerApp;
 use pingora_core::connectors::{ConnectorOptions, L4Connect, TransportConnector};
@@ -17,15 +16,12 @@ use pingora_core::upstreams::peer::BasicPeer;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
-
 use crate::app::dispatcher::DefaultDispatcher;
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use crate::features::inbound::InboundHandler;
-
 #[derive(Debug, Clone, Copy, Default)]
 struct TunAwareL4Connect;
-
 #[async_trait]
 impl L4Connect for TunAwareL4Connect {
     async fn connect(&self, addr: &PingoraSocketAddr) -> pingora_core::Result<PingoraL4Stream> {
@@ -45,32 +41,23 @@ impl L4Connect for TunAwareL4Connect {
         Ok(PingoraL4Stream::from(tcp))
     }
 }
-
 static GLOBAL_TRANSPORT_CONNECTOR: LazyLock<TransportConnector> =
     LazyLock::new(|| TransportConnector::new(Some(ConnectorOptions::new(128))));
-
-static TUN_L4_CONNECTOR: LazyLock<Arc<TunAwareL4Connect>> =
-    LazyLock::new(|| Arc::new(TunAwareL4Connect));
-
+static TUN_L4_CONNECTOR: LazyLock<Arc<TunAwareL4Connect>> = LazyLock::new(|| Arc::new(TunAwareL4Connect));
 pub struct PingoraCoreConnector;
-
 impl PingoraCoreConnector {
     pub async fn dial_tcp(addr: SocketAddr) -> Result<BoxStream> {
         let mut peer = BasicPeer::new(&addr.to_string());
         peer.options.custom_l4 = Some(TUN_L4_CONNECTOR.clone());
         let stream: PingoraStream = GLOBAL_TRANSPORT_CONNECTOR
-            .new_stream(&peer)
-            .await
-            .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+            .new_stream(&peer).await.map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
         Ok(Box::pin(stream))
     }
 }
-
 pub struct PingoraInboundApp {
     handler: Arc<dyn InboundHandler>,
     dispatcher: Arc<DefaultDispatcher>,
 }
-
 impl PingoraInboundApp {
     pub fn new(handler: Arc<dyn InboundHandler>, dispatcher: Arc<DefaultDispatcher>) -> Self {
         Self {
@@ -79,14 +66,12 @@ impl PingoraInboundApp {
         }
     }
 }
-
 #[async_trait]
 impl ServerApp for PingoraInboundApp {
     async fn process_new(self: &Arc<Self>, session: PingoraStream, _shutdown: &ShutdownWatch) -> Option<PingoraStream> {
         let remote_addr = session.get_socket_digest()
             .and_then(|d| d.peer_addr().cloned())
-            .and_then(|a| a.as_inet().copied())
-            .unwrap_or_else(|| SocketAddr::from(([127, 0, 0, 1], 0)));
+            .and_then(|a| a.as_inet().copied()).unwrap_or_else(|| SocketAddr::from(([127, 0, 0, 1], 0)));
         match self.handler.handle_connection(Box::pin(session), remote_addr).await {
             Ok(res) => { if let Err(e) = self.dispatcher.dispatch(res.stream, res.session).await { warn!("Dispatch error: {}", e); } }
             Err(Error::Closed) => {}
@@ -95,34 +80,20 @@ impl ServerApp for PingoraInboundApp {
         None
     }
 }
-
 pub fn spawn_pingora_inbound(
     addr: SocketAddr,
     handler: Arc<dyn InboundHandler>,
     dispatcher: Arc<DefaultDispatcher>,
 ) -> Option<JoinHandle<()>> {
     if let Err(e) = std::net::TcpListener::bind(addr) {
-        warn!(
-            "Inbound [{}] could not bind to {} ({}). Continuing other inbounds...",
-            handler.tag(),
-            addr,
-            e
-        );
+        warn!("Inbound [{}] could not bind to {} ({}). Continuing other inbounds...", handler.tag(), addr, e);
         return None;
     }
-
     let tag = handler.tag().to_string();
     let app = PingoraInboundApp::new(handler, dispatcher);
     let mut service = PingoraListeningService::new(format!("xray-inbound-{}", tag), app);
-    service.add_listener(
-        ListenerConfig::tcp(addr.to_string()).l4_buffer(L4BufferSettings::unbuffered()),
-    );
-
-    info!(
-        "Inbound [{}] listening on {} (powered by pingora-core)",
-        tag, addr
-    );
-
+    service.add_listener(ListenerConfig::tcp(addr.to_string()).l4_buffer(L4BufferSettings::unbuffered()));
+    info!("Inbound [{}] listening on {} (powered by pingora-core)", tag, addr);
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
         let _keep_tx = _shutdown_tx;
@@ -135,7 +106,6 @@ pub fn spawn_pingora_inbound(
             )
             .await;
     });
-
     Some(handle)
 }
 }
@@ -150,25 +120,19 @@ mod android_imp {
     use tokio::net::TcpListener;
     use tokio::task::JoinHandle;
     use tracing::{info, warn};
-
     use crate::app::dispatcher::DefaultDispatcher;
     use crate::common::errors::{Error, Result};
     use crate::common::net::BoxStream;
     use crate::features::inbound::InboundHandler;
-
     pub struct PingoraCoreConnector;
-
     impl PingoraCoreConnector {
         pub async fn dial_tcp(addr: SocketAddr) -> Result<BoxStream> {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let tcp = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
-                .await
-                .map_err(Error::Io)?;
+            let tcp = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await.map_err(Error::Io)?;
             let _ = tcp.set_nodelay(true);
             Ok(Box::pin(tcp))
         }
     }
-
     pub fn spawn_pingora_inbound(
         addr: SocketAddr,
         handler: Arc<dyn InboundHandler>,
@@ -180,7 +144,6 @@ mod android_imp {
         let _ = std_listener.set_nonblocking(true);
         let listener = TcpListener::from_std(std_listener).ok()?;
         info!("Inbound [{}] listening on {} (Android Tokio)", handler.tag(), addr);
-
         Some(tokio::spawn(async move {
             while let Ok((stream, remote_addr)) = listener.accept().await {
                 let _ = stream.set_nodelay(true);

@@ -3,7 +3,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UdpSocket;
-
 use super::config::WireGuardConfig;
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
@@ -22,29 +21,21 @@ impl Client {
             config,
         }
     }
-
-    pub fn config(&self) -> &WireGuardConfig {
-        &self.config
-    }
+    pub fn config(&self) -> &WireGuardConfig { &self.config }
 }
 
 #[async_trait]
 impl OutboundHandler for Client {
-    fn tag(&self) -> &str {
-        &self.tag
-    }
-
+    fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
         let peer = self.config.peers.first().ok_or_else(|| Error::Config("No WireGuard peers defined".into()))?;
         let endpoint: SocketAddr = peer
             .endpoint
             .parse()
             .map_err(|e| Error::AddressParse(format!("Invalid WireGuard peer endpoint {}: {}", peer.endpoint, e)))?;
-
         let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
         socket.connect(endpoint).await?;
         let (client_stream, mut server_stream) = tokio::io::duplex(64 * 1024);
-
         tokio::spawn(async move {
             let (mut s_buf, mut u_buf) = (vec![0u8; 64 * 1024], vec![0u8; 64 * 1024]);
             loop {
@@ -60,7 +51,6 @@ impl OutboundHandler for Client {
                 }
             }
         });
-
         Ok(Box::pin(client_stream))
     }
 }

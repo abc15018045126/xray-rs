@@ -4,9 +4,7 @@ use tokio::net::UdpSocket;
 
 pub const SO_REUSEPORT: bool = false;
 
-pub fn retrieve_original_dest(_oob: &[u8]) -> Option<Destination> {
-    None
-}
+pub fn retrieve_original_dest(_oob: &[u8]) -> Option<Destination> { None }
 
 pub async fn read_udp_msg(
     conn: &UdpSocket,

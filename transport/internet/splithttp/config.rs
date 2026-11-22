@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
 use super::common::*;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,14 +11,9 @@ pub struct RangeConfig {
 }
 
 impl RangeConfig {
-    pub fn new(from: i32, to: i32) -> Self {
-        Self { from, to }
-    }
-
+    pub fn new(from: i32, to: i32) -> Self { Self { from, to } }
     pub fn rand(&self) -> i32 {
-        if self.from >= self.to {
-            return self.from;
-        }
+        if self.from >= self.to { return self.from; }
         use rand::Rng;
         rand::thread_rng().gen_range(self.from..=self.to)
     }
@@ -103,19 +97,13 @@ impl SplitHttpConfig {
             ..Default::default()
         }
     }
-
     pub fn get_normalized_path(&self) -> String {
         let parts: Vec<&str> = self.path.splitn(2, '?').collect();
         let mut path = parts[0].to_string();
-        if path.is_empty() || !path.starts_with('/') {
-            path = format!("/{}", path);
-        }
-        if !path.ends_with('/') {
-            path.push('/');
-        }
+        if path.is_empty() || !path.starts_with('/') { path = format!("/{}", path); }
+        if !path.ends_with('/') { path.push('/'); }
         path
     }
-
     pub fn get_normalized_query(&self) -> String {
         let parts: Vec<&str> = self.path.splitn(2, '?').collect();
         if parts.len() > 1 {
@@ -124,7 +112,6 @@ impl SplitHttpConfig {
             String::new()
         }
     }
-
     pub fn get_normalized_uplink_http_method(&self) -> &str {
         if self.uplink_http_method.is_empty() {
             "POST"
@@ -132,21 +119,18 @@ impl SplitHttpConfig {
             &self.uplink_http_method
         }
     }
-
     pub fn get_normalized_sc_max_each_post_bytes(&self) -> RangeConfig {
         match self.sc_max_each_post_bytes {
             Some(rc) if rc.to > 0 => rc,
             _ => RangeConfig::new(1_000_000, 1_000_000),
         }
     }
-
     pub fn get_normalized_sc_min_posts_interval_ms(&self) -> RangeConfig {
         match self.sc_min_posts_interval_ms {
             Some(rc) if rc.to > 0 => rc,
             _ => RangeConfig::new(30, 30),
         }
     }
-
     pub fn get_normalized_sc_max_buffered_posts(&self) -> usize {
         if self.sc_max_buffered_posts <= 0 {
             30
@@ -154,14 +138,12 @@ impl SplitHttpConfig {
             self.sc_max_buffered_posts as usize
         }
     }
-
     pub fn get_normalized_sc_stream_up_server_secs(&self) -> RangeConfig {
         match self.sc_stream_up_server_secs {
             Some(rc) if rc.to > 0 => rc,
             _ => RangeConfig::new(20, 80),
         }
     }
-
     pub fn get_normalized_session_placement(&self) -> &str {
         if self.session_placement.is_empty() {
             PLACEMENT_PATH
@@ -169,7 +151,6 @@ impl SplitHttpConfig {
             &self.session_placement
         }
     }
-
     pub fn get_normalized_seq_placement(&self) -> &str {
         if self.seq_placement.is_empty() {
             PLACEMENT_PATH
@@ -177,7 +158,6 @@ impl SplitHttpConfig {
             &self.seq_placement
         }
     }
-
     pub fn get_normalized_uplink_data_placement(&self) -> &str {
         if self.uplink_data_placement.is_empty() {
             PLACEMENT_BODY
@@ -185,29 +165,22 @@ impl SplitHttpConfig {
             &self.uplink_data_placement
         }
     }
-
     pub fn get_normalized_session_key(&self) -> &str {
-        if !self.session_key.is_empty() {
-            return &self.session_key;
-        }
+        if !self.session_key.is_empty() { return &self.session_key; }
         match self.get_normalized_session_placement() {
             PLACEMENT_HEADER => "X-Session",
             PLACEMENT_COOKIE | PLACEMENT_QUERY => "x_session",
             _ => "",
         }
     }
-
     pub fn get_normalized_seq_key(&self) -> &str {
-        if !self.seq_key.is_empty() {
-            return &self.seq_key;
-        }
+        if !self.seq_key.is_empty() { return &self.seq_key; }
         match self.get_normalized_seq_placement() {
             PLACEMENT_HEADER => "X-Seq",
             PLACEMENT_COOKIE | PLACEMENT_QUERY => "x_seq",
             _ => "",
         }
     }
-
     pub fn get_normalized_server_max_header_bytes(&self) -> usize {
         if self.server_max_header_bytes <= 0 {
             8192
@@ -215,7 +188,6 @@ impl SplitHttpConfig {
             self.server_max_header_bytes as usize
         }
     }
-
     pub fn append_to_path(path: &str, value: &str) -> String {
         if path.ends_with('/') {
             format!("{}{}", path, value)
@@ -223,7 +195,6 @@ impl SplitHttpConfig {
             format!("{}/{}", path, value)
         }
     }
-
     pub fn extract_meta_from_request(
         &self,
         req_path: &str,
@@ -238,15 +209,12 @@ impl SplitHttpConfig {
         } else {
             Vec::new()
         };
-
         let mut path_part = 0;
         let mut get_field = |placement: &str, key: &str| -> String {
             match placement {
                 PLACEMENT_PATH => {
                     let v = subpath.get(path_part).copied().unwrap_or("");
-                    if !v.is_empty() {
-                        path_part += 1;
-                    }
+                    if !v.is_empty() { path_part += 1; }
                     v.to_string()
                 }
                 PLACEMENT_QUERY => query_pairs.get(key).cloned().unwrap_or_default(),
@@ -255,7 +223,6 @@ impl SplitHttpConfig {
                 _ => String::new(),
             }
         };
-
         let session_id = get_field(sp, self.get_normalized_session_key());
         let seq_str = get_field(qp, self.get_normalized_seq_key());
         (session_id, seq_str)

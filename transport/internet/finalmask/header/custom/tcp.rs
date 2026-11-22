@@ -2,24 +2,17 @@ use rand::Rng;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-
 use super::config::{TCPConfig, TCPSequence};
 use crate::common::errors::{Error, Result};
 
 pub const TCP_CUSTOM_MAGIC: &[u8] = b"CUSTOM-TCP";
 
-pub async fn read_sequence<R: AsyncRead + Unpin>(
-    reader: &mut R,
-    sequence: &TCPSequence,
-) -> Result<()> {
+pub async fn read_sequence<R: AsyncRead + Unpin>(reader: &mut R, sequence: &TCPSequence) -> Result<()> {
     for item in &sequence.sequence {
         let length = (item.rand as usize).max(item.packet.len());
-        if length == 0 {
-            continue;
-        }
+        if length == 0 { continue; }
         let mut buf = vec![0u8; length];
         reader.read_exact(&mut buf).await.map_err(Error::Io)?;
-
         if !item.packet.is_empty() && buf != item.packet {
             return Err(Error::Protocol("TCP sequence mismatch".into()));
         }
@@ -75,10 +68,7 @@ pub async fn write_sequence<W: AsyncWrite + Unpin>(writer: &mut W, sequence: &TC
     Ok(())
 }
 
-pub async fn client_handshake<S: AsyncRead + AsyncWrite + Unpin>(
-    stream: &mut S,
-    config: &TCPConfig,
-) -> Result<()> {
+pub async fn client_handshake<S: AsyncRead + AsyncWrite + Unpin>(stream: &mut S, config: &TCPConfig) -> Result<()> {
     let mut j = 0;
     for client_seq in &config.clients {
         write_sequence(stream, client_seq).await?;
@@ -87,7 +77,6 @@ pub async fn client_handshake<S: AsyncRead + AsyncWrite + Unpin>(
             j += 1;
         }
     }
-
     while j < config.servers.len() {
         read_sequence(stream, &config.servers[j]).await?;
         j += 1;
@@ -95,25 +84,18 @@ pub async fn client_handshake<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-pub async fn server_handshake<S: AsyncRead + AsyncWrite + Unpin>(
-    stream: &mut S,
-    config: &TCPConfig,
-) -> Result<()> {
+pub async fn server_handshake<S: AsyncRead + AsyncWrite + Unpin>(stream: &mut S, config: &TCPConfig) -> Result<()> {
     let mut j = 0;
     for (i, client_seq) in config.clients.iter().enumerate() {
         if let Err(e) = read_sequence(stream, client_seq).await {
-            if i < config.errors.len() {
-                let _ = write_sequence(stream, &config.errors[i]).await;
-            }
+            if i < config.errors.len() { let _ = write_sequence(stream, &config.errors[i]).await; }
             return Err(e);
         }
-
         if j < config.servers.len() {
             write_sequence(stream, &config.servers[j]).await?;
             j += 1;
         }
     }
-
     while j < config.servers.len() {
         write_sequence(stream, &config.servers[j]).await?;
         j += 1;
@@ -133,30 +115,14 @@ impl<S> TcpCustomConn<S> {
             authenticated: true,
         }
     }
-
-    pub fn is_authenticated(&self) -> bool {
-        self.authenticated
-    }
-
-    pub fn into_inner(self) -> S {
-        self.stream
-    }
-
-    pub fn get_ref(&self) -> &S {
-        &self.stream
-    }
-
-    pub fn get_mut(&mut self) -> &mut S {
-        &mut self.stream
-    }
+    pub fn is_authenticated(&self) -> bool { self.authenticated }
+    pub fn into_inner(self) -> S { self.stream }
+    pub fn get_ref(&self) -> &S { &self.stream }
+    pub fn get_mut(&mut self) -> &mut S { &mut self.stream }
 }
 
 impl<S: AsyncRead + Unpin> AsyncRead for TcpCustomConn<S> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         if !self.authenticated {
             return Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
@@ -168,11 +134,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for TcpCustomConn<S> {
 }
 
 impl<S: AsyncWrite + Unpin> AsyncWrite for TcpCustomConn<S> {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
         if !self.authenticated {
             return Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::PermissionDenied,
@@ -181,11 +143,9 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for TcpCustomConn<S> {
         }
         Pin::new(&mut self.stream).poll_write(cx, buf)
     }
-
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.stream).poll_flush(cx)
     }
-
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.stream).poll_shutdown(cx)
     }

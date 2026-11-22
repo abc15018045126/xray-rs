@@ -17,7 +17,6 @@ impl LoopbackOutbound {
             dispatcher,
         }
     }
-
     pub async fn process<S>(&self, stream: S, dest: Destination) -> Result<()>
     where
         S: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static,
@@ -29,14 +28,10 @@ impl LoopbackOutbound {
 
 #[async_trait::async_trait]
 impl crate::features::outbound::OutboundHandler for LoopbackOutbound {
-    fn tag(&self) -> &str {
-        &self.inbound_tag
-    }
-
+    fn tag(&self) -> &str { &self.inbound_tag }
     async fn connect(&self, session: &SessionContext) -> Result<crate::common::net::BoxStream> {
         let (client, server) = tokio::io::duplex(64 * 1024);
-        let mut loop_session =
-            SessionContext::new(self.inbound_tag.clone(), session.destination.clone());
+        let mut loop_session = SessionContext::new(self.inbound_tag.clone(), session.destination.clone());
         loop_session.source = session.source;
         let dispatcher = self.dispatcher.clone();
         tokio::spawn(async move {

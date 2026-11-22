@@ -7,15 +7,7 @@ pub struct ProtocolContext {
 }
 
 impl ProtocolContext {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_user(user: Arc<MemoryUser>) -> Self {
-        Self { user: Some(user) }
-    }
-
-    pub fn user(&self) -> Option<&Arc<MemoryUser>> {
-        self.user.as_ref()
-    }
+    pub fn new() -> Self { Self::default() }
+    pub fn with_user(user: Arc<MemoryUser>) -> Self { Self { user: Some(user) } }
+    pub fn user(&self) -> Option<&Arc<MemoryUser>> { self.user.as_ref() }
 }

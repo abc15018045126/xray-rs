@@ -8,17 +8,11 @@ pub struct BurstObserver {
 }
 
 impl BurstObserver {
-    pub fn new() -> Self {
-        Self {
-            statuses: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
+    pub fn new() -> Self { Self { statuses: Arc::new(RwLock::new(HashMap::new())), } }
     pub async fn update(&self, status: HealthStatus) {
         let mut guard = self.statuses.write().await;
         guard.insert(status.tag.clone(), status);
     }
-
     pub async fn get(&self, tag: &str) -> Option<HealthStatus> {
         let guard = self.statuses.read().await;
         guard.get(tag).cloned()
@@ -26,7 +20,5 @@ impl BurstObserver {
 }
 
 impl Default for BurstObserver {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }

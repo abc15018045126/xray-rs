@@ -12,12 +12,6 @@ impl HttpUpgradeConnection {
             remote_addr: remote_addr.into(),
         }
     }
-
-    pub fn remote_addr(&self) -> &str {
-        &self.remote_addr
-    }
-
-    pub fn into_inner(self) -> BoxStream {
-        self.stream
-    }
+    pub fn remote_addr(&self) -> &str { &self.remote_addr }
+    pub fn into_inner(self) -> BoxStream { self.stream }
 }
