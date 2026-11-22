@@ -3,25 +3,14 @@ use std::io;
 
 pub fn is_closed_or_canceled(err: &Error) -> bool {
     match err {
-        Error::Io(e) => {
-            matches!(
-                e.kind(),
-                io::ErrorKind::BrokenPipe
-                    | io::ErrorKind::ConnectionReset
-                    | io::ErrorKind::ConnectionAborted
-                    | io::ErrorKind::NotConnected
-                    | io::ErrorKind::UnexpectedEof
-                    | io::ErrorKind::Interrupted
-            )
-        }
+        Error::Io(e) => matches!(
+            e.kind(),
+            io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+                | io::ErrorKind::NotConnected | io::ErrorKind::UnexpectedEof | io::ErrorKind::Interrupted
+        ),
         Error::Other(msg) => {
             let m = msg.to_lowercase();
-            m.contains("closed")
-                || m.contains("canceled")
-                || m.contains("cancelled")
-                || m.contains("broken pipe")
-                || m.contains("eof")
-                || m.contains("connection reset")
+            ["closed", "canceled", "cancelled", "broken pipe", "eof", "connection reset"].iter().any(|k| m.contains(k))
         }
         _ => false,
     }

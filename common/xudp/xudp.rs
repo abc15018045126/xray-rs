@@ -146,25 +146,12 @@ impl XudpPacket {
     }
 
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&self.destination.port.to_be_bytes());
-
+        let mut buf = self.destination.port.to_be_bytes().to_vec();
         match &self.destination.address {
-            Address::Ipv4(v4) => {
-                buf.push(1);
-                buf.extend_from_slice(&v4.octets());
-            }
-            Address::Domain(dom) => {
-                buf.push(2);
-                buf.push(dom.len() as u8);
-                buf.extend_from_slice(dom.as_bytes());
-            }
-            Address::Ipv6(v6) => {
-                buf.push(3);
-                buf.extend_from_slice(&v6.octets());
-            }
+            Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+            Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+            Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
         }
-
         buf.extend_from_slice(&self.payload);
         writer.write_all(&buf).await?;
         writer.flush().await?;

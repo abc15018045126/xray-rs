@@ -431,24 +431,13 @@ pub fn resolve_layout(mode: &str, custom_table: &str) -> Result<ByteLayout> {
 pub fn get_tables(config: &SudokuConfig) -> Result<Vec<Arc<SudokuTable>>> {
     let mode = config.normalized_ascii()?;
     let patterns = config.normalized_custom_patterns(&mode)?;
-
-    let cache_key = format!("{}:{}:{}", config.password, mode, patterns.join("\0"));
+    let key = format!("{}:{}:{}", config.password, mode, patterns.join("\0"));
     let cache = get_table_cache();
-    {
-        let guard = cache.lock().unwrap();
-        if let Some(cached) = guard.get(&cache_key) {
-            return Ok(cached.clone());
-        }
-    }
-
-    let mut tables = Vec::with_capacity(patterns.len());
-    for pattern in patterns {
-        let layout = Arc::new(resolve_layout(&mode, &pattern)?);
-        let table = Arc::new(SudokuTable::build(&config.password, layout)?);
-        tables.push(table);
-    }
-
-    let mut guard = cache.lock().unwrap();
-    guard.insert(cache_key, tables.clone());
+    if let Some(cached) = cache.lock().unwrap().get(&key).cloned() { return Ok(cached); }
+    let tables: Result<Vec<_>> = patterns.into_iter().map(|p| {
+        Ok(Arc::new(SudokuTable::build(&config.password, Arc::new(resolve_layout(&mode, &p)?))?))
+    }).collect();
+    let tables = tables?;
+    cache.lock().unwrap().insert(key, tables.clone());
     Ok(tables)
 }

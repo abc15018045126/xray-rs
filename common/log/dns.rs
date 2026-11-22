@@ -55,31 +55,16 @@ impl DnsLog {
 
 impl Message for DnsLog {
     fn to_log_string(&self) -> String {
-        let mut builder = String::new();
-        builder.push_str(&self.server);
-        builder.push(' ');
-        builder.push_str(self.status.as_str());
-        builder.push(' ');
-        builder.push_str(&self.domain);
-        builder.push_str(" -> [");
+        use std::fmt::Write;
+        let mut s = format!("{} {} {} -> [", self.server, self.status.as_str(), self.domain);
         for (i, ip) in self.result.iter().enumerate() {
-            if i > 0 {
-                builder.push_str(", ");
-            }
-            builder.push_str(&ip.to_string());
+            if i > 0 { s.push_str(", "); }
+            let _ = write!(s, "{}", ip);
         }
-        builder.push(']');
-
-        if self.elapsed > Duration::ZERO {
-            builder.push(' ');
-            builder.push_str(&format!("{:?}", self.elapsed));
-        }
-        if let Some(ref err) = self.error {
-            builder.push_str(" <");
-            builder.push_str(err);
-            builder.push('>');
-        }
-        builder
+        s.push(']');
+        if self.elapsed > Duration::ZERO { let _ = write!(s, " {:?}", self.elapsed); }
+        if let Some(ref err) = self.error { let _ = write!(s, " <{}>", err); }
+        s
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

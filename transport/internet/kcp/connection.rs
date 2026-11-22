@@ -46,31 +46,15 @@ impl RoundTripInfo {
     }
 
     pub fn update(&mut self, rtt: u32, current: u32) {
-        if rtt > 0x7FFFFFFF {
-            return;
-        }
-
+        if rtt > 0x7FFFFFFF { return; }
         if self.srtt == 0 {
             self.srtt = rtt;
             self.variation = rtt / 2;
         } else {
-            let delta = rtt.abs_diff(self.srtt);
-            self.variation = (3 * self.variation + delta) / 4;
-            self.srtt = (7 * self.srtt + rtt) / 8;
-            if self.srtt < self.min_rtt {
-                self.srtt = self.min_rtt;
-            }
+            self.variation = (3 * self.variation + rtt.abs_diff(self.srtt)) / 4;
+            self.srtt = ((7 * self.srtt + rtt) / 8).max(self.min_rtt);
         }
-
-        let mut rto = if self.min_rtt < 4 * self.variation {
-            self.srtt + 4 * self.variation
-        } else {
-            self.srtt + self.variation
-        };
-
-        if rto > 10000 {
-            rto = 10000;
-        }
+        let rto = (self.srtt + if self.min_rtt < 4 * self.variation { 4 * self.variation } else { self.variation }).min(10000);
         self.rto = (rto * 5 / 4).max(self.min_rtt);
         self.updated_timestamp = current;
     }

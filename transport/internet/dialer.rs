@@ -70,32 +70,13 @@ pub fn register_transport_dialer(
     Ok(())
 }
 
-pub async fn dial_transport(
-    dest: &Destination,
-    stream_settings: Option<&MemoryStreamConfig>,
-) -> Result<BoxStream> {
-    let proto = match stream_settings {
-        Some(s) if !s.protocol_name.is_empty() => s.protocol_name.as_str(),
-        _ => match dest.network {
-            Network::Tcp => "tcp",
-            Network::Udp => "udp",
-        },
-    };
-
-    let dialer_fn = {
-        let registry = get_transport_dialer_registry();
-        let map = registry
-            .read()
-            .map_err(|_| Error::Other("lock error".into()))?;
-        map.get(proto).cloned()
-    };
-
-    if let Some(df) = dialer_fn {
-        return df(dest, stream_settings).await;
-    }
-
-    let sockopt = stream_settings.and_then(|s| s.socket_settings.as_ref());
-    dial_system(dest, sockopt).await
+pub async fn dial_transport(dest: &Destination, stream_settings: Option<&MemoryStreamConfig>) -> Result<BoxStream> {
+    let proto = stream_settings.filter(|s| !s.protocol_name.is_empty())
+        .map_or(if dest.network == Network::Udp { "udp" } else { "tcp" }, |s| s.protocol_name.as_str());
+    let dialer_fn = get_transport_dialer_registry().read()
+        .map_err(|_| Error::Other("lock error".into()))?.get(proto).cloned();
+    if let Some(df) = dialer_fn { return df(dest, stream_settings).await; }
+    dial_system(dest, stream_settings.and_then(|s| s.socket_settings.as_ref())).await
 }
 
 pub async fn dial_system(dest: &Destination, sockopt: Option<&SocketOptions>) -> Result<BoxStream> {

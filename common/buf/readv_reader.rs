@@ -69,30 +69,16 @@ impl<R: AsyncRead + Unpin> ReadVReader<R> {
 #[async_trait]
 impl<R: AsyncRead + Send + Sync + Unpin> Reader for ReadVReader<R> {
     async fn read_multi_buffer(&mut self) -> Result<MultiBuffer> {
-        let current_count = self.alloc.current() as usize;
-        let mut mb = MultiBuffer::new();
-        let mut chunk = [0u8; 8192];
-
-        for _ in 0..current_count {
+        let (mut mb, mut chunk) = (MultiBuffer::new(), [0u8; 8192]);
+        for _ in 0..self.alloc.current() as usize {
             let n = self.reader.read(&mut chunk).await.map_err(Error::Io)?;
-            if n == 0 {
-                break;
-            }
+            if n == 0 { break; }
             let mut b = Buffer::with_capacity(n);
             let _ = b.write(&chunk[..n]);
             mb.push(b);
-            if n < 8192 {
-                break;
-            }
+            if n < 8192 { break; }
         }
-
-        if mb.is_empty() {
-            return Err(Error::Io(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "eof",
-            )));
-        }
-
+        if mb.is_empty() { return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "eof"))); }
         self.alloc.adjust(mb.buffers().len() as u32);
         Ok(mb)
     }

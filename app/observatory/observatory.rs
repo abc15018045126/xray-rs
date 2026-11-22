@@ -68,31 +68,13 @@ impl Observatory {
         self.record_status(tag, alive, delay.as_millis() as u64, error_reason);
     }
 
-    pub fn record_status(
-        &self,
-        tag: &str,
-        alive: bool,
-        delay_ms: u64,
-        error_reason: Option<String>,
-    ) {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
+    pub fn record_status(&self, tag: &str, alive: bool, delay_ms: u64, error_reason: Option<String>) {
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
         if let Ok(mut guard) = self.statuses.write() {
-            let entry = guard
-                .entry(tag.to_string())
-                .or_insert_with(|| OutboundStatus::new(tag));
-            entry.alive = alive;
-            entry.delay_ms = delay_ms;
-            entry.last_try_time = now;
-            if alive {
-                entry.last_seen_time = now;
-                entry.last_error_reason = None;
-            } else {
-                entry.last_error_reason = error_reason;
-            }
+            let e = guard.entry(tag.to_string()).or_insert_with(|| OutboundStatus::new(tag));
+            (e.alive, e.delay_ms, e.last_try_time) = (alive, delay_ms, now);
+            if alive { e.last_seen_time = now; e.last_error_reason = None; }
+            else { e.last_error_reason = error_reason; }
         }
     }
 

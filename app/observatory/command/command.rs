@@ -24,28 +24,12 @@ impl ObservatoryCommandServer {
 
 #[async_trait]
 impl IObservatoryService for ObservatoryCommandServer {
-    async fn get_outbound_status(
-        &self,
-        _req: GetOutboundStatusRequest,
-    ) -> Result<GetOutboundStatusResponse> {
-        let statuses = self.observatory.all_statuses();
-        let proto_statuses = statuses
-            .into_iter()
-            .map(|s| ProtoOutboundStatus {
-                alive: s.alive,
-                delay: s.delay_ms as i64,
-                last_error_reason: s.last_error_reason.unwrap_or_default(),
-                outbound_tag: s.outbound_tag,
-                last_seen_time: s.last_seen_time as i64,
-                last_try_time: s.last_try_time as i64,
-                health_ping: None,
-            })
-            .collect();
-
-        Ok(GetOutboundStatusResponse {
-            status: Some(ObservationResult {
-                status: proto_statuses,
-            }),
-        })
+    async fn get_outbound_status(&self, _req: GetOutboundStatusRequest) -> Result<GetOutboundStatusResponse> {
+        let status = self.observatory.all_statuses().into_iter().map(|s| ProtoOutboundStatus {
+            alive: s.alive, delay: s.delay_ms as i64, last_error_reason: s.last_error_reason.unwrap_or_default(),
+            outbound_tag: s.outbound_tag, last_seen_time: s.last_seen_time as i64,
+            last_try_time: s.last_try_time as i64, health_ping: None,
+        }).collect();
+        Ok(GetOutboundStatusResponse { status: Some(ObservationResult { status }) })
     }
 }

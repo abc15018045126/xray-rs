@@ -96,31 +96,17 @@ impl XmuxManager {
     }
 
     pub async fn get_client(&mut self) -> Arc<Mutex<XmuxClient>> {
-        self.clients.retain(|c| {
-            if let Ok(guard) = c.try_lock() {
-                guard.is_reusable()
-            } else {
-                true
-            }
-        });
-
+        self.clients.retain(|c| c.try_lock().map_or(true, |g| g.is_reusable()));
         for c in &self.clients {
-            let guard = c.lock().await;
-            if guard.open_usage.load(Ordering::SeqCst) < self.max_concurrency && guard.is_reusable()
-            {
-                drop(guard);
+            let g = c.lock().await;
+            if g.open_usage.load(Ordering::SeqCst) < self.max_concurrency && g.is_reusable() {
+                drop(g);
                 return c.clone();
             }
         }
-
         let id = self.next_id;
         self.next_id += 1;
-        let client = Arc::new(Mutex::new(XmuxClient::new(
-            id,
-            self.max_reuse,
-            self.max_requests,
-            self.max_secs,
-        )));
+        let client = Arc::new(Mutex::new(XmuxClient::new(id, self.max_reuse, self.max_requests, self.max_secs)));
         self.clients.push(client.clone());
         client
     }

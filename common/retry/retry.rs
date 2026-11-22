@@ -28,26 +28,20 @@ impl Retryer {
     }
 
     pub fn on<F: FnMut() -> Result<()>>(&self, mut method: F) -> Result<()> {
-        let mut attempt = 0;
-        let mut accumulated_errors = Vec::new();
-        while attempt < self.total_attempt {
+        let mut errs = Vec::new();
+        for attempt in 0..self.total_attempt {
             match method() {
                 Ok(()) => return Ok(()),
                 Err(err) => {
-                    accumulated_errors.push(err.to_string());
+                    errs.push(err.to_string());
                     let delay = (self.next_delay_fn)(attempt);
                     if delay > 0 && attempt + 1 < self.total_attempt {
                         std::thread::sleep(Duration::from_millis(delay as u64));
                     }
-                    attempt += 1;
                 }
             }
         }
-        Err(Error::Other(format!(
-            "{}: {}",
-            ERR_RETRY_FAILED,
-            accumulated_errors.join(" > ")
-        )))
+        Err(Error::Other(format!("{}: {}", ERR_RETRY_FAILED, errs.join(" > "))))
     }
 
     pub async fn on_async<F: FnMut() -> Fut, Fut: Future<Output = Result<T>>, T>(&self, mut method: F) -> Result<T> {

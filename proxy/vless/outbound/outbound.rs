@@ -489,16 +489,8 @@ impl VlessStream {
     fn flush_pending_write(&mut self, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         while !self.pending_write.is_empty() {
             match Pin::new(&mut self.inner).poll_write(cx, &self.pending_write) {
-                Poll::Ready(Ok(0)) => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::WriteZero,
-                        "failed to write buffered VLESS bytes",
-                    )));
-                }
-                Poll::Ready(Ok(n)) => {
-                    let drain_n = n.min(self.pending_write.len());
-                    self.pending_write.drain(..drain_n);
-                }
+                Poll::Ready(Ok(0)) => return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "failed to write buffered VLESS bytes"))),
+                Poll::Ready(Ok(n)) => { let d = n.min(self.pending_write.len()); self.pending_write.drain(..d); }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
             }

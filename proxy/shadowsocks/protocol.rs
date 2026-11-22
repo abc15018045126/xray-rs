@@ -34,28 +34,16 @@ pub async fn read_target_address<R: AsyncRead + Unpin>(reader: &mut R) -> Result
     Ok(Destination::new(address, reader.read_u16().await?))
 }
 
-pub async fn write_target_address<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    dest: &Destination,
-) -> Result<()> {
+pub async fn write_target_address<W: AsyncWrite + Unpin>(writer: &mut W, dest: &Destination) -> Result<()> {
     match &dest.address {
-        Address::Ipv4(ip) => {
-            writer.write_u8(0x01).await?;
-            writer.write_all(&ip.octets()).await?;
-        }
-        Address::Domain(domain) => {
-            writer.write_u8(0x03).await?;
-            let bytes = domain.as_bytes();
-            if bytes.len() > 255 {
-                return Err(Error::Protocol("Domain too long".into()));
-            }
-            writer.write_u8(bytes.len() as u8).await?;
+        Address::Ipv4(ip) => { writer.write_u8(0x01).await?; writer.write_all(&ip.octets()).await?; }
+        Address::Domain(d) => {
+            let bytes = d.as_bytes();
+            if bytes.len() > 255 { return Err(Error::Protocol("Domain too long".into())); }
+            writer.write_all(&[0x03, bytes.len() as u8]).await?;
             writer.write_all(bytes).await?;
         }
-        Address::Ipv6(ip) => {
-            writer.write_u8(0x04).await?;
-            writer.write_all(&ip.octets()).await?;
-        }
+        Address::Ipv6(ip) => { writer.write_u8(0x04).await?; writer.write_all(&ip.octets()).await?; }
     }
     writer.write_u16(dest.port).await?;
     Ok(())

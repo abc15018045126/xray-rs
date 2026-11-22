@@ -36,30 +36,16 @@ impl StaticHosts {
     }
 
     pub fn lookup(&self, domain: &str) -> Option<Vec<IpAddr>> {
-        let domain_lower = domain.to_lowercase();
-
-        if let Ok(guard) = self.exact.read()
-            && let Some(ips) = guard.get(&domain_lower)
-        {
-            return Some(ips.clone());
-        }
-
-        if let Ok(guard) = self.domain_suffix.read() {
-            for (suffix, ips) in guard.iter() {
-                if domain_lower == *suffix || domain_lower.ends_with(&format!(".{}", suffix)) {
-                    return Some(ips.clone());
-                }
+        let d = domain.to_lowercase();
+        if let Ok(g) = self.exact.read() && let Some(ips) = g.get(&d) { return Some(ips.clone()); }
+        if let Ok(g) = self.domain_suffix.read() {
+            if let Some((_, ips)) = g.iter().find(|(s, _)| d == **s || d.strip_suffix(s.as_str()).is_some_and(|p| p.ends_with('.'))) {
+                return Some(ips.clone());
             }
         }
-
-        if let Ok(guard) = self.keywords.read() {
-            for (keyword, ips) in guard.iter() {
-                if domain_lower.contains(keyword) {
-                    return Some(ips.clone());
-                }
-            }
+        if let Ok(g) = self.keywords.read() {
+            if let Some((_, ips)) = g.iter().find(|(k, _)| d.contains(k.as_str())) { return Some(ips.clone()); }
         }
-
         None
     }
 }

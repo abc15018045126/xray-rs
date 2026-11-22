@@ -185,21 +185,14 @@ impl TlsServer {
         key: rustls_pki_types::PrivateKeyDer<'static>,
         alpn: Vec<Vec<u8>>,
     ) -> Result<Self> {
-        let provider = rustls::crypto::ring::default_provider();
-        let mut config = ServerConfig::builder_with_provider(Arc::new(provider))
+        let mut config = ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
             .with_safe_default_protocol_versions()
             .map_err(|e| Error::Protocol(format!("TLS server protocol error: {}", e)))?
             .with_no_client_auth()
             .with_single_cert(certs, key)
             .map_err(|e| Error::Protocol(format!("TLS server single cert error: {}", e)))?;
-
-        if !alpn.is_empty() {
-            config.alpn_protocols = alpn;
-        }
-
-        Ok(Self {
-            acceptor: TlsAcceptor::from(Arc::new(config)),
-        })
+        if !alpn.is_empty() { config.alpn_protocols = alpn; }
+        Ok(Self { acceptor: TlsAcceptor::from(Arc::new(config)) })
     }
 
     pub fn from_pem(cert_pem: &[u8], key_pem: &[u8], alpn: Vec<Vec<u8>>) -> Result<Self> {

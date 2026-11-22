@@ -34,27 +34,7 @@ impl UdpCustomClient {
     }
 
     pub fn serialize(&self, buf: &mut [u8]) {
-        let mut rng = rand::thread_rng();
-        let mut out = self.template.clone();
-        let mut idx = 0;
-        for item in &self.client {
-            if item.rand > 0 {
-                let r_min = (item.rand_min as u8).min(item.rand_max as u8);
-                let r_max = (item.rand_max as u8).max(r_min);
-                for _ in 0..item.rand {
-                    out[idx] = if r_min == r_max {
-                        r_min
-                    } else {
-                        rng.gen_range(r_min..=r_max)
-                    };
-                    idx += 1;
-                }
-            } else {
-                idx += item.packet.len();
-            }
-        }
-        let copy_len = buf.len().min(out.len());
-        buf[..copy_len].copy_from_slice(&out[..copy_len]);
+        serialize_udp_items(&self.template, &self.client, buf);
     }
 
     pub fn matches(&self, packet: &[u8]) -> bool {
@@ -94,6 +74,22 @@ impl UdpCustomClient {
     }
 }
 
+fn serialize_udp_items(template: &[u8], items: &[UDPItem], buf: &mut [u8]) {
+    let (mut rng, mut out, mut idx) = (rand::thread_rng(), template.to_vec(), 0);
+    for item in items {
+        if item.rand > 0 {
+            let r_min = (item.rand_min as u8).min(item.rand_max as u8);
+            let r_max = (item.rand_max as u8).max(r_min);
+            for _ in 0..item.rand {
+                out[idx] = if r_min == r_max { r_min } else { rng.gen_range(r_min..=r_max) };
+                idx += 1;
+            }
+        } else { idx += item.packet.len(); }
+    }
+    let n = buf.len().min(out.len());
+    buf[..n].copy_from_slice(&out[..n]);
+}
+
 #[derive(Debug, Clone)]
 pub struct UdpCustomServer {
     client: Vec<UDPItem>,
@@ -123,27 +119,7 @@ impl UdpCustomServer {
     }
 
     pub fn serialize(&self, buf: &mut [u8]) {
-        let mut rng = rand::thread_rng();
-        let mut out = self.template.clone();
-        let mut idx = 0;
-        for item in &self.server {
-            if item.rand > 0 {
-                let r_min = (item.rand_min as u8).min(item.rand_max as u8);
-                let r_max = (item.rand_max as u8).max(r_min);
-                for _ in 0..item.rand {
-                    out[idx] = if r_min == r_max {
-                        r_min
-                    } else {
-                        rng.gen_range(r_min..=r_max)
-                    };
-                    idx += 1;
-                }
-            } else {
-                idx += item.packet.len();
-            }
-        }
-        let copy_len = buf.len().min(out.len());
-        buf[..copy_len].copy_from_slice(&out[..copy_len]);
+        serialize_udp_items(&self.template, &self.server, buf);
     }
 
     pub fn matches(&self, packet: &[u8]) -> bool {

@@ -45,28 +45,11 @@ impl ByteSize {
     }
 
     pub fn to_string_formatted(&self) -> String {
-        if self.0 == 0 {
-            return "0".to_string();
-        }
-        let (val, unit) = if self.0 < KB {
-            (self.0 as f64, "B")
-        } else if self.0 < MB {
-            (self.0 as f64 / KB as f64, "KB")
-        } else if self.0 < GB {
-            (self.0 as f64 / MB as f64, "MB")
-        } else if self.0 < TB {
-            (self.0 as f64 / GB as f64, "GB")
-        } else if self.0 < PB {
-            (self.0 as f64 / TB as f64, "TB")
-        } else if self.0 < EB {
-            (self.0 as f64 / PB as f64, "PB")
-        } else {
-            (self.0 as f64 / EB as f64, "EB")
-        };
-
-        let formatted = format!("{:.2}", val);
-        let trimmed = formatted.trim_end_matches(".0");
-        format!("{}{}", trimmed, unit)
+        if self.0 == 0 { return "0".into(); }
+        let (div, unit) = [(EB, "EB"), (PB, "PB"), (TB, "TB"), (GB, "GB"), (MB, "MB"), (KB, "KB")]
+            .into_iter().find(|&(t, _)| self.0 >= t).unwrap_or((1, "B"));
+        let formatted = format!("{:.2}", self.0 as f64 / div as f64);
+        format!("{}{}", formatted.trim_end_matches(".0"), unit)
     }
 }
 

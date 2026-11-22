@@ -15,33 +15,14 @@ pub struct UdpHopPacketConn {
 }
 
 impl UdpHopPacketConn {
-    pub fn new(
-        hop_addr: UDPHopAddr,
-        interval_min: Duration,
-        interval_max: Duration,
-    ) -> Result<Self, &'static str> {
+    pub fn new(hop_addr: UDPHopAddr, interval_min: Duration, interval_max: Duration) -> Result<Self, &'static str> {
         let (min, max) = if interval_min.is_zero() || interval_max.is_zero() {
             (DEFAULT_HOP_INTERVAL, DEFAULT_HOP_INTERVAL)
-        } else {
-            (interval_min, interval_max)
-        };
-
-        if min < Duration::from_secs(5) || max < Duration::from_secs(5) {
-            return Err("hop interval must be at least 5 seconds");
-        }
-
+        } else { (interval_min, interval_max) };
+        if min < Duration::from_secs(5) || max < Duration::from_secs(5) { return Err("hop interval must be at least 5 seconds"); }
         let addrs = hop_addr.addrs();
-        if addrs.is_empty() {
-            return Err("no valid hop addresses");
-        }
-
-        Ok(Self {
-            hop_addr,
-            addrs,
-            hop_interval_min: min,
-            hop_interval_max: max,
-            addr_index: Arc::new(AtomicUsize::new(0)),
-        })
+        if addrs.is_empty() { return Err("no valid hop addresses"); }
+        Ok(Self { hop_addr, addrs, hop_interval_min: min, hop_interval_max: max, addr_index: Arc::new(AtomicUsize::new(0)) })
     }
 
     pub fn current_addr(&self) -> SocketAddr {
