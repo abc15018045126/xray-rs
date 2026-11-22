@@ -1,4 +1,3 @@
-// Module: proxy\freedom\freedom_test.rs
 #[cfg(test)]
 mod tests {
     use super::super::config::FreedomConfig;

@@ -1,6 +1,3 @@
-// Module: common\reflect\marshal.rs
-// 1:1 Rust implementation corresponding to Go common\reflect\marshal.go
-
 use crate::common::errors::{Error, Result};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;

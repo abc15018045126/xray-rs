@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xicmp\server.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xicmp\server.go
-
 use super::client::{
     ICMP_TYPE_ECHO_REPLY_V4, ICMP_TYPE_ECHO_REPLY_V6, ICMP_TYPE_ECHO_V4, ICMP_TYPE_ECHO_V6,
     calculate_checksum, verify_checksum,
@@ -28,7 +25,6 @@ impl XIcmpServer {
         Self { config, is_ipv6 }
     }
 
-    /// Legacy helper to unwrap packet payload directly (compatibility helper).
     pub fn unwrap_packet<'a>(&self, packet: &'a [u8]) -> Option<&'a [u8]> {
         if packet.len() < 8 {
             return None;
@@ -44,8 +40,6 @@ impl XIcmpServer {
         Some(&packet[8..])
     }
 
-    /// Decodes an incoming ICMP Echo Request packet.
-    /// Returns None if filtered by ID, checksum error, or type mismatch.
     pub fn decode_request(&self, packet: &[u8]) -> Result<Option<XIcmpServerRequest>> {
         if packet.len() < 8 {
             return Err(Error::Protocol("ICMP request too short (< 8 bytes)".into()));
@@ -91,9 +85,6 @@ impl XIcmpServer {
         }))
     }
 
-    /// Encodes an ICMP Echo Reply replying to a previous client request.
-    /// If request had a payload, prepends a distinct random byte `b2 != req.seq_byte`
-    /// to prevent echo reflection attacks.
     pub fn encode_reply(
         &self,
         req: &XIcmpServerRequest,
@@ -120,8 +111,8 @@ impl XIcmpServer {
 
         let mut pkt = Vec::with_capacity(8 + data.len());
         pkt.push(typ);
-        pkt.push(0); // Code = 0
-        pkt.extend_from_slice(&[0, 0]); // Checksum placeholder
+        pkt.push(0);
+        pkt.extend_from_slice(&[0, 0]);
         pkt.extend_from_slice(&req.id.to_be_bytes());
         pkt.extend_from_slice(&req.seq.to_be_bytes());
         pkt.extend_from_slice(&data);

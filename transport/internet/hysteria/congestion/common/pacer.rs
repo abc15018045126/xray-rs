@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\common\pacer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\common\pacer.go
-
 use std::time::{Duration, Instant};
 
 pub const MAX_BURST_PACKETS: u64 = 10;

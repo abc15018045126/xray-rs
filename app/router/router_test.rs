@@ -1,6 +1,3 @@
-// Module: app\router\router_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\router\router_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::condition::{DomainMatcher, Rule};

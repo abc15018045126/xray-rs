@@ -1,6 +1,3 @@
-// Module: app\dns\nameserver_fakedns.rs
-// 1:1 Rust implementation corresponding to Go app\dns\nameserver_fakedns.go
-
 use async_trait::async_trait;
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -23,6 +20,10 @@ impl FakeDnsNameServer {
 impl NameServer for FakeDnsNameServer {
     fn name(&self) -> &str {
         "fakedns"
+    }
+
+    fn is_disable_cache(&self) -> bool {
+        true
     }
 
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {

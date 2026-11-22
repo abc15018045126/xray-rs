@@ -1,6 +1,3 @@
-// Module: common\protocol\tls\cert\cert_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\protocol\tls\cert\cert_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::cert::{Certificate, parse_certificate};

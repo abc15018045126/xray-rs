@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\http\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\headers\http\config.go
-
 use rand::Rng;
 
 pub use super::config_pb::{

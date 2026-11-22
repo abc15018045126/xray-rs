@@ -25,9 +25,9 @@ impl DtlsHeader {
     }
 
     pub fn serialize(&mut self, buf: &mut [u8]) {
-        buf[0] = 23; // ContentType: Application Data
-        buf[1] = 254; // DTLS 1.2 major version
-        buf[2] = 253; // DTLS 1.2 minor version
+        buf[0] = 23;
+        buf[1] = 254;
+        buf[2] = 253;
         buf[3..5].copy_from_slice(&self.epoch.to_be_bytes());
         buf[5] = 0;
         buf[6] = 0;

@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\bbr\windowed_filter.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\windowed_filter.go
-
 use std::time::{Duration, Instant};
 
 pub struct WindowedMaxFilter {

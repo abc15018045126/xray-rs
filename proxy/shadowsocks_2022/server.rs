@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks_2022\server.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\server.go
-
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -37,7 +34,6 @@ impl InboundHandler for Server {
         mut stream: BoxStream,
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
-        // 1. Read and decode 2022 SessionHeader
         let header = SessionHeader::decode(&mut stream).await?;
 
         if header.header_type != HEADER_TYPE_CLIENT {
@@ -47,7 +43,6 @@ impl InboundHandler for Server {
             )));
         }
 
-        // 2. Anti-replay timestamp check (window = 300 seconds)
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| Error::Protocol(e.to_string()))?
@@ -66,7 +61,6 @@ impl InboundHandler for Server {
             Error::Protocol("Shadowsocks-2022 request missing target destination".into())
         })?;
 
-        // 3. Send server response header
         let resp = SessionHeader::new_server(header.session_id);
         resp.encode(&mut stream).await?;
 

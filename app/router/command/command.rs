@@ -1,6 +1,3 @@
-// Module: app\router\command\command.rs
-// 1:1 Rust implementation corresponding to Go app\router\command\command.go
-
 use crate::app::commander::Service;
 use crate::app::router::Router;
 use crate::common::protocol::SessionContext;

@@ -1,6 +1,3 @@
-// Module: common\protocol\time_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\protocol\time_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::time::Timestamp;

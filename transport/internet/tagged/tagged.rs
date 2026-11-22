@@ -1,6 +1,3 @@
-// Module: transport\internet\tagged\tagged.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tagged\tagged.go
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, LazyLock};

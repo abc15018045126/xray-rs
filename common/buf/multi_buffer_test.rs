@@ -1,6 +1,3 @@
-// Module: common\buf\multi_buffer_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\buf\multi_buffer_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::multi_buffer::MultiBuffer;

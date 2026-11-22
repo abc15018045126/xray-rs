@@ -41,3 +41,13 @@ pub use strategy_leastping::LeastPingStrategy;
 pub use strategy_random::RandomStrategy;
 pub use webhook::{WebhookConfig, WebhookEvent, WebhookNotifier, parse_url, resolve_socket_path};
 pub use weight::{StrategyWeight, WeightManager};
+#[cfg(test)]
+mod geo_test;
+#[cfg(test)]
+mod log_geosite_compact_test;
+#[cfg(test)]
+mod router_balancer_policy_test;
+#[cfg(test)]
+mod scen_router_test;
+#[cfg(test)]
+mod weight_webhook_worker_test;

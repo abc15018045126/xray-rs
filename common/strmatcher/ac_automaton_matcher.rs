@@ -1,6 +1,3 @@
-// Module: common\strmatcher\ac_automaton_matcher.rs
-// 1:1 Rust implementation corresponding to Go common\strmatcher\ac_automaton_matcher.go
-
 use super::strmatcher::MatcherType;
 use std::collections::VecDeque;
 
@@ -14,7 +11,7 @@ pub struct MatchType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Edge {
-    pub edge_type: bool, // true: TrieEdge, false: FailEdge
+    pub edge_type: bool,
     pub next_node: usize,
 }
 
@@ -128,9 +125,9 @@ impl AcAutomatonMatcher {
 
     pub fn build(&mut self) {
         let mut queue = VecDeque::new();
-        for i in 0..VALID_CHAR_COUNT {
-            if self.trie[0][i].next_node != 0 {
-                queue.push_back(self.trie[0][i]);
+        for &edge in &self.trie[0] {
+            if edge.next_node != 0 {
+                queue.push_back(edge);
             }
         }
 

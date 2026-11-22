@@ -1,6 +1,3 @@
-// Module: common\platform\others.rs
-// 1:1 Rust implementation corresponding to Go common\platform\others.go
-
 use crate::common::platform::platform::{
     ASSET_LOCATION, CERT_LOCATION, EnvFlag, get_executable_dir,
 };

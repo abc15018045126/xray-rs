@@ -1,6 +1,3 @@
-// Module: common\strmatcher\matchers.rs
-// 1:1 Rust implementation corresponding to Go common\strmatcher\matchers.go
-
 use super::strmatcher::{Matcher, MatcherType};
 use crate::common::errors::{Error, Result};
 use regex::Regex;

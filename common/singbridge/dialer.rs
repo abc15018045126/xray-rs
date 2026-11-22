@@ -1,6 +1,3 @@
-// Module: common\singbridge\dialer.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\dialer.go
-
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -13,8 +10,6 @@ use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
 use crate::transport::internet::dialer::Dialer as InternetDialer;
 
-/// SingDialerTrait abstracts dialing functionality for singbridge.
-/// 1:1 corresponding to sagernet/sing/common/network.Dialer.
 #[async_trait]
 pub trait SingDialerTrait: Send + Sync {
     async fn dial_context(
@@ -26,8 +21,6 @@ pub trait SingDialerTrait: Send + Sync {
     async fn listen_packet(&self, ctx: &Context, destination: Socksaddr) -> Result<()>;
 }
 
-/// XrayDialer wraps transport internet.Dialer into SingDialerTrait.
-/// 1:1 corresponding to XrayDialer in dialer.go.
 pub struct XrayDialer {
     dialer: Arc<dyn InternetDialer>,
 }
@@ -55,8 +48,6 @@ impl SingDialerTrait for XrayDialer {
     }
 }
 
-/// XrayOutboundDialer routes outgoing connections through an Xray outbound handler.
-/// 1:1 corresponding to XrayOutboundDialer in dialer.go.
 pub struct XrayOutboundDialer {
     outbound: Arc<dyn OutboundHandler>,
     dialer: Option<Arc<dyn InternetDialer>>,
@@ -95,7 +86,6 @@ impl SingDialerTrait for XrayOutboundDialer {
     }
 }
 
-/// Backwards compatibility struct
 pub struct SingDialer;
 
 impl SingDialer {

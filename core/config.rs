@@ -1,6 +1,3 @@
-// Module: core\config.rs
-// 1:1 Rust implementation corresponding to Go core\config.go
-
 use super::format::{
     CONFIG_FORMAT_JSON, CONFIG_FORMAT_PROTOBUF, CONFIG_FORMAT_TOML, CONFIG_FORMAT_YAML,
 };

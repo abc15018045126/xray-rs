@@ -1,6 +1,3 @@
-// Module: app\policy\manager.rs
-// 1:1 Rust implementation corresponding to Go app\policy\manager.go
-
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -13,7 +10,6 @@ use crate::features::policy::{
     session_default,
 };
 
-/// Instance is an instance of Policy manager.
 pub struct Instance {
     levels: HashMap<u32, Policy>,
     system: Option<SystemPolicy>,
@@ -73,7 +69,6 @@ impl IPolicyManager for Instance {
     }
 }
 
-// Legacy struct for backward compatibility
 pub struct ConfigPolicyManager {
     levels: RwLock<HashMap<u32, super::config::PolicyLevelConfig>>,
 }

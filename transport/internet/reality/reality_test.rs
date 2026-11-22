@@ -1,6 +1,3 @@
-// Module: transport\internet\reality\reality_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\reality\reality.go
-
 #[cfg(test)]
 mod tests {
     use super::super::config::RealityConfig;

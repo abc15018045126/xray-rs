@@ -1,6 +1,3 @@
-// Module: common\buf\copy.rs
-// 1:1 Rust implementation corresponding to Go common\buf\copy.go
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
@@ -11,8 +8,6 @@ use crate::app::stats::Counter;
 use crate::common::errors::{Error, Result};
 use crate::common::signal::ActivityTimer;
 
-/// Options for copying streams or multibuffers.
-/// 1:1 corresponding to CopyOption in copy.go.
 #[derive(Clone, Default)]
 pub struct CopyOptions {
     pub timer: Option<Arc<ActivityTimer>>,
@@ -41,8 +36,6 @@ impl CopyOptions {
     }
 }
 
-/// Dumps all payload from reader to writer or stops when EOF occurs.
-/// 1:1 corresponding to Copy() in copy.go.
 pub async fn copy<R: Reader, W: Writer>(
     reader: &mut R,
     writer: &mut W,
@@ -83,8 +76,6 @@ pub async fn copy<R: Reader, W: Writer>(
     Ok(total)
 }
 
-/// Reads a multibuffer once with timeout and writes it to the writer.
-/// 1:1 corresponding to CopyOnceTimeout() in copy.go.
 pub async fn copy_once_timeout<R: TimeoutReader, W: Writer>(
     reader: &mut R,
     writer: &mut W,
@@ -96,7 +87,6 @@ pub async fn copy_once_timeout<R: TimeoutReader, W: Writer>(
     Ok(len)
 }
 
-/// Helper for bidirectional async byte stream copying.
 pub async fn copy_stream<R, W>(
     mut reader: R,
     mut writer: W,
@@ -132,4 +122,50 @@ where
 
     writer.flush().await.map_err(Error::Io)?;
     Ok(total)
+}
+
+pub async fn copy_one_way<R, W, F>(
+    mut reader: R,
+    mut writer: W,
+    activity_tx: tokio::sync::mpsc::Sender<()>,
+    counter: Option<Arc<crate::features::stats::Counter>>,
+    mut on_chunk: F,
+) -> std::io::Result<u64>
+where
+    R: AsyncRead + Unpin,
+    W: AsyncWrite + Unpin,
+    F: FnMut(&[u8]),
+{
+    let mut buf = [0u8; super::buffer::DEFAULT_BUFFER_SIZE];
+    let mut total = 0u64;
+    loop {
+        match reader.read(&mut buf).await {
+            Ok(0) => {
+                let _ = writer.flush().await;
+                let _ = writer.shutdown().await;
+                return Ok(total);
+            }
+            Ok(n) => {
+                total += n as u64;
+                if let Some(c) = &counter {
+                    c.add(n as i64);
+                }
+                let _ = activity_tx.try_send(());
+                on_chunk(&buf[..n]);
+                if let Err(e) = writer.write_all(&buf[..n]).await {
+                    let _ = writer.shutdown().await;
+                    return Err(e);
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                let _ = writer.flush().await;
+                let _ = writer.shutdown().await;
+                return Ok(total);
+            }
+            Err(e) => {
+                let _ = writer.shutdown().await;
+                return Err(e);
+            }
+        }
+    }
 }

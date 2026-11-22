@@ -1,6 +1,3 @@
-// Module: common\protocol\quic\sniff.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\quic\sniff.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::tls::sniff::read_client_hello;
 
@@ -30,12 +27,10 @@ pub fn sniff_quic(b: &[u8]) -> Result<QuicSniffHeader> {
         return Err(Error::Protocol("not quic initial packet".into()));
     }
 
-    // Try finding TLS client hello within packet payload if unencrypted or after crypto frame
     if let Ok(domain) = read_client_hello(b) {
         return Ok(QuicSniffHeader { domain });
     }
 
-    // Scan for SNI patterns in initial frame
     for i in 0..b.len().saturating_sub(4) {
         if b[i] == 0x00 && b[i + 1] == 0x00 {
             let rem = &b[i + 2..];

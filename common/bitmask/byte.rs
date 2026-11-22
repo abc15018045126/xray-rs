@@ -1,7 +1,3 @@
-// Module: common\bitmask\byte.rs
-// 1:1 Rust implementation corresponding to Go common\bitmask\byte.go
-
-/// Byte is a bitmask in byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Byte(pub u8);
 
@@ -10,7 +6,6 @@ impl Byte {
         Byte(val)
     }
 
-    /// Has returns true if this bitmask contains another bitmask.
     pub fn has(&self, bb: impl Into<Byte>) -> bool {
         (self.0 & bb.into().0) != 0
     }

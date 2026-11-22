@@ -200,20 +200,3 @@ pub fn tcp_header_flags(inner: &TcpHeader) -> u8 {
     flags
 }
 
-// pub struct UdpPacket {
-//     header: UdpHeader,
-// }
-
-// impl UdpPacket {
-//     pub fn inner(&self) -> &UdpHeader {
-//         &self.header
-//     }
-// }
-
-// impl From<&UdpHeader> for UdpPacket {
-//     fn from(header: &UdpHeader) -> Self {
-//         UdpPacket {
-//             header: header.clone(),
-//         }
-//     }
-// }

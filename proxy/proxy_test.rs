@@ -1,6 +1,3 @@
-// Module: proxy\proxy_test.rs
-// Comprehensive unit tests for proxy core traits & XTLS Vision padding engine
-
 #[cfg(test)]
 mod tests {
     use crate::proxy::proxy::{
@@ -33,7 +30,6 @@ mod tests {
         let content = b"Hello XTLS Vision Protocol Payload 1234567890!";
         let testseed = [900, 100, 900, 64];
 
-        // 1. Pack with padding continue and user UUID
         let padded = xtls_padding(
             Some(content),
             COMMAND_PADDING_CONTINUE,
@@ -44,11 +40,9 @@ mod tests {
 
         assert!(padded.len() > content.len() + 16 + 5);
 
-        // 2. Unpack uplink
         let unpacked = xtls_unpadding(&padded, &mut traffic_state, true);
         assert_eq!(&unpacked, content);
 
-        // 3. Pack second block with padding end (without UUID)
         let content2 = b"Second vision payload block";
         let padded2 = xtls_padding(
             Some(content2),
@@ -64,14 +58,11 @@ mod tests {
 
     #[test]
     fn test_is_complete_record() {
-        // Incomplete header
         assert!(!is_complete_record(&[0x17, 0x03]));
 
-        // Valid single record: 0x17, 0x03, 0x03, length = 4 (0x00, 0x04), payload = 4 bytes
         let valid_record = vec![0x17, 0x03, 0x03, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04];
         assert!(is_complete_record(&valid_record));
 
-        // Truncated record
         let truncated = vec![0x17, 0x03, 0x03, 0x00, 0x04, 0x01, 0x02];
         assert!(!is_complete_record(&truncated));
     }
@@ -81,7 +72,6 @@ mod tests {
         let uuid = [0xabu8; 16];
         let mut traffic_state = TrafficState::new(&uuid);
 
-        // ClientHello packet: 0x16, 0x03, 0x01, len_hi, len_lo, type=0x01
         let client_hello = vec![0x16, 0x03, 0x01, 0x00, 0x10, 0x01, 0x00, 0x00];
         xtls_filter_tls(&client_hello, &mut traffic_state);
         assert!(traffic_state.is_tls);

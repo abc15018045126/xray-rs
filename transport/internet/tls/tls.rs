@@ -1,7 +1,3 @@
-// Module: transport\internet\tls\tls.rs
-// Standard official Rust TLS implementation (rustls + ring + webpki_roots)
-// with uTLS / rquest browser fingerprint emulation profiles (Chrome, Firefox, Safari, Edge, Random)
-
 use std::sync::Arc;
 use tokio_rustls::rustls::{
     ClientConfig, DigitallySignedStruct, Error as RustlsError, ServerConfig, SignatureScheme,
@@ -62,13 +58,10 @@ impl ServerCertVerifier for NoCertificateVerification {
     }
 }
 
-/// Applies browser TLS fingerprint emulation (Chrome, Firefox, Safari, Edge, Android, Random)
-/// aligning with Xray uTLS and rquest emulation specifications.
 pub fn apply_fingerprint(provider: &mut rustls::crypto::CryptoProvider, fingerprint: &str) {
     let fp = fingerprint.trim().to_ascii_lowercase();
     match fp.as_str() {
         "firefox" => {
-            // Firefox standard cipher suite order: AES-128 -> ChaCha20 -> AES-256
             provider.cipher_suites.sort_by_key(|cs| match cs.suite() {
                 rustls::CipherSuite::TLS13_AES_128_GCM_SHA256 => 0,
                 rustls::CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => 1,
@@ -83,7 +76,6 @@ pub fn apply_fingerprint(provider: &mut rustls::crypto::CryptoProvider, fingerpr
             });
         }
         "chrome" | "edge" | "360" | "qq" | "android" => {
-            // Chrome / Edge Chromium standard cipher suite order: AES-128 -> AES-256 -> ChaCha20
             provider.cipher_suites.sort_by_key(|cs| match cs.suite() {
                 rustls::CipherSuite::TLS13_AES_128_GCM_SHA256 => 0,
                 rustls::CipherSuite::TLS13_AES_256_GCM_SHA384 => 1,
@@ -98,7 +90,6 @@ pub fn apply_fingerprint(provider: &mut rustls::crypto::CryptoProvider, fingerpr
             });
         }
         "safari" | "ios" => {
-            // Safari / iOS profile: prioritizes ChaCha20 and ECDSA
             provider.cipher_suites.sort_by_key(|cs| match cs.suite() {
                 rustls::CipherSuite::TLS13_AES_128_GCM_SHA256 => 0,
                 rustls::CipherSuite::TLS13_AES_256_GCM_SHA384 => 1,
@@ -278,7 +269,6 @@ mod tests {
         let mut firefox_provider = rustls::crypto::ring::default_provider();
         apply_fingerprint(&mut firefox_provider, "firefox");
 
-        // In Chrome, TLS13_AES_256_GCM_SHA384 precedes TLS13_CHACHA20_POLY1305_SHA256
         let chrome_pos_aes256 = chrome_provider
             .cipher_suites
             .iter()
@@ -291,7 +281,6 @@ mod tests {
             .unwrap();
         assert!(chrome_pos_aes256 < chrome_pos_chacha);
 
-        // In Firefox, TLS13_CHACHA20_POLY1305_SHA256 precedes TLS13_AES_256_GCM_SHA384
         let firefox_pos_aes256 = firefox_provider
             .cipher_suites
             .iter()

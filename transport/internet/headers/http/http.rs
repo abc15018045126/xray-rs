@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\http\http.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\headers\http\http.go
-
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -100,7 +97,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        // First consume prefix buffer from after the header
         if self.prefix_pos < self.prefix_buf.len() {
             let remaining = &self.prefix_buf[self.prefix_pos..];
             let to_copy = remaining.len().min(buf.remaining());
@@ -109,7 +105,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
             return Poll::Ready(Ok(()));
         }
 
-        // If header hasn't been read yet, read until \r\n\r\n
         if !self.read_header {
             let mut chunk = [0u8; 1024];
             let mut read_buf = ReadBuf::new(&mut chunk);
@@ -127,7 +122,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
                         let header_end = pos + 4;
                         let header_bytes = &self.header_buf[..header_end];
 
-                        // Validate request if this is server
                         if !self.expected_uris.is_empty() {
                             let hr = HeaderReader::new(self.expected_uris.clone());
                             if let Err(e) = hr.parse_and_validate(header_bytes) {

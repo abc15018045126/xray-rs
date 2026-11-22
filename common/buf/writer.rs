@@ -1,6 +1,3 @@
-// Module: common\buf\writer.rs
-// 1:1 Rust implementation corresponding to Go common\buf\writer.go
-
 use async_trait::async_trait;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 

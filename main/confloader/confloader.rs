@@ -1,6 +1,3 @@
-// Module: main\confloader\confloader.rs
-// 1:1 Rust implementation corresponding to Go main\confloader\confloader.go
-
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
 use std::sync::RwLock;

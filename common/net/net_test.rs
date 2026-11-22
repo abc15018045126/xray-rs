@@ -1,4 +1,3 @@
-// Module: common\net\net_test.rs
 #[cfg(test)]
 mod tests {
     use super::super::Destination;

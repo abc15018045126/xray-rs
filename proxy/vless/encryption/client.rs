@@ -1,6 +1,3 @@
-// Module: proxy\vless\encryption\client.rs
-// 1:1 Rust implementation corresponding to Go proxy\vless\encryption\client.go
-
 use super::xor::xor_inplace;
 
 pub struct VlessXorClient {

@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\sudoku\codec.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\codec.go
-
 use super::table::{GoRand, SudokuTable, pack_key, sort4};
 use crate::common::errors::{Error, Result};
 use std::sync::Arc;

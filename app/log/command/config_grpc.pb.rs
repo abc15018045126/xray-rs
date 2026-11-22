@@ -1,4 +1,3 @@
-// Module: app\log\command\config_grpc.pb.rs
 use async_trait::async_trait;
 use crate::common::errors::Result;
 use super::config_pb::{RestartLoggerRequest, RestartLoggerResponse};

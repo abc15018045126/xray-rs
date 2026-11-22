@@ -1,6 +1,3 @@
-// Module: common\task\periodic_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\task\periodic_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::periodic::Periodic;
@@ -37,7 +34,6 @@ mod tests {
         });
 
         p.start_execute().unwrap();
-        // Immediately executes on start, so count >= 1
         assert!(counter.load(Ordering::SeqCst) >= 1);
 
         sleep(Duration::from_millis(70)).await;

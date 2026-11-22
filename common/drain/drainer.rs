@@ -1,6 +1,3 @@
-// Module: common\drain\drainer.rs
-// 1:1 Rust implementation corresponding to Go common\drain\drainer.go
-
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
 

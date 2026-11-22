@@ -1,6 +1,3 @@
-// Module: transport\internet\websocket\dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\websocket\dialer.go
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -14,8 +11,6 @@ use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};
 use crate::transport::internet::tcp::TcpDialer;
 
-/// Parse `?ed=<N>` from a WebSocket path (matching official Xray-core),
-/// returning `(cleaned_path, max_early_data)`.
 pub fn parse_ws_early_data(raw_path: &str) -> (String, usize) {
     let Some((base, query)) = raw_path.split_once('?') else {
         return (raw_path.to_string(), 0);
@@ -47,13 +42,9 @@ pub fn parse_ws_early_data(raw_path: &str) -> (String, usize) {
     (clean, ed)
 }
 
-/// Callback type for deferred WebSocket dialing with optional early data bytes.
 pub type DialWsFn =
     Arc<dyn Fn(Option<Vec<u8>>) -> Pin<Box<dyn Future<Output = Result<BoxStream>> + Send>> + Send + Sync>;
 
-/// 1:1 Rust port of official Xray-core `transport/internet/websocket/dialer.go` (`delayDialConn`).
-/// Defers the WebSocket handshake until the first `poll_write`, embedding the first write
-/// (up to `max_ed` bytes) into `Sec-WebSocket-Protocol` (0-RTT).
 enum DelayDialState {
     Idle,
     Dialing {
@@ -156,7 +147,6 @@ impl AsyncWrite for DelayDialConn {
                         if was_ed {
                             return Poll::Ready(Ok(n.min(buf.len())));
                         }
-                        // Payload exceeded max_ed: fall through to write `buf` on connected stream
                     }
                     Poll::Ready(Ok(Err(e))) => {
                         self.state = DelayDialState::Closed;

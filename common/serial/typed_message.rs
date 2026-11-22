@@ -1,6 +1,3 @@
-// Module: common\serial\typed_message.rs
-// 1:1 Rust implementation corresponding to Go common\serial\typed_message.go
-
 use crate::common::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 
@@ -32,13 +29,10 @@ impl TypedMessage {
     }
 }
 
-/// ToTypedMessage converts an optional proto message / byte pair into TypedMessage.
-/// Returns None if message is None.
 pub fn to_typed_message(message: Option<(&str, Vec<u8>)>) -> Option<TypedMessage> {
     message.map(|(type_name, value)| TypedMessage::new(type_name, value))
 }
 
-/// GetInstance creates / resolves a message type or validates it.
 pub fn get_instance(message_type: &str) -> Result<Option<TypedMessage>> {
     if message_type.is_empty() {
         return Err(Error::Config("empty message type".to_string()));

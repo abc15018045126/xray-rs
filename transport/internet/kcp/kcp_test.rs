@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\kcp_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\kcp\kcp_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::receiving::ReceivingWindow;
@@ -20,7 +17,7 @@ mod tests {
 
         let mut recv_win = ReceivingWindow::new();
         assert!(recv_win.set(DataSegment::new(1, 0, b"a".to_vec())));
-        assert!(!recv_win.set(DataSegment::new(1, 0, b"a".to_vec()))); // duplicate rejected
+        assert!(!recv_win.set(DataSegment::new(1, 0, b"a".to_vec())));
 
         let mut stream = Vec::new();
         let drained = recv_win.drain_in_order(&mut stream);

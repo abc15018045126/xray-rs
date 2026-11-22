@@ -2,6 +2,7 @@ pub mod address;
 pub mod cnc;
 pub mod destination;
 pub mod find_process;
+pub mod find_process_darwin;
 pub mod find_process_android;
 pub mod find_process_linux;
 pub mod find_process_others;
@@ -31,10 +32,11 @@ pub use network::{Network, NetworkList};
 pub use port::{Port, PortList, PortRange};
 pub use system::SystemListener;
 
-/// A pinned, boxed trait object for bidirectional async byte streams.
 pub type BoxStream = Pin<Box<dyn AsyncStream>>;
 
-/// Trait alias combining AsyncRead, AsyncWrite, Send, Sync, Unpin and 'static.
 pub trait AsyncStream: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static {}
 
 impl<T> AsyncStream for T where T: AsyncRead + AsyncWrite + Send + Sync + Unpin + 'static {}
+#[cfg(test)]
+mod common_net_full_test;
+

@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\receiving.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\kcp\receiving.go
-
 use super::segment::{ACK_NUMBER_LIMIT, AckSegment, DataSegment};
 use std::collections::BTreeMap;
 
@@ -20,7 +17,6 @@ impl ReceivingWindow {
     pub fn set(&mut self, seg: DataSegment) -> bool {
         let id = seg.number;
         if id.wrapping_sub(self.next_number) >= 0x7FFFFFFF {
-            // Already received and passed
             return false;
         }
         if self.cache.contains_key(&id) {
@@ -38,7 +34,6 @@ impl ReceivingWindow {
         self.cache.remove(&id)
     }
 
-    /// Drains contiguous in-order payloads starting from self.next_number into user buffer
     pub fn drain_in_order(&mut self, user_buf: &mut Vec<u8>) -> usize {
         let mut total = 0;
         while let Some(seg) = self.cache.remove(&self.next_number) {
@@ -82,7 +77,6 @@ impl AckList {
         let mut new_ts = Vec::with_capacity(self.timestamps.len());
 
         for i in 0..self.numbers.len() {
-            // keep if number >= una
             if self.numbers[i].wrapping_sub(una) < 0x7FFFFFFF {
                 new_nums.push(self.numbers[i]);
                 new_ts.push(self.timestamps[i]);

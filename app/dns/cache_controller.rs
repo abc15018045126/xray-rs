@@ -26,8 +26,6 @@ impl CacheController {
     ) -> Self {
         let records = Arc::new(RwLock::new(HashMap::<String, DnsRecord>::new()));
 
-        // Aligned with official Go Xray-core app/dns/cache_controller.go:
-        // Periodic 300s task to clear expired items and shrink map to reclaim memory.
         if !disable_cache {
             let cleaner = Arc::clone(&records);
             if let Ok(handle) = tokio::runtime::Handle::try_current() {
@@ -73,9 +71,9 @@ impl CacheController {
         let record = guard.get(&domain_lower)?;
 
         let now = Instant::now();
-        if now <= record.expire_at {
-            Some(record.ips.clone())
-        } else if self.serve_stale && now <= record.expire_at + self.serve_expired_ttl {
+        if now <= record.expire_at
+            || (self.serve_stale && now <= record.expire_at + self.serve_expired_ttl)
+        {
             Some(record.ips.clone())
         } else {
             None
@@ -114,6 +112,10 @@ impl CacheController {
                 guard.shrink_to_fit();
             }
         }
+    }
+
+    pub fn cache_cleanup(&self) {
+        self.cleanup_expired();
     }
 
     pub fn len(&self) -> usize {

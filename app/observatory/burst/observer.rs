@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\observer.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\burst\observer.go
-
 use super::health::HealthStatus;
 use std::collections::HashMap;
 use std::sync::Arc;

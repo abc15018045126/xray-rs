@@ -11,3 +11,5 @@ pub use config::HysteriaConfig;
 pub use frag::{Defragger, UDPMessage, frag_udp_message};
 pub use protocol::{QuicVarint, TcpRequest};
 pub use server::HysteriaServer;
+#[cfg(test)]
+mod hysteria_test;

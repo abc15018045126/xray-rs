@@ -1,6 +1,3 @@
-// Module: main\commands\all\tls\tls.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\tls\tls.go
-
 use super::cert::cmd_cert;
 use super::ech::cmd_ech;
 use super::hash::cmd_hash;

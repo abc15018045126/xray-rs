@@ -1,6 +1,3 @@
-// Module: transport\internet\tls\ech.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tls\ech.go
-
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,7 +21,7 @@ pub struct EchConfig {
     #[serde(default)]
     pub config_list: String,
     #[serde(default)]
-    pub force_query: String, // "none", "half", "full" (default)
+    pub force_query: String,
     #[serde(default)]
     pub server_keys: Vec<u8>,
     #[serde(default)]
@@ -119,9 +116,6 @@ impl EchConfigCache {
 pub static GLOBAL_ECH_CACHE: std::sync::LazyLock<Arc<EchConfigCache>> =
     std::sync::LazyLock::new(|| Arc::new(EchConfigCache::new()));
 
-/// Convert raw binary ECH keys to Go/RFC-compatible ECH private key & config pairs.
-/// Wire format per entry:
-/// [u16 private_key_len, private_key_bytes, u16 config_len, config_bytes]
 pub fn convert_to_ech_keys(data: &[u8]) -> Result<Vec<EchServerKey>, &'static str> {
     let mut keys = Vec::new();
     let mut offset = 0;
@@ -157,7 +151,6 @@ pub fn convert_to_ech_keys(data: &[u8]) -> Result<Vec<EchServerKey>, &'static st
     Ok(keys)
 }
 
-/// Encode ECH server keys into wire format.
 pub fn encode_ech_keys(keys: &[EchServerKey]) -> Vec<u8> {
     let mut buf = Vec::new();
     for k in keys {
@@ -169,7 +162,6 @@ pub fn encode_ech_keys(keys: &[EchServerKey]) -> Vec<u8> {
     buf
 }
 
-/// Parse RFC 9460 SVCB/HTTPS SvcParams to extract parameter key 5 (ECHConfigList).
 pub fn parse_svcb_ech_param(svcb_params: &[u8]) -> Option<Vec<u8>> {
     let mut offset = 0;
     while offset + 4 <= svcb_params.len() {
@@ -187,7 +179,6 @@ pub fn parse_svcb_ech_param(svcb_params: &[u8]) -> Option<Vec<u8>> {
     None
 }
 
-/// Encode an RFC 9460 SVCB SvcParam with key 5 (ECH).
 pub fn encode_svcb_ech_param(ech_config: &[u8]) -> Vec<u8> {
     let mut buf = Vec::with_capacity(4 + ech_config.len());
     buf.extend_from_slice(&SVCB_PARAM_ECH.to_be_bytes());
@@ -196,7 +187,6 @@ pub fn encode_svcb_ech_param(ech_config: &[u8]) -> Vec<u8> {
     buf
 }
 
-/// Resolve ECH config bytes from configuration or cache, with fallback enforcement.
 pub fn resolve_ech_config(
     ech_config_list: &str,
     server_name: &str,
@@ -213,7 +203,6 @@ pub fn resolve_ech_config(
     };
 
     let result = if ech_config_list.contains("://") {
-        // Query format: "example.com+https://1.1.1.1/dns-query" or "udp://1.1.1.1"
         let parts: Vec<&str> = ech_config_list.split('+').collect();
         let (name_to_query, dns_server) = match parts.len() {
             2 => (parts[0], parts[1]),
@@ -232,10 +221,8 @@ pub fn resolve_ech_config(
             );
         }
 
-        // Check global cache
         GLOBAL_ECH_CACHE.get(dns_server, name_to_query)
     } else {
-        // Direct Base64 encoded ECHConfigList
         match base64::engine::general_purpose::STANDARD.decode(ech_config_list.trim()) {
             Ok(bytes) => Some(bytes),
             Err(e) => return Err(format!("Failed to unmarshal ECHConfigList: {}", e)),
@@ -246,7 +233,6 @@ pub fn resolve_ech_config(
         Some(cfg) if !cfg.is_empty() => Ok(Some(cfg)),
         _ => {
             if mode == "full" {
-                // To prevent SNI leakage on failed ECH query, supply dummy config that triggers handshake failure
                 Ok(Some(DUMMY_FALLBACK_ECH_CONFIG.to_vec()))
             } else {
                 Ok(None)

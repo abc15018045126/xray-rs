@@ -3,6 +3,7 @@ pub mod config;
 pub mod config_pb;
 pub mod dokodemo;
 pub mod fakeudp_linux;
+pub mod fakeudp_openbsd;
 pub mod fakeudp_other;
 
 use crate::common::errors::Result;

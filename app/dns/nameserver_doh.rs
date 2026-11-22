@@ -1,6 +1,3 @@
-// Module: app\dns\nameserver_doh.rs
-// 1:1 Rust implementation corresponding to Go app\dns\nameserver_doh.go
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use std::collections::HashMap;
@@ -24,8 +21,6 @@ use crate::features::outbound::OutboundHandler;
 use crate::features::routing::RouterFeature;
 use crate::transport::internet::tls::tls::TlsClient;
 
-/// Shared routing context attached after `Router` and `outbounds` are built,
-/// matching official Xray-core `NewDoHNameServer(..., dispatcher)` routing behavior.
 pub struct DohRoutingCtx {
     pub router: Router,
     pub outbounds: HashMap<String, Arc<dyn OutboundHandler>>,
@@ -39,8 +34,6 @@ pub struct DohNameServer {
     tag: Option<String>,
     routing: Option<Arc<OnceLock<DohRoutingCtx>>>,
     client_ip: Option<IpAddr>,
-    /// Persistent HTTP/2 multiplexed client matching official Xray-core `nameserver_doh.go`
-    /// (`&http2.Transport`), so concurrent DNS queries share a single proxy + TLS + H2 tunnel.
     h2_client: Arc<Mutex<Option<h2::client::SendRequest<Bytes>>>>,
 }
 
@@ -186,10 +179,6 @@ impl DohNameServer {
     }
 
     async fn dial_transport(&self, host: &str, port: u16) -> Result<BoxStream> {
-        // Official Xray-core `DOH` vs `DOHL` behavior:
-        // - `https://...` routes through `Router` using this server's `tag` (e.g. `direct-dns-3` -> direct,
-        //   `dns-module` -> proxy) so foreign DoH like `dns.google` / `cloudflare-dns.com` goes through proxy.
-        // - `https+local://...` (`routing == None`) dials directly via the physical NIC.
         if let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) {
             let addr = match host.parse::<IpAddr>() {
                 Ok(IpAddr::V4(v4)) => Address::Ipv4(v4),
@@ -202,10 +191,10 @@ impl DohNameServer {
             let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
 
             if matches!(picked, "block" | "blackhole") {
-                return Err(Error::Protocol(format!(
+                Err(Error::Protocol(format!(
                     "DoH server '{}' blocked by routing rule",
                     self.url
-                )));
+                )))
             } else if matches!(picked, "direct" | "freedom" | "dns") {
                 self.dial_direct(host, port, Some(&ctx.hosts)).await
             } else if let Some(outbound) = ctx.outbounds.get(picked) {
@@ -222,8 +211,6 @@ impl DohNameServer {
         }
     }
 
-    /// Returns a ready persistent HTTP/2 `SendRequest`, establishing a single multiplexed
-    /// proxy + TLS (`ALPN: h2`) + H2 connection on demand (1:1 with `nameserver_doh.go`).
     async fn get_or_connect_h2(
         &self,
         host: &str,
@@ -341,32 +328,19 @@ impl DohNameServer {
     async fn execute_doh(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let (is_https, host, port, path) = self.parse_url();
         let clean = domain.trim_end_matches('.');
-
-        // Self-resolution guard matching `nameserver_doh.go:137`
         if clean.eq_ignore_ascii_case(&host) {
-            return Err(Error::Protocol(format!(
-                "DoH server '{}' tries to resolve itself",
-                self.url
-            )));
+            return Err(Error::Protocol(format!("DoH server '{}' tries to resolve itself", self.url)));
         }
 
         let query = build_dns_query_with_ecs(clean, 1, self.client_ip);
-
-        // HTTPS DoH uses persistent HTTP/2 multiplexing (1:1 with `nameserver_doh.go`).
         if is_https {
             for attempt in 0..2 {
                 let send_req = self.get_or_connect_h2(&host, port).await?;
                 match self.send_h2_query(send_req, &host, port, &path, &query).await {
                     Ok(body) => return parse_dns_response(&body, clean),
                     Err(e) if attempt == 0 => {
-                        // Drop stale H2 connection and retry once on a fresh tunnel
-                        let mut g = self.h2_client.lock().await;
-                        *g = None;
-                        tracing::debug!(
-                            "DoH H2 query failed for '{}' on attempt 0 ({}), retrying on fresh H2 conn",
-                            clean,
-                            e
-                        );
+                        *self.h2_client.lock().await = None;
+                        tracing::debug!("DoH H2 query failed for '{}' on attempt 0 ({}), retrying on fresh H2 conn", clean, e);
                     }
                     Err(e) => return Err(e),
                 }
@@ -374,26 +348,18 @@ impl DohNameServer {
             return Err(Error::Protocol("DoH H2 retry exhausted".into()));
         }
 
-        // Plain HTTP (non-TLS) DoH fallback using HTTP/1.1
         let mut stream = self.dial_transport(&host, port).await?;
-
         let req = format!(
             "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: xray/dns\r\nAccept: application/dns-message\r\nContent-Type: application/dns-message\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            path,
-            host,
-            query.len()
+            path, host, query.len()
         );
-
         stream.write_all(req.as_bytes()).await.map_err(Error::Io)?;
         stream.write_all(&query).await.map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
 
         let mut buf = Vec::with_capacity(2048);
         let mut chunk = [0u8; 1024];
-        let mut header_len = 0;
-        let mut content_len = None;
-        let mut is_chunked = false;
-        let mut decoded_chunked: Option<Vec<u8>> = None;
+        let (mut header_len, mut content_len, mut is_chunked, mut decoded_chunked) = (0, None, false, None);
 
         while buf.len() < 65536 {
             let n = pingora_timeout::timeout(self.timeout, stream.read(&mut chunk))
@@ -413,18 +379,13 @@ impl DohNameServer {
                     if let Some(code) = resp.code
                         && code != 200
                     {
-                        return Err(Error::Protocol(format!(
-                            "DoH server responded with HTTP {}",
-                            code
-                        )));
+                        return Err(Error::Protocol(format!("DoH server responded with HTTP {}", code)));
                     }
-                    for header in resp.headers.iter() {
-                        if header.name.eq_ignore_ascii_case("content-length")
-                            && let Ok(s) = std::str::from_utf8(header.value)
-                        {
+                    for h in resp.headers.iter() {
+                        let Ok(s) = std::str::from_utf8(h.value) else { continue };
+                        if h.name.eq_ignore_ascii_case("content-length") {
                             content_len = s.trim().parse::<usize>().ok();
-                        } else if header.name.eq_ignore_ascii_case("transfer-encoding")
-                            && let Ok(s) = std::str::from_utf8(header.value)
+                        } else if h.name.eq_ignore_ascii_case("transfer-encoding")
                             && s.to_ascii_lowercase().contains("chunked")
                         {
                             is_chunked = true;
@@ -434,15 +395,15 @@ impl DohNameServer {
             }
 
             if header_len > 0 {
-                if let Some(clen) = content_len {
-                    if buf.len() >= header_len + clen {
-                        break;
-                    }
-                } else if is_chunked {
-                    if let Some(decoded) = decode_chunked_complete(&buf[header_len..]) {
-                        decoded_chunked = Some(decoded);
-                        break;
-                    }
+                if content_len.is_some_and(|clen| buf.len() >= header_len + clen) {
+                    break;
+                }
+                if content_len.is_none()
+                    && is_chunked
+                    && let Some(decoded) = decode_chunked_complete(&buf[header_len..])
+                {
+                    decoded_chunked = Some(decoded);
+                    break;
                 }
             }
         }
@@ -450,21 +411,14 @@ impl DohNameServer {
         if header_len == 0 || buf.len() <= header_len {
             return Err(Error::Protocol("Invalid or empty DoH response".into()));
         }
-
         if let Some(body) = decoded_chunked {
             return parse_dns_response(&body, clean);
         }
-        let body = if let Some(clen) = content_len {
-            &buf[header_len..(header_len + clen).min(buf.len())]
-        } else {
-            &buf[header_len..]
-        };
-        parse_dns_response(body, clean)
+        let end = content_len.map_or(buf.len(), |clen| (header_len + clen).min(buf.len()));
+        parse_dns_response(&buf[header_len..end], clean)
     }
 }
 
-/// Decodes an HTTP/1.1 `Transfer-Encoding: chunked` body, returning `Some(payload)`
-/// immediately once the terminating `0\r\n...\r\n` chunk is present.
 fn decode_chunked_complete(input: &[u8]) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     let mut pos = 0;
@@ -476,7 +430,6 @@ fn decode_chunked_complete(input: &[u8]) -> Option<Vec<u8>> {
         let chunk_size = usize::from_str_radix(size_hex, 16).ok()?;
         pos += line_end + 2;
         if chunk_size == 0 {
-            // Require trailing CRLF (or trailers ending in CRLFCRLF)
             let trailer = input.get(pos..)?;
             if trailer.starts_with(b"\r\n")
                 || trailer.windows(4).any(|w| w == b"\r\n\r\n")
@@ -489,7 +442,7 @@ fn decode_chunked_complete(input: &[u8]) -> Option<Vec<u8>> {
             return None;
         }
         out.extend_from_slice(&input[pos..pos + chunk_size]);
-        pos += chunk_size + 2; // skip trailing \r\n
+        pos += chunk_size + 2;
     }
 }
 
@@ -526,16 +479,12 @@ impl NameServer for DohNameServer {
                     self.url,
                     e
                 );
-                // On Android VPN TUN, calling system LocalNameServer (`getaddrinfo`) loops
-                // straight back into the TUN DNS server (1.1.1.1:53 -> dns-out -> DoH).
                 #[cfg(target_os = "android")]
                 {
                     Err(e)
                 }
                 #[cfg(not(target_os = "android"))]
                 {
-                    // If DoH fails (e.g. offline unit testing or network disruption),
-                    // fallback to local resolution to guarantee service availability.
                     LocalNameServer::new().query_ip(domain).await.map_err(|_| e)
                 }
             }

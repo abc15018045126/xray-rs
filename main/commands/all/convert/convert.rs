@@ -1,6 +1,3 @@
-// Module: main\commands\all\convert\convert.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\convert\convert.go
-
 use super::json::cmd_convert_json;
 use super::protobuf::cmd_convert_pb;
 use crate::main::commands::base::command::Command;

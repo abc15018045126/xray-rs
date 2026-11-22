@@ -1,6 +1,3 @@
-// Module: transport\internet\udp\dispatcher_test.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\udp\dispatcher_test.go
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -41,7 +38,6 @@ mod tests {
         let (uplink_reader, uplink_writer) = new_with_options(vec![with_size_limit(1024)]);
         let (downlink_reader, downlink_writer) = new_with_options(vec![with_size_limit(1024)]);
 
-        // Background echo loop: reads from uplink_reader and writes to downlink_writer
         tokio::spawn(async move {
             loop {
                 match uplink_reader.read_multi_buffer().await {

@@ -1,4 +1,3 @@
-// Module: transport\internet\finalmask\fragment\fragment_test.rs
 #[cfg(test)]
 mod tests {
     use super::super::config_pb::Config;
@@ -58,11 +57,6 @@ mod tests {
 
         let mut client_conn = FragmentConn::new_client(config, Box::pin(client_io));
 
-        // Construct mock TLS ClientHello record:
-        // Byte 0: 22 (Handshake)
-        // Byte 1-2: 0x03, 0x01 (TLS 1.0)
-        // Byte 3-4: length of handshake payload (e.g. 20 bytes)
-        // Byte 5..25: Handshake payload
         let mut tls_record = vec![22, 0x03, 0x01, 0x00, 20];
         let payload = b"0123456789abcdefghij";
         tls_record.extend_from_slice(payload);
@@ -71,17 +65,14 @@ mod tests {
             client_conn.write_fragmented(&tls_record).await.unwrap();
         });
 
-        // Server reads the fragmented TLS records and reassembles payload
         let read_task = tokio::spawn(async move {
             let mut received_payload = Vec::new();
             let mut buf = vec![0u8; 1024];
             let mut total_read = 0;
-            // The fragmented records each have a 5-byte header, so total bytes > 25
             while received_payload.len() < payload.len() {
                 let n = server_io.read(&mut buf).await.unwrap();
                 assert!(n > 0);
                 total_read += n;
-                // Parse TLS record chunks: each starts with 22, 0x03, 0x01, len_hi, len_lo
                 let mut offset = 0;
                 while offset + 5 <= n {
                     assert_eq!(buf[offset], 22);
@@ -95,7 +86,7 @@ mod tests {
                 }
             }
             assert_eq!(received_payload, payload);
-            assert!(total_read > 25); // Verified that it was indeed fragmented into multiple records
+            assert!(total_read > 25);
         });
 
         write_task.await.unwrap();

@@ -1,6 +1,3 @@
-// Module: common\crypto\auth.rs
-// 1:1 Rust implementation corresponding to Go common\crypto\auth.go
-
 use crate::common::errors::{Error, Result};
 use hkdf::hmac::{Hmac, Mac};
 use sha2::Sha256;

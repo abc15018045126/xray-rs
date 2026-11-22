@@ -1,6 +1,3 @@
-// Module: transport\internet\system_listener.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\system_listener.go
-
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
@@ -81,7 +78,6 @@ impl SystemListener {
         let (stream, remote_addr) = self.listener.accept().await?;
         let _ = stream.set_nodelay(true);
 
-        // Execute registered controllers
         {
             let ctls = self.controllers.read().await;
             for ctl in ctls.iter() {

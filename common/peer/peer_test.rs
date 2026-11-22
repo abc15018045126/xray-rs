@@ -1,5 +1,3 @@
-// Module: common\peer\peer_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::latency::{AverageLatency, HasLatency};
@@ -10,11 +8,9 @@ mod tests {
         let latency = AverageLatency::new(0);
         assert_eq!(latency.value(), 0);
 
-        // update with 30: (0 + 30*2) / 3 = 20
         latency.update(30);
         assert_eq!(latency.value(), 20);
 
-        // update with 50: (20 + 50*2) / 3 = 40
         latency.update(50);
         assert_eq!(latency.value(), 40);
     }

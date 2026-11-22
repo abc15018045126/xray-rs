@@ -1,5 +1,3 @@
-// Module: common\ctx\context_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::context::*;

@@ -1,6 +1,3 @@
-// Module: main\commands\all\tls\hash.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\tls\hash.go
-
 use crate::main::commands::base::command::Command;
 use crate::transport::internet::tls::generate_cert_hash_hex;
 

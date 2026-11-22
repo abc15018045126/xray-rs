@@ -1,6 +1,3 @@
-// Module: common\crypto\internal\chacha.rs
-// 1:1 Rust implementation corresponding to Go common\crypto\internal\chacha.go
-
 use crate::common::crypto::crypto::StreamCipher;
 use crate::common::errors::Result;
 
@@ -37,7 +34,7 @@ impl ChaChaCore {
         for i in 0..8 {
             state[4 + i] = u32::from_le_bytes(key[i * 4..(i + 1) * 4].try_into().unwrap());
         }
-        state[12] = 0; // counter
+        state[12] = 0;
         for i in 0..3 {
             state[13 + i] = u32::from_le_bytes(nonce[i * 4..(i + 1) * 4].try_into().unwrap());
         }

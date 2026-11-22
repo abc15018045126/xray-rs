@@ -1,9 +1,13 @@
-// Module: proxy\freedom\freedom.rs
-// 1:1 Rust implementation corresponding to Go proxy\freedom\freedom.go
-
 use async_trait::async_trait;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tokio::net::lookup_host;
+
+pub fn generate_random_bytes(len: usize) -> Vec<u8> {
+    let mut buf = vec![0u8; len];
+    rand::thread_rng().fill_bytes(&mut buf);
+    buf
+}
 
 use crate::common::errors::Result;
 use crate::common::net::{Address, BoxStream, Destination};

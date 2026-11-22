@@ -8,4 +8,4 @@ debug_panel/dioxus_app/target/
 *.swp
 .DS_Store
 config.json
-testing/
+1/

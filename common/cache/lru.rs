@@ -1,11 +1,7 @@
-// Module: common\cache\lru.rs
-// 1:1 Rust implementation corresponding to Go common\cache\lru.go
-
 use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
 use std::sync::Mutex;
 
-/// Lru trait defines bidirectional key/value lookup and access-order tracking.
 pub trait Lru<K, V> {
     fn get(&self, key: &K) -> Option<V>;
     fn get_key_from_value(&self, val: &V) -> Option<K>;
@@ -13,7 +9,6 @@ pub trait Lru<K, V> {
     fn put(&self, key: K, val: V);
 }
 
-/// LruCache is a thread-safe bidirectional LRU cache.
 pub struct LruCache<K, V> {
     capacity: usize,
     entries: Mutex<LruInner<K, V>>,

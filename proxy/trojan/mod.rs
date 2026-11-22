@@ -11,3 +11,7 @@ pub use outbound::Client as OutboundClient;
 pub use protocol::{RequestHeader, TrojanRequestHeader, TrojanUdpPacket, hash_password};
 pub use server::{Server, TrojanFallback, TrojanServer};
 pub use validator::PasswordValidator;
+#[cfg(test)]
+mod trojan_protocol_test;
+#[cfg(test)]
+mod trojan_test;

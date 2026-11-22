@@ -1,6 +1,3 @@
-// Module: common\utils\padding.rs
-// 1:1 Rust implementation corresponding to Go common\utils\padding.go
-
 use rand::Rng;
 
 pub fn generate_random_padding(min_len: usize, max_len: usize) -> Vec<u8> {

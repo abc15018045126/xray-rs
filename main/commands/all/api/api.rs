@@ -1,6 +1,3 @@
-// Module: main\commands\all\api\api.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\api\api.go
-
 use super::balancer_info::cmd_balancer_info;
 use super::balancer_override::cmd_balancer_override;
 use super::inbound_user::cmd_inbound_user;

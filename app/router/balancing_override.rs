@@ -1,6 +1,3 @@
-// Module: app\router\balancing_override.rs
-// 1:1 Rust implementation corresponding to Go app\router\balancing_override.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -15,5 +12,17 @@ impl BalancingOverride {
             tag: tag.into(),
             target: target.into(),
         }
+    }
+
+    pub fn get(&self) -> &str {
+        &self.target
+    }
+
+    pub fn put(&mut self, target: impl Into<String>) {
+        self.target = target.into();
+    }
+
+    pub fn clear(&mut self) {
+        self.target.clear();
     }
 }

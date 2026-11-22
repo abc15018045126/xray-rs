@@ -1,6 +1,3 @@
-// Module: common\signal\pubsub\pubsub.rs
-// 1:1 Rust implementation corresponding to Go common\signal\pubsub\pubsub.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::signal::done::Instance as DoneInstance;
 use std::collections::HashMap;

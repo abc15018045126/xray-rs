@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["xray", "vless", "vision", "reality", "tun"]
 categories = ["network-programming", "cryptography"]
-exclude = ["testing/", "target/", "*.dll", "*.exe", "*.dat", "*.apk", "*.aar"]
+exclude = ["1/", "testing/", "target/", "*.dll", "*.exe", "*.dat", "*.apk", "*.aar"]
 
 [lib]
 name = "xray_core"
@@ -102,6 +102,6 @@ windows = { version = "0.62", features = [
 warnings = "warn"
 
 [lints.clippy]
-all = "warn"
+all = { level = "warn", priority = -1 }
 module_inception = "allow"
 type_complexity = "allow"

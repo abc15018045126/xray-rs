@@ -1,6 +1,3 @@
-// Module: main\confloader\external\external.rs
-// 1:1 Rust implementation corresponding to Go main\confloader\external\external.go
-
 use crate::common::errors::{Error, Result};
 pub use crate::main::confloader::set_effective_config_file_loader;
 

@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\srtp\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\srtp\conn.go
-
 use super::SrtpHeader;
 
 pub struct SrtpPacketConn {

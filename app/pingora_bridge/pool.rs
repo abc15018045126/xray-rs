@@ -19,14 +19,12 @@ use crate::common::errors::Error;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 
-/// Computes a stable 64-bit pool key from an arbitrary string identifier (e.g. upstream tag or host:port).
 pub fn pool_key(label: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     label.hash(&mut hasher);
     hasher.finish()
 }
 
-/// Cloudflare `pingora-pool` wrapper for reusing idle `BoxStream` connections.
 pub struct PingoraStreamPool {
     pool: Arc<ConnectionPool<BoxStream>>,
     idle_timeout: Duration,
@@ -34,7 +32,6 @@ pub struct PingoraStreamPool {
 }
 
 impl PingoraStreamPool {
-    /// Creates a new `PingoraStreamPool` with `capacity` slots and `idle_timeout` eviction.
     pub fn new(capacity: usize, idle_timeout: Duration) -> Self {
         Self {
             pool: Arc::new(ConnectionPool::new(capacity)),
@@ -43,19 +40,14 @@ impl PingoraStreamPool {
         }
     }
 
-    /// Attempts to take an idle stream for `key` from the pool.
     pub fn get(&self, key: u64) -> Option<BoxStream> {
         self.pool.get(&key)
     }
 
-    /// Returns an idle stream into the pool and spawns Pingora's built-in `idle_timeout` watcher.
     pub fn put(&self, key: u64, stream: BoxStream) {
         self.put_inner(key, stream, None);
     }
 
-    /// Returns an idle stream into the pool while tying a `tokio::sync::OwnedSemaphorePermit`
-    /// to its lifetime in Pingora's `idle_timeout` watcher. Whether the stream is consumed via
-    /// `get()`, evicted by LRU, or expires after `idle_timeout`, the permit is released exactly once.
     pub fn put_with_permit(
         &self,
         key: u64,
@@ -91,9 +83,6 @@ enum BalancerInner {
     Ketama(LoadBalancer<KetamaHashing>),
 }
 
-/// Cloudflare `pingora-load-balancing` wrapper supporting both `RoundRobin` and
-/// `pingora-ketama` consistent hashing (so the same target domain sticks to the same
-/// Worker / upstream node without IP hopping, while automatically failing over on errors).
 #[cfg(not(target_os = "android"))]
 pub struct PingoraUpstreamBalancer {
     inner: BalancerInner,
@@ -126,7 +115,6 @@ impl PingoraUpstreamBalancer {
         Ok((Backends::new(discovery::Static::new(set)), labels))
     }
 
-    /// Builds a `RoundRobin` load balancer from `SocketAddr` endpoints.
     pub fn from_addrs(addrs: &[SocketAddr]) -> Result<Self> {
         let (backends, labels) = Self::build_backends_from_addrs(addrs)?;
         let lb = LoadBalancer::<RoundRobin>::from_backends(backends);
@@ -137,7 +125,6 @@ impl PingoraUpstreamBalancer {
         })
     }
 
-    /// Builds a `RoundRobin` load balancer for arbitrary upstreams (supports both domains & IPs).
     pub fn from_labels(labels: Vec<String>) -> Result<Self> {
         let (backends, labels) = Self::build_backends_from_labels(labels)?;
         let lb = LoadBalancer::<RoundRobin>::from_backends(backends);
@@ -148,8 +135,6 @@ impl PingoraUpstreamBalancer {
         })
     }
 
-    /// Builds a `pingora-ketama` consistent-hashing load balancer so identical target domains
-    /// stick to the same upstream node (preventing session/IP hopping across Worker endpoints).
     pub fn from_labels_ketama(labels: Vec<String>) -> Result<Self> {
         let (backends, labels) = Self::build_backends_from_labels(labels)?;
         let lb = LoadBalancer::<KetamaHashing>::from_backends(backends);
@@ -160,12 +145,10 @@ impl PingoraUpstreamBalancer {
         })
     }
 
-    /// Selects the next healthy backend using an empty key.
     pub fn select(&self) -> Option<Backend> {
         self.select_with_key(b"")
     }
 
-    /// Selects a healthy backend using `key` (used by Ketama consistent hashing).
     pub fn select_with_key(&self, key: &[u8]) -> Option<Backend> {
         match &self.inner {
             BalancerInner::RoundRobin(lb) => lb.select(key, 256),
@@ -173,19 +156,16 @@ impl PingoraUpstreamBalancer {
         }
     }
 
-    /// Selects the next upstream index (`0..labels.len()`) using an empty key.
     pub fn select_index(&self) -> Option<usize> {
         self.select_index_for_key(b"")
     }
 
-    /// Selects the upstream index (`0..labels.len()`) for `key` (e.g. target domain bytes).
     pub fn select_index_for_key(&self, key: &[u8]) -> Option<usize> {
         let backend = self.select_with_key(key)?;
         let addr_str = backend.addr.to_string();
         if let Some(pos) = self.labels.iter().position(|l| l == &addr_str) {
             return Some(pos);
         }
-        // Synthetic port mapping `127.0.0.1:(10000 + idx)`
         if let Some(port_str) = addr_str.rsplit(':').next()
             && let Ok(port) = port_str.parse::<usize>()
             && port >= 10000

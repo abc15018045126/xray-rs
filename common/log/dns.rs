@@ -1,6 +1,3 @@
-// Module: common\log\dns.rs
-// 1:1 Rust implementation corresponding to Go common\log\dns.go
-
 use crate::common::log::Message;
 use std::fmt;
 use std::net::IpAddr;

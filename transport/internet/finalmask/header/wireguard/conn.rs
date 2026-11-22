@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\wireguard\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\wireguard\conn.go
-
 use super::WireguardHeader;
 
 pub struct WireguardPacketConn {

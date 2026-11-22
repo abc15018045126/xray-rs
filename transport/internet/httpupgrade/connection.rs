@@ -1,6 +1,3 @@
-// Module: transport\internet\httpupgrade\connection.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\connection.go
-
 use crate::common::net::BoxStream;
 
 pub struct HttpUpgradeConnection {

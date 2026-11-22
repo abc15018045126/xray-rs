@@ -1,6 +1,3 @@
-// Module: infra\conf\version.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\version.go
-
 use super::buildable::Buildable;
 use crate::app::version::VERSION as CORE_VERSION;
 use crate::app::version::VersionConfig as ProtoVersionConfig;

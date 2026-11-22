@@ -1,6 +1,3 @@
-// Module: app\policy\manager_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\policy\manager_test.go
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -33,7 +30,6 @@ mod tests {
         let manager = Instance::new(&cfg).expect("create policy instance");
         let p_default = session_default();
 
-        // Level 0 has overridden handshake = 2s, but inherits connection_idle default
         let p0 = manager.for_level(0);
         assert_eq!(p0.timeouts.handshake, Duration::from_secs(2));
         assert_eq!(
@@ -41,7 +37,6 @@ mod tests {
             p_default.timeouts.connection_idle
         );
 
-        // Level 1 was not explicitly defined, so falls back to session_default()
         let p1 = manager.for_level(1);
         assert_eq!(p1.timeouts.handshake, p_default.timeouts.handshake);
         assert_eq!(

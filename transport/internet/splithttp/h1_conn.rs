@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\h1_conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\h1_conn.go
-
 use crate::common::net::BoxStream;
 use std::io;
 use std::pin::Pin;

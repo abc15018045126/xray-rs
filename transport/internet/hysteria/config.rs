@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

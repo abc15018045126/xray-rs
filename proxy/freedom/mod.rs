@@ -7,3 +7,5 @@ pub mod freedom;
 pub mod freedom_test;
 
 pub use freedom::{Client, DomainStrategy, FreedomClient, FreedomConfig, Handler};
+#[cfg(test)]
+mod freedom_loopback_test;

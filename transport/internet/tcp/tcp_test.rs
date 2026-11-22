@@ -1,6 +1,3 @@
-// Module: transport\internet\tcp\tcp_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\tcp
-
 #[cfg(test)]
 mod tests {
     use super::super::config::TcpConfig;
@@ -22,12 +19,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_tcp_listen_and_reject_domain() {
-        // Domain rejected
         let domain_addr = Address::domain("example.com");
         let res = listen_tcp(&domain_addr, 8080).await;
         assert!(res.is_err());
 
-        // Localhost allowed and bound to ephemeral port
         let local_addr = Address::domain("localhost");
         let listener = listen_tcp(&local_addr, 0).await.expect("localhost bind");
         assert!(listener.local_addr().is_ok());

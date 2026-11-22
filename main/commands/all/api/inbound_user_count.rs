@@ -1,6 +1,3 @@
-// Module: main\commands\all\api\inbound_user_count.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\api\inbound_user_count.go
-
 use super::shared::ApiClientConfig;
 use crate::main::commands::base::command::Command;
 

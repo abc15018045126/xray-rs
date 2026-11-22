@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\noop\noop.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\headers\noop\noop.go
-
 use crate::common::net::BoxStream;
 use crate::transport::internet::header::{ConnectionAuthenticator, Header, PacketHeader};
 

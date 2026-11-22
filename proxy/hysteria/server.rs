@@ -1,6 +1,3 @@
-// Module: proxy\hysteria\server.rs
-// 1:1 Rust implementation corresponding to Go proxy\hysteria\server.go
-
 use super::config::HysteriaConfig;
 use super::protocol::TcpRequest;
 use crate::common::errors::Result;

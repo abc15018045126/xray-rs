@@ -1,6 +1,3 @@
-// Module: common\crypto\chunk.rs
-// 1:1 Rust implementation corresponding to Go common\crypto\chunk.go
-
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};

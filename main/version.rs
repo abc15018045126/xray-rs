@@ -1,6 +1,3 @@
-// Module: main\\version.rs
-// 1:1 Rust implementation corresponding to Go main\\version.go
-
 pub const VERSION: &str = "26.3.27";
 
 pub fn version() -> &'static str {

@@ -1,14 +1,8 @@
-// Module: proxy\tun\tun_android.rs
-// 1:1 Rust implementation corresponding to Go proxy\tun\tun_android.go
-
 use crate::common::errors::{Error, Result};
 
-/// Official Xray-core environment variable carrying Android VpnService TUN file descriptor.
 pub const TUN_FD_ENV_KEY: &str = "xray.tun.fd";
 pub const TUN_FD_ENV_ALT_KEY: &str = "XRAY_TUN_FD";
 
-/// Reads the Android VpnService TUN file descriptor from environment variables
-/// (`xray.tun.fd` or `XRAY_TUN_FD`), matching official Xray-core `proxy/tun/tun_android.go`.
 pub fn read_android_tun_fd_from_env() -> Result<i32> {
     let raw = std::env::var(TUN_FD_ENV_KEY)
         .or_else(|_| std::env::var(TUN_FD_ENV_ALT_KEY))
@@ -41,9 +35,6 @@ mod imp {
     use tokio::io::unix::AsyncFd;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-    /// Pure-Rust async TUN device wrapping Android `VpnService` `tun_fd` via `AsyncFd`,
-    /// duplicating the descriptor with `F_DUPFD_CLOEXEC` (matching `tun_android.go`) so the
-    /// Android app retains ownership of the original descriptor.
     pub struct AndroidTunDevice {
         inner: AsyncFd<OwnedFd>,
     }
@@ -55,8 +46,6 @@ mod imp {
         }
 
         pub fn from_raw_fd(fd: i32) -> Result<Self> {
-            // SAFETY: `fcntl(F_DUPFD_CLOEXEC)` duplicates the VpnService descriptor into a new
-            // owned fd, and `O_NONBLOCK` is required for Tokio `AsyncFd`.
             let dup_fd = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 0) };
             if dup_fd < 0 {
                 return Err(Error::Io(io::Error::last_os_error()));

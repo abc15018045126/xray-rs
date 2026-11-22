@@ -1,5 +1,3 @@
-// Module: transport\internet\finalmask\salamander\salamander_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::config::SalamanderConfig;
@@ -20,7 +18,6 @@ mod tests {
         assert_eq!(n_dec, payload.len());
         assert_eq!(&dec[..n_dec], payload);
 
-        // Also test convenience methods
         let enc_vec = obf.obfuscate(payload);
         assert_eq!(enc_vec.len(), payload.len() + SM_SALT_LEN);
         let dec_vec = obf.deobfuscate(&enc_vec).unwrap();

@@ -1,6 +1,3 @@
-// Module: common\task\task_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\task\task_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::task::{on_success, parallel_run, parallel_run_boxed};

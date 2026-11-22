@@ -1,6 +1,3 @@
-// Module: infra\conf\log.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\log.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,5 +1,3 @@
-// Module: app\policy\mod.rs
-
 pub mod config;
 #[path = "config.pb.rs"]
 pub mod config_pb;

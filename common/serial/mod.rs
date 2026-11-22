@@ -17,3 +17,5 @@ pub use serial::{
 };
 pub use string::{StringValue, concat, concat_strings, to_string, to_string_val};
 pub use typed_message::{TypedMessage, get_instance, to_typed_message};
+#[cfg(test)]
+mod serial_xudp_test;

@@ -1,6 +1,3 @@
-// Module: common\protocol\address_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\protocol\address_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::address::AddressParser;

@@ -1,6 +1,3 @@
-// Module: main\commands\all\vlessenc.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\vlessenc.go
-
 use super::curve25519::gen_curve25519;
 use super::mlkem768::gen_mlkem768;
 use crate::main::commands::base::command::Command;

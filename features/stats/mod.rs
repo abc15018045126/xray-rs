@@ -1,5 +1,3 @@
-// Module: features\stats\mod.rs
-
 pub mod stats;
 
 pub use stats::{

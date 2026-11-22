@@ -1,6 +1,3 @@
-// Module: main\commands\all\curve25519.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\curve25519.go
-
 use crate::common::errors::Result;
 use crate::main::commands::base::command::Command;
 use base64::Engine;
@@ -74,12 +71,10 @@ mod tests {
         assert_eq!(pub_k.len(), 32);
         assert_eq!(hash.len(), 32);
 
-        // Clamping checks
         assert_eq!(priv_k[0] & 7, 0);
         assert_eq!(priv_k[31] & 128, 0);
         assert_ne!(priv_k[31] & 64, 0);
 
-        // Deterministic generation from input key
         let (p2, pub2, h2) = gen_curve25519(Some(&priv_k)).unwrap();
         assert_eq!(priv_k, p2);
         assert_eq!(pub_k, pub2);

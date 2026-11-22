@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks_2022\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

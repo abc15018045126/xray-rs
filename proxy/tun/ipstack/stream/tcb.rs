@@ -2,27 +2,23 @@ use super::seqnum::SeqNum;
 use etherparse::TcpHeader;
 use std::{collections::BTreeMap, time::Duration};
 
-pub(super) const MAX_UNACK: u32 = 1024 * 16; // 16KB
-pub(super) const READ_BUFFER_SIZE: usize = 1024 * 16; // 16KB
-pub(super) const MAX_COUNT_FOR_DUP_ACK: usize = 3; // Maximum number of duplicate ACKs before retransmission
+pub(super) const MAX_UNACK: u32 = 1024 * 16;
+pub(super) const READ_BUFFER_SIZE: usize = 1024 * 16;
+pub(super) const MAX_COUNT_FOR_DUP_ACK: usize = 3;
 
-/// Retransmission timeout
 pub(super) const RTO: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// Maximum count of retransmissions before dropping the packet
 pub(super) const MAX_RETRANSMIT_COUNT: usize = 3;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum TcpState {
-    // Init, /* Since we always act as a server, it starts from `Listen`, so we don't use states Init & SynSent. */
-    // SynSent,
     Listen,
     SynReceived,
     Established,
-    FinWait1, // act as a client, actively send a farewell packet to the other side, followed with FinWait2, TimeWait, Closed
+    FinWait1,
     FinWait2,
     TimeWait,
-    CloseWait, // act as a server, followed with LastAck, Closed
+    CloseWait,
     LastAck,
     Closed,
 }
@@ -37,12 +33,6 @@ pub(super) enum PacketType {
     KeepAlive,
 }
 
-/// TCP Control Block
-/// - `inflight_packets` is prerepresented bytes stream from upstream application,
-///   which have been sent to the lower device but not yet acknowledged.
-/// - `unordered_packets` is the bytes stream received from the lower device,
-///   which can be acknowledged and extracted by `consume_unordered_packets` method
-///   then can be read by upstream application via `Tcp::poll_read` method.
 #[derive(Debug, Clone)]
 pub(crate) struct Tcb {
     seq: SeqNum,
@@ -102,12 +92,11 @@ impl Tcb {
     }
 
     pub fn update_duplicate_ack_count(&mut self, rcvd_ack: SeqNum) {
-        // If the received rcvd_ack is the same as duplicate_ack_count_helper and not all data has been acknowledged (rcvd_ack < self.seq), increment the count.
         if rcvd_ack == self.duplicate_ack_count_helper && rcvd_ack < self.seq {
             self.duplicate_ack_count = self.duplicate_ack_count.saturating_add(1);
         } else {
             self.duplicate_ack_count_helper = rcvd_ack;
-            self.duplicate_ack_count = 0; // reset duplicate ACK count
+            self.duplicate_ack_count = 0;
         }
     }
 
@@ -138,20 +127,17 @@ impl Tcb {
         while remaining_bytes > 0 {
             if let Some(seq) = self.unordered_packets.keys().next().copied() {
                 if seq != self.ack {
-                    break; // sequence number is not continuous, stop extracting
+                    break;
                 }
 
-                // remove and get the first packet
                 let mut payload = self.unordered_packets.remove(&seq).unwrap();
                 let payload_len = payload.len();
 
                 if payload_len <= remaining_bytes {
-                    // current packet can be fully extracted
                     data.extend(payload);
                     self.ack += payload_len as u32;
                     remaining_bytes -= payload_len;
                 } else {
-                    // current packet can only be partially extracted
                     let remaining_payload = payload.split_off(remaining_bytes);
                     data.extend_from_slice(&payload);
                     self.ack += remaining_bytes as u32;
@@ -159,7 +145,7 @@ impl Tcb {
                     break;
                 }
             } else {
-                break; // no more packets to extract
+                break;
             }
         }
 
@@ -199,18 +185,6 @@ impl Tcb {
     pub(super) fn get_recv_window(&self) -> u16 {
         self.get_available_read_buffer_size().try_into().unwrap_or(u16::MAX)
     }
-    // #[inline(always)]
-    // pub(super) fn buffer_size(&self, payload_len: u16) -> u16 {
-    //     match MAX_UNACK - self.inflight_packets.len() as u32 {
-    //         // b if b.saturating_sub(payload_len as u32 + 64) != 0 => payload_len,
-    //         // b if b < 128 && b >= 4 => (b / 2) as u16,
-    //         // b if b < 4 => b as u16,
-    //         // b => (b - 64) as u16,
-    //         b if b >= payload_len as u32 * 2 && b > 0 => payload_len,
-    //         b if b < 4 => b as u16,
-    //         b => (b / 2) as u16,
-    //     }
-    // }
 
     pub(super) fn check_pkt_type(&self, tcp_header: &TcpHeader, payload: &[u8]) -> PacketType {
         let rcvd_ack = SeqNum(tcp_header.acknowledgment_number);
@@ -295,15 +269,15 @@ impl Tcb {
         self.inflight_packets.retain(|_, packet| {
             if packet.retransmit_count >= self.max_retransmit_count {
                 log::warn!("Packet with seq {:?} reached max retransmit count, dropping packet", packet.seq);
-                return false; // remove this packet
+                return false;
             }
             if packet.is_timed_out() {
                 packet.retransmit_count += 1;
-                packet.retransmit_timeout *= 2; // increase timeout exponentially
+                packet.retransmit_timeout *= 2;
                 packet.send_time = std::time::Instant::now();
                 retransmit_list.push(packet.clone());
             }
-            true // keep the packet in the inflight_packets
+            true
         });
         retransmit_list
     }
@@ -318,8 +292,6 @@ impl Tcb {
     }
 
     pub fn is_send_buffer_full(&self) -> bool {
-        // To respect the receiver's window (remote_window) size and avoid sending too many unacknowledged packets, which may cause packet loss
-        // Simplified version: min(cwnd, rwnd)
         self.seq.distance(self.get_last_received_ack()) >= self.max_unacked_bytes.min(self.get_send_window() as u32)
     }
 }
@@ -330,7 +302,7 @@ pub struct InflightPacket {
     pub payload: Vec<u8>,
     pub send_time: std::time::Instant,
     pub retransmit_count: usize,
-    pub retransmit_timeout: std::time::Duration, // current retransmission timeout
+    pub retransmit_timeout: std::time::Duration,
 }
 
 impl InflightPacket {
@@ -380,30 +352,26 @@ mod tests {
             MAX_RETRANSMIT_COUNT,
         );
 
-        // insert 3 consecutive packets
-        tcb.add_unordered_packet(SeqNum(1000), vec![1; 500]); // seq=1000, len=500
-        tcb.add_unordered_packet(SeqNum(1500), vec![2; 500]); // seq=1500, len=500
-        tcb.add_unordered_packet(SeqNum(2000), vec![3; 500]); // seq=2000, len=500
+        tcb.add_unordered_packet(SeqNum(1000), vec![1; 500]);
+        tcb.add_unordered_packet(SeqNum(1500), vec![2; 500]);
+        tcb.add_unordered_packet(SeqNum(2000), vec![3; 500]);
 
-        // test 1: extract up to 700 bytes
         let data = tcb.consume_unordered_packets(700).unwrap();
-        assert_eq!(data.len(), 700); // extract 500 + 200
-        assert_eq!(data[..500], vec![1; 500]); // the first packet
-        assert_eq!(data[500..700], vec![2; 200]); // the first 200 bytes of the second packet
-        assert_eq!(tcb.ack, SeqNum(1700)); // ack increased by 700
-        assert_eq!(tcb.unordered_packets.len(), 2); // remaining two packets
-        assert_eq!(tcb.unordered_packets.get(&SeqNum(1700)).unwrap().len(), 300); // the second packet remaining 300 bytes
-        assert_eq!(tcb.unordered_packets.get(&SeqNum(2000)).unwrap().len(), 500); // the third packet unchanged
+        assert_eq!(data.len(), 700);
+        assert_eq!(data[..500], vec![1; 500]);
+        assert_eq!(data[500..700], vec![2; 200]);
+        assert_eq!(tcb.ack, SeqNum(1700));
+        assert_eq!(tcb.unordered_packets.len(), 2);
+        assert_eq!(tcb.unordered_packets.get(&SeqNum(1700)).unwrap().len(), 300);
+        assert_eq!(tcb.unordered_packets.get(&SeqNum(2000)).unwrap().len(), 500);
 
-        // test 2: extract up to 800 bytes
         let data = tcb.consume_unordered_packets(800).unwrap();
-        assert_eq!(data.len(), 800); // extract 300 bytes of the second packet and the third packet
-        assert_eq!(data[..300], vec![2; 300]); // the remaining 300 bytes of the second packet
-        assert_eq!(data[300..800], vec![3; 500]); // the third packet
-        assert_eq!(tcb.ack, SeqNum(2500)); // ack increased by 800
-        assert_eq!(tcb.unordered_packets.len(), 0); // no remaining packets
+        assert_eq!(data.len(), 800);
+        assert_eq!(data[..300], vec![2; 300]);
+        assert_eq!(data[300..800], vec![3; 500]);
+        assert_eq!(tcb.ack, SeqNum(2500));
+        assert_eq!(tcb.unordered_packets.len(), 0);
 
-        // test 3: no data to extract
         let data = tcb.consume_unordered_packets(1000);
         assert!(data.is_none());
     }
@@ -419,25 +387,22 @@ mod tests {
             RTO,
             MAX_RETRANSMIT_COUNT,
         );
-        tcb.seq = SeqNum(100); // setting the initial seq
+        tcb.seq = SeqNum(100);
 
-        // insert 3 consecutive packets
-        tcb.add_inflight_packet(vec![1; 500]).unwrap(); // seq=100, len=500
-        tcb.add_inflight_packet(vec![2; 500]).unwrap(); // seq=600, len=500
-        tcb.add_inflight_packet(vec![3; 500]).unwrap(); // seq=1100, len=500
+        tcb.add_inflight_packet(vec![1; 500]).unwrap();
+        tcb.add_inflight_packet(vec![2; 500]).unwrap();
+        tcb.add_inflight_packet(vec![3; 500]).unwrap();
 
-        // test 1: confirm partial packets (ack=800)
         tcb.update_inflight_packet_queue(SeqNum(800));
-        assert_eq!(tcb.inflight_packets.len(), 2); // remaining two packets
+        assert_eq!(tcb.inflight_packets.len(), 2);
         let first_packet = tcb.inflight_packets.first_key_value().unwrap().1;
-        assert_eq!(first_packet.seq, SeqNum(800)); // the remaining part of the first packet
-        assert_eq!(first_packet.payload.len(), 300); // remaining 300 bytes in the first packet
+        assert_eq!(first_packet.seq, SeqNum(800));
+        assert_eq!(first_packet.payload.len(), 300);
         let second_packet = tcb.inflight_packets.last_key_value().unwrap().1;
-        assert_eq!(second_packet.seq, SeqNum(1100)); // no change in the second packet
+        assert_eq!(second_packet.seq, SeqNum(1100));
 
-        // test 2: confirm all packets (ack=2000)
         tcb.update_inflight_packet_queue(SeqNum(2000));
-        assert_eq!(tcb.inflight_packets.len(), 0); // all packets are acknowledged
+        assert_eq!(tcb.inflight_packets.len(), 0);
     }
 
     #[test]
@@ -453,14 +418,12 @@ mod tests {
         );
         tcb.seq = SeqNum(1000);
 
-        // Insert 3 consecutive packets
-        tcb.add_inflight_packet(vec![1; 500]).unwrap(); // seq=1000, len=500
-        tcb.add_inflight_packet(vec![2; 500]).unwrap(); // seq=1500, len=500
-        tcb.add_inflight_packet(vec![3; 500]).unwrap(); // seq=2000, len=500
+        tcb.add_inflight_packet(vec![1; 500]).unwrap();
+        tcb.add_inflight_packet(vec![2; 500]).unwrap();
+        tcb.add_inflight_packet(vec![3; 500]).unwrap();
 
-        // Emulate cumulative ACK: ack=2500
         tcb.update_inflight_packet_queue(SeqNum(2500));
-        assert_eq!(tcb.inflight_packets.len(), 0); // all packets should be removed
+        assert_eq!(tcb.inflight_packets.len(), 0);
     }
 
     #[test]
@@ -477,9 +440,7 @@ mod tests {
 
         tcb.add_inflight_packet(vec![1; 500]).unwrap();
 
-        // Simulate retransmission timeouts
         for i in 0..MAX_RETRANSMIT_COUNT {
-            // Simulate a timeout for the first packet
             let timeout = tcb.inflight_packets.values().next().unwrap().retransmit_timeout + std::time::Duration::from_millis(100);
             println!("timeout: {timeout:?}");
             std::thread::sleep(timeout);

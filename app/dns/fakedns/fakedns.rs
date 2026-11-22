@@ -1,6 +1,3 @@
-// Module: app\dns\fakedns\fakedns.rs
-// 1:1 Rust implementation corresponding to Go app\dns\fakedns\fakedns.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

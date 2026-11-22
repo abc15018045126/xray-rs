@@ -1,6 +1,3 @@
-// Module: common\log\access.rs
-// 1:1 Rust implementation corresponding to Go common\log\access.go
-
 use crate::common::ctx::Context;
 use crate::common::log::Message;
 use crate::common::net::Destination;
@@ -99,7 +96,6 @@ pub fn access_message_from_context(ctx: &Context) -> Option<Arc<AccessMessage>> 
     ctx.get("access_message")
 }
 
-/// AccessLogMessage provides compatibility with existing tests and network components.
 #[derive(Debug, Clone)]
 pub struct AccessLogMessage {
     pub from: Option<SocketAddr>,

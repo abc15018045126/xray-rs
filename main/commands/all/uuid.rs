@@ -1,6 +1,3 @@
-// Module: main\commands\all\uuid.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\uuid.go
-
 use crate::main::commands::base::command::Command;
 use uuid::Uuid;
 

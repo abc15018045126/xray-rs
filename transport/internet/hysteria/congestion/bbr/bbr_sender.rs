@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\bbr\bbr_sender.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\bbr_sender.go
-
 use super::bandwidth::Bandwidth;
 use super::windowed_filter::WindowedMaxFilter;
 use std::time::Duration;

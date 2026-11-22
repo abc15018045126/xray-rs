@@ -1,6 +1,3 @@
-// Module: transport\internet\udp\mod.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\udp
-
 pub mod config;
 #[path = "config.pb.rs"]
 pub mod config_pb;
@@ -10,6 +7,7 @@ pub mod hub;
 pub mod hub_darwin;
 pub mod hub_freebsd;
 pub mod hub_linux;
+pub mod hub_openbsd;
 pub mod hub_other;
 pub mod udp;
 
@@ -24,3 +22,7 @@ pub use dispatcher::{
 };
 pub use hub::{Hub, HubOption, UdpHub, UdpPacket};
 pub use udp::PROTOCOL_NAME;
+#[cfg(test)]
+mod uot_doh_test;
+#[cfg(test)]
+mod config_test;

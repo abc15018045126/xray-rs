@@ -1,6 +1,3 @@
-// Module: main\commands\all\api\shared.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\api\shared.go
-
 pub struct ApiClientConfig {
     pub server: String,
     pub timeout: u64,

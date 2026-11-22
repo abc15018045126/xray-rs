@@ -1,6 +1,3 @@
-// Module: app\reverse\portal_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\reverse\portal_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::bridge::ReverseBridge;
@@ -26,7 +23,6 @@ mod tests {
         worker2.inc_connections();
         assert_eq!(b.total_connections().await, 1);
 
-        // Test stream dispatch through portal
         let (s1, _s2) = duplex(1024);
         p.dispatch(Box::pin(s1)).await.unwrap();
 

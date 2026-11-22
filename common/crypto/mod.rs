@@ -26,3 +26,9 @@ pub use chunk::{AeadChaCha20ChunkReader, AeadChaCha20ChunkWriter, IncreasingNonc
 pub use crypto::{StreamCipher, rand_between, rand_bytes_between};
 pub use internal::chacha::ChaChaCore;
 pub use io::{CryptionReader, CryptionWriter, xor_buffers};
+#[cfg(test)]
+mod crypto_internal_test;
+#[cfg(test)]
+mod crypto_protocol_full_test;
+#[cfg(test)]
+mod crypto_test;

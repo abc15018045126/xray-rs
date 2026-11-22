@@ -1,6 +1,3 @@
-// Module: common\reflect\marshal_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\reflect\marshal_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::marshal::{from_json, json_marshal_without_escape, marshal_to_json, to_json};

@@ -1,6 +1,3 @@
-// Module: proxy\vless\flow\vision_test.rs
-// Unit tests for VisionStream, padding framing, unpadding, and Direct Copy transition
-
 #[cfg(test)]
 mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -20,7 +17,6 @@ mod tests {
         let mut client_stream = VisionStream::new(client_raw, client_ctx, false);
         let mut server_stream = VisionStream::new(server_raw, server_ctx, true);
 
-        // Send payload through client
         let msg = b"Testing XTLS-Vision Flow Data Transmission!";
         client_stream
             .write_all(msg)
@@ -31,7 +27,6 @@ mod tests {
             .await
             .expect("Client flush should succeed");
 
-        // Read through server stream - should automatically unpad
         let mut received = vec![0u8; msg.len()];
         server_stream
             .read_exact(&mut received)
@@ -44,11 +39,11 @@ mod tests {
     #[test]
     fn test_vision_filter_inspect_tls_record_length() {
         let mut record = vec![0x16, 0x03, 0x03];
-        record.extend_from_slice(&(42u16).to_be_bytes()); // length 42
+        record.extend_from_slice(&(42u16).to_be_bytes());
         record.extend_from_slice(&[0u8; 42]);
 
         let len = VisionFilter::inspect_tls_record_length(&record);
-        assert_eq!(len, Some(47)); // 5 + 42
+        assert_eq!(len, Some(47));
 
         assert_eq!(VisionFilter::inspect_tls_record_length(&[0x16, 0x03]), None);
     }
@@ -61,7 +56,6 @@ mod tests {
         let client_ctx = VisionContext::new(user_uuid.clone(), true);
         let server_ctx = VisionContext::new(user_uuid.clone(), false);
 
-        // Set direct copy explicitly to simulate post-handshake mode
         client_ctx.set_direct_copy(true);
         server_ctx.set_direct_copy(true);
 

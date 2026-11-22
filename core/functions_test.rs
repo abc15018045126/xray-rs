@@ -1,6 +1,3 @@
-// Module: core\functions_test.rs
-// 1:1 Rust unit test suite corresponding to Go core\functions_test.go
-
 #[cfg(test)]
 mod tests {
     use crate::common::net::{Address, Destination, Network};
@@ -78,7 +75,6 @@ mod tests {
         let mut buf = vec![0u8; payload.len()];
         conn.read_exact(&mut buf).await.unwrap();
 
-        // Server xors with 'c'
         let expected: Vec<u8> = payload.iter().map(|b| b ^ b'c').collect();
         assert_eq!(buf, expected);
 

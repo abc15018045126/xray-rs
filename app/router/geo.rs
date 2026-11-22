@@ -18,12 +18,9 @@ pub struct GeoIpGroup {
     pub matchers: Vec<IpMatcher>,
 }
 
-/// Fast indexed domain matcher for a single `geosite:<code>` group.
-/// Uses O(1) hash lookup for Full and Domain-suffix rules (zero allocation per lookup).
 #[derive(Debug, Default)]
 struct GeoSiteIndex {
     full: HashSet<String>,
-    /// Stored lowercase without leading dot. Matched by walking `.` boundaries.
     domain: HashSet<String>,
     substr: Vec<String>,
     regex: Vec<Regex>,
@@ -64,7 +61,6 @@ impl GeoSiteIndex {
     }
 }
 
-/// Fast O(log N) sorted, merged interval index for a single `geoip:<code>` group.
 #[derive(Debug, Default)]
 struct GeoIpIndex {
     v4: Vec<(u32, u32)>,
@@ -163,10 +159,6 @@ fn cidr_v6_range(ip: [u8; 16], prefix: u32) -> (u128, u128) {
     (start, end)
 }
 
-/// Official Xray-core asset path resolution:
-/// 1. `XRAY_LOCATION_ASSET` env var
-/// 2. Executable directory (`current_exe().parent()`)
-/// 3. Current working directory (`.` and `configs/`)
 pub fn find_asset_file(filename: &str) -> Option<PathBuf> {
     for env_key in ["XRAY_LOCATION_ASSET", "xray.location.asset"] {
         if let Ok(dir) = std::env::var(env_key)
@@ -202,7 +194,6 @@ pub struct GeoDatabase {
     geoips: RwLock<HashMap<String, GeoIpIndex>>,
     geosite_path: RwLock<Option<PathBuf>>,
     geoip_path: RwLock<Option<PathBuf>>,
-    /// Tracks codes already attempted from `.dat` so we don't re-scan missing codes.
     attempted_geosites: RwLock<HashSet<String>>,
     attempted_geoips: RwLock<HashSet<String>>,
 }
@@ -229,7 +220,6 @@ impl GeoDatabase {
         db
     }
 
-    /// Create a GeoDatabase pointing at explicit `.dat` paths (useful for tests).
     pub fn with_asset_paths(geoip_path: Option<PathBuf>, geosite_path: Option<PathBuf>) -> Self {
         let db = Self {
             geosites: RwLock::new(HashMap::new()),
@@ -247,14 +237,12 @@ impl GeoDatabase {
         let mut gs = self.geosites.write().unwrap();
         let mut gi = self.geoips.write().unwrap();
 
-        // Fallback built-in geosite:private
         let mut private_gs = GeoSiteIndex::default();
         for d in ["localhost", "local", "lan", "home.arpa"] {
             private_gs.domain.insert(d.into());
         }
         gs.insert("private".into(), private_gs);
 
-        // Fallback built-in geosite:cn (used only if geosite.dat is absent)
         let mut cn_gs = GeoSiteIndex::default();
         for d in [
             "cn",
@@ -273,7 +261,6 @@ impl GeoDatabase {
         }
         gs.insert("cn".into(), cn_gs);
 
-        // Fallback built-in geosite:google
         let mut google_gs = GeoSiteIndex::default();
         for d in [
             "google.com",
@@ -290,7 +277,6 @@ impl GeoDatabase {
         }
         gs.insert("google".into(), google_gs);
 
-        // Fallback built-in geoip:private
         let mut private_gi = GeoIpIndex::default();
         for (ip, p) in [
             (Ipv4Addr::new(10, 0, 0, 0), 8),
@@ -316,7 +302,6 @@ impl GeoDatabase {
         private_gi.finalize();
         gi.insert("private".into(), private_gi);
 
-        // Fallback built-in geoip:cn (used only if geoip.dat is absent)
         let mut cn_gi = GeoIpIndex::default();
         for ip in [
             Ipv4Addr::new(114, 114, 114, 0),
@@ -362,7 +347,6 @@ impl GeoDatabase {
             return;
         };
 
-        // Mark attempted before heavy I/O (serialized via write lock check)
         {
             let mut att = self.attempted_geosites.write().unwrap();
             if !att.insert(group_key.to_string()) {
@@ -370,7 +354,6 @@ impl GeoDatabase {
             }
         }
 
-        // Support `code@attr` / `code@!attr` syntax (e.g. `cn@!cn`)
         let (code, attr_filter) = match group_key.split_once('@') {
             Some((c, a)) => (c, Some(a)),
             None => (group_key, None),
@@ -473,11 +456,6 @@ impl Default for GeoDatabase {
     }
 }
 
-// ============================================================================
-// Standard Xray-core protobuf wire decoder for `geoip.dat` & `geosite.dat`
-// Matches `Xray-core/common/geodata/geodat.proto` (v2fly/Loyalsoldier standard)
-// ============================================================================
-
 struct ProtoReader<'a> {
     buf: &'a [u8],
     pos: usize,
@@ -554,8 +532,6 @@ impl<'a> ProtoReader<'a> {
     }
 }
 
-/// Extract a single `GeoIP` entry matching `target_code` (case-insensitive) from `geoip.dat`.
-/// Skips non-matching entries without allocating.
 fn load_geoip_code_from_dat(path: &Path, target_code: &str) -> Result<Option<GeoIpIndex>> {
     let data = std::fs::read(path)?;
     let mut r = ProtoReader::new(&data);
@@ -579,7 +555,6 @@ fn load_geoip_code_from_dat(path: &Path, target_code: &str) -> Result<Option<Geo
 }
 
 fn parse_geoip_entry_if_match(entry: &[u8], target_code: &str) -> Option<GeoIpIndex> {
-    // Fast pass: find field 1 (`code`) first to avoid parsing CIDRs for non-matching countries.
     let mut r = ProtoReader::new(entry);
     let mut matched = false;
     while !r.is_eof() {
@@ -606,7 +581,6 @@ fn parse_geoip_entry_if_match(entry: &[u8], target_code: &str) -> Option<GeoIpIn
         let (field, wt) = r2.read_tag()?;
         match (field, wt) {
             (2, 2) => {
-                // CIDR { bytes ip = 1; uint32 prefix = 2; }
                 let cidr_bytes = r2.read_bytes()?;
                 let mut cr = ProtoReader::new(cidr_bytes);
                 let mut ip_slice: Option<&[u8]> = None;
@@ -648,7 +622,6 @@ fn parse_geoip_entry_if_match(entry: &[u8], target_code: &str) -> Option<GeoIpIn
     Some(idx)
 }
 
-/// Extract a single `GeoSite` entry matching `target_code` (case-insensitive) from `geosite.dat`.
 fn load_geosite_code_from_dat(
     path: &Path,
     target_code: &str,
@@ -680,7 +653,6 @@ fn parse_geosite_entry_if_match(
     target_code: &str,
     attr_filter: Option<&str>,
 ) -> Option<GeoSiteIndex> {
-    // Fast pass: check field 1 (`code`) first.
     let mut r = ProtoReader::new(entry);
     let mut matched = false;
     while !r.is_eof() {
@@ -712,10 +684,9 @@ fn parse_geosite_entry_if_match(
     while !r2.is_eof() {
         let (field, wt) = r2.read_tag()?;
         if field == 2 && wt == 2 {
-            // Domain { Type type = 1; string value = 2; repeated Attribute attribute = 3; }
             let dom_bytes = r2.read_bytes()?;
             let mut dr = ProtoReader::new(dom_bytes);
-            let mut dtype: u64 = 0; // 0=Substr, 1=Regex, 2=Domain, 3=Full
+            let mut dtype: u64 = 0;
             let mut val: Option<&str> = None;
             let mut has_attr = false;
             while !dr.is_eof() {
@@ -806,13 +777,11 @@ mod tests {
         }
         let db = GeoDatabase::with_asset_paths(Some(geoip), Some(geosite));
 
-        // China IPs from live capture must match geoip:cn
         assert!(db.match_geoip("cn", &"120.232.56.106".parse().unwrap()));
         assert!(db.match_geoip("cn", &"58.63.233.33".parse().unwrap()));
         assert!(!db.match_geoip("cn", &"8.8.8.8".parse().unwrap()));
         assert!(!db.match_geoip("cn", &"1.1.1.1".parse().unwrap()));
 
-        // China domains from live capture must match geosite:cn
         assert!(db.match_geosite("cn", "www.doubao.com"));
         assert!(db.match_geosite("cn", "mcs.doubao.com"));
         assert!(db.match_geosite("cn", "dig.bdurl.net"));

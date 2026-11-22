@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\common.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\common.go
-
 pub const PLACEMENT_QUERY_IN_HEADER: &str = "queryInHeader";
 pub const PLACEMENT_COOKIE: &str = "cookie";
 pub const PLACEMENT_HEADER: &str = "header";

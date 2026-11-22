@@ -1,6 +1,3 @@
-// Module: common\strmatcher\mph_matcher.rs
-// 1:1 Rust implementation corresponding to Go common\strmatcher\mph_matcher.go
-
 use super::ac_automaton_matcher::AcAutomatonMatcher;
 use super::matchers::RegexMatcher;
 use super::strmatcher::MatcherType;

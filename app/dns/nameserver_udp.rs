@@ -1,6 +1,3 @@
-// Module: app\dns\nameserver_udp.rs
-// 1:1 Rust implementation corresponding to Go app\dns\nameserver_udp.go
-
 use async_trait::async_trait;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};
@@ -115,7 +112,7 @@ impl NameServer for UdpNameServer {
                     .await
                     .map_err(|_| Error::Timeout)??;
                 stream.write_all(&query_a).await.map_err(Error::Io)?;
-                let mut buf = vec![0u8; 2048];
+                let mut buf = [0u8; 2048];
                 let n = pingora_timeout::timeout(self.timeout, stream.read(&mut buf))
                     .await
                     .map_err(|_| Error::Timeout)?
@@ -152,7 +149,7 @@ impl NameServer for UdpNameServer {
 
         socket.send(&query_a).await.map_err(Error::Io)?;
 
-        let mut buf = vec![0u8; 2048];
+        let mut buf = [0u8; 2048];
         let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut buf))
             .await
             .map_err(|_| Error::Timeout)?

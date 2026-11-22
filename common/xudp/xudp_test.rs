@@ -1,6 +1,3 @@
-// Module: common\xudp\xudp_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\xudp\xudp_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::{
@@ -31,7 +28,6 @@ mod tests {
 
     #[test]
     fn test_address_port_codec_roundtrip() {
-        // IPv4
         let mut buf = Vec::new();
         let ipv4 = Address::Ipv4(Ipv4Addr::new(192, 168, 1, 100));
         write_address_port(&mut buf, &ipv4, 8080);
@@ -40,7 +36,6 @@ mod tests {
         assert_eq!(parsed_port, 8080);
         assert_eq!(consumed, buf.len());
 
-        // Domain
         let mut buf_dom = Vec::new();
         let domain = Address::Domain("example.com".to_string());
         write_address_port(&mut buf_dom, &domain, 443);
@@ -49,7 +44,6 @@ mod tests {
         assert_eq!(parsed_dport, 443);
         assert_eq!(d_consumed, buf_dom.len());
 
-        // IPv6
         let mut buf_v6 = Vec::new();
         let ipv6 = Address::Ipv6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1));
         write_address_port(&mut buf_v6, &ipv6, 53);

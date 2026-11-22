@@ -1,6 +1,3 @@
-// Module: common\protocol\tls\sniff.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\tls\sniff.go
-
 use crate::common::errors::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,7 +87,6 @@ pub fn read_client_hello(mut data: &[u8]) -> Result<String> {
         }
 
         if ext_type == 0x00 {
-            // Server Name Indication
             let mut sni_data = &data[..length];
             if sni_data.len() < 2 {
                 return Err(Error::Protocol("sni data too short".into()));

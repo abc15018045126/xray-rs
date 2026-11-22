@@ -1,6 +1,3 @@
-// Module: common\platform\platform.rs
-// 1:1 Rust implementation corresponding to Go common\platform\platform.go
-
 use std::env;
 use std::path::PathBuf;
 

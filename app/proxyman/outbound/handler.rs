@@ -1,6 +1,3 @@
-// Module: app\proxyman\outbound\handler.rs
-// 1:1 Rust implementation corresponding to Go app\proxyman\outbound\handler.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 

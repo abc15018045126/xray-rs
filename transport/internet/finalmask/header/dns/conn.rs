@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\dns\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\dns\conn.go
-
 use super::DnsHeader;
 use crate::common::errors::Result;
 

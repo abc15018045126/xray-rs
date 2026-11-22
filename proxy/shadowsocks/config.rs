@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks\config.go
-
 use super::protocol::CipherType;
 use serde::{Deserialize, Serialize};
 

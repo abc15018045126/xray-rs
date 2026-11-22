@@ -1,6 +1,3 @@
-// Module: common\protocol\server_spec.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\server_spec.go
-
 use std::sync::Arc;
 use tokio::sync::RwLock;
 

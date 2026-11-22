@@ -1,6 +1,3 @@
-// Module: common\singbridge\pipe.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\pipe.go
-
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::timeout;
@@ -14,8 +11,6 @@ use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 
 pub const READ_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// PipeConnWrapper adapts Link Reader and Writer to stream I/O with timeouts.
-/// 1:1 corresponding to PipeConnWrapper in pipe.go.
 pub struct PipeConnWrapper {
     reader: PipeReader,
     writer: PipeWriter,
@@ -61,13 +56,10 @@ impl PipeConnWrapper {
     }
 }
 
-/// CopyConn copies data bidirectionally between link and a remote server stream.
-/// 1:1 corresponding to CopyConn() in pipe.go.
 pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
     let (reader, writer) = link.into_parts();
     let (mut server_read, mut server_write) = tokio::io::split(server_stream);
 
-    // Task 1: link.reader -> server_stream
     let r_task = async {
         loop {
             match timeout(READ_TIMEOUT, reader.read_multi_buffer()).await {
@@ -97,7 +89,6 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
         Ok::<(), Error>(())
     };
 
-    // Task 2: server_stream -> link.writer
     let w_task = async {
         let mut buf = [0u8; 8192];
         loop {
@@ -132,7 +123,6 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
     }
 }
 
-/// Backwards compatibility helper
 pub async fn bridge_pipe<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     mut reader: R,
     mut writer: W,

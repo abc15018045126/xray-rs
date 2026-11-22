@@ -22,7 +22,6 @@ impl DomainMatcher {
         if let Some(rest) = s_lower.strip_prefix("geosite:") {
             DomainMatcher::GeoSite(rest.to_string())
         } else if let Some(rest) = s_lower.strip_prefix("ext:") {
-            // Official Xray-core `ext:<filename>:<tag>` syntax (e.g. `ext:geosite.dat:cn`)
             if let Some((_file, tag)) = rest.rsplit_once(':')
                 && !tag.is_empty()
             {
@@ -85,7 +84,6 @@ impl IpMatcher {
         }
 
         if let Some(rest) = s_lower.strip_prefix("ext:") {
-            // Official Xray-core `ext:<filename>:<tag>` syntax (e.g. `ext:geoip-only-cn-private.dat:cn`)
             if let Some((_file, tag)) = rest.rsplit_once(':')
                 && !tag.is_empty()
             {
@@ -101,7 +99,6 @@ impl IpMatcher {
             return Some(IpMatcher::Private);
         }
 
-        // Check for CIDR
         if let Some((ip_part, mask_part)) = s.split_once('/')
             && let Ok(mask) = mask_part.parse::<u8>()
         {
@@ -307,7 +304,6 @@ impl Rule {
             return false;
         }
 
-        // Port matching: exact ports or port ranges
         let target_port = session.destination.port;
         if !self.ports.is_empty() || !self.port_ranges.is_empty() {
             let port_match = self.ports.contains(&target_port)
@@ -320,7 +316,6 @@ impl Rule {
             }
         }
 
-        // Source port matching
         if !self.source_ports.is_empty() {
             let src_port = session.source.map(|s| s.port()).unwrap_or(0);
             if !self.source_ports.contains(&src_port) {
@@ -328,7 +323,6 @@ impl Rule {
             }
         }
 
-        // Source IP matching
         if !self.source_ip_matchers.is_empty() {
             let src_ip = session.source.map(|s| s.ip());
             let matched = match src_ip {
@@ -340,7 +334,6 @@ impl Rule {
             }
         }
 
-        // Protocol matching (e.g. "http", "tls", "bittorrent")
         if !self.protocols.is_empty() {
             let matched = match session.sniffed_protocol.as_deref() {
                 Some(proto) => self.protocols.iter().any(|p| p.eq_ignore_ascii_case(proto)),
@@ -351,7 +344,6 @@ impl Rule {
             }
         }
 
-        // User email matching
         if !self.user_emails.is_empty() {
             let user_email = session.user.as_ref().map(|u| u.email.as_str());
             let matched = match user_email {
@@ -370,7 +362,6 @@ impl Rule {
             return true;
         }
 
-        // Check sniffed domain first if present
         if has_domain_rules && let Some(domain) = session.sniffed_domain.as_deref() {
             for matcher in &self.domain_matchers {
                 if matcher.matches(domain) {

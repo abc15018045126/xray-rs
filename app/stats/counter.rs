@@ -1,6 +1,3 @@
-// Module: app\stats\counter.rs
-// 1:1 Rust implementation corresponding to Go app\stats\counter.go
-
 use std::sync::atomic::{AtomicI64, Ordering};
 
 #[derive(Debug, Default)]

@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xicmp\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xicmp\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

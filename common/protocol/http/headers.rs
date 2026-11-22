@@ -1,6 +1,3 @@
-// Module: common\protocol\http\headers.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\http\headers.go
-
 use std::collections::HashMap;
 use std::str::FromStr;
 

@@ -1,6 +1,3 @@
-// Module: proxy\tun\stack_gvisor.rs
-// 1:1 Rust implementation corresponding to Go proxy\tun\stack_gvisor.go
-
 pub struct GVisorStack {
     pub mtu: u32,
 }

@@ -14,3 +14,7 @@ pub use notifier::Notifier;
 pub use pubsub::{PubSubService, Service, Subscriber};
 pub use semaphore::Instance as Semaphore;
 pub use timer::{ActivityTimer, ActivityUpdater, cancel_after_inactivity};
+#[cfg(test)]
+mod signal_errors_log_test;
+#[cfg(test)]
+mod signal_test;

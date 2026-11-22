@@ -1,6 +1,3 @@
-// Module: common\strmatcher\matchers_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\strmatcher\matchers_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::matchers::SubstrMatcher;

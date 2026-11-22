@@ -1,6 +1,3 @@
-// Module: common\crypto\io.rs
-// 1:1 Rust implementation corresponding to Go common\crypto\io.go
-
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 

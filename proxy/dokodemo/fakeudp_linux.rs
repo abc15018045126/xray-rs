@@ -1,6 +1,3 @@
-// Module: proxy\dokodemo\fakeudp_linux.rs
-// 1:1 Rust implementation corresponding to Go proxy\dokodemo\fakeudp_linux.go
-
 use crate::common::errors::{Error, Result};
 use std::net::SocketAddr;
 
@@ -17,7 +14,6 @@ pub fn fake_udp_linux(addr: SocketAddr, _mark: u32) -> Result<tokio::net::UdpSoc
         socket.set_reuse_address(true)?;
         #[cfg(target_os = "linux")]
         {
-            // Set IP_TRANSPARENT or SO_MARK if needed
         }
         let sock_addr = socket2::SockAddr::from(addr);
         socket.bind(&sock_addr)?;

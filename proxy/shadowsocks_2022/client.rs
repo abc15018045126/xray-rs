@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks_2022\client.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\client.go
-
 use async_trait::async_trait;
 
 use crate::common::errors::{Error, Result};
@@ -40,12 +37,10 @@ impl OutboundHandler for Client {
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = TcpDialer::dial(&self.server_addr).await?;
 
-        // 1. Encode Shadowsocks-2022 client session header
         let req_header = SessionHeader::new_client(session.destination.clone());
         let expected_session_id = req_header.session_id;
         req_header.encode(&mut stream).await?;
 
-        // 2. Decode Shadowsocks-2022 server response header
         let resp_header = SessionHeader::decode(&mut stream).await?;
         if resp_header.header_type != HEADER_TYPE_SERVER {
             return Err(Error::Protocol(format!(

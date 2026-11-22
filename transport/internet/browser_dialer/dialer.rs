@@ -1,6 +1,3 @@
-// Module: transport\internet\browser_dialer\dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\browser_dialer\dialer.go
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

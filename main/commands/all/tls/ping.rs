@@ -1,6 +1,3 @@
-// Module: main\commands\all\tls\ping.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\tls\ping.go
-
 use crate::main::commands::base::command::Command;
 
 pub fn cmd_ping() -> Command {

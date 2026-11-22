@@ -1,6 +1,3 @@
-// Module: common\mux\server.rs
-// 1:1 Rust implementation corresponding to Go common\mux\server.go
-
 use super::frame::{Frame, SessionStatus};
 use super::session::{Session, SessionManager};
 use crate::common::errors::Result;

@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\upload_queue.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\upload_queue.go
-
 use crate::common::errors::{Error, Result};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -15,7 +12,6 @@ pub struct Packet {
 
 impl Ord for Packet {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Reverse for min-heap
         other.seq.cmp(&self.seq)
     }
 }
@@ -105,10 +101,8 @@ impl UploadQueue {
                         inner.next_seq += 1;
                     }
                 } else if top.seq < inner.next_seq {
-                    // Stale / duplicate packet, discard
                     inner.heap.pop();
                 } else {
-                    // Out-of-order packet (seq > next_seq), wait for missing seq
                     break;
                 }
             } else {
@@ -119,8 +113,6 @@ impl UploadQueue {
         Ok(written)
     }
 
-    /// Blocking pop aligned with official Xray-core `upload_queue.go`: waits until the
-    /// next in-order packet arrives or the queue is closed.
     pub async fn pop_wait(&self) -> Option<Vec<u8>> {
         let mut buf = vec![0u8; 65535];
         loop {

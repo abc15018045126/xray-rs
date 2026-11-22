@@ -1,6 +1,3 @@
-// Module: common\net\address_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\net\address_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::address::{
@@ -50,7 +47,6 @@ mod tests {
         let a3 = Address::from_str("example.com").unwrap();
         assert_eq!(a3, Address::Domain("example.com".into()));
 
-        // Test IPv4-mapped in IPv6
         let a4 = parse_address("[::ffff:123.151.71.143]");
         assert_eq!(a4.family(), AddressFamily::IPv4);
         assert_eq!(a4.to_string(), "123.151.71.143");
@@ -60,7 +56,6 @@ mod tests {
         assert_eq!(a5.family(), AddressFamily::IPv4);
         assert_eq!(a5.to_string(), "1.2.3.4");
 
-        // Constants
         assert_eq!(local_host_ip().to_string(), "127.0.0.1");
         assert_eq!(any_ip().to_string(), "0.0.0.0");
         assert_eq!(local_host_domain().to_string(), "localhost");

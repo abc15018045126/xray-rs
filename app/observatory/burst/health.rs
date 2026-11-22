@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\health.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\burst\health.go
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HealthStatus {
     pub tag: String,

@@ -1,6 +1,3 @@
-// Module: common\signal\semaphore\semaphore.rs
-// 1:1 Rust implementation corresponding to Go common\signal\semaphore\semaphore.go
-
 use std::sync::Arc;
 use tokio::sync::Semaphore as TokioSemaphore;
 

@@ -1,6 +1,3 @@
-// Module: proxy\tun\runner.rs
-// Pure native TUN runner matching official Xray-core gVisor architecture, powered by ipstack
-
 use super::ipstack::{IpStack, IpStackConfig, IpStackStream, TcpConfig, TcpOptions};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
@@ -70,7 +67,6 @@ impl TunRunner {
                     )))
                 })?;
 
-            // Assign gateway IP address to the newly created adapter via Win32 IP Helper API
             for _ in 0..30 {
                 if let Some(iface) = super::net::get_interface_by_name(&tun_name) {
                     let _ = super::routes::add_address(&iface, cfg.gateway.into());
@@ -103,7 +99,6 @@ impl TunRunner {
             })?
         };
 
-        // Configure system routing table (Android VpnService manages routes externally)
         #[cfg(not(target_os = "android"))]
         if let Err(e) = routes::maybe_add_routes(&cfg, &tun_name) {
             error!("failed to configure routes for {}: {}", tun_name, e);
@@ -111,11 +106,11 @@ impl TunRunner {
 
         let mut ipstack_cfg = IpStackConfig::default();
         let _ = ipstack_cfg.mtu(mtu);
-        // Advertise TCP MSS = MTU - 40 (matching Xray-core tcp_lightweight.go) so Windows
-        // doesn't fall back to RFC 879 default 536B MSS and fragment TLS ClientHello.
         let mss = mtu.saturating_sub(40).max(536);
-        let mut tcp_cfg = TcpConfig::default();
-        tcp_cfg.options = Some(vec![TcpOptions::MaximumSegmentSize(mss)]);
+        let tcp_cfg = TcpConfig {
+            options: Some(vec![TcpOptions::MaximumSegmentSize(mss)]),
+            ..Default::default()
+        };
         ipstack_cfg.with_tcp_config(tcp_cfg);
 
         let mut ip_stack = IpStack::new(ipstack_cfg, device);
@@ -133,59 +128,31 @@ impl TunRunner {
                         info!("tun runner cancelled");
                         break;
                     }
-                    res = ip_stack.accept() => {
-                        match res {
-                            Ok(stream) => {
-                                match stream {
-                                    IpStackStream::Tcp(tcp) => {
-                                        if should_drop_tun_addr(tcp.local_addr().ip(), tcp.peer_addr().ip()) {
-                                            continue;
-                                        }
-                                        let dest = Destination {
-                                            network: Network::Tcp,
-                                            address: Address::ip(tcp.peer_addr().ip()),
-                                            port: tcp.peer_addr().port(),
-                                        };
-                                        let mut session = SessionContext::new("tun-in", dest);
-                                        session.inbound_tag = "tun".to_string();
-                                        session.source = Some(tcp.local_addr());
-                                        session.sniffing_request = sniffing.clone();
-
-                                        let d = dsp.clone();
-                                        tokio::spawn(async move {
-                                            if let Err(e) = d.dispatch(Box::pin(tcp), session).await {
-                                                debug!("tun TCP dispatch error: {}", e);
-                                            }
-                                        });
-                                    }
-                                    IpStackStream::Udp(udp) => {
-                                        if should_drop_tun_addr(udp.local_addr().ip(), udp.peer_addr().ip()) {
-                                            continue;
-                                        }
-                                        let dest = Destination {
-                                            network: Network::Udp,
-                                            address: Address::ip(udp.peer_addr().ip()),
-                                            port: udp.peer_addr().port(),
-                                        };
-                                        let mut session = SessionContext::new("tun-in", dest);
-                                        session.inbound_tag = "tun".to_string();
-                                        session.source = Some(udp.local_addr());
-                                        session.sniffing_request = sniffing.clone();
-
-                                        let d = dsp.clone();
-                                        tokio::spawn(async move {
-                                            if let Err(e) = d.dispatch(Box::pin(udp), session).await {
-                                                debug!("tun UDP dispatch error: {}", e);
-                                            }
-                                        });
-                                    }
-                                    _ => {}
+                    res = ip_stack.accept() => match res {
+                        Ok(stream) => {
+                            let (network, local, peer, boxed, kind): (Network, _, _, crate::common::net::BoxStream, _) = match stream {
+                                IpStackStream::Tcp(s) => (Network::Tcp, s.local_addr(), s.peer_addr(), Box::pin(s), "TCP"),
+                                IpStackStream::Udp(s) => (Network::Udp, s.local_addr(), s.peer_addr(), Box::pin(s), "UDP"),
+                                _ => continue,
+                            };
+                            if should_drop_tun_addr(local.ip(), peer.ip()) {
+                                continue;
+                            }
+                            let dest = Destination { network, address: Address::ip(peer.ip()), port: peer.port() };
+                            let mut session = SessionContext::new("tun-in", dest);
+                            session.inbound_tag = "tun".to_string();
+                            session.source = Some(local);
+                            session.sniffing_request = sniffing.clone();
+                            let d = dsp.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = d.dispatch(boxed, session).await {
+                                    debug!("tun {} dispatch error: {}", kind, e);
                                 }
-                            }
-                            Err(e) => {
-                                error!("ipstack accept error: {}", e);
-                                break;
-                            }
+                            });
+                        }
+                        Err(e) => {
+                            error!("ipstack accept error: {}", e);
+                            break;
                         }
                     }
                 }
@@ -199,9 +166,6 @@ impl TunRunner {
     }
 }
 
-/// Aligns with official Xray-core `proxy/tun/stack.go` (`input`) and `tun_windows_wfp.go`:
-/// drop loopback, unspecified, multicast (`224.0.0.0/4`, `ff00::/8`), and broadcast (`255.255.255.255`)
-/// at TUN ingress before creating dispatcher sessions.
 fn should_drop_tun_addr(src: std::net::IpAddr, dst: std::net::IpAddr) -> bool {
     if src.is_loopback()
         || dst.is_loopback()

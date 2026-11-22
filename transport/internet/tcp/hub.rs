@@ -1,6 +1,3 @@
-// Module: transport\internet\tcp\hub.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tcp\hub.go
-
 use std::net::SocketAddr;
 
 use crate::common::errors::Result;

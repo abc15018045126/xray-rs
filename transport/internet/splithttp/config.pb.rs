@@ -1,4 +1,3 @@
-// Module: transport\internet\splithttp\config.pb.rs
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

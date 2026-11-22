@@ -1,6 +1,3 @@
-// Module: common\signal\notifier.rs
-// 1:1 Rust implementation corresponding to Go common\signal\notifier.go
-
 use std::sync::Arc;
 use tokio::sync::Notify;
 use tokio::sync::broadcast;

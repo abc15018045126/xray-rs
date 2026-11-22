@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\custom\tcp.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\custom\tcp.go
-
 use rand::Rng;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -88,7 +85,6 @@ pub async fn write_sequence<W: AsyncWrite + Unpin>(
     Ok(())
 }
 
-/// Client handshake: executes client sequences and verifies server responses
 pub async fn client_handshake<S: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut S,
     config: &TCPConfig,
@@ -109,7 +105,6 @@ pub async fn client_handshake<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-/// Server handshake: reads client sequences and executes server sequences
 pub async fn server_handshake<S: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut S,
     config: &TCPConfig,

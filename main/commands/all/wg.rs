@@ -1,6 +1,3 @@
-// Module: main\commands\all\wg.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\wg.go
-
 use super::curve25519::gen_curve25519;
 use crate::main::commands::base::command::Command;
 use base64::Engine;

@@ -1,6 +1,3 @@
-// Module: core\context.rs
-// 1:1 Rust implementation corresponding to Go core\context.go
-
 use super::xray::Instance;
 use crate::common::errors::{Error, Result};
 use std::sync::Arc;

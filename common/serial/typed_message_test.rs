@@ -1,6 +1,3 @@
-// Module: common\serial\typed_message_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\serial\typed_message_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::typed_message::{TypedMessage, get_instance, to_typed_message};

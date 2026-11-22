@@ -37,13 +37,11 @@ mod tests {
         assert_eq!(api_cmd.name, "api");
         assert_eq!(api_cmd.subcommands.len(), 23);
 
-        // Test running stats query through subcommand dispatch
         let out = api_cmd
             .execute(&["query-stats", "-s=127.0.0.1:10086"])
             .unwrap();
         assert!(out.contains("127.0.0.1:10086"));
 
-        // Test client config parsing
         let cfg = ApiClientConfig::parse(&["-s=10.0.0.1:8080"]);
         assert_eq!(cfg.server, "10.0.0.1:8080");
         assert_eq!(cfg.timeout, 5);

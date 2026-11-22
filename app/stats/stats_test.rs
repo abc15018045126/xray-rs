@@ -1,6 +1,3 @@
-// Module: app\stats\stats_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\stats\stats_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::StatsManager;
@@ -55,15 +52,13 @@ mod tests {
         let map = OnlineMap::new();
         assert_eq!(map.count(), 0);
 
-        // Localhost IPs should be ignored
         map.add_ip("127.0.0.1");
         map.add_ip("::1");
         assert_eq!(map.count(), 0);
 
-        // Real IP tracking
         map.add_ip("192.168.1.100");
         assert_eq!(map.count(), 1);
-        map.add_ip("192.168.1.100"); // Ref count 2
+        map.add_ip("192.168.1.100");
         assert_eq!(map.count(), 1);
 
         map.add_ip("10.0.0.1");
@@ -73,10 +68,10 @@ mod tests {
         assert_eq!(list.len(), 2);
         assert!(list.contains(&"192.168.1.100".to_string()));
 
-        map.remove_ip("192.168.1.100"); // Ref count down to 1
+        map.remove_ip("192.168.1.100");
         assert_eq!(map.count(), 2);
 
-        map.remove_ip("192.168.1.100"); // Removed
+        map.remove_ip("192.168.1.100");
         assert_eq!(map.count(), 1);
 
         let times = map.ip_time_map();

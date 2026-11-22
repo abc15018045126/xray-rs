@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\io.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\kcp\io.go
-
 use std::collections::VecDeque;
 
 pub struct KcpIoQueue {

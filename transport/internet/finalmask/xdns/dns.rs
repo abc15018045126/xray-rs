@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xdns\dns.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\dns.go
-
 use crate::common::errors::{Error, Result};
 use std::collections::HashMap;
 use std::fmt;
@@ -34,7 +31,7 @@ pub struct Name {
 
 impl Name {
     pub fn new(labels: Vec<Vec<u8>>) -> Result<Self> {
-        let mut total_len = 1; // root null byte
+        let mut total_len = 1;
         for label in &labels {
             if label.is_empty() {
                 return Err(Error::Protocol("name contains a zero-length label".into()));
@@ -399,7 +396,6 @@ impl Default for MessageBuilder {
     }
 }
 
-/// Encodes a slice of bytes as TXT-DATA (RFC 1035 section 3.3.14).
 pub fn encode_rdata_txt(p: &[u8]) -> Vec<u8> {
     let mut buf = Vec::new();
     let mut remaining = p;
@@ -413,7 +409,6 @@ pub fn encode_rdata_txt(p: &[u8]) -> Vec<u8> {
     buf
 }
 
-/// Decodes TXT-DATA (RFC 1035 section 3.3.14).
 pub fn decode_rdata_txt(p: &[u8]) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     let mut offset = 0;
@@ -432,7 +427,6 @@ pub fn decode_rdata_txt(p: &[u8]) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
-/// Standard Base32 (RFC 4648) encoding without padding.
 pub fn base32_encode(data: &[u8]) -> String {
     const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
     let mut out = String::new();
@@ -454,7 +448,6 @@ pub fn base32_encode(data: &[u8]) -> String {
     out
 }
 
-/// Standard Base32 (RFC 4648) decoding without padding, case-insensitive.
 pub fn base32_decode(s: &str) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     let mut buffer = 0u64;

@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\mux.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\mux.go
-
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering};
 use std::time::{Duration, Instant};
@@ -99,7 +96,6 @@ impl XmuxManager {
     }
 
     pub async fn get_client(&mut self) -> Arc<Mutex<XmuxClient>> {
-        // Prune expired / dead clients
         self.clients.retain(|c| {
             if let Ok(guard) = c.try_lock() {
                 guard.is_reusable()
@@ -108,7 +104,6 @@ impl XmuxManager {
             }
         });
 
-        // Try existing eligible client
         for c in &self.clients {
             let guard = c.lock().await;
             if guard.open_usage.load(Ordering::SeqCst) < self.max_concurrency && guard.is_reusable()
@@ -118,7 +113,6 @@ impl XmuxManager {
             }
         }
 
-        // Create new client if under max_connections or all busy
         let id = self.next_id;
         self.next_id += 1;
         let client = Arc::new(Mutex::new(XmuxClient::new(

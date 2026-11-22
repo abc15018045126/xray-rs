@@ -1,6 +1,3 @@
-// Module: common\log\log.pb.rs
-// 1:1 Rust implementation corresponding to Go common\log\log.pb.go
-
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

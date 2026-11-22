@@ -10,6 +10,23 @@ pub struct SniffResult {
     pub domain: String,
 }
 
+impl SniffResult {
+    pub fn protocol(&self) -> &str {
+        &self.protocol
+    }
+
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+
+    pub fn composite_result(domain_res: SniffResult, proto_res: SniffResult) -> Self {
+        Self {
+            protocol: proto_res.protocol,
+            domain: domain_res.domain,
+        }
+    }
+}
+
 pub struct Sniffer {
     fakedns: Option<Arc<FakeDnsHolder>>,
 }
@@ -17,6 +34,17 @@ pub struct Sniffer {
 impl Sniffer {
     pub fn new(fakedns: Option<Arc<FakeDnsHolder>>) -> Self {
         Self { fakedns }
+    }
+
+    pub fn new_sniffer(fakedns: Option<Arc<FakeDnsHolder>>) -> Self {
+        Self::new(fakedns)
+    }
+
+    pub fn sniff_metadata(&self, ip: IpAddr) -> Option<SniffResult> {
+        self.sniff_ip(ip).map(|domain| SniffResult {
+            protocol: "fakedns".into(),
+            domain,
+        })
     }
 
     pub fn sniff_ip(&self, ip: IpAddr) -> Option<String> {
@@ -39,7 +67,6 @@ impl Sniffer {
     }
 
     pub fn sniff(&self, payload: &[u8], network: Network) -> Result<SniffResult> {
-        // 1. Try TLS ClientHello SNI sniffing (for TCP)
         if network == Network::Tcp
             && payload.len() >= 5
             && payload[0] == 0x16
@@ -52,7 +79,6 @@ impl Sniffer {
             });
         }
 
-        // 2. Try HTTP Host sniffing (for TCP)
         if network == Network::Tcp
             && payload.len() >= 10
             && let Some(domain) = Self::sniff_http_host(payload)
@@ -63,7 +89,6 @@ impl Sniffer {
             });
         }
 
-        // 3. Try QUIC SNI sniffing (for UDP)
         if network == Network::Udp
             && payload.len() >= 12
             && let Some(domain) = Self::sniff_quic_sni(payload)
@@ -74,7 +99,6 @@ impl Sniffer {
             });
         }
 
-        // 4. Try BitTorrent / uTP sniffing
         if let Ok(proto) = crate::common::protocol::bittorrent::BittorrentSniffer::sniff(payload) {
             return Ok(SniffResult {
                 protocol: proto,
@@ -90,13 +114,13 @@ impl Sniffer {
             return None;
         }
 
-        let mut pos = 5; // Skip TLS Record Header
+        let mut pos = 5;
         if pos >= payload.len() || payload[pos] != 0x01 {
-            return None; // Must be ClientHello
+            return None;
         }
 
-        pos += 4; // Skip Handshake Header
-        pos += 2 + 32; // Skip Version (2) + Random (32)
+        pos += 4;
+        pos += 2 + 32;
         if pos >= payload.len() {
             return None;
         }
@@ -129,13 +153,11 @@ impl Sniffer {
             pos += 4;
 
             if ext_type == 0x0000 {
-                // Server Name Indication
                 if pos + 5 <= end_ext {
                     let _server_name_list_len =
                         u16::from_be_bytes([payload[pos], payload[pos + 1]]);
                     let name_type = payload[pos + 2];
                     if name_type == 0 {
-                        // HostName
                         let name_len =
                             u16::from_be_bytes([payload[pos + 3], payload[pos + 4]]) as usize;
                         let start = pos + 5;
@@ -169,7 +191,6 @@ impl Sniffer {
     }
 
     pub fn sniff_quic_sni(payload: &[u8]) -> Option<String> {
-        // Basic Initial Packet SNI extraction
         if payload.len() > 100 && (payload[0] & 0x80 != 0) {
             return Self::sniff_tls_sni(&payload[40..]);
         }

@@ -1,6 +1,3 @@
-// Module: app\log\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\log\config.pb.go
-
 use crate::common::log::Severity;
 use serde::{Deserialize, Serialize};
 

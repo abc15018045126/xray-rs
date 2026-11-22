@@ -11,7 +11,6 @@ use crate::common::protocol::SessionContext;
 use crate::features::inbound::{InboundHandler, InboundResult};
 use crate::proxy::http::PrefixedStream;
 
-/// Pingora-backed HTTP proxy inbound (`pingora-http::RequestHeader` parsing + header normalization).
 pub struct PingoraHttpInbound {
     tag: String,
 }
@@ -80,7 +79,6 @@ impl InboundHandler for PingoraHttpInbound {
             .path
             .ok_or_else(|| Error::Protocol("Missing HTTP path".into()))?;
 
-        // Build Pingora `RequestHeader` for normalized header manipulation (stripping Proxy-Connection).
         let mut pg_req = RequestHeader::build(method, path.as_bytes(), None)
             .map_err(|e| Error::Protocol(format!("Invalid HTTP request for Pingora: {}", e)))?;
         for h in parsed.headers.iter() {
@@ -127,7 +125,6 @@ impl InboundHandler for PingoraHttpInbound {
                 session,
             })
         } else {
-            // Re-serialize normalized Pingora request header (without Proxy-Connection) + trailing body bytes.
             let mut normalized = Vec::with_capacity(total_read);
             normalized.extend_from_slice(method.as_bytes());
             normalized.push(b' ');

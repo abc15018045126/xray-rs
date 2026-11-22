@@ -18,6 +18,7 @@ pub mod reality;
 pub mod sockopt;
 pub mod sockopt_freebsd;
 pub mod sockopt_linux;
+pub mod sockopt_openbsd;
 pub mod sockopt_other;
 pub mod splithttp;
 pub mod stat;
@@ -64,3 +65,9 @@ pub struct StreamSettings {
     pub reality_settings: Option<RealityConfig>,
     pub splithttp_settings: Option<SplitHttpConfig>,
 }
+#[cfg(test)]
+mod config_test;
+#[cfg(test)]
+mod happy_eyeballs_test;
+#[cfg(test)]
+mod transport_advanced_test;

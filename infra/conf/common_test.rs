@@ -1,6 +1,3 @@
-// Module: infra\conf\common_test.rs
-// 1:1 Rust unit test suite corresponding to Go infra\conf\common_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::common::StringList;

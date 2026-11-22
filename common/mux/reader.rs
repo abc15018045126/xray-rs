@@ -1,12 +1,8 @@
-// Module: common\mux\reader.rs
-// 1:1 Rust implementation corresponding to Go common\mux\reader.go
-
 use super::frame::Frame;
 use crate::common::errors::Result;
 use crate::common::net::Destination;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-/// PacketReader reads a chunk of Mux frames.
 pub struct PacketReader<R> {
     reader: R,
     eof: bool,
@@ -46,7 +42,6 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
     }
 }
 
-/// StreamReader reads chunks using plain 2-byte chunk size framing.
 pub struct StreamReader<R> {
     reader: R,
 }
@@ -71,7 +66,6 @@ impl<R: AsyncRead + Unpin> StreamReader<R> {
     }
 }
 
-/// FrameReader reads Frames from an underlying async reader.
 pub struct FrameReader<R> {
     reader: R,
 }

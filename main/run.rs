@@ -1,6 +1,3 @@
-// Module: main\run.rs
-// 1:1 Rust implementation corresponding to Go main\run.go
-
 use crate::common::errors::Result;
 use crate::core::Instance;
 use crate::infra::conf::Config;

@@ -1,6 +1,3 @@
-// Module: common\mux\client.rs
-// 1:1 Rust implementation corresponding to Go common\mux\client.go
-
 use super::frame::Frame;
 use super::session::{Session, SessionManager};
 use crate::common::errors::Result;

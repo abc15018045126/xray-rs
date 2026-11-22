@@ -1,6 +1,3 @@
-// Module: transport\pipe\impl.rs
-// 1:1 Rust implementation corresponding to Go transport\pipe\impl.go
-
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{Mutex, Notify};
@@ -18,7 +15,7 @@ pub enum State {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PipeOption {
-    pub limit: i32, // maximum buffer size in bytes, -1 for unlimited
+    pub limit: i32,
     pub discard_overflow: bool,
 }
 
@@ -76,10 +73,10 @@ impl Pipe {
 
     fn check_read_state(inner: &PipeInner) -> Result<bool> {
         match inner.state {
-            State::Open => Ok(false), // not EOF, continue reading
+            State::Open => Ok(false),
             State::Closed => {
                 if !inner.data.is_empty() {
-                    Ok(false) // still have remaining buffered data to read
+                    Ok(false)
                 } else {
                     Err(Error::Eof)
                 }
@@ -154,7 +151,6 @@ impl Pipe {
                 }
 
                 if guard.option.discard_overflow {
-                    // Discard overflow bytes silently
                     return Ok(());
                 }
             }

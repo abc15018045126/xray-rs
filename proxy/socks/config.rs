@@ -1,6 +1,3 @@
-// Module: proxy\socks\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\socks\config.go
-
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 

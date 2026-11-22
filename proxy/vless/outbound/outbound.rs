@@ -1,6 +1,3 @@
-// Module: proxy\vless\outbound\outbound.rs
-// 1:1 Rust implementation corresponding to Go proxy\vless\outbound\outbound.go
-
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -102,109 +99,72 @@ impl DialParams {
         #[cfg(debug_assertions)] trace_ctx: Option<(u64, std::time::Instant)>,
     ) -> Result<BoxStream> {
         if let Some(ref xhttp_cfg) = self.splithttp_cfg {
-            let mut client =
-                crate::transport::internet::splithttp::client::DefaultDialerClient::new(
-                    xhttp_cfg.clone(),
-                    self.server_addr.clone(),
-                    "1.1",
-                );
+            let mut client = crate::transport::internet::splithttp::client::DefaultDialerClient::new(
+                xhttp_cfg.clone(),
+                self.server_addr.clone(),
+                "1.1",
+            );
             if let Some(ref tls) = self.tls_client {
-                let sni = self
-                    .tls_sni
-                    .clone()
-                    .unwrap_or_else(|| self.server_addr.address.to_string());
+                let sni = self.tls_sni.clone().unwrap_or_else(|| self.server_addr.address.to_string());
                 client = client.with_tls(tls.clone(), sni);
             }
-            let dialer =
-                crate::transport::internet::splithttp::dialer::SplitHttpDialer::new(
-                    xhttp_cfg.clone(),
-                );
-            return dialer
-                .dial_with_client(Arc::new(client), &self.server_addr)
-                .await;
+            let dialer = crate::transport::internet::splithttp::dialer::SplitHttpDialer::new(xhttp_cfg.clone());
+            return dialer.dial_with_client(Arc::new(client), &self.server_addr).await;
         }
+
+        #[cfg(debug_assertions)]
+        let trace_step = |step: &str, t0: std::time::Instant, detail: String| {
+            if let Some((tid, origin)) = trace_ctx {
+                crate::debug_panel::metrics().add_trace_step(
+                    tid,
+                    step,
+                    t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
+                    t0.elapsed().as_secs_f64() * 1000.0,
+                    detail,
+                );
+            }
+        };
 
         #[cfg(debug_assertions)]
         let _tcp_t0 = std::time::Instant::now();
         let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
         #[cfg(debug_assertions)]
-        if let Some((tid, origin)) = trace_ctx {
-            crate::debug_panel::metrics().add_trace_step(
-                tid,
-                "3. 外层 TCP 建连 (RTT 1)",
-                _tcp_t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
-                _tcp_t0.elapsed().as_secs_f64() * 1000.0,
-                format!("server={}", self.server_addr),
-            );
-        }
+        trace_step("3. 外层 TCP 建连 (RTT 1)", _tcp_t0, format!("server={}", self.server_addr));
 
-        let tcp_stream: BoxStream = if let Some(ref f_cfg) = self.fragment_cfg {
-            Box::pin(
-                crate::transport::internet::finalmask::fragment::FragmentConn::new_client(
-                    f_cfg.clone(),
-                    tcp_stream,
-                ),
-            )
-        } else {
-            tcp_stream
+        let tcp_stream: BoxStream = match &self.fragment_cfg {
+            Some(f_cfg) => Box::pin(crate::transport::internet::finalmask::fragment::FragmentConn::new_client(f_cfg.clone(), tcp_stream)),
+            None => tcp_stream,
         };
 
-        let sni = self
-            .tls_sni
-            .as_deref()
-            .unwrap_or_else(|| match &self.server_addr.address {
-                crate::common::net::Address::Domain(d) => d.as_str(),
-                _ => "localhost",
-            });
+        let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
+            crate::common::net::Address::Domain(d) => d.as_str(),
+            _ => "localhost",
+        });
 
-        // 1. Optional TLS or Reality Layer
-        let stream = if let Some(reality) = &self.reality_client {
-            if let Some(tls) = &self.tls_client {
-                #[cfg(debug_assertions)]
-                let _t0 = std::time::Instant::now();
-                let s = tls.connect(&reality.server_name, tcp_stream).await?;
-                #[cfg(debug_assertions)]
-                {
-                    let elapsed = _t0.elapsed();
-                    crate::debug_panel::record_stage("VLESS TLS 握手 (Reality)", elapsed);
-                    if let Some((tid, origin)) = trace_ctx {
-                        crate::debug_panel::metrics().add_trace_step(
-                            tid,
-                            "4. 外层 TLS 握手 (RTT 2)",
-                            _t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
-                            elapsed.as_secs_f64() * 1000.0,
-                            format!("Reality SNI={}", reality.server_name),
-                        );
-                    }
-                }
-                s
-            } else {
-                tcp_stream
-            }
-        } else if let Some(tls) = &self.tls_client {
+        let stream = if let Some(tls) = &self.tls_client {
+            let (target_sni, is_reality) = match &self.reality_client {
+                Some(r) => (r.server_name.as_str(), true),
+                None => (sni, false),
+            };
             #[cfg(debug_assertions)]
             let _t0 = std::time::Instant::now();
-            let s = tls.connect(sni, tcp_stream).await?;
+            let s = tls.connect(target_sni, tcp_stream).await?;
             #[cfg(debug_assertions)]
             {
-                let elapsed = _t0.elapsed();
-                crate::debug_panel::record_stage("VLESS TLS 握手 (Rustls)", elapsed);
-                if let Some((tid, origin)) = trace_ctx {
-                    crate::debug_panel::metrics().add_trace_step(
-                        tid,
-                        "4. 外层 TLS 握手 (RTT 2)",
-                        _t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
-                        elapsed.as_secs_f64() * 1000.0,
-                        format!("SNI={}", sni),
-                    );
-                }
+                let (stage, detail) = if is_reality {
+                    ("VLESS TLS 握手 (Reality)", format!("Reality SNI={}", target_sni))
+                } else {
+                    ("VLESS TLS 握手 (Rustls)", format!("SNI={}", target_sni))
+                };
+                crate::debug_panel::record_stage(stage, _t0.elapsed());
+                trace_step("4. 外层 TLS 握手 (RTT 2)", _t0, detail);
             }
+            let _ = is_reality;
             s
         } else {
             tcp_stream
         };
 
-        // 2. Optional HttpUpgrade or WebSocket Layer
         let stream = if let Some(ref hu_path) = self.httpupgrade_path {
             let host_hdr = self.httpupgrade_host.as_deref().unwrap_or(sni);
             crate::transport::internet::httpupgrade::HttpUpgradeStream::client_handshake(
@@ -221,22 +181,14 @@ impl DialParams {
                 crate::common::net::Address::Ipv6(ip) => format!("[{}]", ip),
             };
             let host_hdr = self.ws_host.as_deref().unwrap_or(sni);
-            let scheme = if self.tls_client.is_some() || self.reality_client.is_some() {
-                "wss"
-            } else {
-                "ws"
-            };
+            let scheme = if self.tls_client.is_some() || self.reality_client.is_some() { "wss" } else { "ws" };
             let ws_url = format!("{}://{}{}", scheme, dest_host, path);
             #[cfg(debug_assertions)]
             let _t0 = std::time::Instant::now();
             let s = WebSocketStream::client_handshake_with_headers(
                 &ws_url,
                 Some(host_hdr),
-                if self.ws_headers.is_empty() {
-                    None
-                } else {
-                    Some(&self.ws_headers)
-                },
+                (!self.ws_headers.is_empty()).then_some(&self.ws_headers),
                 stream,
                 self.ws_heartbeat,
                 early_data,
@@ -244,21 +196,12 @@ impl DialParams {
             .await?;
             #[cfg(debug_assertions)]
             {
-                let elapsed = _t0.elapsed();
-                crate::debug_panel::record_stage("VLESS WS 升级 (WebSocket)", elapsed);
-                if let Some((tid, origin)) = trace_ctx {
-                    let ed_tag = match early_data {
-                        Some(ed) if !ed.is_empty() => format!(" (ed={}B)", ed.len()),
-                        _ => String::new(),
-                    };
-                    crate::debug_panel::metrics().add_trace_step(
-                        tid,
-                        "5. WS 升级握手 (RTT 3)",
-                        _t0.saturating_duration_since(origin).as_secs_f64() * 1000.0,
-                        elapsed.as_secs_f64() * 1000.0,
-                        format!("{}://{}{}{} Host={}", scheme, dest_host, path, ed_tag, host_hdr),
-                    );
-                }
+                crate::debug_panel::record_stage("VLESS WS 升级 (WebSocket)", _t0.elapsed());
+                let ed_tag = match early_data {
+                    Some(ed) if !ed.is_empty() => format!(" (ed={}B)", ed.len()),
+                    _ => String::new(),
+                };
+                trace_step("5. WS 升级握手 (RTT 3)", _t0, format!("{}://{}{}{} Host={}", scheme, dest_host, path, ed_tag, host_hdr));
             }
             s
         } else {
@@ -378,16 +321,10 @@ impl Client {
         self
     }
 
-    /// Pre-warm `count` transport connections (TCP+TLS+WS) in background tasks
-    /// with default 90s idle TTL & auto-sleep (`testpreIdle: 90`).
     pub fn with_testpre(self, count: u32) -> Self {
         self.with_testpre_idle(count, DEFAULT_TESTPRE_IDLE_SECS)
     }
 
-    /// Pre-warm `count` transport connections with configurable `idle_secs`:
-    /// - `idle_secs > 0` (default 90): connections expire & close after `idle_secs`, and
-    ///   background refilling sleeps when no proxy request occurs for `idle_secs` (auto-wakes on next request).
-    /// - `idle_secs == 0`: classic Xray continuous pre-warm mode (120s TTL, no idle sleep).
     pub fn with_testpre_idle(mut self, count: u32, idle_secs: u32) -> Self {
         self.testpre = count;
         self.testpre_idle_secs = idle_secs;
@@ -416,8 +353,6 @@ impl Client {
             let refill_slots = Arc::new(Semaphore::new(cap));
             let closed = Arc::new(AtomicBool::new(false));
             let epoch = Instant::now();
-            // Option B: mark startup as active so initial `testpre` connection(s) warm immediately;
-            // if unused for `idle_secs`, they expire and workers enter zero-traffic sleep.
             let last_activity_ms = Arc::new(AtomicU64::new(0));
 
             if idle_sleep_ms == 0 {
@@ -465,7 +400,6 @@ impl Client {
                             drop(permit);
                             break;
                         }
-                        // Re-check after permit release (e.g. 90s idle expiry while user is away)
                         if idle_sleep_ms > 0 {
                             let now_ms = epoch.elapsed().as_millis() as u64;
                             let last_ms = last_act_clone.load(Ordering::Relaxed);
@@ -513,7 +447,6 @@ impl Client {
         #[cfg(debug_assertions)]
         let trace_ctx = session.debug_trace_id.zip(session.debug_trace_origin);
 
-        // Official Xray-core WS Early Data (`?ed=N`): delegate to `transport/internet/websocket/dialer.rs::DelayDialConn`
         if self.dial_params.ws_ed > 0 && self.testpre == 0 {
             let params = self.dial_params.clone();
             let dial_fn: crate::transport::internet::websocket::DialWsFn = Arc::new(move |ed| {
@@ -535,8 +468,6 @@ impl Client {
         if self.testpre > 0 {
             let pre_pool = self.init_pre_conns();
             pre_pool.touch_activity();
-            // Fast path: take an already-warmed connection from Cloudflare `pingora-pool` (0ms).
-            // If the pool is momentarily empty, dial immediately without stalling behind a wait timeout.
             if let Some(conn) = pre_pool.pool.get(pre_pool.key) {
                 #[cfg(debug_assertions)]
                 {
@@ -586,7 +517,6 @@ impl OutboundHandler for Client {
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let stream = self.take_or_dial(session).await?;
 
-        // 3. VLESS Protocol Layer: Build Request Header with Addons (coalesced with first payload)
         let command = match session.destination.network {
             Network::Tcp => RequestCommand::Tcp,
             Network::Udp => RequestCommand::Udp,
@@ -603,11 +533,9 @@ impl OutboundHandler for Client {
         );
         let is_udp = command == RequestCommand::Udp && !is_vision;
 
-        // 4. Wrap with non-blocking VlessStream (coalesces header, strips response header, frames UDP)
         let vless_stream: BoxStream =
             Box::pin(VlessStream::with_pending_header(stream, is_udp, header_bytes));
 
-        // 5. Optional XTLS-Vision flow wrapping
         let final_stream: BoxStream = if is_vision {
             Box::pin(VisionStream::new(
                 vless_stream,
@@ -703,7 +631,6 @@ impl AsyncRead for VlessStream {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        // If no write occurred within 500ms (server-speaks-first), flush VLESS request header
         if self.pending_header.is_some() {
             let timer = self
                 .header_flush_timer
@@ -835,9 +762,6 @@ impl AsyncWrite for VlessStream {
             }
             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
             Poll::Pending => {
-                // Commit the coalesced frame (header + payload) into pending_write so
-                // `header_flush_timer` in `poll_read` cannot promote a separate smaller
-                // header slice while an async dial (e.g. WS Early Data) is in flight.
                 if self.pending_header.is_some() {
                     self.pending_header = None;
                     self.header_flush_timer = None;

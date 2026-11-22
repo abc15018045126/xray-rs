@@ -1,6 +1,3 @@
-// Module: common\utils\browser.rs
-// 1:1 Rust implementation corresponding to Go common\utils\browser.go
-
 use std::collections::HashMap;
 
 pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36";
@@ -15,7 +12,6 @@ pub fn is_browser_user_agent(ua: &str) -> bool {
 }
 
 pub fn chrome_version() -> u32 {
-    // Starting version: Chrome 144
 
     144u32
 }

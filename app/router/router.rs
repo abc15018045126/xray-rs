@@ -55,6 +55,39 @@ impl Router {
     pub fn add_balancer(&mut self, tag: impl Into<String>, balancer: Arc<Balancer>) {
         self.balancers.insert(tag.into(), balancer);
     }
+
+    pub fn add_rule(&mut self, rule: Rule, append: bool) {
+        if append {
+            self.rules.push(rule);
+        } else {
+            self.rules.insert(0, rule);
+        }
+    }
+
+    pub fn remove_rule(&mut self, rule_tag: &str) -> Result<()> {
+        let before = self.rules.len();
+        self.rules.retain(|r| r.tag != rule_tag);
+        if self.rules.len() == before {
+            return Err(Error::Other(format!("rule '{}' not found", rule_tag)));
+        }
+        Ok(())
+    }
+
+    pub fn list_rule(&self) -> &[Rule] {
+        &self.rules
+    }
+
+    pub fn r#type(&self) -> &'static str {
+        TYPE_ROUTER
+    }
+
+    pub fn start(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn close(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Feature for Router {
@@ -111,24 +144,20 @@ impl CoreRouterTrait for Router {
         let is_tcp = net == crate::common::net::Network::Tcp;
 
         for rule in &self.rules {
-            // Check process
             if !rule.process.is_empty() && !rule.matches_process(src_addr, is_tcp) {
                 continue;
             }
 
-            // Check inbound
             if !rule.inbound_tags.is_empty() && !rule.inbound_tags.iter().any(|t| t == in_tag) {
                 continue;
             }
 
-            // Check network
             if let Some(r_net) = rule.network
                 && r_net != net
             {
                 continue;
             }
 
-            // Check ports
             if !rule.ports.is_empty() || !rule.port_ranges.is_empty() {
                 let port_match = rule.ports.contains(&target_port)
                     || rule
@@ -140,12 +169,10 @@ impl CoreRouterTrait for Router {
                 }
             }
 
-            // Check source ports
             if !rule.source_ports.is_empty() && !rule.source_ports.contains(&src_port) {
                 continue;
             }
 
-            // Check source IPs
             if !rule.source_ip_matchers.is_empty() {
                 let matched = src_ips
                     .iter()
@@ -155,7 +182,6 @@ impl CoreRouterTrait for Router {
                 }
             }
 
-            // Check protocol
             if !rule.protocols.is_empty() {
                 let matched = match proto {
                     Some(p) => rule.protocols.iter().any(|rp| rp.eq_ignore_ascii_case(p)),
@@ -166,7 +192,6 @@ impl CoreRouterTrait for Router {
                 }
             }
 
-            // Check user
             if !rule.user_emails.is_empty() {
                 let matched = match user {
                     Some(u) => rule.user_emails.iter().any(|ru| ru == u),
@@ -177,7 +202,6 @@ impl CoreRouterTrait for Router {
                 }
             }
 
-            // Check domain and IP
             let has_domain_rules = !rule.domain_matchers.is_empty();
             let has_ip_rules = !rule.ip_matchers.is_empty();
 
@@ -207,7 +231,6 @@ impl CoreRouterTrait for Router {
                 }
             }
 
-            // Rule matched!
             if let Some(btag) = &rule.balancer_tag
                 && let Some(balancer) = self.balancers.get(btag)
                 && let Some(picked) = balancer.pick()

@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\connection.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\kcp\connection.go
-
 use super::receiving::{AckList, ReceivingWindow};
 use super::segment::{COMMAND_TERMINATE, CmdOnlySegment, DataSegment, Segment, read_segment};
 use super::sending::SendingWindow;
@@ -53,7 +50,6 @@ impl RoundTripInfo {
             return;
         }
 
-        // RFC 6298 RTO algorithm
         if self.srtt == 0 {
             self.srtt = rtt;
             self.variation = rtt / 2;
@@ -200,7 +196,6 @@ impl KcpConnection {
             }
         }
 
-        // Flush any pending ACKs immediately
         self.flush_acks().await?;
         Ok(())
     }

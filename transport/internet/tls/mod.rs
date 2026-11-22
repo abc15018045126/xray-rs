@@ -18,3 +18,5 @@ pub use config::TlsConfig;
 pub use ech::EchConfig;
 pub use pin::{generate_cert_hash, generate_cert_hash_hex};
 pub use tls::{NoCertificateVerification, TlsClient, TlsServer};
+#[cfg(test)]
+mod tls_test;

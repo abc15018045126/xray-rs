@@ -1,5 +1,3 @@
-// Module: app\observatory\command\mod.rs
-
 pub mod command;
 #[path = "command_grpc.pb.rs"]
 pub mod command_grpc_pb;

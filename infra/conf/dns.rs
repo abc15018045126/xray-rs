@@ -1,6 +1,3 @@
-// Module: infra\conf\dns.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\dns.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

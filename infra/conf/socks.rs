@@ -1,6 +1,3 @@
-// Module: infra\conf\socks.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\socks.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

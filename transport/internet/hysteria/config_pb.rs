@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\config_pb.rs
-// 1:1 Rust protobuf mapping corresponding to Go transport\internet\hysteria\config.pb.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

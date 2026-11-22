@@ -1,6 +1,3 @@
-// Module: common\peer\latency.rs
-// 1:1 Rust implementation corresponding to Go common\peer\latency.go
-
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub trait Latency: Send + Sync {

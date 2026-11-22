@@ -1,17 +1,11 @@
-// Module: common\utils\access_field.rs
-// 1:1 Rust implementation corresponding to Go common\utils\access_field.go
-
 use std::any::Any;
 use std::collections::HashMap;
 
-/// Trait providing dynamic reflection-style field access for structs.
 pub trait ReflectFields {
     fn get_field_ref<T: 'static>(&self, field_name: &str) -> Option<&T>;
     fn get_field_mut<T: 'static>(&mut self, field_name: &str) -> Option<&mut T>;
 }
 
-/// DynamicFieldHolder can be embedded in or used alongside structs to store
-/// unexported / dynamic fields accessed by name at runtime.
 #[derive(Default)]
 pub struct DynamicFieldHolder {
     fields: HashMap<String, Box<dyn Any + Send + Sync>>,
@@ -28,8 +22,6 @@ impl DynamicFieldHolder {
         self.fields.insert(name.to_string(), Box::new(value));
     }
 
-    /// AccessField corresponding to Go AccessField[valueType](obj, fieldName) *valueType
-    /// Returns a reference to the field or panics if field is missing or type mismatched.
     pub fn access_field<T: 'static>(&self, field_name: &str) -> &T {
         match self.fields.get(field_name) {
             Some(boxed) => match boxed.downcast_ref::<T>() {
@@ -44,7 +36,6 @@ impl DynamicFieldHolder {
         }
     }
 
-    /// Mutable access corresponding to pointer dereference in Go
     pub fn access_field_mut<T: 'static>(&mut self, field_name: &str) -> &mut T {
         match self.fields.get_mut(field_name) {
             Some(boxed) => match boxed.downcast_mut::<T>() {
@@ -86,7 +77,6 @@ mod tests {
         let tag: &String = holder.access_field("tag");
         assert_eq!(tag, "proxy_inbound");
 
-        // Mutate field
         let timeout_mut: &mut u32 = holder.access_field_mut("timeout");
         *timeout_mut = 60;
         assert_eq!(*holder.access_field::<u32>("timeout"), 60);

@@ -1,6 +1,3 @@
-// Module: app\stats\channel_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\stats\channel_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::channel::StatsChannel;
@@ -22,7 +19,6 @@ mod tests {
         assert!(chan.is_running());
         let _sub1 = chan.subscribe().unwrap();
         let _sub2 = chan.subscribe().unwrap();
-        // Limit of 2 reached
         assert!(chan.subscribe().is_err());
 
         chan.close();

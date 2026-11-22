@@ -1,12 +1,8 @@
-// Module: common\task\task.rs
-// 1:1 Rust implementation corresponding to Go common\task\task.go
-
 use crate::common::errors::{Error, Result};
 use futures::future::join_all;
 use std::future::Future;
 use std::pin::Pin;
 
-/// OnSuccess executes g() after f() returns Ok(()).
 pub fn on_success<F, G>(mut f: F, mut g: G) -> impl FnMut() -> Result<()>
 where
     F: FnMut() -> Result<()>,

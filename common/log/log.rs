@@ -1,13 +1,9 @@
-// Module: common\log\log.rs
-// 1:1 Rust implementation corresponding to Go common\log\log.go
-
 use super::log_pb::Severity;
 use std::any::Any;
 use std::sync::{Arc, OnceLock, RwLock};
 
 pub type LogLevel = Severity;
 
-/// Message is the trait for all log messages.
 pub trait Message: Send + Sync + 'static {
     fn to_log_string(&self) -> String;
     fn severity(&self) -> Option<Severity> {
@@ -16,12 +12,10 @@ pub trait Message: Send + Sync + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
-/// Handler is the trait for log handler.
 pub trait Handler: Send + Sync {
     fn handle(&self, msg: &dyn Message);
 }
 
-/// GeneralMessage is a general log message that can contain all kinds of content.
 #[derive(Debug, Clone)]
 pub struct GeneralMessage {
     pub severity: Severity,
@@ -51,7 +45,6 @@ impl Message for GeneralMessage {
     }
 }
 
-/// syncHandler wraps a Handler with read-write lock synchronization.
 pub struct SyncHandler {
     handler: RwLock<Option<Arc<dyn Handler>>>,
 }
@@ -90,13 +83,10 @@ pub fn get_log_handler() -> &'static SyncHandler {
     LOG_HANDLER.get_or_init(SyncHandler::new)
 }
 
-/// Record writes a message into log stream.
 pub fn record(msg: &dyn Message) {
     get_log_handler().handle(msg);
 }
 
-/// RegisterHandler registers a new handler as current log handler.
-/// Previous registered handler will be replaced.
 pub fn register_handler(handler: Arc<dyn Handler>) {
     get_log_handler().set(handler);
 }

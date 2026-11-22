@@ -1,6 +1,3 @@
-// Module: common\errors\errors_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\errors\errors_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::errors::{
@@ -76,7 +73,6 @@ mod tests {
         let res = me.into_result();
         assert!(res.is_err());
 
-        // Test combine
         let combined = combine(vec![
             Some(Error::Other("first".into())),
             None,

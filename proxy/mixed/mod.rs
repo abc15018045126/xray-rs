@@ -40,12 +40,10 @@ impl InboundHandler for Server {
         let prepended_stream: BoxStream = Box::pin(PrefixedStream::new(vec![first_byte], stream));
 
         if first_byte == 0x04 || first_byte == 0x05 {
-            // SOCKS4 or SOCKS5
             self.socks_server
                 .handle_connection(prepended_stream, remote_addr)
                 .await
         } else if first_byte.is_ascii_alphabetic() || first_byte == b'/' {
-            // HTTP Request (CONNECT, GET, POST, HEAD, etc.)
             self.http_server
                 .handle_connection(prepended_stream, remote_addr)
                 .await
@@ -111,3 +109,5 @@ impl AsyncWrite for PrefixedStream {
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 }
+#[cfg(test)]
+mod mixed_test;

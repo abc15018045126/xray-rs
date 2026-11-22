@@ -1,6 +1,3 @@
-// Module: app\observatory\explain_errors.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\explainErrors.go
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCategory {
     Timeout,

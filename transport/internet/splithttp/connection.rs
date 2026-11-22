@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\connection.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\connection.go
-
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -90,7 +87,6 @@ impl AsyncWrite for SplitConn {
     }
 }
 
-// Session state tracking wrapper for dialer / hub session mapping
 pub struct SplitHttpConnection {
     pub session_id: String,
     pub seq_id: AtomicU64,

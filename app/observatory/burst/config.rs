@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\config.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\burst\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

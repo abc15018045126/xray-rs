@@ -1,6 +1,3 @@
-// Module: infra\\conf\\cfgcommon\\duration\\duration.rs
-// 1:1 Rust implementation corresponding to Go infra\\conf\\cfgcommon\\duration\\duration.go
-
 use std::time::Duration;
 
 pub fn parse_duration(s: &str) -> Option<Duration> {

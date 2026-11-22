@@ -1,6 +1,3 @@
-// Module: proxy\trojan\client.rs
-// 1:1 Rust implementation corresponding to Go proxy\trojan\client.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -64,14 +61,12 @@ impl OutboundHandler for Client {
                 _ => "localhost",
             });
 
-        // 1. Optional TLS Layer
         let stream = if let Some(tls) = &self.tls_client {
             tls.connect(sni, tcp_stream).await?
         } else {
             tcp_stream
         };
 
-        // 2. Optional WebSocket Layer
         let mut stream = if let Some(path) = &self.ws_path {
             let dest_host = match &self.server_addr.address {
                 crate::common::net::Address::Domain(d) => d.clone(),
@@ -90,7 +85,6 @@ impl OutboundHandler for Client {
             stream
         };
 
-        // 3. Trojan Protocol Header
         let command = match session.destination.network {
             Network::Tcp => RequestCommand::Tcp,
             Network::Udp => RequestCommand::Udp,

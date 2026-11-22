@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xdns\dns_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\finalmask\xdns\dns_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::dns::*;
@@ -22,36 +19,29 @@ mod tests {
 
     #[test]
     fn test_name_validation_and_display() {
-        // Empty root
         let root = Name::new(vec![]).unwrap();
         assert_eq!(root.to_string(), ".");
 
-        // Valid labels
         let n = Name::new(vec![b"example".to_vec(), b"com".to_vec()]).unwrap();
         assert_eq!(n.to_string(), "example.com");
 
-        // Zero-length label error
         assert!(Name::new(vec![b"".to_vec()]).is_err());
         assert!(Name::new(vec![b"a".to_vec(), b"".to_vec(), b"c".to_vec()]).is_err());
 
-        // 63 octets valid, 64 octets error
         let label63 = vec![b'a'; 63];
         assert!(Name::new(vec![label63]).is_ok());
 
         let label64 = vec![b'a'; 64];
         assert!(Name::new(vec![label64]).is_err());
 
-        // Name too long (> 255 octets)
         let labels_huge = vec![
             vec![b'a'; 63],
             vec![b'b'; 63],
             vec![b'c'; 63],
             vec![b'd'; 63],
         ];
-        // 4 * (1 + 63) + 1 = 257 > 255
         assert!(Name::new(labels_huge).is_err());
 
-        // Hex escape in to_string for special chars
         let special = Name::new(vec![vec![0x00, 0x1f, b'a', b'-', 0xff]]).unwrap();
         assert_eq!(special.to_string(), "\\x00\\x1fa-\\xff");
     }
@@ -65,7 +55,6 @@ mod tests {
         let trimmed = name.trim_suffix(&suffix).expect("Should trim suffix");
         assert_eq!(trimmed.to_string(), "tunnel.client");
 
-        // Case insensitivity
         let upper_suffix = Name::parse("EXAMPLE.COM").unwrap();
         let trimmed_upper = name
             .trim_suffix(&upper_suffix)
@@ -78,14 +67,11 @@ mod tests {
 
     #[test]
     fn test_encode_decode_rdata_txt() {
-        // Empty bytes
         assert!(decode_rdata_txt(&[]).is_err());
 
-        // Zero-length chunk [0]
         let decoded_empty = decode_rdata_txt(&[0]).unwrap();
         assert!(decoded_empty.is_empty());
 
-        // Single chunk roundtrip
         let data = b"Hello, XDNS Wire Tunnel!";
         let encoded = encode_rdata_txt(data);
         assert_eq!(encoded[0], data.len() as u8);
@@ -93,7 +79,6 @@ mod tests {
         let decoded = decode_rdata_txt(&encoded).unwrap();
         assert_eq!(decoded, data);
 
-        // Multi-chunk roundtrip (> 255 bytes)
         let mut large_data = Vec::with_capacity(600);
         for i in 0..600 {
             large_data.push((i % 256) as u8);
@@ -105,7 +90,6 @@ mod tests {
         let decoded_large = decode_rdata_txt(&encoded_large).unwrap();
         assert_eq!(decoded_large, large_data);
 
-        // All 256 bytes exhaustive roundtrip
         let all_bytes: Vec<u8> = (0..=255).collect();
         let encoded_all = encode_rdata_txt(&all_bytes);
         let decoded_all = decode_rdata_txt(&encoded_all).unwrap();
@@ -114,14 +98,6 @@ mod tests {
 
     #[test]
     fn test_base32_rfc4648_test_vectors() {
-        // RFC 4648 test vectors (without padding):
-        // "" -> ""
-        // "f" -> "MY"
-        // "fo" -> "MZXQ"
-        // "foo" -> "MZXW6"
-        // "foob" -> "MZXW6YQ"
-        // "fooba" -> "MZXW6YTB"
-        // "foobar" -> "MZXW6YTBOI"
 
         assert_eq!(base32_encode(b""), "");
         assert_eq!(base32_encode(b"f"), "MY");
@@ -144,7 +120,7 @@ mod tests {
     fn test_dns_message_pack_unpack_compression() {
         let mut msg = Message::new();
         msg.id = 0x4321;
-        msg.flags = 0x8180; // Standard response, NoError
+        msg.flags = 0x8180;
 
         let q_name = Name::parse("client.data.tunnel.example.com").unwrap();
         msg.questions.push(Question {
@@ -153,7 +129,6 @@ mod tests {
             qclass: CLASS_IN,
         });
 
-        // Answer with same name to test name compression pointers
         msg.answers.push(ResourceRecord {
             name: q_name.clone(),
             rrtype: RR_TYPE_TXT,
@@ -163,7 +138,6 @@ mod tests {
         });
 
         let wire = msg.pack().expect("pack should succeed");
-        // Verify wire contains compression pointer 0xc0
         let has_compression = wire.windows(2).any(|w| (w[0] & 0xc0) == 0xc0);
         assert!(
             has_compression,

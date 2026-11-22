@@ -1,6 +1,3 @@
-// Module: app\stats\channel.rs
-// 1:1 Rust implementation corresponding to Go app\stats\channel.go
-
 use super::config_pb::ChannelConfig;
 use crate::common::errors::{Error, Result};
 use std::sync::Arc;

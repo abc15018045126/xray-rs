@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\padding\padding.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\padding\padding.go
-
 use rand::Rng;
 
 pub const PADDING_CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";

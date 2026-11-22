@@ -1,6 +1,3 @@
-// Module: infra\conf\policy.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\policy.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\hub.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\hub.go
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 

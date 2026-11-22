@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\listener.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\kcp\listener.go
-
 use super::connection::KcpConnection;
 use crate::common::errors::Result;
 use std::collections::HashMap;

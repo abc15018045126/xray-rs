@@ -1,6 +1,3 @@
-// Module: proxy\socks\protocol_test.rs
-// 1:1 Rust unit test suite corresponding to Go proxy\socks\protocol_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::protocol::SocksProtocol;

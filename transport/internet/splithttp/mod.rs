@@ -33,3 +33,5 @@ pub use mux::SplitHttpMux;
 pub use splithttp::PROTOCOL_NAME;
 pub use upload_queue::UploadQueue;
 pub use xpadding::XPadding;
+#[cfg(test)]
+mod scen_splithttp_test;

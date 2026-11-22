@@ -1,6 +1,3 @@
-// Module: core\context_test.rs
-// 1:1 Rust unit test suite corresponding to Go core\context_test.go
-
 #[cfg(test)]
 mod tests {
     use crate::core::Instance;

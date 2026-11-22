@@ -1,6 +1,3 @@
-// Module: proxy\vmess\outbound\outbound.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\outbound\outbound.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 use uuid::Uuid;

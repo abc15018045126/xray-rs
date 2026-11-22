@@ -1,6 +1,3 @@
-// Module: features\routing\dispatcher.rs
-// 1:1 Rust implementation corresponding to Go features\routing\dispatcher.go
-
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 use crate::common::protocol::SessionContext;

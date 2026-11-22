@@ -1,6 +1,3 @@
-// Module: features\feature_test.rs
-// Comprehensive unit test suite for Xray features
-
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
@@ -131,7 +128,6 @@ mod tests {
         );
         assert!(engine.is_ip_in_ip_pool(&IpAddr::V4(Ipv4Addr::new(198, 18, 0, 1))));
 
-        // Test FakeDnsFeature adapter methods
         assert_eq!(
             engine.query_ip("google.com"),
             Some(IpAddr::V4(Ipv4Addr::new(198, 18, 0, 1)))

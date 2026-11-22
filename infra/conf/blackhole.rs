@@ -1,6 +1,3 @@
-// Module: infra\conf\blackhole.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\blackhole.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,6 +1,3 @@
-// Module: transport\internet\tagged\tagged_test.rs
-// 1:1 Rust unit test for tagged and taggedimpl
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

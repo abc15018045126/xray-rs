@@ -1,6 +1,3 @@
-// Module: app\\proxyman\\command\\command.rs
-// 1:1 Rust implementation corresponding to Go app\\proxyman\\command\\command.go
-
 use std::collections::HashSet;
 use std::sync::RwLock;
 

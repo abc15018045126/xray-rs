@@ -17,3 +17,7 @@ pub use flow::{FLOW_VISION, VisionContext, VisionFilter};
 pub use inbound::Server as InboundServer;
 pub use outbound::Client as OutboundClient;
 pub use validator::{MemoryValidator, Validator};
+#[cfg(test)]
+mod vless_encoding_test;
+#[cfg(test)]
+mod vless_ws_test;

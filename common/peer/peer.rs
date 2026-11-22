@@ -1,6 +1,3 @@
-// Module: common\peer\peer.rs
-// 1:1 Rust implementation corresponding to Go common\peer\peer.go
-
 use super::latency::{AverageLatency, HasLatency, Latency};
 use std::net::SocketAddr;
 

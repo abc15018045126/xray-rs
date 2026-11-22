@@ -1,6 +1,3 @@
-// Module: proxy\wireguard\wireguard.rs
-// 1:1 Rust implementation corresponding to Go proxy\wireguard\wireguard.go
-
 use super::config::WireGuardConfig;
 use crate::common::errors::{Error, Result};
 use std::net::IpAddr;
@@ -9,7 +6,6 @@ use std::str::FromStr;
 pub const PROTOCOL_NAME: &str = "wireguard";
 pub const DEFAULT_MTU: u32 = 1420;
 
-/// Parses endpoint/interface addresses and validates /32 for IPv4 and /128 for IPv6
 pub fn parse_endpoints(endpoints: &[String]) -> Result<(Vec<IpAddr>, bool, bool)> {
     let mut addrs = Vec::with_capacity(endpoints.len());
     let mut has_ipv4 = false;
@@ -53,7 +49,6 @@ pub fn parse_endpoints(endpoints: &[String]) -> Result<(Vec<IpAddr>, bool, bool)
     Ok((addrs, has_ipv4, has_ipv6))
 }
 
-/// Serializes configuration into standard WireGuard IPC/UAPI request format
 pub fn create_ipc_request(
     conf: &WireGuardConfig,
     is_client: bool,
@@ -104,7 +99,6 @@ mod tests {
         assert!(has_v4);
         assert!(has_v6);
 
-        // Invalid prefix
         let bad = vec!["10.0.0.2/24".to_string()];
         assert!(parse_endpoints(&bad).is_err());
     }

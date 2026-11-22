@@ -1,6 +1,3 @@
-// Module: features\policy\default.rs
-// 1:1 Rust implementation corresponding to Go features\policy\default.go
-
 use super::policy::{PolicyManager, SessionPolicy, SystemPolicy, session_default};
 use crate::features::feature::{Feature, TYPE_POLICY_MANAGER};
 use std::time::Duration;

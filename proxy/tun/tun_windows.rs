@@ -1,6 +1,3 @@
-// Module: proxy\tun\tun_windows.rs
-// Native Wintun device implementation using pure Rust wintun-rs (embedded driver, no wintun.dll required)
-
 #[cfg(windows)]
 pub mod device {
     use std::io;

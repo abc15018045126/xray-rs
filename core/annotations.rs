@@ -1,7 +1,3 @@
-// Module: core\annotations.rs
-// 1:1 Rust implementation corresponding to Go core\annotations.go
-
-/// ApiStability defines the lifecycle/stability tier of an API.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApiStability {
     Alpha,
@@ -21,7 +17,6 @@ impl ApiStability {
     }
 }
 
-/// Annotation is a concept in Xray for documentation metadata.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Annotation {
     pub api: String,

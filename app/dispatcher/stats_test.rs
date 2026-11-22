@@ -1,6 +1,3 @@
-// Module: app\dispatcher\stats_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\dispatcher\stats_test.go
-
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};

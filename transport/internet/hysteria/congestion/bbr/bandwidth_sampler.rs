@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\bbr\bandwidth_sampler.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\bandwidth_sampler.go
-
 use std::time::Duration;
 
 #[derive(Debug, Clone, Default)]

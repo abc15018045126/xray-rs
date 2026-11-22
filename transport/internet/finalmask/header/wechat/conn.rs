@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\wechat\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\wechat\conn.go
-
 use super::WeChatHeader;
 
 pub const WECHAT_VIDEO_MAGIC: u16 = 0x9812;

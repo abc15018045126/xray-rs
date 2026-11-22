@@ -1,6 +1,3 @@
-// Module: app\reverse\portal.rs
-// 1:1 Rust implementation corresponding to Go app\reverse\portal.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use std::sync::Arc;

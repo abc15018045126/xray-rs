@@ -1,6 +1,3 @@
-// Module: infra\conf\serial\builder.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\serial\builder.go
-
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
 use serde_json::Value;

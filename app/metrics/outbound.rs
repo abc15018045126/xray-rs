@@ -1,6 +1,3 @@
-// Module: app\metrics\outbound.rs
-// 1:1 Rust implementation corresponding to Go app\metrics\outbound.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,7 +10,6 @@ use crate::common::protocol::SessionContext;
 use crate::features::outbound::OutboundHandler;
 use crate::transport::internet::stat::StatStream;
 
-/// OutboundListener is a listener for metrics HTTP connections.
 pub struct OutboundListener {
     sender: mpsc::Sender<BoxStream>,
     receiver: tokio::sync::Mutex<mpsc::Receiver<BoxStream>>,
@@ -57,7 +53,6 @@ impl OutboundListener {
     }
 }
 
-/// Outbound is an outbound handler that handles metrics HTTP connections.
 pub struct Outbound {
     pub tag: String,
     pub listener: Arc<OutboundListener>,
@@ -104,7 +99,6 @@ impl OutboundHandler for Outbound {
     }
 }
 
-/// MetricsOutbound wraps an underlying OutboundHandler with read/write traffic stat counters.
 pub struct MetricsOutbound {
     inner: Arc<dyn OutboundHandler>,
     read_counter: Arc<Counter>,

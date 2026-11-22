@@ -1,6 +1,3 @@
-// Module: app\version\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\version\config.pb.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

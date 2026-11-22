@@ -1,6 +1,3 @@
-// Module: common\ctx\context.rs
-// 1:1 Rust implementation corresponding to Go common\ctx\context.go
-
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -37,10 +34,8 @@ impl Context {
     }
 }
 
-/// ContextWithID returns a new context with the given ID.
 pub fn context_with_id(ctx: &Context, id: ID) -> Context {
     let new_ctx = Context::new();
-    // Copy existing keys if needed
     if let Ok(guard) = ctx.values.read()
         && let Ok(mut new_guard) = new_ctx.values.write()
     {
@@ -54,7 +49,6 @@ pub fn context_with_id(ctx: &Context, id: ID) -> Context {
     new_ctx
 }
 
-/// IDFromContext returns ID in this context, or 0 if not contained.
 pub fn id_from_context(ctx: &Context) -> ID {
     ctx.id()
 }

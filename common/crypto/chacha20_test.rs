@@ -1,6 +1,3 @@
-// Module: common\crypto\chacha20_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\crypto\chacha20_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::chacha20::ChaCha20Cipher;

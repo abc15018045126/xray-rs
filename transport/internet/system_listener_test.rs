@@ -1,6 +1,3 @@
-// Module: transport\internet\system_listener_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\system_listener_test.go
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

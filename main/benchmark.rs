@@ -17,9 +17,8 @@ const CLASH_PORT: u16 = 20809;
 
 const PING_ROUNDS: usize = 100;
 const CONCURRENT_CLIENTS: usize = 100;
-const THROUGHPUT_BYTES: usize = 50 * 1024 * 1024; // 50MB
+const THROUGHPUT_BYTES: usize = 50 * 1024 * 1024;
 
-// Windows Memory Stats via psapi.dll
 #[repr(C)]
 #[allow(non_snake_case)]
 struct PROCESS_MEMORY_COUNTERS_EX {
@@ -73,12 +72,10 @@ fn get_process_memory_mb(pid: u32) -> f64 {
     }
 }
 
-// SOCKS5 Connector
 async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16) -> Result<TcpStream> {
     let mut stream = TcpStream::connect(("127.0.0.1", proxy_port)).await?;
     stream.set_nodelay(true)?;
 
-    // 1. Handshake greeting: NO_AUTH
     stream.write_all(&[0x05, 0x01, 0x00]).await?;
     let mut resp = [0u8; 2];
     stream.read_exact(&mut resp).await?;
@@ -86,7 +83,6 @@ async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16) ->
         return Err(anyhow!("SOCKS5 negotiation failed: {:?}", resp));
     }
 
-    // 2. CONNECT request
     let ip: std::net::Ipv4Addr = target_host.parse()?;
     let mut req = Vec::with_capacity(10);
     req.extend_from_slice(&[0x05, 0x01, 0x00, 0x01]);
@@ -103,7 +99,6 @@ async fn socks5_connect(proxy_port: u16, target_host: &str, target_port: u16) ->
     Ok(stream)
 }
 
-// High-speed Echo Server
 async fn start_echo_server() -> Result<()> {
     let listener = TcpListener::bind((ECHO_HOST, ECHO_PORT)).await?;
     tokio::spawn(async move {
@@ -173,7 +168,6 @@ struct Scorecard {
     succ_rate: f64,
 }
 
-// Latency benchmark
 async fn bench_latency(proxy_port: u16) -> (f64, f64, f64, f64) {
     let mut latencies = Vec::with_capacity(PING_ROUNDS);
 
@@ -202,7 +196,6 @@ async fn bench_latency(proxy_port: u16) -> (f64, f64, f64, f64) {
     (avg, med, p95, min)
 }
 
-// Upload throughput
 async fn bench_upload(proxy_port: u16, size_bytes: usize) -> f64 {
     let Ok(mut stream) = socks5_connect(proxy_port, ECHO_HOST, ECHO_PORT).await else {
         return 0.0;
@@ -235,7 +228,6 @@ async fn bench_upload(proxy_port: u16, size_bytes: usize) -> f64 {
     }
 }
 
-// Download throughput
 async fn bench_download(proxy_port: u16, size_bytes: usize) -> f64 {
     let Ok(mut stream) = socks5_connect(proxy_port, ECHO_HOST, ECHO_PORT).await else {
         return 0.0;
@@ -265,7 +257,6 @@ async fn bench_download(proxy_port: u16, size_bytes: usize) -> f64 {
     }
 }
 
-// Concurrency test
 async fn bench_concurrency(proxy_port: u16, clients: usize) -> (f64, f64) {
     let barrier = Arc::new(Barrier::new(clients));
     let mut handles = Vec::with_capacity(clients);
@@ -389,7 +380,6 @@ async fn main() -> Result<()> {
         let pid = child.id();
         tokio::time::sleep(Duration::from_millis(1500)).await;
 
-        // Readiness check
         let mut ready = false;
         for _ in 0..15 {
             if socks5_connect(port, ECHO_HOST, ECHO_PORT).await.is_ok() {
@@ -477,7 +467,6 @@ async fn main() -> Result<()> {
     let _ = fs::remove_file(&xray_cfg);
     let _ = fs::remove_file(&clash_cfg);
 
-    // Render Final Scorecard
     println!("\n{}", "=".repeat(95));
     println!("                           FINAL BENCHMARK SCORECARD                               ");
     println!("{}", "=".repeat(95));

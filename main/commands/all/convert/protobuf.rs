@@ -1,6 +1,3 @@
-// Module: main\commands\all\convert\protobuf.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\convert\protobuf.go
-
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::serial::builder::build_config_from_slices;
 use crate::main::commands::base::command::Command;

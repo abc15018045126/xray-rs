@@ -1,6 +1,3 @@
-// Module: common\buf\readv_reader.rs
-// 1:1 Rust implementation corresponding to Go common\buf\readv_reader.go
-
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
@@ -30,13 +27,7 @@ impl AllocStrategy {
             self.current = n;
         }
 
-        if self.current > 8 {
-            self.current = 8;
-        }
-
-        if self.current == 0 {
-            self.current = 1;
-        }
+        self.current = self.current.clamp(1, 8);
     }
 
     pub fn alloc(&self) -> Vec<Buffer> {

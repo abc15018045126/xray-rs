@@ -1,6 +1,3 @@
-// Module: app\reverse\config.rs
-// 1:1 Rust implementation corresponding to Go app\reverse\config.go
-
 use rand::{Rng, RngCore};
 use serde::{Deserialize, Serialize};
 

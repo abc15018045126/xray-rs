@@ -1,6 +1,3 @@
-// Module: common\buf\io_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\buf\io_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::io::write_all_bytes;

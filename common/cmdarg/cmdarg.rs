@@ -1,6 +1,3 @@
-// Module: common\cmdarg\cmdarg.rs
-// 1:1 Rust implementation corresponding to Go common\cmdarg\cmdarg.go
-
 #[derive(Debug, Clone, Default)]
 pub struct ArgList(pub Vec<String>);
 

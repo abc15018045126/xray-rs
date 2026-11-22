@@ -1,6 +1,3 @@
-// Module: proxy\vmess\aead\kdf.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\aead\kdf.go
-
 use hkdf::Hkdf;
 use sha2::Sha256;
 

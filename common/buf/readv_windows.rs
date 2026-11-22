@@ -1,6 +1,3 @@
-// Module: common\buf\readv_windows.rs
-// 1:1 Rust implementation corresponding to Go common\buf\readv_windows.go
-
 use crate::common::buf::Buffer;
 
 pub struct WindowsVectorReader {

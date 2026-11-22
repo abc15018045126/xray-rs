@@ -1,12 +1,6 @@
-// Module: common\errors\errors.rs
-// 1:1 Rust implementation corresponding to Go common\errors\errors.go
-
-pub use super::{Error, Result};
 use crate::common::log::Severity;
 use std::fmt;
 
-/// ErrorDetail represents an error with contextual prefixes, caller information,
-/// severity levels, and chained inner causes, corresponding to Go `errors.Error`.
 #[derive(Debug, Clone)]
 pub struct ErrorDetail {
     pub prefix: Vec<String>,
@@ -66,7 +60,6 @@ impl ErrorDetail {
     pub fn severity(&self) -> Severity {
         if let Some(ref inner) = self.inner {
             let inner_sev = inner.severity();
-            // Lower severity numeric value in log.pb represents higher priority (Error=1, Warning=2, Info=3)
             let cur = self.severity as u8;
             let inn = inner_sev as u8;
             if inn > 0 && (cur == 0 || inn < cur) {
@@ -113,7 +106,6 @@ pub fn new(msg: impl Into<String>) -> ErrorDetail {
     ErrorDetail::new(msg)
 }
 
-/// Cause returns the root cause of this error by traversing inner errors.
 pub fn cause(mut err: &ErrorDetail) -> &ErrorDetail {
     while let Some(ref inner) = err.inner {
         err = inner;
@@ -121,7 +113,6 @@ pub fn cause(mut err: &ErrorDetail) -> &ErrorDetail {
     err
 }
 
-/// GetSeverity returns the actual severity of the error, including inner errors.
 pub fn get_severity(err: &ErrorDetail) -> Severity {
     err.severity()
 }
@@ -157,3 +148,49 @@ pub fn log_error(msg: impl fmt::Display) {
 pub fn log_error_inner(inner: impl fmt::Display, msg: impl fmt::Display) {
     tracing::error!("{} > {}", msg, inner);
 }
+
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Address parse error: {0}")]
+    AddressParse(String),
+
+    #[error("Invalid protocol: {0}")]
+    Protocol(String),
+
+    #[error("Authentication failed: {0}")]
+    AuthFailed(String),
+
+    #[error("Crypto error: {0}")]
+    Crypto(String),
+
+    #[error("Configuration error: {0}")]
+    Config(String),
+
+    #[error("Unsupported feature: {0}")]
+    Unsupported(String),
+
+    #[error("Handler not found: {0}")]
+    NotFound(String),
+
+    #[error("Connection closed")]
+    Closed,
+
+    #[error("End of file")]
+    Eof,
+
+    #[error("Timeout")]
+    Timeout,
+
+    #[error("Buffer overflow")]
+    BufferOverflow,
+
+    #[error("Other error: {0}")]
+    Other(String),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;

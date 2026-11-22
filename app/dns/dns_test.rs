@@ -1,6 +1,3 @@
-// Module: app\dns\dns_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\dns\dns_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::dns::DnsClient;
@@ -32,7 +29,6 @@ mod tests {
         assert_eq!(ips.len(), 1);
         match ips[0] {
             IpAddr::V4(v4) => {
-                // Default FakeDNS CIDR 198.18.0.0/15
                 assert_eq!(v4.octets()[0], 198);
                 assert!(v4.octets()[1] == 18 || v4.octets()[1] == 19);
             }
@@ -46,14 +42,12 @@ mod tests {
 
         let mut client = DnsClient::new();
         client.set_disable_fallback(false);
-        // Server 1: fakedns (returns 198.18.x.x), but expect_ips requires 10.0.0.0/8 -> rejected!
         client.add_server(DnsServerConfig {
             address: "fakedns".into(),
             domains: vec!["domain:example.org".into()],
             expect_ips: vec!["10.0.0.0/8".into()],
             ..Default::default()
         });
-        // Server 2: fakedns without expect_ips -> accepted as fallback!
         client.add_server(DnsServerConfig {
             address: "fakedns".into(),
             ..Default::default()
@@ -72,7 +66,7 @@ mod tests {
         client.add_server(DnsServerConfig {
             address: "fakedns".into(),
             domains: vec!["domain:blocked.test".into()],
-            expect_ips: vec!["10.0.0.0/8".into()], // 198.18.x.x won't match -> fails
+            expect_ips: vec!["10.0.0.0/8".into()],
             ..Default::default()
         });
         client.add_server(DnsServerConfig {

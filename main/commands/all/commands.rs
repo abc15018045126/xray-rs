@@ -1,6 +1,3 @@
-// Module: main\commands\all\commands.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\commands.go
-
 use super::api::api::cmd_api;
 use super::buildmphcache::cmd_build_mph_cache;
 use super::convert::convert::cmd_convert;

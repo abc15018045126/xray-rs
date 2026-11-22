@@ -1,6 +1,3 @@
-// Module: app\proxyman\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\proxyman\config.pb.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,7 +29,6 @@ pub struct ReceiverConfig {
     pub receive_original_destination: bool,
     #[serde(default)]
     pub sniffing_settings: Option<SniffingConfig>,
-    // Legacy fields for backward compatibility
     #[serde(default)]
     pub port_range: Option<String>,
     #[serde(default)]
@@ -78,7 +74,6 @@ pub struct SenderConfig {
     pub via_cidr: String,
     #[serde(default)]
     pub target_strategy: i32,
-    // Legacy field for backward compatibility
     #[serde(default)]
     pub multipath_tcp: bool,
 }

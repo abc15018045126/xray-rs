@@ -1,7 +1,3 @@
-// Module: proxy\proxy.rs
-// 1:1 Rust implementation corresponding to Go proxy\proxy.go
-// Includes core proxy traits and the complete XTLS-Vision state machine & padding engine.
-
 use crate::common::net::Network;
 use rand::Rng;
 use std::collections::HashMap;

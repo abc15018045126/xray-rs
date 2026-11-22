@@ -1,6 +1,3 @@
-// Module: app\router\config.rs
-// 1:1 Rust implementation corresponding to Go app\router\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,6 +1,3 @@
-// Module: infra\vformat\main.rs
-// 1:1 Rust implementation corresponding to Go infra\vformat\main.go
-
 use crate::common::errors::Result;
 use std::path::{Path, PathBuf};
 

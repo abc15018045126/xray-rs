@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\noise\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\noise\config.go & config.proto
-
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -54,7 +51,6 @@ pub struct NoiseConfig {
     pub delay: String,
     #[serde(default)]
     pub str_pattern: Option<String>,
-    // Compatibility fields
     #[serde(default)]
     pub min_len: usize,
     #[serde(default)]

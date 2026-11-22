@@ -1,6 +1,3 @@
-// Module: transport\internet\httpupgrade\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\config.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

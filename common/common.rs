@@ -1,6 +1,3 @@
-// Module: common\common.rs
-// 1:1 Rust implementation corresponding to Go common\common.go
-
 use crate::common::errors::Result;
 
 pub const ERR_NO_CLUE: &str = "not enough information for making a decision";

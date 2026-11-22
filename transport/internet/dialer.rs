@@ -1,6 +1,3 @@
-// Module: transport\internet\dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\dialer.go
-
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::future::Future;
@@ -10,8 +7,33 @@ use std::sync::{Arc, OnceLock, RwLock};
 use super::memory_settings::MemoryStreamConfig;
 use super::sockopt::SocketOptions;
 use super::system_dialer::SystemDialer;
+use crate::app::dns::DnsClient;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination, Network};
+use std::net::SocketAddr;
+
+static SYSTEM_DNS_CLIENT: RwLock<Option<Arc<DnsClient>>> = RwLock::new(None);
+
+pub fn init_system_dialer_dns(dc: Arc<DnsClient>) {
+    if let Ok(mut guard) = SYSTEM_DNS_CLIENT.write() {
+        *guard = Some(dc);
+    }
+}
+
+pub async fn lookup_for_ip(domain: &str, port: u16) -> Result<Vec<SocketAddr>> {
+    let mut addrs = Vec::new();
+    if let Some(dc) = SYSTEM_DNS_CLIENT.read().ok().and_then(|g| g.clone())
+        && let Ok(ips) = dc.lookup_for_dialer(domain).await
+    {
+        addrs.extend(ips.into_iter().map(|ip| SocketAddr::new(ip, port)));
+    }
+    if addrs.is_empty() {
+        let addr_str = format!("{}:{}", domain, port);
+        addrs.extend(tokio::net::lookup_host(&addr_str).await.map_err(Error::Io)?);
+    }
+    addrs.sort_by_key(|a| a.is_ipv6());
+    Ok(addrs)
+}
 
 #[async_trait]
 pub trait Dialer: Send + Sync {
@@ -72,7 +94,6 @@ pub async fn dial_transport(
         return df(dest, stream_settings).await;
     }
 
-    // Default system fallback
     let sockopt = stream_settings.and_then(|s| s.socket_settings.as_ref());
     dial_system(dest, sockopt).await
 }

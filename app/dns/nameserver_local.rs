@@ -1,6 +1,3 @@
-// Module: app\dns\nameserver_local.rs
-// 1:1 Rust implementation corresponding to Go app\dns\nameserver_local.go
-
 use super::nameserver::NameServer;
 use crate::common::errors::{Error, Result};
 use async_trait::async_trait;
@@ -21,7 +18,7 @@ impl LocalNameServer {
 
     fn hickory(&self) -> Option<&TokioResolver> {
         self.resolver
-            .get_or_init(|| TokioResolver::builder_tokio().ok().map(|b| b.build().ok()).flatten())
+            .get_or_init(|| TokioResolver::builder_tokio().ok().and_then(|b| b.build().ok()))
             .as_ref()
     }
 }
@@ -36,6 +33,10 @@ impl Default for LocalNameServer {
 impl NameServer for LocalNameServer {
     fn name(&self) -> &str {
         "local"
+    }
+
+    fn is_disable_cache(&self) -> bool {
+        true
     }
 
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {

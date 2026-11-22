@@ -1,6 +1,3 @@
-// Module: features\dns\fakedns.rs
-// 1:1 Rust implementation corresponding to Go features\dns\fakedns.go
-
 use crate::features::feature::{Feature, TYPE_FAKE_DNS};
 use std::net::IpAddr;
 

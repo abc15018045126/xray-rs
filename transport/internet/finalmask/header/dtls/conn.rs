@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\dtls\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\dtls\conn.go
-
 use super::DtlsHeader;
 
 pub const DTLS_CONTENT_TYPE_HANDSHAKE: u8 = 22;

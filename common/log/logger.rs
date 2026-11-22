@@ -1,6 +1,3 @@
-// Module: common\log\logger.rs
-// 1:1 Rust implementation corresponding to Go common\log\logger.go
-
 use std::fs::OpenOptions;
 use std::io::Write as IoWrite;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -13,7 +10,6 @@ use super::log::{Handler, LogLevel, Message, register_handler};
 use super::log_pb::Severity;
 use crate::common::platform;
 
-/// Writer is the interface for writing logs.
 pub trait Writer: Send + Sync {
     fn write_str(&mut self, s: &str) -> std::io::Result<()>;
     fn close(&mut self) -> std::io::Result<()> {
@@ -21,7 +17,6 @@ pub trait Writer: Send + Sync {
     }
 }
 
-/// WriterCreator is a factory function to create Writers.
 pub type WriterCreator = Arc<dyn Fn() -> Option<Box<dyn Writer>> + Send + Sync>;
 
 struct StdoutWriter;
@@ -57,19 +52,15 @@ impl Writer for FileWriter {
     }
 }
 
-/// CreateStdoutLogWriter returns a WriterCreator that creates LogWriter for stdout.
 pub fn create_stdout_log_writer() -> WriterCreator {
     Arc::new(|| Some(Box::new(StdoutWriter)))
 }
 
-/// CreateStderrLogWriter returns a WriterCreator that creates LogWriter for stderr.
 pub fn create_stderr_log_writer() -> WriterCreator {
     Arc::new(|| Some(Box::new(StderrWriter)))
 }
 
-/// CreateFileLogWriter returns a WriterCreator that creates LogWriter for the given file path.
 pub fn create_file_log_writer(path: &str) -> std::io::Result<WriterCreator> {
-    // Test open / create with append permissions
     let _ = OpenOptions::new().create(true).append(true).open(path)?;
 
     let path_buf = path.to_string();
@@ -83,7 +74,6 @@ pub fn create_file_log_writer(path: &str) -> std::io::Result<WriterCreator> {
     }))
 }
 
-/// GeneralLogger handles log messages asynchronously through a bounded queue.
 pub struct GeneralLogger {
     sender: SyncSender<String>,
     done: Arc<AtomicBool>,
@@ -111,7 +101,6 @@ impl GeneralLogger {
                     }
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                         if done_clone.load(Ordering::SeqCst) {
-                            // Drain remaining messages before exiting
                             while let Ok(msg) = rx.try_recv() {
                                 let line = format!("{}{}", msg, platform::line_separator());
                                 let _ = writer.write_str(&line);
@@ -157,12 +146,10 @@ impl Drop for GeneralLogger {
     }
 }
 
-/// NewLogger returns a generic log handler that can handle all types of messages.
 pub fn new_logger(creator: WriterCreator) -> Arc<GeneralLogger> {
     GeneralLogger::new(creator)
 }
 
-/// SeverityLogger wraps a GeneralLogger with level filtering.
 pub struct SeverityLogger {
     inner: Arc<GeneralLogger>,
     log_level: Severity,
@@ -186,14 +173,12 @@ impl Handler for SeverityLogger {
     }
 }
 
-/// ReplaceWithSeverityLogger configures stdout logging at the given severity.
 pub fn replace_with_severity_logger(severity: Severity) {
     let general = new_logger(create_stdout_log_writer());
     let severity_logger = SeverityLogger::new(general, severity);
     register_handler(Arc::new(severity_logger));
 }
 
-/// Legacy Logger struct for backward compatibility
 pub struct Logger {
     level: AtomicUsize,
 }

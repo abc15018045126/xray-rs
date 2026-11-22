@@ -1,6 +1,3 @@
-// Module: main\commands\all\api\stats_sys.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\api\stats_sys.go
-
 use super::shared::ApiClientConfig;
 use crate::main::commands::base::command::Command;
 

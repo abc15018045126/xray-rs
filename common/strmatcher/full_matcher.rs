@@ -1,6 +1,3 @@
-// Module: common\strmatcher\full_matcher.rs
-// 1:1 Rust implementation corresponding to Go common\strmatcher\full_matcher.go
-
 use super::strmatcher::{Matcher, MatcherType};
 use std::collections::HashMap;
 

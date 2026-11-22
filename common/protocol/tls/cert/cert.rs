@@ -1,6 +1,3 @@
-// Module: common\protocol\tls\cert\cert.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\tls\cert\cert.go
-
 use crate::common::errors::{Error, Result};
 use sha2::{Digest, Sha256};
 

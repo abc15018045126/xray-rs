@@ -1,6 +1,3 @@
-// Module: infra\conf\loader.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\loader.go
-
 use super::Config;
 use crate::common::errors::{Error, Result};
 use serde_json::Value;

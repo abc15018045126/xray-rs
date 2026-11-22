@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\noise\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\noise\conn.go
-
 use super::config::NoiseConfig;
 use rand::Rng;
 use std::collections::HashMap;
@@ -48,7 +45,6 @@ impl NoisePacketConn {
         }
     }
 
-    /// Checks if noise packets should be injected for the given destination address.
     pub fn should_send_noise(&self, addr_str: &str) -> bool {
         let map = self.sessions.lock().unwrap();
         let now = Instant::now();
@@ -60,7 +56,6 @@ impl NoisePacketConn {
         true
     }
 
-    /// Generates the sequence of noise packets and their respective inter-packet delays.
     pub fn generate_noise_packets(&self) -> Vec<(Vec<u8>, Duration)> {
         let mut rng = rand::thread_rng();
         let mut packets = Vec::with_capacity(self.config.items.len());
@@ -102,7 +97,6 @@ impl NoisePacketConn {
         packets
     }
 
-    /// Marks that noise packets were dispatched to `addr_str`, setting reset TTL.
     pub fn mark_sent(&self, addr_str: &str) {
         let mut map = self.sessions.lock().unwrap();
         let mut rng = rand::thread_rng();
@@ -115,7 +109,6 @@ impl NoisePacketConn {
         map.insert(addr_str.to_string(), Instant::now() + ttl);
     }
 
-    /// Purges expired address entries.
     pub fn clean_expired(&self) {
         let mut map = self.sessions.lock().unwrap();
         let now = Instant::now();

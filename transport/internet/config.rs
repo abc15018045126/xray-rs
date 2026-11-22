@@ -1,6 +1,3 @@
-// Module: transport\internet\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\config.go
-
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
@@ -48,20 +45,18 @@ pub fn create_transport_config(name: &str) -> Result<serde_json::Value> {
     }
 }
 
-// 1:1 Go strategy table
-// {strategy, prefer, fallback}
 const STRATEGY_TABLE: &[[u8; 3]] = &[
-    [0, 0, 0], // AsIs
-    [1, 0, 0], // UseIP
-    [1, 4, 0], // UseIPv4
-    [1, 6, 0], // UseIPv6
-    [1, 4, 6], // UseIPv4v6
-    [1, 6, 4], // UseIPv6v4
-    [2, 0, 0], // ForceIP
-    [2, 4, 0], // ForceIPv4
-    [2, 6, 0], // ForceIPv6
-    [2, 4, 6], // ForceIPv4v6
-    [2, 6, 4], // ForceIPv6v4
+    [0, 0, 0],
+    [1, 0, 0],
+    [1, 4, 0],
+    [1, 6, 0],
+    [1, 4, 6],
+    [1, 6, 4],
+    [2, 0, 0],
+    [2, 4, 0],
+    [2, 6, 0],
+    [2, 4, 6],
+    [2, 6, 4],
 ];
 
 impl DomainStrategy {

@@ -1,6 +1,3 @@
-// Module: common\buf\readv_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\buf\readv_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::io::Reader;
@@ -12,7 +9,6 @@ mod tests {
         let mut strategy = AllocStrategy::new();
         assert_eq!(strategy.current(), 1);
 
-        // Adjust up (doubling)
         strategy.adjust(1);
         assert_eq!(strategy.current(), 2);
 
@@ -22,11 +18,9 @@ mod tests {
         strategy.adjust(4);
         assert_eq!(strategy.current(), 8);
 
-        // Cap at 8
         strategy.adjust(8);
         assert_eq!(strategy.current(), 8);
 
-        // Adjust down
         strategy.adjust(3);
         assert_eq!(strategy.current(), 3);
 

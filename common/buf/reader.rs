@@ -1,6 +1,3 @@
-// Module: common\buf\reader.rs
-// 1:1 Rust implementation corresponding to Go common\buf\reader.go
-
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
 

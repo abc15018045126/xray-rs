@@ -1,5 +1,3 @@
-// Module: features\policy\mod.rs
-
 pub mod default;
 pub mod policy;
 

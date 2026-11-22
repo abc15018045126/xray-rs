@@ -1,6 +1,3 @@
-// Module: common\ocsp\ocsp.rs
-// 1:1 Rust implementation corresponding to Go common\ocsp\ocsp.go
-
 #[derive(Debug, Clone, Default)]
 pub struct OcspCache {
     pub response: Vec<u8>,

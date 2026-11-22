@@ -1,6 +1,3 @@
-// Module: proxy\tun\stack_gvisor_endpoint.rs
-// 1:1 Rust implementation corresponding to Go proxy\tun\stack_gvisor_endpoint.go
-
 pub struct GVisorEndpoint {
     pub channel_id: u64,
 }

@@ -1,6 +1,3 @@
-// Module: transport\internet\system_dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\system_dialer.go
-
 use async_trait::async_trait;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
@@ -126,7 +123,6 @@ impl SystemDialerTrait for DefaultSystemDialer {
 
         let target_addr = addrs[0];
 
-        // Apply controllers
         {
             let ctls = self.controllers.read().await;
             for ctl in ctls.iter() {

@@ -1,6 +1,3 @@
-// Module: common\mux\client_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\mux\client_test.go
-
 #[cfg(test)]
 mod tests {
     use crate::common::mux::client::MuxClient;

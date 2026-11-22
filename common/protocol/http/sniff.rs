@@ -1,6 +1,3 @@
-// Module: common\protocol\http\sniff.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\http\sniff.go
-
 use crate::common::errors::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

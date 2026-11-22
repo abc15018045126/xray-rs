@@ -1,6 +1,3 @@
-// Module: common\protocol\id_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\protocol\id_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::id::Id;

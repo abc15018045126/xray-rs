@@ -1,6 +1,3 @@
-// Module: app\router\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\router\config.pb.go
-
 use super::webhook::WebhookConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

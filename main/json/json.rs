@@ -1,6 +1,3 @@
-// Module: main\json\json.rs
-// 1:1 Rust implementation corresponding to Go main\json\json.go
-
 use crate::common::errors::{Error, Result};
 use crate::infra::conf::Config;
 use crate::infra::conf::serial::builder::merge_configs;

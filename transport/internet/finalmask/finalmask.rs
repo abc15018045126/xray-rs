@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\finalmask.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\finalmask.go
-
 use super::header::custom::udp::{UdpCustomClient, UdpCustomServer};
 use super::header::dns::conn::DnsPacketConn;
 use super::header::dtls::conn::DtlsPacketConn;
@@ -14,7 +11,6 @@ use std::sync::Arc;
 pub const FINALMASK_VERSION: u32 = 1;
 pub const UDP_SIZE: usize = 4096;
 
-/// HeaderMask defines a packet-level obfuscation header that prepends a fixed or dynamic header.
 pub trait HeaderMask: Send + Sync {
     fn size(&self) -> usize;
     fn wrap_packet(&mut self, payload: &[u8]) -> Vec<u8>;
@@ -117,7 +113,6 @@ impl HeaderMask for UdpCustomServer {
     }
 }
 
-/// HeaderManager manages a chained list of header masks (corresponding to headerManagerConn in Go)
 pub struct HeaderManager {
     headers: Vec<Box<dyn HeaderMask>>,
 }
@@ -139,7 +134,6 @@ impl HeaderManager {
         self.headers.len()
     }
 
-    /// Wraps outgoing payload with all headers in reverse order (outer-to-inner during prepending)
     pub fn wrap_outgoing(&mut self, payload: &[u8]) -> Result<Vec<u8>> {
         if self.total_size() + payload.len() > UDP_SIZE {
             return Err(Error::Protocol(
@@ -153,7 +147,6 @@ impl HeaderManager {
         Ok(buf)
     }
 
-    /// Strips each header in forward order
     pub fn unwrap_incoming<'a>(&self, packet: &'a [u8]) -> Result<&'a [u8]> {
         let sum = self.total_size();
         if packet.len() < sum {
@@ -169,7 +162,6 @@ impl HeaderManager {
     }
 }
 
-/// UdpMask defines general UDP transformations
 pub trait UdpMask: Send + Sync {
     fn wrap_client(&mut self, payload: &[u8]) -> Result<Vec<u8>>;
     fn unwrap_client<'a>(&self, packet: &'a [u8]) -> Result<&'a [u8]>;
@@ -177,7 +169,6 @@ pub trait UdpMask: Send + Sync {
     fn unwrap_server<'a>(&self, packet: &'a [u8]) -> Result<&'a [u8]>;
 }
 
-/// UdpmaskManager manages multiple UDP obfuscators and header wrappers
 pub struct UdpmaskManager {
     headers: Option<HeaderManager>,
     masks: Vec<Box<dyn UdpMask>>,
@@ -233,12 +224,10 @@ impl UdpmaskManager {
     }
 }
 
-/// TcpMask trait for connection level stream obfuscation
 pub trait TcpMask: Send + Sync {
     fn name(&self) -> &str;
 }
 
-/// TcpmaskManager manages multiple TCP connection masks
 pub struct TcpmaskManager {
     masks: Vec<Arc<dyn TcpMask>>,
 }
@@ -257,14 +246,12 @@ impl TcpmaskManager {
     }
 }
 
-/// Trait for inspecting connection unwrapping and splicing capability
 pub trait TcpMaskConn {
     fn splice(&self) -> bool {
         true
     }
 }
 
-/// Helper to check if a TCP stream is unwrappable
 pub fn unwrap_tcp_mask<T: TcpMaskConn>(conn: &T) -> bool {
     conn.splice()
 }

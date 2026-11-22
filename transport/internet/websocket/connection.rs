@@ -1,6 +1,3 @@
-// Module: transport\internet\websocket\connection.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\websocket\connection.go
-
 use futures::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio_tungstenite::WebSocketStream as TungsteniteStream;
@@ -32,9 +29,6 @@ impl WebSocketConnection {
     }
 }
 
-/// 1:1 Rust equivalent of Go `NewConnection` in `transport/internet/websocket/connection.go`.
-/// Bridges a Tungstenite WebSocket stream into a `BoxStream` with optional heartbeat `Ping`
-/// and RFC 6455 normal `CloseFrame` handling.
 pub(crate) fn bridge_ws_stream(
     ws_stream: TungsteniteStream<BoxStream>,
     heartbeat_period: u32,
@@ -45,13 +39,10 @@ pub(crate) fn bridge_ws_stream(
 
     tokio::spawn(async move {
         use tokio::io::AsyncReadExt;
-        // Match Xray-core `transport/internet/websocket/dialer.go` (`WriteBufferSize: 4 * 1024`):
-        // 4KB fits coalesced `[VLESS header + TLS ClientHello]` in a single WS Binary frame
-        // while keeping frame sizes optimal for Cloudflare Workers / edge proxies.
         let mut buf = [0u8; 4096];
         let mut heartbeat = if heartbeat_period > 0 {
             let mut iv = tokio::time::interval(Duration::from_secs(heartbeat_period as u64));
-            iv.tick().await; // consume immediate first tick
+            iv.tick().await;
             Some(iv)
         } else {
             None

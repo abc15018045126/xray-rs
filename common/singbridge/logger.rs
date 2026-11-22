@@ -1,10 +1,6 @@
-// Module: common\singbridge\logger.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\logger.go
-
 use crate::common::ctx::Context;
 use crate::common::log::{GeneralMessage, Severity, record};
 
-/// ContextLogger trait 1:1 corresponding to sagernet/sing/common/logger.ContextLogger.
 pub trait ContextLogger: Send + Sync {
     fn trace(&self, msg: &str);
     fn debug(&self, msg: &str);
@@ -23,8 +19,6 @@ pub trait ContextLogger: Send + Sync {
     fn panic_context(&self, ctx: &Context, msg: &str);
 }
 
-/// XrayLogger forwards sing logger calls into Xray logging infrastructure.
-/// 1:1 corresponding to XrayLogger in logger.go.
 pub struct XrayLogger {
     prefix: String,
 }
@@ -100,5 +94,4 @@ impl ContextLogger for XrayLogger {
     fn panic_context(&self, _ctx: &Context, _msg: &str) {}
 }
 
-/// Backwards compatibility alias
 pub type SingLogger = XrayLogger;

@@ -1,6 +1,3 @@
-// Module: transport\\link.rs
-// 1:1 Rust implementation corresponding to Go transport\\link.go
-
 use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 
 #[derive(Clone)]

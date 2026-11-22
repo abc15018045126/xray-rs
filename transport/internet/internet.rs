@@ -1,6 +1,3 @@
-// Module: transport\internet\internet.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\internet.go
-
 pub const DEFAULT_STREAM_BUFFER_SIZE: usize = 64 * 1024;
 
 pub fn is_valid_http_host(request: &str, config: &str) -> bool {

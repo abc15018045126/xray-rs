@@ -1,6 +1,3 @@
-// Module: app\router\strategy_leastload.rs
-// 1:1 Rust implementation corresponding to Go app\router\strategy_leastload.go
-
 use super::balancing::BalancingStrategy;
 use crate::app::observatory::Observatory;
 use serde::{Deserialize, Serialize};
@@ -51,7 +48,7 @@ pub fn leastload_sort(nodes: &mut [LeastLoadNode]) {
         } else if left.count_fail != right.count_fail {
             left.count_fail.cmp(&right.count_fail)
         } else if left.count_all != right.count_all {
-            right.count_all.cmp(&left.count_all) // higher count_all preferred
+            right.count_all.cmp(&left.count_all)
         } else {
             left.tag.cmp(&right.tag)
         }
@@ -144,7 +141,6 @@ impl BalancingStrategy for LeastLoadStrategy {
             return Some(best);
         }
 
-        // Generate synthetic nodes for candidate tags and sort by RTT
         let mut nodes: Vec<LeastLoadNode> = tags
             .iter()
             .enumerate()

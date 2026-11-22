@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\sending.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\kcp\sending.go
-
 use super::segment::DataSegment;
 use std::collections::VecDeque;
 
@@ -34,10 +31,8 @@ impl SendingWindow {
         self.cache.front().map(|s| s.number)
     }
 
-    /// Clears all acknowledged segments with number < una
     pub fn clear(&mut self, una: u32) {
         while let Some(front) = self.cache.front() {
-            // number < una
             if front.number.wrapping_sub(una) >= 0x7FFFFFFF {
                 let seg = self.cache.pop_front().unwrap();
                 self.total_in_flight_size = self
@@ -49,7 +44,6 @@ impl SendingWindow {
         }
     }
 
-    /// Fast retransmit: accelerates packet timeout when newer packet is ACKed
     pub fn handle_fast_ack(&mut self, number: u32, rto: u32) {
         for seg in &mut self.cache {
             if seg.number == number || number.wrapping_sub(seg.number) > 0x7FFFFFFF {
@@ -61,7 +55,6 @@ impl SendingWindow {
         }
     }
 
-    /// Acknowledges a specific packet number and returns RTT if valid
     pub fn acknowledge(&mut self, number: u32, current: u32) -> Option<u32> {
         if let Some(pos) = self.cache.iter().position(|s| s.number == number) {
             let seg = self.cache.remove(pos).unwrap();
@@ -75,7 +68,6 @@ impl SendingWindow {
         None
     }
 
-    /// Gathers timed-out segments for transmission / retransmission
     pub fn flush(
         &mut self,
         current: u32,

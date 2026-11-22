@@ -1,6 +1,3 @@
-// Module: main\commands\all\mlkem768.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\mlkem768.go
-
 use crate::main::commands::base::command::Command;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;

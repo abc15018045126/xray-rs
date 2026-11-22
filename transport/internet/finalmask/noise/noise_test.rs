@@ -1,5 +1,3 @@
-// Module: transport\internet\finalmask\noise\noise_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::config::{NoiseConfig, NoiseItem};
@@ -38,21 +36,17 @@ mod tests {
         let packets = conn.generate_noise_packets();
         assert_eq!(packets.len(), 2);
 
-        // First packet random length 16..=32 and bytes 10..=50
         assert!(packets[0].0.len() >= 16 && packets[0].0.len() <= 32);
         for &b in &packets[0].0 {
             assert!(b >= 10 && b <= 50);
         }
         assert!(packets[0].1.as_millis() >= 5 && packets[0].1.as_millis() <= 15);
 
-        // Second packet fixed
         assert_eq!(packets[1].0, b"fixed-pattern");
         assert_eq!(packets[1].1.as_millis(), 20);
 
-        // Mark sent
         conn.mark_sent("192.168.1.1:8080");
         assert!(!conn.should_send_noise("192.168.1.1:8080"));
-        // Different address should still send noise
         assert!(conn.should_send_noise("192.168.1.2:8080"));
     }
 }

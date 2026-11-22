@@ -1,4 +1,3 @@
-// Module: app\router\command\command.pb.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

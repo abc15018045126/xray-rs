@@ -1,6 +1,3 @@
-// Module: transport\internet\tagged\taggedimpl\impl.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tagged\taggedimpl\impl.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
 use crate::common::protocol::SessionContext;

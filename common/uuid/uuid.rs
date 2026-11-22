@@ -1,17 +1,12 @@
-// Module: common\uuid\uuid.rs
-// 1:1 Rust implementation corresponding to Go common\uuid\uuid.go
-
 use crate::common::errors::{Error, Result};
 use rand::Rng;
 use sha1::{Digest, Sha1};
 use std::fmt;
 
-/// UUID is a 16-byte identifier corresponding to Go `uuid.UUID`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct UUID(pub [u8; 16]);
 
 impl UUID {
-    /// Creates a UUID with random value (v4).
     pub fn new() -> Self {
         let mut bytes = [0u8; 16];
         rand::thread_rng().fill(&mut bytes);
@@ -20,7 +15,6 @@ impl UUID {
         UUID(bytes)
     }
 
-    /// Bytes returns the bytes slice of this UUID.
     pub fn bytes(&self) -> &[u8; 16] {
         &self.0
     }
@@ -29,7 +23,6 @@ impl UUID {
         self.0
     }
 
-    /// Equals returns true if this UUID equals another UUID by value.
     pub fn equals(&self, another: Option<&UUID>) -> bool {
         match another {
             Some(a) => self.0 == a.0,
@@ -37,7 +30,6 @@ impl UUID {
         }
     }
 
-    /// String returns the canonical 8-4-4-4-12 hex string representation.
     pub fn to_string_formatted(&self) -> String {
         format!(
             "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
@@ -61,7 +53,6 @@ impl UUID {
     }
 }
 
-/// ParseBytes converts a UUID in byte form to object.
 pub fn parse_bytes(b: &[u8]) -> Result<UUID> {
     if b.len() != 16 {
         return Err(Error::Protocol(
@@ -73,8 +64,6 @@ pub fn parse_bytes(b: &[u8]) -> Result<UUID> {
     Ok(UUID(out))
 }
 
-/// ParseString converts a UUID in string form to object.
-/// For inputs of length 1..30, it derives a deterministic v5-style UUID via SHA1 matching Go.
 pub fn parse_string(str: &str) -> Result<UUID> {
     let text = str.as_bytes();
     let l = text.len();

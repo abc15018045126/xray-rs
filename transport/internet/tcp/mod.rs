@@ -18,3 +18,5 @@ pub use config::TcpConfig;
 pub use dialer::TcpDialer;
 pub use hub::TcpHub;
 pub use tcp::PROTOCOL_NAME;
+#[cfg(test)]
+mod config_test;

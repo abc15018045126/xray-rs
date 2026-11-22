@@ -1,6 +1,3 @@
-// Module: common\task\periodic.rs
-// 1:1 Rust implementation corresponding to Go common\task\periodic.go
-
 use crate::common::errors::Result;
 use std::future::Future;
 use std::sync::Arc;

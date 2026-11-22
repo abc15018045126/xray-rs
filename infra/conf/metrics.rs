@@ -1,6 +1,3 @@
-// Module: infra\conf\metrics.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\metrics.go
-
 use crate::app::metrics::Config as MetricsConfigProto;
 use crate::common::errors::{Error, Result};
 use serde::{Deserialize, Serialize};

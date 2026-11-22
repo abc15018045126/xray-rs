@@ -1,6 +1,3 @@
-// Module: app\stats\counter_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\stats\counter_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::counter::Counter;

@@ -1,6 +1,3 @@
-// Module: infra\conf\serial\loader_test.rs
-// 1:1 Rust unit test suite corresponding to Go infra\conf\serial\loader_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::builder::{build_config_from_slices, build_json_config, merge_configs};

@@ -1,6 +1,3 @@
-// Module: app\stats\online_map.rs
-// 1:1 Rust implementation corresponding to Go app\stats\online_map.go
-
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::time::Instant;

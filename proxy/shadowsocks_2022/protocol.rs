@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks_2022\protocol.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\protocol.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::Destination;
 use rand::Rng;

@@ -1,6 +1,3 @@
-// Module: features\policy\policy.rs
-// 1:1 Rust implementation corresponding to Go features\policy\policy.go
-
 use crate::features::feature::{Feature, TYPE_POLICY_MANAGER};
 use std::time::Duration;
 
@@ -64,7 +61,6 @@ pub struct SessionPolicy {
     pub buffer: Buffer,
 }
 
-// Keep Policy alias for backward compatibility
 pub type Policy = SessionPolicy;
 
 pub fn default_buffer_policy() -> Buffer {

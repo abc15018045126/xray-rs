@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\http\resp.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\headers\http\resp.go
-
 use super::config_pb::{Header, ResponseConfig, Status, Version};
 
 pub fn resp400() -> ResponseConfig {

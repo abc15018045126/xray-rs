@@ -1,6 +1,3 @@
-// Module: infra\conf\http.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\http.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

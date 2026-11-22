@@ -1,6 +1,3 @@
-// Module: features\extension\observatory.rs
-// 1:1 Rust implementation corresponding to Go features\extension\observatory.go
-
 use crate::common::errors::Result;
 use crate::features::feature::{Feature, TYPE_OBSERVATORY};
 use async_trait::async_trait;

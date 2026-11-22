@@ -1,6 +1,3 @@
-// Module: app\router\command\command_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\router\command\command_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::command::RoutingService;

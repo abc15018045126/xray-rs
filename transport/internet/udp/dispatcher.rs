@@ -1,6 +1,3 @@
-// Module: transport\internet\udp\dispatcher.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\udp\dispatcher.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

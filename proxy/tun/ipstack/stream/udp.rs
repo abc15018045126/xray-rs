@@ -10,32 +10,6 @@ use tokio::{
     time::Sleep,
 };
 
-/// A UDP stream in the IP stack.
-///
-/// This type represents a UDP connection and implements `AsyncRead` and `AsyncWrite`
-/// for bidirectional data transfer. UDP streams have a configurable timeout and
-/// automatically handle packet fragmentation based on MTU.
-///
-/// # Examples
-///
-/// ```no_run
-/// use ipstack::{IpStack, IpStackConfig, IpStackStream};
-/// use tokio::io::{AsyncReadExt, AsyncWriteExt};
-///
-/// # async fn example(mut ip_stack: IpStack) -> Result<(), Box<dyn std::error::Error>> {
-/// if let IpStackStream::Udp(mut udp_stream) = ip_stack.accept().await? {
-///     println!("New UDP stream from {}", udp_stream.peer_addr());
-///     
-///     // Read data
-///     let mut buffer = [0u8; 1024];
-///     let n = udp_stream.read(&mut buffer).await?;
-///     
-///     // Write data
-///     udp_stream.write_all(b"Response").await?;
-/// }
-/// # Ok(())
-/// # }
-/// ```
 #[derive(Debug)]
 pub struct IpStackUdpStream {
     src_addr: SocketAddr,
@@ -81,7 +55,7 @@ impl IpStackUdpStream {
     }
 
     fn create_rev_packet(&self, ttl: u8, mut payload: Vec<u8>) -> std::io::Result<NetworkPacket> {
-        const UHS: usize = 8; // udp header size is 8
+        const UHS: usize = 8;
         match (self.dst_addr.ip(), self.src_addr.ip()) {
             (std::net::IpAddr::V4(dst), std::net::IpAddr::V4(src)) => {
                 let mut ip_h = Ipv4Header::new(0, ttl, IpNumber::UDP, dst.octets(), src.octets()).map_err(IpStackError::from)?;
@@ -123,32 +97,10 @@ impl IpStackUdpStream {
         }
     }
 
-    /// Returns the local socket address of the UDP stream.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use ipstack::IpStackUdpStream;
-    /// # fn example(udp_stream: &IpStackUdpStream) {
-    /// let local_addr = udp_stream.local_addr();
-    /// println!("Local address: {}", local_addr);
-    /// # }
-    /// ```
     pub fn local_addr(&self) -> SocketAddr {
         self.src_addr
     }
 
-    /// Returns the remote socket address of the UDP stream.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use ipstack::IpStackUdpStream;
-    /// # fn example(udp_stream: &IpStackUdpStream) {
-    /// let peer_addr = udp_stream.peer_addr();
-    /// println!("Peer address: {}", peer_addr);
-    /// # }
-    /// ```
     pub fn peer_addr(&self) -> SocketAddr {
         self.dst_addr
     }
@@ -166,9 +118,6 @@ impl AsyncRead for IpStackUdpStream {
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> std::task::Poll<std::io::Result<()>> {
         if let Some(p) = self.first_payload.take() {
-            // Clamp to `buf.remaining()`: an oversized datagram would otherwise
-            // panic `put_slice` (hit under `copy_bidirectional` write
-            // backpressure). Unlike the TCP path the remainder is DROPPED, not buffered matches `recvfrom` without MSG_WAITALL.
             let n = p.len().min(buf.remaining());
             buf.put_slice(&p[..n]);
             return std::task::Poll::Ready(Ok(()));
@@ -182,7 +131,6 @@ impl AsyncRead for IpStackUdpStream {
         match self.stream_receiver.poll_recv(cx) {
             std::task::Poll::Ready(Some(p)) => {
                 if let Some(payload) = p.payload {
-                    // Clamp like the first_payload branch above (drop the tail).
                     let n = payload.len().min(buf.remaining());
                     buf.put_slice(&payload[..n]);
                 }
@@ -238,9 +186,6 @@ mod tests {
         )
     }
 
-    // A datagram larger than the caller's buffer used to panic `put_slice`; it
-    // must now truncate to the buffer instead. Covers both branches of poll_read.
-
     #[tokio::test]
     async fn poll_read_truncates_oversized_first_payload() {
         let mut s = stream(vec![7u8; 1250]);
@@ -252,7 +197,7 @@ mod tests {
     #[tokio::test]
     async fn poll_read_truncates_oversized_relayed_datagram() {
         let mut s = stream(Vec::new());
-        s.first_payload = None; // skip to the stream_receiver branch
+        s.first_payload = None;
         let pkt = s.create_rev_packet(64, vec![9u8; 1250]).unwrap();
         s.stream_sender().send(pkt).unwrap();
         let mut small = [0u8; 502];

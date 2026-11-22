@@ -1,6 +1,3 @@
-// Module: transport\internet\stat\connection.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\stat\connection.go
-
 use crate::app::stats::Counter;
 use std::io;
 use std::pin::Pin;

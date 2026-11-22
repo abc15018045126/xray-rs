@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\mkcp\aes128gcm\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\mkcp\aes128gcm\conn.go
-
 use super::config::Aes128GcmConfig;
 use crate::common::errors::{Error, Result};
 use aes_gcm::{
@@ -43,7 +40,6 @@ impl Aes128GcmPacketConn {
         GCM_TAG_SIZE
     }
 
-    /// Wraps (seals) a plaintext packet with a fresh random 12-byte nonce.
     pub fn wrap(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let mut nonce_bytes = [0u8; GCM_NONCE_SIZE];
         rand::thread_rng().fill_bytes(&mut nonce_bytes);
@@ -60,7 +56,6 @@ impl Aes128GcmPacketConn {
         Ok(out)
     }
 
-    /// Unwraps (opens) an incoming datagram containing nonce + ciphertext + tag.
     pub fn unwrap(&self, packet: &[u8]) -> Result<Vec<u8>> {
         if packet.len() < GCM_NONCE_SIZE + GCM_TAG_SIZE {
             return Err(Error::Protocol("aead short length".into()));

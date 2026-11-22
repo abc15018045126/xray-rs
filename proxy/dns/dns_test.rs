@@ -1,4 +1,3 @@
-// Module: proxy\dns\dns_test.rs
 #[cfg(test)]
 mod tests {
     use super::super::{DefaultDnsHandler, DnsOutbound};
@@ -47,7 +46,6 @@ mod tests {
         };
         let task = tokio::spawn(async move { outbound.process(server_io, dest).await });
 
-        // 1. Type A query
         let q_a = build_query(0x1111, "example.test.", RecordType::A);
         client_io.write_all(&q_a).await.unwrap();
         let mut buf = vec![0u8; 2048];
@@ -59,7 +57,6 @@ mod tests {
         assert_eq!(resp_a.answers.len(), 1);
         assert!(matches!(resp_a.answers[0].data, RData::A(_)));
 
-        // 2. Type AAAA query on SAME stream (multi-query!)
         let q_aaaa = build_query(0x2222, "example.test.", RecordType::AAAA);
         client_io.write_all(&q_aaaa).await.unwrap();
         let n = client_io.read(&mut buf).await.unwrap();
@@ -69,7 +66,6 @@ mod tests {
         assert_eq!(resp_aaaa.answers.len(), 1);
         assert!(matches!(resp_aaaa.answers[0].data, RData::AAAA(_)));
 
-        // 3. Non-IP (HTTPS) query -> immediate empty NoError
         let q_https = build_query(0x3333, "example.test.", RecordType::HTTPS);
         client_io.write_all(&q_https).await.unwrap();
         let n = client_io.read(&mut buf).await.unwrap();

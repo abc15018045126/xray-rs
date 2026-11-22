@@ -1,6 +1,3 @@
-// Module: proxy\vless\encryption\common_test.rs
-// Comprehensive unit tests for VLESS Common encryption, AEAD seal/open, and CommonConn streaming
-
 #[cfg(test)]
 mod tests {
     use super::super::common::{
@@ -18,11 +15,9 @@ mod tests {
         let len = decode_header(&header).expect("Valid header decode");
         assert_eq!(len, 1024);
 
-        // Invalid record type
         let invalid_header = [22, 3, 3, 0, 100];
         assert!(decode_header(&invalid_header).is_err());
 
-        // Length too small
         let too_small = [23, 3, 3, 0, 10];
         assert!(decode_header(&too_small).is_err());
     }
@@ -42,7 +37,7 @@ mod tests {
     #[test]
     fn test_aead_seal_and_open() {
         let key = [42u8; 32];
-        let mut aead_sender = VlessAead::new(&key, true); // AES
+        let mut aead_sender = VlessAead::new(&key, true);
         let mut aead_receiver = VlessAead::new(&key, true);
 
         let msg = b"Secret VLESS MLKEM Payload";
@@ -71,7 +66,7 @@ mod tests {
         let (raw_client, raw_server) = tokio::io::duplex(4096);
         let key = [77u8; 32];
 
-        let mut client_conn = CommonConn::new(raw_client, &key, false); // ChaCha
+        let mut client_conn = CommonConn::new(raw_client, &key, false);
         let mut server_conn = CommonConn::new(raw_server, &key, false);
 
         let payload = b"Hello, encrypted VLESS CommonConn stream!";

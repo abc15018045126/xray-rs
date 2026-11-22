@@ -1,6 +1,3 @@
-// Module: app\observatory\command\command.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\observatory\command\command.pb.go
-
 use crate::app::observatory::config_pb::ObservationResult;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +12,6 @@ pub struct GetOutboundStatusResponse {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {}
 
-// Legacy alias for backward compatibility
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusItem {
     pub outbound_tag: String,

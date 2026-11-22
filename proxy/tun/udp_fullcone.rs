@@ -1,6 +1,3 @@
-// Module: proxy\tun\udp_fullcone.rs
-// 1:1 Rust implementation corresponding to Go proxy\tun\udp_fullcone.go
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};

@@ -1,6 +1,3 @@
-// Module: common\strmatcher\full_matcher_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\strmatcher\full_matcher_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::full_matcher::{FullMatcher, FullMatcherGroup};

@@ -1,6 +1,3 @@
-// Module: common\net\address.rs
-// 1:1 Rust implementation corresponding to Go common\net\address.go
-
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};

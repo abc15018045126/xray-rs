@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks_2022\inbound_relay.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\inbound_relay.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::Destination;
 use std::sync::RwLock;

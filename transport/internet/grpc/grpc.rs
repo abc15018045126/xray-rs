@@ -1,6 +1,3 @@
-// Module: transport\\internet\\grpc\\grpc.rs
-// 1:1 Rust implementation corresponding to Go transport\\internet\\grpc\\grpc.go
-
 pub use super::config::GrpcConfig;
 
 pub const DEFAULT_SERVICE_NAME: &str = "GunService";

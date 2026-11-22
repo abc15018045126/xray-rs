@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\http\http_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\headers\http\http_test.go
-
 #[cfg(test)]
 mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -107,7 +104,6 @@ mod tests {
         let mut client_stream = auth.client_stream(client_raw);
         let mut server_stream = auth.server_stream(server_raw);
 
-        // Client writes payload; should automatically prepend HTTP POST request header
         let client_task = tokio::spawn(async move {
             client_stream
                 .write_all(b"payload from client")
@@ -118,12 +114,10 @@ mod tests {
             assert_eq!(&buf[..n], b"response from server");
         });
 
-        // Server reads payload; should automatically strip request header and return payload
         let server_task = tokio::spawn(async move {
             let mut buf = vec![0u8; 100];
             let n = server_stream.read(&mut buf).await.unwrap();
             assert_eq!(&buf[..n], b"payload from client");
-            // Server writes response; should automatically prepend HTTP 200 response header
             server_stream
                 .write_all(b"response from server")
                 .await

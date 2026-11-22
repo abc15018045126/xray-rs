@@ -1,6 +1,3 @@
-// Module: common\protocol\dns\io.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\dns\io.go
-
 use crate::common::buf::Buffer;
 use crate::common::errors::{Error, Result};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};

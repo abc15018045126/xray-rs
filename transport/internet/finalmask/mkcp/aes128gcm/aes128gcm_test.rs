@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\mkcp\aes128gcm\aes128gcm_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\finalmask\mkcp\aes128gcm\aes128gcm_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::conn::{Aes128GcmPacketConn, GCM_NONCE_SIZE, GCM_TAG_SIZE};

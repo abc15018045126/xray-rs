@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\xpadding.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\xpadding.go
-
 use rand::Rng;
 
 pub const PADDING_METHOD_REPEAT_X: &str = "repeat-x";

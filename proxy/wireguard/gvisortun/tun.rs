@@ -1,6 +1,3 @@
-// Module: proxy\wireguard\gvisortun\tun.rs
-// 1:1 Rust implementation corresponding to Go proxy\wireguard\gvisortun\tun.go
-
 pub struct GVisorWireguardTun {
     pub name: String,
 }

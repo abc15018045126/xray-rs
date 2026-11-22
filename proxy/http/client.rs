@@ -1,6 +1,3 @@
-// Module: proxy\http\client.rs
-// 1:1 Rust implementation corresponding to Go proxy\http\client.go
-
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -67,7 +64,6 @@ impl OutboundHandler for HttpClient {
         stream.write_all(req.as_bytes()).await.map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
 
-        // Read response
         let mut buf = vec![0u8; 4096];
         let mut total = 0;
         let mut header_len = 0;

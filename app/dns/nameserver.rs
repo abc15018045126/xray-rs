@@ -12,8 +12,9 @@ use tokio::net::{TcpStream, UdpSocket};
 pub trait NameServer: Send + Sync {
     fn name(&self) -> &str;
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>>;
-    /// Returns true if this nameserver routes its own upstream DNS queries through a proxy outbound
-    /// (used by `DnsClient::lookup_for_dialer` to avoid recursive proxy-server dialing deadlocks).
+    fn is_disable_cache(&self) -> bool {
+        false
+    }
     fn routes_via_proxy(&self) -> bool {
         false
     }
@@ -73,7 +74,7 @@ impl NameServer for UdpNameServer {
         let query = build_dns_query(domain);
         socket.send(&query).await?;
 
-        let mut resp = vec![0u8; 1024];
+        let mut resp = [0u8; 1024];
         let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut resp))
             .await
             .map_err(|_| Error::Timeout)?
@@ -209,8 +210,6 @@ pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> {
     build_dns_query_with_ecs(domain, qtype, None)
 }
 
-/// Build a DNS query packet with optional RFC 7871 EDNS0 Client Subnet (`clientIp`),
-/// matching Xray-core (`sourcePrefix = 24` for IPv4, `56` for IPv6).
 pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAddr>) -> Vec<u8> {
     let arcount: [u8; 2] = if client_ip.is_some() {
         [0x00, 0x01]
@@ -218,12 +217,12 @@ pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAd
         [0x00, 0x00]
     };
     let mut query = vec![
-        0xAB, 0xCD, // Transaction ID
-        0x01, 0x00, // Standard query with recursion desired
-        0x00, 0x01, // Questions: 1
-        0x00, 0x00, // Answer RRs: 0
-        0x00, 0x00, // Authority RRs: 0
-        arcount[0], arcount[1], // Additional RRs: 0 or 1 (OPT/ECS)
+        0xAB, 0xCD,
+        0x01, 0x00,
+        0x00, 0x01,
+        0x00, 0x00,
+        0x00, 0x00,
+        arcount[0], arcount[1],
     ];
 
     let clean = domain.trim_end_matches('.');
@@ -233,9 +232,9 @@ pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAd
             query.extend_from_slice(part.as_bytes());
         }
     }
-    query.push(0x00); // End of name
-    query.extend_from_slice(&qtype.to_be_bytes()); // Type A (1) or AAAA (28)
-    query.extend_from_slice(&[0x00, 0x01]); // Class IN
+    query.push(0x00);
+    query.extend_from_slice(&qtype.to_be_bytes());
+    query.extend_from_slice(&[0x00, 0x01]);
 
     if let Some(ip) = client_ip {
         match ip {
@@ -285,7 +284,6 @@ pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpA
 
     let mut pos = 12;
 
-    // Skip question section
     for _ in 0..qdcount {
         while pos < n {
             let len = resp[pos] as usize;
@@ -299,7 +297,7 @@ pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpA
             }
             pos += 1 + len;
         }
-        pos += 4; // Skip QTYPE (2) + QCLASS (2)
+        pos += 4;
     }
 
     if pos > n {
@@ -309,12 +307,10 @@ pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpA
     let mut ips = Vec::new();
     let mut min_ttl = u32::MAX;
 
-    // Parse answers
     for _ in 0..ancount {
         if pos >= n {
             break;
         }
-        // Skip NAME: pointer (0xc0..) or sequence of labels
         if resp[pos] & 0xc0 == 0xc0 {
             pos += 2;
         } else {

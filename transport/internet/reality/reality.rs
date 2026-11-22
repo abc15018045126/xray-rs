@@ -1,6 +1,3 @@
-// Module: transport\internet\reality\reality.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\reality\reality.go
-
 use super::config::RealityConfig;
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
@@ -18,7 +15,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
-/// Decodes a 32-byte X25519 key in either official Xray base64url (no-pad/padded) or hex format.
 pub fn decode_reality_key32(raw: &str) -> Result<[u8; 32]> {
     let trimmed = raw.trim();
     let bytes = if trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -48,7 +44,6 @@ pub struct RealityAuthSession {
     pub short_id: Vec<u8>,
 }
 
-/// Derives the 32-byte REALITY authentication key using HKDF-SHA256 with info "REALITY".
 pub fn derive_auth_key(shared_secret: &[u8; 32], random_salt_20: &[u8]) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(Some(random_salt_20), shared_secret);
     let mut auth_key = [0u8; 32];
@@ -57,7 +52,6 @@ pub fn derive_auth_key(shared_secret: &[u8; 32], random_salt_20: &[u8]) -> [u8; 
     auth_key
 }
 
-/// Seals a 16-byte session descriptor into a 32-byte REALITY TLS Session ID.
 pub fn seal_session_id(
     auth_key: &[u8; 32],
     nonce_12: &[u8],
@@ -70,7 +64,7 @@ pub fn seal_session_id(
     pt[0] = version.0;
     pt[1] = version.1;
     pt[2] = version.2;
-    pt[3] = 0; // reserved
+    pt[3] = 0;
     pt[4..8].copy_from_slice(&timestamp.to_be_bytes());
 
     let sid_len = std::cmp::min(8, short_id.len());
@@ -99,7 +93,6 @@ pub fn seal_session_id(
     Ok(out)
 }
 
-/// Decrypts and authenticates a 32-byte REALITY TLS Session ID.
 pub fn open_session_id(
     auth_key: &[u8; 32],
     nonce_12: &[u8],
@@ -153,9 +146,6 @@ struct ParsedClientHello {
     aad_zeroed_handshake: Vec<u8>,
 }
 
-/// Parses a raw TLS ClientHello record (`record[0] == 0x16`) to extract the fields
-/// required for REALITY authentication: random, 32-byte session_id, SNI, X25519 key_share,
-/// and the handshake bytes with session_id zeroed for AAD.
 fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
     if record.len() < 5 + 4 + 2 + 32 + 1 || record[0] != 0x16 {
         return None;
@@ -169,7 +159,6 @@ fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
         return None;
     }
     let body = &hs[4..4 + hs_len];
-    // legacy_version (2) + random (32) + session_id_len (1)
     if body.len() < 35 {
         return None;
     }
@@ -220,14 +209,12 @@ fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
         let ext_data = &body[pos..pos + ext_len];
         pos += ext_len;
 
-        // SNI extension (0x0000)
         if ext_type == 0x0000 && ext_data.len() >= 5 {
             let name_len = u16::from_be_bytes([ext_data[3], ext_data[4]]) as usize;
             if ext_data.len() >= 5 + name_len {
                 sni = String::from_utf8_lossy(&ext_data[5..5 + name_len]).to_string();
             }
         }
-        // key_share extension (0x0033): look for X25519 (0x001d, 32 bytes)
         if ext_type == 0x0033 && ext_data.len() >= 2 {
             let shares_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
             let mut sp = 2usize;
@@ -291,10 +278,6 @@ impl RealityServer {
         })
     }
 
-    /// Server-side REALITY accept aligned with official Xray-core `reality/reality.go`:
-    /// - Reads the initial TLS ClientHello record.
-    /// - If SNI + X25519 + AEAD SessionID + ShortID authenticate, terminates TLS and returns `Ok(Some(stream))`.
-    /// - Otherwise, transparently mirrors the raw ClientHello and bidirectional traffic to `dest`, returning `Ok(None)`.
     pub async fn accept(&self, mut stream: BoxStream) -> Result<Option<BoxStream>> {
         let mut hdr = [0u8; 5];
         if stream.read_exact(&mut hdr).await.is_err() {
@@ -386,7 +369,6 @@ impl RealityServer {
         self.server_names.contains(sni)
     }
 
-    /// Authenticates a ClientHello received on the server side.
     pub fn verify_client_hello(
         &self,
         client_pub: &[u8; 32],
@@ -410,7 +392,6 @@ impl RealityServer {
             client_hello_raw,
         )?;
 
-        // Verify timestamp difference
         let now_unix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -425,7 +406,6 @@ impl RealityServer {
             )));
         }
 
-        // Verify short ID (match against configured non-empty short IDs)
         if !self.short_ids.is_empty() {
             let matched = self.short_ids.iter().any(|sid| {
                 if sid.is_empty() {
@@ -462,7 +442,6 @@ impl RealityClient {
         })
     }
 
-    /// Authenticates a ClientHello on the client side, producing the sealed 32-byte Session ID.
     pub fn auth_client_hello(
         &self,
         client_secret: EphemeralSecret,
@@ -480,7 +459,7 @@ impl RealityClient {
         seal_session_id(
             &auth_key,
             &client_random[20..],
-            (1, 26, 3), // Core version tuple
+            (1, 26, 3),
             now_unix,
             &self.short_id,
             client_hello_raw,

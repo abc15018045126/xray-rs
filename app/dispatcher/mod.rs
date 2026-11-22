@@ -18,3 +18,5 @@ pub use dispatcher::DispatcherBuilder;
 pub use fakednssniffer::FakeDnsSniffer;
 pub use sniffer::{SniffResult, Sniffer};
 pub use stats::SizeStatCounter;
+#[cfg(test)]
+mod sniffer_cache_test;

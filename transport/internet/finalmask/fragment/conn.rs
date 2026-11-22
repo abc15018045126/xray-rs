@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\fragment\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\fragment\conn.go
-
 use rand::Rng;
 use std::io;
 use std::pin::Pin;
@@ -54,7 +51,6 @@ impl FragmentConn {
         self.count += 1;
 
         if self.config.packets_from == 0 && self.config.packets_to == 1 {
-            // Target only the 1st packet if it is TLS handshake (0x16 == 22)
             if self.count != 1 || p.len() <= 5 || p[0] != 22 {
                 self.stream.write_all(p).await?;
                 return Ok(p.len());
@@ -120,7 +116,6 @@ impl FragmentConn {
             return Ok(p.len());
         }
 
-        // Generic fragmentation
         let max_split = Self::rand_between(self.config.max_split_min, self.config.max_split_max);
         let mut split_num = 0i64;
         let mut from = 0;
@@ -175,7 +170,6 @@ impl AsyncWrite for FragmentConn {
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
 
-        // First flush any pending data from previous fragmented packet
         while this.pending_offset < this.pending.len() {
             match Pin::new(&mut this.stream).poll_write(cx, &this.pending[this.pending_offset..]) {
                 Poll::Ready(Ok(n)) => {
@@ -191,7 +185,6 @@ impl AsyncWrite for FragmentConn {
         this.count += 1;
 
         if this.config.packets_from == 0 && this.config.packets_to == 1 {
-            // Target only the 1st packet if it is TLS handshake (0x16 == 22)
             if this.count != 1 || buf.len() <= 5 || buf[0] != 22 {
                 return Pin::new(&mut this.stream).poll_write(cx, buf);
             }

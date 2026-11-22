@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\segment.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\kcp\segment.go
-
 use crate::common::errors::{Error, Result};
 
 pub const COMMAND_ACK: u8 = 0;

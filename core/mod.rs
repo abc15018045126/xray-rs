@@ -1,5 +1,3 @@
-// Module: core\mod.rs
-
 pub mod annotations;
 pub mod config;
 #[path = "config.pb.rs"]
@@ -35,3 +33,5 @@ pub use functions::{create_object, dial, dial_udp, start_instance};
 pub use mocks::create_mock_instance;
 pub use proto::PROTO_CORE_VERSION;
 pub use xray::server_type;
+#[cfg(test)]
+mod core_tagged_test;

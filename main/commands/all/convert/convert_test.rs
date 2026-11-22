@@ -1,5 +1,3 @@
-// Module: main\commands\all\convert\convert_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::convert::cmd_convert;

@@ -1,6 +1,3 @@
-// Module: proxy\vmess\account.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\account.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

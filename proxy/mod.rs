@@ -1,5 +1,3 @@
-// Module: proxy\mod.rs
-
 pub mod blackhole;
 pub mod dns;
 pub mod dokodemo;

@@ -40,3 +40,7 @@ pub use reader::{BufferedReader, PacketReader, SingleReader, read_buffer};
 pub use readv::VectorReader;
 pub use readv_reader::{AllocStrategy, ReadVReader};
 pub use writer::{BufferedWriter, Discard, SequentialWriter};
+#[cfg(test)]
+mod buf_full_test;
+#[cfg(test)]
+mod buf_test;

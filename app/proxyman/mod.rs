@@ -36,3 +36,7 @@ impl InboundManager {
         Ok(tasks)
     }
 }
+#[cfg(test)]
+mod proxyman_full_test;
+#[cfg(test)]
+mod proxyman_manager_test;

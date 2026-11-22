@@ -1,6 +1,3 @@
-// Module: common\buf\override_test.rs
-// 1:1 Rust unit test suite for EndpointOverrideReader and EndpointOverrideWriter
-
 #[cfg(test)]
 mod tests {
     use crate::common::buf::buffer::Buffer;

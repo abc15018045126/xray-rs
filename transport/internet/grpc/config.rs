@@ -1,6 +1,3 @@
-// Module: transport\internet\grpc\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\grpc\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

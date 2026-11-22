@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\udphop\addr.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\udphop\addr.go
-
 use std::net::{IpAddr, SocketAddr};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,6 +1,3 @@
-// Module: proxy\vless\inbound\inbound.rs
-// 1:1 Rust implementation corresponding to Go proxy\vless\inbound\inbound.go
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -22,9 +19,6 @@ use crate::proxy::vless::flow::{FLOW_VISION, FLOW_VISION_UDP443, VisionContext, 
 use crate::proxy::vless::validator::{MemoryValidator, Validator};
 use crate::transport::internet::websocket::ws::PrefixedStream;
 
-/// Captures every byte read during VLESS header decoding so that on decode/auth failure
-/// the exact original probe bytes can be replayed untouched to a configured `fallback` target,
-/// matching official Xray-core `proxy/vless/inbound/inbound.go`.
 struct RecordingReader<'a, R> {
     inner: &'a mut R,
     recorded: Vec<u8>,
@@ -134,15 +128,12 @@ impl Handler {
         let name_lower = name.to_lowercase();
         let alpn_lower = alpn.to_lowercase();
 
-        // 1. Try exact name match
         if let Some(by_name) = self
             .fallback_map
             .get(&name_lower)
             .or_else(|| self.fallback_map.get(""))
         {
-            // 2. Try ALPN match
             if let Some(by_alpn) = by_name.get(&alpn_lower).or_else(|| by_name.get("")) {
-                // 3. Try path match
                 if let Some(fb) = by_alpn.get(path).or_else(|| by_alpn.get("")) {
                     return Some(fb);
                 }
@@ -163,7 +154,6 @@ impl InboundHandler for Handler {
         mut stream: BoxStream,
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
-        // 1. Decode VLESS request header while recording bytes for lossless fallback replay
         let (req_result, recorded) = {
             let mut rec = RecordingReader {
                 inner: &mut stream,
@@ -188,7 +178,6 @@ impl InboundHandler for Handler {
         let req = match req_result {
             Ok(r) => r,
             Err(e) => {
-                // Replay exact probe bytes to fallback destination (aligned with Xray-core)
                 if let Some(fb) = self.match_fallback("", "", "") {
                     let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
                     let mut session = SessionContext::new(&self.tag, fallback_dest);
@@ -202,7 +191,6 @@ impl InboundHandler for Handler {
             }
         };
 
-        // 2. Validate User UUID
         let user = if self.validator.get_count() > 0 {
             match self.validator.get(&req.user_id) {
                 Some(u) => Some(u),
@@ -226,11 +214,9 @@ impl InboundHandler for Handler {
             None
         };
 
-        // 3. Respond with VLESS Response Header
         let resp = ResponseHeader::new();
         resp.encode(&mut stream).await?;
 
-        // 4. Build session context
         let mut session = SessionContext::new(&self.tag, req.destination);
         session.source = Some(remote_addr);
         session.destination.network = match req.command {
@@ -246,7 +232,6 @@ impl InboundHandler for Handler {
             session.user = Some(User::new(req.user_id));
         }
 
-        // 5. Flow wrapping (XTLS-Vision) aligned with official Xray-core proxy/vless/inbound/inbound.go
         let is_vision =
             req.addons.flow == FLOW_VISION || req.addons.flow == FLOW_VISION_UDP443;
         let final_stream: BoxStream = if is_vision {

@@ -1,6 +1,3 @@
-// Module: infra\vprotogen\main.rs
-// 1:1 Rust implementation corresponding to Go infra\vprotogen\main.go
-
 use std::path::{Path, PathBuf};
 
 pub fn parse_version(s: &str, width: usize) -> u64 {

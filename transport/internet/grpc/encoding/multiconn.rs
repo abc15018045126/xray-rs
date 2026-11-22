@@ -1,6 +1,3 @@
-// Module: transport\internet\grpc\encoding\multiconn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\grpc\encoding\multiconn.go
-
 pub struct MultiConnection;
 
 impl MultiConnection {

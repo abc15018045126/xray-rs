@@ -1,6 +1,3 @@
-// Module: transport\internet\happy_eyeballs.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\happy_eyeballs.go
-
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -52,7 +49,6 @@ impl IntoInterleave for bool {
     }
 }
 
-/// Sorts IPs according to RFC 8305.
 pub fn sort_ips(
     ips: &[IpAddr],
     prioritize_ipv6: bool,
@@ -151,7 +147,6 @@ pub async fn tcp_race_dial(
     let mut next_try_idx = 0;
     let mut active_num = 0;
 
-    // Initial launch
     let tx_clone = tx.clone();
     let cancelled_clone = cancelled.clone();
     let addr = SocketAddr::new(sorted[0], port);
@@ -227,19 +222,15 @@ mod tests {
 
         let ips = vec![v4_1, v4_2, v6_1, v6_2];
 
-        // Default: prioritize IPv4, interleave 1 -> v4_1, v6_1, v4_2, v6_2
         let sorted = sort_ips(&ips, false, 1u32);
         assert_eq!(sorted, vec![v4_1, v6_1, v4_2, v6_2]);
 
-        // Prioritize IPv6, interleave 1 -> v6_1, v4_1, v6_2, v4_2
         let sorted_v6 = sort_ips(&ips, true, 1u32);
         assert_eq!(sorted_v6, vec![v6_1, v4_1, v6_2, v4_2]);
 
-        // Prioritize IPv4, interleave 2 -> v4_1, v4_2, v6_1, v6_2
         let sorted_int2 = sort_ips(&ips, false, 2u32);
         assert_eq!(sorted_int2, vec![v4_1, v4_2, v6_1, v6_2]);
 
-        // Interleave false -> all v4 then v6
         let no_interleave = sort_ips(&ips, false, false);
         assert_eq!(no_interleave, vec![v4_1, v4_2, v6_1, v6_2]);
     }

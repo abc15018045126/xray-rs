@@ -1,6 +1,3 @@
-// Module: common\protocol\payload.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\payload.go
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransferType {
     Stream = 0,

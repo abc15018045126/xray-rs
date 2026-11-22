@@ -1,6 +1,3 @@
-// Module: core\\mocks.rs
-// 1:1 Rust implementation corresponding to Go core\\mocks.go
-
 use crate::core::Instance;
 use std::sync::Arc;
 

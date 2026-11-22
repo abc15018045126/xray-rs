@@ -1,11 +1,7 @@
-// Module: transport\internet\finalmask\mkcp\original\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\mkcp\original\conn.go
-
 use super::config::OriginalConfig;
 use super::xor::{xorbkd, xorfwd};
 use crate::common::errors::{Error, Result};
 
-/// FNV-1a 32-bit hash calculation matching Go's hash/fnv
 pub fn fnv32a(data: &[u8]) -> u32 {
     const FNV_OFFSET_BASIS: u32 = 2166136261;
     const FNV_PRIME: u32 = 16777619;
@@ -17,7 +13,6 @@ pub fn fnv32a(data: &[u8]) -> u32 {
     hash
 }
 
-/// Simple AEAD-like authenticator and obfuscator for mKCP original mode.
 #[derive(Debug, Clone, Default)]
 pub struct SimpleAead;
 
@@ -34,14 +29,12 @@ impl SimpleAead {
         6
     }
 
-    /// Seals plaintext into a self-authenticating obfuscated datagram.
     pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
         let mut dst = Vec::with_capacity(6 + plain.len() + 4);
-        dst.extend_from_slice(&[0, 0, 0, 0]); // FNV-1a placeholder
+        dst.extend_from_slice(&[0, 0, 0, 0]);
         dst.extend_from_slice(&(plain.len() as u16).to_be_bytes());
         dst.extend_from_slice(plain);
 
-        // FNV-1a over dst[4..] (length + plain)
         let hash = fnv32a(&dst[4..]);
         dst[0..4].copy_from_slice(&hash.to_be_bytes());
 
@@ -60,7 +53,6 @@ impl SimpleAead {
         dst
     }
 
-    /// Opens an obfuscated datagram and verifies FNV-1a checksum and length.
     pub fn open(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         if ciphertext.len() < 6 {
             return Err(Error::Protocol("ciphertext too short (< 6 bytes)".into()));
@@ -94,7 +86,6 @@ impl SimpleAead {
     }
 }
 
-/// Packet-level connection wrapper for original mode.
 pub struct OriginalPacketConn {
     aead: SimpleAead,
 }

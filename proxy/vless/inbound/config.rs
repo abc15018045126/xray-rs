@@ -1,6 +1,3 @@
-// Module: proxy\vless\inbound\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\vless\inbound\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

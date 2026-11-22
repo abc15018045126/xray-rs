@@ -1,6 +1,3 @@
-// Module: proxy\trojan\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\trojan\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

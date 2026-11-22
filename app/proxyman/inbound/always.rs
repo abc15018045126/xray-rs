@@ -1,6 +1,3 @@
-// Module: app\proxyman\inbound\always.rs
-// 1:1 Rust implementation corresponding to Go app\proxyman\inbound\always.go
-
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::sync::Arc;

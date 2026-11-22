@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\healthping_result.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\burst\healthping_result.go
-
 use super::burst::RTT_FAILED;
 use std::time::{Duration, Instant};
 
@@ -178,5 +175,4 @@ pub fn new_health_ping_result(capacity: usize, validity: Duration) -> HealthPing
     HealthPingRTTS::new(capacity, validity)
 }
 
-// Backward compatible alias
 pub type HealthPingResult = HealthPingRTTS;

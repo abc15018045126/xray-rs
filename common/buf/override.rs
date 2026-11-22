@@ -1,6 +1,3 @@
-// Module: common\buf\override.rs
-// 1:1 Rust implementation corresponding to Go common\buf\override.go
-
 use async_trait::async_trait;
 
 use crate::common::buf::MultiBuffer;

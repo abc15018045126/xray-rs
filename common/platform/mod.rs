@@ -12,3 +12,5 @@ pub use platform::{
     XUDP_BASE_KEY, XUDP_LOG, get_asset_location, get_cert_location, get_conf_dir_path,
     get_configuration_path, get_executable_dir, get_os_name, line_separator, normalize_env_name,
 };
+#[cfg(test)]
+mod platform_drain_test;

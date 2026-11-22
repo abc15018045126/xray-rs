@@ -1,6 +1,3 @@
-// Module: proxy\wireguard\server_test.rs
-// 1:1 Rust unit test suite corresponding to Go proxy\wireguard\server_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::config::{WireGuardConfig, WireGuardPeer};

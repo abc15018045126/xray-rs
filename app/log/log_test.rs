@@ -1,6 +1,3 @@
-// Module: app\log\log_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\log\log_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::config_pb::{Config as LogConfigPb, LogType as PbLogType};

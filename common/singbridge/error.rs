@@ -1,11 +1,6 @@
-// Module: common\singbridge\error.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\error.go
-
 use crate::common::errors::Error;
 use std::io;
 
-/// IsClosedOrCanceled returns true if the error indicates a closed connection or canceled operation.
-/// 1:1 corresponding to exceptions.IsClosedOrCanceled() in sing.
 pub fn is_closed_or_canceled(err: &Error) -> bool {
     match err {
         Error::Io(e) => {
@@ -32,8 +27,6 @@ pub fn is_closed_or_canceled(err: &Error) -> bool {
     }
 }
 
-/// ReturnError returns None if err indicates a closed or canceled connection, or the error itself otherwise.
-/// 1:1 corresponding to ReturnError() in error.go.
 pub fn return_error(err: Option<Error>) -> Option<Error> {
     match err {
         Some(e) if is_closed_or_canceled(&e) => None,
@@ -41,7 +34,6 @@ pub fn return_error(err: Option<Error>) -> Option<Error> {
     }
 }
 
-/// Helper to wrap Result, converting closed/canceled errors into Ok(None).
 pub fn return_result<T>(res: Result<T, Error>) -> Result<Option<T>, Error> {
     match res {
         Ok(v) => Ok(Some(v)),

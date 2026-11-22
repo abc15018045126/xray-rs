@@ -2,7 +2,6 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 const MAX_DIFF: u32 = u32::MAX / 2;
 
-/// A TCP sequence number that persents a 32-bit unsigned integer, suppport overflow comparison and arithmetic.
 #[derive(Eq, PartialEq, Debug, Copy, Clone, Hash, Default)]
 #[repr(transparent)]
 pub struct SeqNum(pub u32);

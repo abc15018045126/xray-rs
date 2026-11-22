@@ -21,7 +21,6 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncWrite};
 
-/// 2 * MSL (Maximum Segment Lifetime) is the maximum time a TCP connection can be in the TIME_WAIT state.
 const TWO_MSL: Duration = Duration::from_secs(2);
 
 const CLOSE_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -31,36 +30,23 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
-/// TCP configuration
 pub struct TcpConfig {
-    /// Maximum number of retries for sending the last ACK in the LAST_ACK state. Default is 3.
     pub last_ack_max_retries: usize,
-    /// Timeout for the last ACK in the LAST_ACK state. Default is 500ms.
     pub last_ack_timeout: Duration,
-    /// Timeout for the CLOSE_WAIT state. Default is 5 seconds.
     pub close_wait_timeout: Duration,
-    /// Timeout for TCP connections. Default is 60 seconds.
     pub timeout: Duration,
-    /// Timeout for the TIME_WAIT state. Default is 2 seconds.
     pub two_msl: Duration,
-    /// Maximum number of unacknowledged bytes allowed in the send buffer.
     pub max_unacked_bytes: u32,
-    /// Size of the read buffer for incoming data.
     pub read_buffer_size: usize,
-    /// Maximum number of duplicate ACKs before triggering fast retransmission.
     pub max_count_for_dup_ack: usize,
-    /// Retransmission timeout duration.
     pub rto: std::time::Duration,
-    /// Maximum number of retransmissions before giving up.
     pub max_retransmit_count: usize,
-    /// TCP options
     pub options: Option<Vec<TcpOptions>>,
 }
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum TcpOptions {
-    /// Maximum segment size (MSS) for TCP connections.
     MaximumSegmentSize(u16),
 }
 
@@ -100,7 +86,6 @@ impl Shutdown {
         *self = Shutdown::Ready;
     }
 
-    // Just for comparison purpose
     fn fake_clone(&self) -> Shutdown {
         match self {
             Shutdown::None => Shutdown::None,
@@ -124,35 +109,6 @@ static SESSION_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::Atom
 
 type TcbPtr = std::sync::Arc<std::sync::Mutex<Tcb>>;
 
-/// A TCP stream in the IP stack.
-///
-/// This type represents a TCP connection and implements `AsyncRead` and `AsyncWrite`
-/// for bidirectional data transfer. It handles TCP state management, flow control,
-/// and retransmission automatically.
-///
-/// # Examples
-///
-/// ```no_run
-/// use ipstack::{IpStack, IpStackConfig, IpStackStream};
-/// use tokio::io::{AsyncReadExt, AsyncWriteExt};
-///
-/// # async fn example(mut ip_stack: IpStack) -> Result<(), Box<dyn std::error::Error>> {
-/// if let IpStackStream::Tcp(mut tcp_stream) = ip_stack.accept().await? {
-///     println!("New TCP connection from {}", tcp_stream.peer_addr());
-///     
-///     // Read data
-///     let mut buffer = [0u8; 1024];
-///     let n = tcp_stream.read(&mut buffer).await?;
-///     
-///     // Write data
-///     tcp_stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").await?;
-///     
-///     // Shutdown the stream
-///     tcp_stream.shutdown().await?;
-/// }
-/// # Ok(())
-/// # }
-/// ```
 #[derive(Debug)]
 pub struct IpStackTcpStream {
     src_addr: SocketAddr,
@@ -246,32 +202,10 @@ impl IpStackTcpStream {
         NetworkTuple::new(self.src_addr, self.dst_addr, true)
     }
 
-    /// Returns the local socket address of the TCP connection.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use ipstack::IpStackTcpStream;
-    /// # fn example(tcp_stream: &IpStackTcpStream) {
-    /// let local_addr = tcp_stream.local_addr();
-    /// println!("Local address: {}", local_addr);
-    /// # }
-    /// ```
     pub fn local_addr(&self) -> SocketAddr {
         self.src_addr
     }
 
-    /// Returns the remote socket address of the TCP connection.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use ipstack::IpStackTcpStream;
-    /// # fn example(tcp_stream: &IpStackTcpStream) {
-    /// let peer_addr = tcp_stream.peer_addr();
-    /// println!("Peer address: {}", peer_addr);
-    /// # }
-    /// ```
     pub fn peer_addr(&self) -> SocketAddr {
         self.dst_addr
     }
@@ -283,11 +217,10 @@ impl IpStackTcpStream {
 
 impl AsyncRead for IpStackTcpStream {
     fn poll_read(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> Poll<std::io::Result<()>> {
-        // if there is data in the temp buffer, read it first
         if !self.temp_read_buffer.is_empty() {
             let len = std::cmp::min(buf.remaining(), self.temp_read_buffer.len());
             buf.put_slice(&self.temp_read_buffer[..len]);
-            self.temp_read_buffer.drain(..len); // remove the read data from the temp buffer
+            self.temp_read_buffer.drain(..len);
             return Poll::Ready(Ok(()));
         }
 
@@ -300,7 +233,6 @@ impl AsyncRead for IpStackTcpStream {
             return Poll::Ready(Ok(()));
         }
 
-        // handle timeout
         if matches!(Pin::new(&mut self.timeout).poll(cx), Poll::Ready(_)) {
             {
                 let mut tcb = self.tcb.lock().unwrap();
@@ -319,14 +251,12 @@ impl AsyncRead for IpStackTcpStream {
         }
         self.reset_timeout();
 
-        // read data from channel
         match self.data_rx.poll_recv(cx) {
             Poll::Ready(Some(data)) => {
                 let capacity = buf.remaining();
                 if capacity >= data.len() {
                     buf.put_slice(&data);
                 } else {
-                    // if `buf` is not enough, put the remaining data into the temp buffer
                     buf.put_slice(&data[..capacity]);
                     self.temp_read_buffer.extend_from_slice(&data[capacity..]);
                 }
@@ -437,7 +367,6 @@ impl Drop for IpStackTcpStream {
                 if let Some(notifier) = self.exit_notifier.take() {
                     _ = tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(notifier.send(())));
                 }
-                // synchronously wait for the task to finish
                 _ = tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(task_handle));
             } else {
                 log::trace!("{nt} {state:?}: [drop] task already finished, no need to wait exiting");
@@ -452,7 +381,6 @@ impl IpStackTcpStream {
     fn spawn_tasks(&mut self) -> std::io::Result<()> {
         let network_tuple = self.network_tuple();
 
-        // task: data receiving and processing
         let tcb = self.tcb.clone();
         let stream_receiver = self.stream_receiver.take().unwrap();
         let up_packet_sender = self.up_packet_sender.clone();
@@ -596,7 +524,7 @@ async fn tcp_main_logic_loop(
         last_ack_timeout: Duration,
         last_ack_max_retries: usize,
     ) -> std::io::Result<()> {
-        tokio::time::sleep(close_wait_timeout).await; // Wait CLOSE_WAIT_TIMEOUT for upstream
+        tokio::time::sleep(close_wait_timeout).await;
         let tcb_clone = tcb.clone();
         let mut tcb = tcb.lock().unwrap();
         let state = tcb.get_state();
@@ -610,7 +538,6 @@ async fn tcp_main_logic_loop(
         let new_state = tcb.get_state();
         log::debug!("{nt} {state:?}: Forced transition to {new_state:?}");
 
-        // Here we set a timer to wait for the last ACK from the other side.
         tokio::spawn(task_last_ack(
             tcb_clone,
             exit_notifier,
@@ -733,7 +660,6 @@ async fn tcp_main_logic_loop(
                         PacketType::Invalid => {}
                     }
                 } else if flags == (ACK | FIN) {
-                    // The other side is closing the connection, we need to send an ACK and change state to CloseWait
                     tcb.increase_ack();
                     write_packet_to_device(&up_packet_sender, network_tuple, &tcb, None, ACK, None, None)?;
                     tcb.change_state(TcpState::CloseWait);
@@ -741,10 +667,8 @@ async fn tcp_main_logic_loop(
                     let s = tcb.get_state();
                     let len = tcb.get_inflight_packets_total_len();
                     if len == 0 {
-                        // All upstream data sent, proceed to LastAck
                         log::trace!("{network_tuple} {s:?}: {l_info}, {pkt_type:?}, closed by the other side, no upstream data");
 
-                        // Here we don't wait, just send FIN to the other side and change state to LastAck directly,
                         write_packet_to_device(&up_packet_sender, network_tuple, &tcb, None, ACK | FIN, None, None)?;
                         tcb.increase_seq();
                         tcb.change_state(TcpState::LastAck);
@@ -752,9 +676,6 @@ async fn tcp_main_logic_loop(
                         let s = tcb.get_state();
                         log::trace!("{network_tuple} {s:?}: {l_info}, {pkt_type:?}, wait the last ack from the other side");
 
-                        // Here we set a timer to wait for the last ACK from the other side.
-                        // If the timer expires, we send an ACK|FIN packet to the other side again and wait anthoer timeout
-                        // till the retries reach the limit, and then close the session forcibly.
                         let up = up_packet_sender.clone();
                         tokio::spawn(task_last_ack(
                             tcb_clone.clone(),
@@ -765,11 +686,9 @@ async fn tcp_main_logic_loop(
                             config.last_ack_max_retries,
                         ));
                     } else {
-                        // Upstream data pending, wake write_notify and wait
                         write_notify.lock().unwrap().take().map(|w| w.wake_by_ref()).unwrap_or(());
                         log::debug!("{network_tuple} {state:?}: Waiting for upstream data to complete, inflight packets: {len}",);
 
-                        // Spawn a timeout task to force FIN if upstream is unresponsive
                         let tcb = tcb_clone.clone();
                         let up = up_packet_sender.clone();
                         tokio::spawn(task_timed_out_for_close_wait(
@@ -788,7 +707,6 @@ async fn tcp_main_logic_loop(
                         extract_data_n_write_upstream(&up_packet_sender, &mut tcb, network_tuple, &data_tx, &read_notify)?;
                     }
                 } else {
-                    // unnormal case, we do nothing here
                     log::trace!("{network_tuple} {state:?}: {l_info}, {pkt_type:?}, unnormal case, we do nothing here");
                 }
             }
@@ -800,9 +718,6 @@ async fn tcp_main_logic_loop(
                     let new_state = tcb.get_state();
                     log::trace!("{network_tuple} {state:?}: Received ACK|FIN, transitioned to {new_state:?}");
 
-                    // Here we set a timer to wait for the last ACK from the other side.
-                    // If the timer expires, we send an ACK|FIN packet to the other side again and wait anthoer timeout
-                    // till the retries reach the limit, and then close the session forcibly.
                     let up = up_packet_sender.clone();
                     tokio::spawn(task_last_ack(
                         tcb_clone.clone(),
@@ -828,7 +743,6 @@ async fn tcp_main_logic_loop(
             }
             TcpState::FinWait1 => {
                 if flags & (ACK | FIN) == (ACK | FIN) && len == 0 {
-                    // If the received packet is an ACK with FIN, we need to send an ACK and change state to TimeWait directly, not to FinWait2
                     tcb.increase_ack();
                     write_packet_to_device(&up_packet_sender, network_tuple, &tcb, None, ACK, None, None)?;
                     tcb.change_state(TcpState::TimeWait);
@@ -839,7 +753,6 @@ async fn tcp_main_logic_loop(
                 } else if flags & ACK == ACK {
                     tcb.change_state(TcpState::FinWait2);
                     if len > 0 {
-                        // if the other side is still sending data, we need to deal with it like PacketStatus::NewPacket
                         tcb.add_unordered_packet(incoming_seq, payload);
                         extract_data_n_write_upstream(&up_packet_sender, &mut tcb, network_tuple, &data_tx, &read_notify)?;
                         write_notify.lock().unwrap().take().map(|w| w.wake_by_ref()).unwrap_or(());
@@ -847,7 +760,6 @@ async fn tcp_main_logic_loop(
                     let new_state = tcb.get_state();
                     log::trace!("{network_tuple} {state:?}: Received ACK, transitioned to {new_state:?}");
                 } else {
-                    // unnormal case, we do nothing here
                     log::trace!("{network_tuple} {state:?}: Some unnormal case, we do nothing here");
                 }
             }
@@ -860,7 +772,6 @@ async fn tcp_main_logic_loop(
                     let new_state = tcb.get_state();
                     log::trace!("{network_tuple} {state:?}: Received final ACK|FIN, transitioned to {new_state:?}");
                 } else if flags & ACK == ACK && len == 0 {
-                    // unnormal case, we do nothing here
                     let l_ack = tcb.get_ack();
                     if incoming_seq < l_ack {
                         log::trace!("{network_tuple} {state:?}: Ignoring duplicate ACK, seq {incoming_seq}, expected {l_ack}");
@@ -869,7 +780,6 @@ async fn tcp_main_logic_loop(
                     if pkt_type == PacketType::KeepAlive {
                         write_packet_to_device(&up_packet_sender, network_tuple, &tcb, None, ACK, None, None)?;
                     } else {
-                        // if the other side is still sending data, we need to deal with it like PacketStatus::NewPacket
                         tcb.add_unordered_packet(incoming_seq, payload);
                         extract_data_n_write_upstream(&up_packet_sender, &mut tcb, network_tuple, &data_tx, &read_notify)?;
                         write_notify.lock().unwrap().take().map(|w| w.wake_by_ref()).unwrap_or(());
@@ -881,21 +791,18 @@ async fn tcp_main_logic_loop(
                         log::trace!("{network_tuple} {state:?}: Received final ACK|FIN, transitioned to {new_state:?}");
                     }
                 } else {
-                    // unnormal case, we do nothing here
                     log::trace!("{network_tuple} {state:?}: Some unnormal case, we do nothing here");
                 }
             }
             TcpState::TimeWait if flags & (ACK | FIN) == (ACK | FIN) => {
                 write_packet_to_device(&up_packet_sender, network_tuple, &tcb, None, ACK, None, None)?;
-                // wait to timeout, can't call `tcb.change_state(TcpState::Closed);` to change state here
-                // now we need to wait for the timeout to reach...
             }
             _ => {}
-        } // end of match state
+        }
 
         tcb.update_last_received_ack(incoming_ack);
         tcb.update_send_window(incoming_win);
-    } // end of loop
+    }
     Ok::<(), std::io::Error>(())
 }
 
@@ -923,8 +830,6 @@ fn extract_data_n_write_upstream(
     Ok(())
 }
 
-/// Send a TCP packet to the downstream device, with the specified flags, sequence number, and payload.
-/// The returned value is the length of the `payload` sent, it may be shorter than the length of the incoming parameter `payload`.
 pub(crate) fn write_packet_to_device(
     up_packet_sender: &PacketSender,
     tuple: NetworkTuple,
@@ -937,7 +842,7 @@ pub(crate) fn write_packet_to_device(
     use std::io::Error;
     let seq = seq.unwrap_or(tcb.get_seq()).0;
     let (ack, window_size) = (tcb.get_ack().0, tcb.get_recv_window().max(tcb.get_mtu()));
-    let (src, dst) = (tuple.dst, tuple.src); // Note: The address is reversed here
+    let (src, dst) = (tuple.dst, tuple.src);
     let calc = |ip_header_len: usize, tcp_header_len: usize| tcb.calculate_payload_max_len(ip_header_len, tcp_header_len);
     let packet = create_raw_packet(
         src,

@@ -1,6 +1,3 @@
-// Module: transport\internet\websocket\ws.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\websocket\ws.go
-
 use base64::Engine;
 use std::collections::HashMap;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -52,25 +49,14 @@ impl WebSocketStream {
         if let Some(host) = host_header
             && let Ok(val) = host.parse()
         {
-            req.headers_mut()
-                .insert(tokio_tungstenite::tungstenite::http::header::HOST, val);
+            req.headers_mut().insert(tokio_tungstenite::tungstenite::http::header::HOST, val);
         }
 
         if let Some(headers) = extra_headers {
             for (k, v) in headers {
-                if k.eq_ignore_ascii_case("host")
-                    || k.eq_ignore_ascii_case("upgrade")
-                    || k.eq_ignore_ascii_case("connection")
-                    || k.eq_ignore_ascii_case("sec-websocket-key")
-                    || k.eq_ignore_ascii_case("sec-websocket-version")
-                    || k.eq_ignore_ascii_case("sec-websocket-protocol")
+                if !is_reserved_ws_header(k)
+                    && let (Ok(name), Ok(val)) = (HeaderName::from_bytes(k.as_bytes()), HeaderValue::from_str(v))
                 {
-                    continue;
-                }
-                if let (Ok(name), Ok(val)) = (
-                    HeaderName::from_bytes(k.as_bytes()),
-                    HeaderValue::from_str(v),
-                ) {
                     req.headers_mut().insert(name, val);
                 }
             }
@@ -79,16 +65,7 @@ impl WebSocketStream {
         if let Some(ed) = early_data
             && !ed.is_empty()
         {
-            // Official Xray-core / CF Worker servers accept Early Data in `Sec-WebSocket-Protocol`
-            // and reply `101 Switching Protocols` WITHOUT echoing `Sec-WebSocket-Protocol`.
-            // `tokio_tungstenite::client_async` strictly rejects that with
-            // `SubProtocol error: Server sent no subprotocol`, so perform the RFC 6455
-            // HTTP/1.1 Upgrade manually and wrap via `from_raw_socket`.
-            let path_and_query = req
-                .uri()
-                .path_and_query()
-                .map(|pq| pq.as_str())
-                .unwrap_or("/");
+            let pq = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("/");
             let host_val = req
                 .headers()
                 .get(tokio_tungstenite::tungstenite::http::header::HOST)
@@ -103,24 +80,11 @@ impl WebSocketStream {
 
             let mut upgrade_req = format!(
                 "GET {} HTTP/1.1\r\nHost: {}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {}\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: {}\r\n",
-                path_and_query, host_val, ws_key, encoded
+                pq, host_val, ws_key, encoded
             );
             if let Some(headers) = extra_headers {
                 for (k, v) in headers {
-                    if k.eq_ignore_ascii_case("host")
-                        || k.eq_ignore_ascii_case("upgrade")
-                        || k.eq_ignore_ascii_case("connection")
-                        || k.eq_ignore_ascii_case("sec-websocket-key")
-                        || k.eq_ignore_ascii_case("sec-websocket-version")
-                        || k.eq_ignore_ascii_case("sec-websocket-protocol")
-                    {
-                        continue;
-                    }
-                    if !k.contains('\r')
-                        && !k.contains('\n')
-                        && !v.contains('\r')
-                        && !v.contains('\n')
-                    {
+                    if !is_reserved_ws_header(k) && !k.contains(['\r', '\n']) && !v.contains(['\r', '\n']) {
                         upgrade_req.push_str(&format!("{}: {}\r\n", k, v));
                     }
                 }
@@ -128,60 +92,16 @@ impl WebSocketStream {
             upgrade_req.push_str("\r\n");
 
             let mut stream = stream;
-            stream
-                .write_all(upgrade_req.as_bytes())
-                .await
-                .map_err(|e| Error::Protocol(format!("WebSocket early-data write failed: {}", e)))?;
-            stream
-                .flush()
-                .await
-                .map_err(|e| Error::Protocol(format!("WebSocket early-data flush failed: {}", e)))?;
+            stream.write_all(upgrade_req.as_bytes()).await.map_err(|e| Error::Protocol(format!("WebSocket early-data write failed: {}", e)))?;
+            stream.flush().await.map_err(|e| Error::Protocol(format!("WebSocket early-data flush failed: {}", e)))?;
 
-            let mut resp_buf = Vec::with_capacity(1024);
-            let mut tmp = [0u8; 512];
-            let hdr_end = loop {
-                let n = stream.read(&mut tmp).await.map_err(|e| {
-                    Error::Protocol(format!("WebSocket early-data read failed: {}", e))
-                })?;
-                if n == 0 {
-                    return Err(Error::Protocol(
-                        "WebSocket early-data handshake EOF before 101".into(),
-                    ));
-                }
-                resp_buf.extend_from_slice(&tmp[..n]);
-                if let Some(pos) = resp_buf.windows(4).position(|w| w == b"\r\n\r\n") {
-                    break pos + 4;
-                }
-                if resp_buf.len() > 16384 {
-                    return Err(Error::Protocol(
-                        "WebSocket early-data response header too large".into(),
-                    ));
-                }
-            };
-
-            let status_line = String::from_utf8_lossy(&resp_buf[..hdr_end])
-                .lines()
-                .next()
-                .unwrap_or("")
-                .to_string();
+            let (resp_buf, hdr_end) = read_http_header(&mut stream, 16384, "WebSocket early-data").await?;
+            let status_line = String::from_utf8_lossy(&resp_buf[..hdr_end]).lines().next().unwrap_or("").to_string();
             if !status_line.contains(" 101 ") && !status_line.ends_with(" 101") {
-                return Err(Error::Protocol(format!(
-                    "WebSocket early-data handshake rejected: {}",
-                    status_line
-                )));
+                return Err(Error::Protocol(format!("WebSocket early-data handshake rejected: {}", status_line)));
             }
 
-            let leftover = resp_buf[hdr_end..].to_vec();
-            let raw_stream: BoxStream = if leftover.is_empty() {
-                stream
-            } else {
-                Box::pin(PrefixedStream {
-                    prefix: leftover,
-                    offset: 0,
-                    inner: stream,
-                })
-            };
-
+            let raw_stream = with_prefix(resp_buf[hdr_end..].to_vec(), stream);
             let ws_stream = tokio_tungstenite::WebSocketStream::from_raw_socket(
                 raw_stream,
                 tokio_tungstenite::tungstenite::protocol::Role::Client,
@@ -194,7 +114,6 @@ impl WebSocketStream {
         let (ws_stream, _) = client_async(req, stream)
             .await
             .map_err(|e| Error::Protocol(format!("WebSocket client handshake failed: {}", e)))?;
-
         Ok(bridge_ws_stream(ws_stream, heartbeat_period))
     }
 
@@ -202,14 +121,9 @@ impl WebSocketStream {
         let ws_stream = accept_async(stream)
             .await
             .map_err(|e| Error::Protocol(format!("WebSocket server accept failed: {}", e)))?;
-
         Ok(bridge_ws_stream(ws_stream, 0))
     }
 
-    /// Server-side WebSocket handshake aligned with official Xray-core `websocket/hub.go`:
-    /// validates optional `path` and `Host`, computes RFC 6455 `Sec-WebSocket-Accept`,
-    /// and decodes optional `Sec-WebSocket-Protocol` early data (`?ed=...`) without echoing
-    /// the subprotocol header in the `101 Switching Protocols` response.
     pub async fn server_handshake_with_config(
         mut stream: BoxStream,
         expected_path: Option<&str>,
@@ -217,37 +131,11 @@ impl WebSocketStream {
     ) -> Result<BoxStream> {
         use sha1::{Digest, Sha1};
 
-        let mut req_buf = Vec::with_capacity(2048);
-        let mut tmp = [0u8; 1024];
-        let hdr_end = loop {
-            let n = stream.read(&mut tmp).await.map_err(|e| {
-                Error::Protocol(format!("WebSocket server read upgrade failed: {}", e))
-            })?;
-            if n == 0 {
-                return Err(Error::Protocol(
-                    "WebSocket server EOF before upgrade header".into(),
-                ));
-            }
-            req_buf.extend_from_slice(&tmp[..n]);
-            if let Some(pos) = req_buf.windows(4).position(|w| w == b"\r\n\r\n") {
-                break pos + 4;
-            }
-            if req_buf.len() > 32768 {
-                return Err(Error::Protocol(
-                    "WebSocket server upgrade header too large".into(),
-                ));
-            }
-        };
-
+        let (req_buf, hdr_end) = read_http_header(&mut stream, 32768, "WebSocket server upgrade").await?;
         let mut headers = [httparse::EMPTY_HEADER; 64];
         let mut req = httparse::Request::new(&mut headers);
-        match req.parse(&req_buf[..hdr_end]) {
-            Ok(httparse::Status::Complete(_)) => {}
-            _ => {
-                return Err(Error::Protocol(
-                    "Invalid HTTP request in WebSocket server handshake".into(),
-                ));
-            }
+        if !matches!(req.parse(&req_buf[..hdr_end]), Ok(httparse::Status::Complete(_))) {
+            return Err(Error::Protocol("Invalid HTTP request in WebSocket server handshake".into()));
         }
 
         let raw_path = req.path.unwrap_or("/");
@@ -258,27 +146,21 @@ impl WebSocketStream {
         {
             let exp_clean = exp_path.split('?').next().unwrap_or(exp_path);
             if clean_path != exp_clean {
-                let _ = stream
-                    .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-                    .await;
+                let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
                 let _ = stream.flush().await;
-                return Err(Error::Protocol(format!(
-                    "WebSocket path mismatch: got '{}', expected '{}'",
-                    clean_path, exp_clean
-                )));
+                return Err(Error::Protocol(format!("WebSocket path mismatch: got '{}', expected '{}'", clean_path, exp_clean)));
             }
         }
 
-        let mut ws_key: Option<String> = None;
-        let mut host_hdr: Option<String> = None;
-        let mut early_data_hdr: Option<String> = None;
+        let (mut ws_key, mut host_hdr, mut early_data_hdr) = (None, None, None);
         for h in req.headers.iter() {
+            let val = || Some(String::from_utf8_lossy(h.value).trim().to_string());
             if h.name.eq_ignore_ascii_case("sec-websocket-key") {
-                ws_key = Some(String::from_utf8_lossy(h.value).trim().to_string());
+                ws_key = val();
             } else if h.name.eq_ignore_ascii_case("host") {
-                host_hdr = Some(String::from_utf8_lossy(h.value).trim().to_string());
+                host_hdr = val();
             } else if h.name.eq_ignore_ascii_case("sec-websocket-protocol") {
-                early_data_hdr = Some(String::from_utf8_lossy(h.value).trim().to_string());
+                early_data_hdr = val();
             }
         }
 
@@ -289,50 +171,23 @@ impl WebSocketStream {
             let got_bare = got_host.split(':').next().unwrap_or(got_host);
             let exp_bare = exp_host.split(':').next().unwrap_or(exp_host);
             if !got_bare.eq_ignore_ascii_case(exp_bare) {
-                let _ = stream
-                    .write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-                    .await;
+                let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
                 let _ = stream.flush().await;
-                return Err(Error::Protocol(format!(
-                    "WebSocket Host mismatch: got '{}', expected '{}'",
-                    got_host, exp_host
-                )));
+                return Err(Error::Protocol(format!("WebSocket Host mismatch: got '{}', expected '{}'", got_host, exp_host)));
             }
         }
 
-        let key = ws_key.ok_or_else(|| {
-            Error::Protocol("Missing Sec-WebSocket-Key in WebSocket upgrade request".into())
-        })?;
-
+        let key = ws_key.ok_or_else(|| Error::Protocol("Missing Sec-WebSocket-Key in WebSocket upgrade request".into()))?;
         let mut sha1 = Sha1::new();
         sha1.update(key.as_bytes());
         sha1.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
         let accept_key = base64::engine::general_purpose::STANDARD.encode(sha1.finalize());
 
-        let resp = format!(
-            "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n",
-            accept_key
-        );
-        stream
-            .write_all(resp.as_bytes())
-            .await
-            .map_err(|e| Error::Protocol(format!("WebSocket 101 write failed: {}", e)))?;
-        stream
-            .flush()
-            .await
-            .map_err(|e| Error::Protocol(format!("WebSocket 101 flush failed: {}", e)))?;
+        let resp = format!("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n", accept_key);
+        stream.write_all(resp.as_bytes()).await.map_err(|e| Error::Protocol(format!("WebSocket 101 write failed: {}", e)))?;
+        stream.flush().await.map_err(|e| Error::Protocol(format!("WebSocket 101 flush failed: {}", e)))?;
 
-        let leftover = req_buf[hdr_end..].to_vec();
-        let raw_stream: BoxStream = if leftover.is_empty() {
-            stream
-        } else {
-            Box::pin(PrefixedStream {
-                prefix: leftover,
-                offset: 0,
-                inner: stream,
-            })
-        };
-
+        let raw_stream = with_prefix(req_buf[hdr_end..].to_vec(), stream);
         let ws_stream = tokio_tungstenite::WebSocketStream::from_raw_socket(
             raw_stream,
             tokio_tungstenite::tungstenite::protocol::Role::Server,
@@ -349,13 +204,44 @@ impl WebSocketStream {
                 .or_else(|_| base64::engine::general_purpose::STANDARD.decode(&ed_raw))
             && !ed_bytes.is_empty()
         {
-            return Ok(Box::pin(PrefixedStream {
-                prefix: ed_bytes,
-                offset: 0,
-                inner: bridged,
-            }));
+            return Ok(with_prefix(ed_bytes, bridged));
         }
 
         Ok(bridged)
+    }
+}
+
+fn is_reserved_ws_header(k: &str) -> bool {
+    k.eq_ignore_ascii_case("host")
+        || k.eq_ignore_ascii_case("upgrade")
+        || k.eq_ignore_ascii_case("connection")
+        || k.eq_ignore_ascii_case("sec-websocket-key")
+        || k.eq_ignore_ascii_case("sec-websocket-version")
+        || k.eq_ignore_ascii_case("sec-websocket-protocol")
+}
+
+async fn read_http_header(stream: &mut BoxStream, max_len: usize, ctx: &str) -> Result<(Vec<u8>, usize)> {
+    let mut buf = Vec::with_capacity(1024);
+    let mut tmp = [0u8; 1024];
+    loop {
+        let n = stream.read(&mut tmp).await.map_err(|e| Error::Protocol(format!("{} read failed: {}", ctx, e)))?;
+        if n == 0 {
+            return Err(Error::Protocol(format!("{} EOF before header end", ctx)));
+        }
+        buf.extend_from_slice(&tmp[..n]);
+        if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            return Ok((buf, pos + 4));
+        }
+        if buf.len() > max_len {
+            return Err(Error::Protocol(format!("{} header too large", ctx)));
+        }
+    }
+}
+
+fn with_prefix(prefix: Vec<u8>, inner: BoxStream) -> BoxStream {
+    if prefix.is_empty() {
+        inner
+    } else {
+        Box::pin(PrefixedStream { prefix, offset: 0, inner })
     }
 }

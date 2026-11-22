@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks_2022\validator.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks_2022\validator.go
-
 use super::config::*;
 
 pub struct CipherValidator;

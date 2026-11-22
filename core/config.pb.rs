@@ -1,10 +1,6 @@
-// Module: core\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go core\config.pb.go
-
 use crate::common::serial::TypedMessage;
 use serde::{Deserialize, Serialize};
 
-/// InboundHandlerConfig is the configuration for inbound handler.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InboundHandlerConfig {
     #[serde(default)]
@@ -37,7 +33,6 @@ impl InboundHandlerConfig {
     }
 }
 
-/// OutboundHandlerConfig is the configuration for outbound handler.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutboundHandlerConfig {
     #[serde(default)]
@@ -76,7 +71,6 @@ impl OutboundHandlerConfig {
     }
 }
 
-/// Config is the master config of Xray.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]

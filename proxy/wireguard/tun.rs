@@ -1,6 +1,3 @@
-// Module: proxy\wireguard\tun.rs
-// 1:1 Rust implementation corresponding to Go proxy\wireguard\tun.go
-
 pub struct WireGuardTunDevice {
     pub name: String,
     pub mtu: u32,

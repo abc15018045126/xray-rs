@@ -1,6 +1,3 @@
-// Module: infra\conf\router_strategy.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\router_strategy.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

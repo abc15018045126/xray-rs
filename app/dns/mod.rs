@@ -42,3 +42,9 @@ pub use nameserver_local::LocalNameServer;
 pub use nameserver_quic::QuicNameServer;
 pub use nameserver_tcp::TcpNameServer;
 pub use nameserver_udp::UdpNameServer;
+#[cfg(test)]
+mod dnscommon_geoip_test;
+#[cfg(test)]
+mod dns_config_dispatcher_test;
+#[cfg(test)]
+mod nameserver_burst_test;

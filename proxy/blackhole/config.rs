@@ -1,6 +1,3 @@
-// Module: proxy\blackhole\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\blackhole\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

@@ -1,6 +1,3 @@
-// Module: common\net\find_process.rs
-// 1:1 Rust implementation corresponding to Go common\net\find_process_windows.go and find_process.go
-
 use super::Destination;
 use crate::common::errors::Result;
 use std::net::SocketAddr;
@@ -83,9 +80,6 @@ pub mod windows_impl {
     }
 
     fn search_tcp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
-        // Align 1:1 with official Xray-core `common/net/find_process_windows.go`:
-        // use `TCP_TABLE_OWNER_PID_CONNECTIONS` (class 4) instead of `ALL` (class 5)
-        // so LISTEN / TIME_WAIT / CLOSED sockets are excluded, and match `MIB_TCP_STATE_ESTAB` (5).
         let mut size: u32 = 0;
         unsafe {
             let _ = GetExtendedTcpTable(
@@ -119,13 +113,8 @@ pub mod windows_impl {
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
         let (item_size, port_offset, ip_offset, ip_len, pid_offset, state_offset) =
             if family == AF_INET {
-                // MIB_TCPROW_OWNER_PID:
-                // dwState (0), dwLocalAddr (4), dwLocalPort (8), dwRemoteAddr (12), dwRemotePort (16), dwOwningPid (20)
                 (24, 8, 4, 4, 20, 0)
             } else {
-                // MIB_TCP6ROW_OWNER_PID:
-                // ucLocalAddr (0), dwLocalScopeId (16), dwLocalPort (20), ucRemoteAddr (24), dwRemoteScopeId (40),
-                // dwRemotePort (44), dwState (48), dwOwningPid (52)
                 (56, 20, 0, 16, 52, 48)
             };
 
@@ -137,7 +126,6 @@ pub mod windows_impl {
             }
             let row = &buf[start..end];
 
-            // MIB_TCP_STATE_ESTAB = 5 (matching official Xray-core find_process_windows.go:143)
             let tcp_state = u32::from_ne_bytes(row[state_offset..state_offset + 4].try_into().ok()?);
             if tcp_state != 5 {
                 continue;
@@ -148,7 +136,6 @@ pub mod windows_impl {
                 continue;
             }
 
-            // Check IP match if not unspecified
             let row_ip = &row[ip_offset..ip_offset + ip_len];
             let is_unspecified = row_ip.iter().all(|&b| b == 0);
             if !is_unspecified {
@@ -199,10 +186,8 @@ pub mod windows_impl {
 
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
         let (item_size, port_offset, ip_offset, ip_len, pid_offset) = if family == AF_INET {
-            // MIB_UDPROW_OWNER_PID: dwLocalAddr (0), dwLocalPort (4), dwOwningPid (8)
             (12, 4, 0, 4, 8)
         } else {
-            // MIB_UDP6ROW_OWNER_PID: ucLocalAddr (0), dwLocalScopeId (16), dwLocalPort (20), dwOwningPid (24)
             (28, 20, 0, 16, 24)
         };
 

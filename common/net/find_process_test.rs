@@ -1,5 +1,3 @@
-// Module: common\net\find_process_test.rs
-
 #[cfg(test)]
 mod tests {
     use crate::app::router::condition::Rule;

@@ -1,6 +1,3 @@
-// Module: features\dns\localdns\client.rs
-// 1:1 Rust implementation corresponding to Go features\dns\localdns\client.go
-
 use crate::common::errors::{Error, Result};
 use crate::features::dns::client::{DEFAULT_TTL, DnsClient, IPOption};
 use crate::features::feature::{Feature, TYPE_DNS_CLIENT};

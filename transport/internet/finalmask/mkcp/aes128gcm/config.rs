@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\mkcp\aes128gcm\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\mkcp\aes128gcm\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

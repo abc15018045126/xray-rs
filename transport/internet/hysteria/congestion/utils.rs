@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\utils.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\utils.go
-
 use std::time::Duration;
 
 pub fn calculate_bandwidth(bytes: u64, elapsed: Duration) -> u64 {

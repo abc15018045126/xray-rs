@@ -1,6 +1,3 @@
-// Module: proxy\wireguard\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\wireguard\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\burst_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\observatory\burst\burst_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::health::HealthStatus;

@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xdns\client.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\client.go
-
 use super::dns::{
     CLASS_IN, Message, Name, Question, RCODE_NO_ERROR, RR_TYPE_OPT, RR_TYPE_TXT, ResourceRecord,
     base32_encode, decode_rdata_txt,
@@ -14,7 +11,6 @@ pub const NUM_PADDING: usize = 3;
 pub const NUM_PADDING_FOR_POLL: usize = 8;
 pub const MAX_PAYLOAD_LEN: usize = 224;
 
-/// XDnsClient provides client-side packet encoding into DNS queries and decoding DNS responses.
 #[derive(Clone)]
 pub struct XDnsClient {
     pub client_id: [u8; 8],
@@ -47,8 +43,6 @@ impl XDnsClient {
         })
     }
 
-    /// Encodes an optional payload into a DNS TXT query wire format.
-    /// If payload is None or empty, encodes a polling query with 8 bytes of padding.
     pub fn encode_packet(&self, payload: Option<&[u8]>) -> Result<Vec<u8>> {
         if let Some(p) = payload
             && p.len() >= MAX_PAYLOAD_LEN
@@ -95,7 +89,7 @@ impl XDnsClient {
         let id = rand::random::<u16>();
         let query = Message {
             id,
-            flags: 0x0100, // Standard query with recursion desired
+            flags: 0x0100,
             questions: vec![Question {
                 name: q_name,
                 qtype: RR_TYPE_TXT,
@@ -115,11 +109,9 @@ impl XDnsClient {
         query.to_wire_format()
     }
 
-    /// Decodes a DNS response wire format into a batch of extracted data payloads.
     pub fn decode_packet(&self, wire: &[u8]) -> Result<Vec<Vec<u8>>> {
         let resp = Message::from_wire_format(wire)?;
 
-        // Ensure response bit is set and response code is NoError
         if (resp.flags & 0x8000) != 0x8000 || (resp.flags & 0x000F) != RCODE_NO_ERROR {
             return Err(Error::Protocol("DNS response flag or rcode invalid".into()));
         }

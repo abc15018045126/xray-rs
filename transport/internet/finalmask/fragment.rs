@@ -47,11 +47,7 @@ impl Fragmenter {
     }
 
     pub fn is_tls_client_hello(buf: &[u8]) -> bool {
-        // TLS Record Header: 0x16 (Handshake), 0x03, 0x01/0x03, Length, Handshake Type: 0x01 (ClientHello)
-        if buf.len() > 5 && buf[0] == 0x16 && buf[1] == 0x03 && buf[5] == 0x01 {
-            return true;
-        }
-        false
+        buf.len() > 5 && buf[0] == 0x16 && buf[1] == 0x03 && buf[5] == 0x01
     }
 
     pub async fn write_fragmented<W: AsyncWrite + Unpin>(

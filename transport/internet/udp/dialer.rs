@@ -1,6 +1,3 @@
-// Module: transport\internet\udp\dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\udp\dialer.go
-
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::UdpSocket;

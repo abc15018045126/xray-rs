@@ -1,4 +1,3 @@
-// Socket helpers for outbound interface binding (aligned with Xray-core)
 use super::platform::must_bind_socket_on_interface;
 use crate::proxy::tun::OutboundInterface;
 
@@ -11,19 +10,16 @@ use tokio::{
 };
 use tracing::{debug, error, trace};
 
-/// Callback type for Android `VpnService.protect(fd)` so outbound sockets bypass the VPN TUN.
 pub type AndroidProtectFn = Arc<dyn Fn(i32) -> bool + Send + Sync>;
 
 static ANDROID_PROTECT_FN: RwLock<Option<AndroidProtectFn>> = RwLock::new(None);
 
-/// Registers (or clears with `None`) the Android socket protector callback (`VpnService.protect(fd)`).
 pub fn register_android_protect_fn(protector: Option<AndroidProtectFn>) {
     if let Ok(mut guard) = ANDROID_PROTECT_FN.write() {
         *guard = protector;
     }
 }
 
-/// Protects a raw outbound socket descriptor on Android via the registered `VpnService.protect(fd)`.
 pub fn protect_android_socket(fd: i32) -> bool {
     if let Ok(guard) = ANDROID_PROTECT_FN.read()
         && let Some(ref f) = *guard

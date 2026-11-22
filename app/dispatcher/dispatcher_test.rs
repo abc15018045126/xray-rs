@@ -1,6 +1,3 @@
-// Module: app\dispatcher\dispatcher_test.rs
-// Comprehensive unit tests for DefaultDispatcher, Sniffer, Override logic, and Stats
-
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
@@ -80,28 +77,27 @@ mod tests {
 
     #[test]
     fn test_sniffer_tls_client_hello() {
-        // Construct minimal TLS ClientHello with SNI "xray.com"
         let domain = b"xray.com";
         let mut sni_ext = Vec::new();
-        sni_ext.extend_from_slice(&[0x00, 0x00]); // Extension: server_name (0)
+        sni_ext.extend_from_slice(&[0x00, 0x00]);
         let sni_list_len = (domain.len() + 3) as u16;
         let ext_len = (domain.len() + 5) as u16;
         sni_ext.extend_from_slice(&ext_len.to_be_bytes());
         sni_ext.extend_from_slice(&sni_list_len.to_be_bytes());
-        sni_ext.push(0x00); // HostName type
+        sni_ext.push(0x00);
         sni_ext.extend_from_slice(&(domain.len() as u16).to_be_bytes());
         sni_ext.extend_from_slice(domain);
 
         let mut payload = Vec::new();
-        payload.extend_from_slice(&[0x16, 0x03, 0x01, 0x00, 0x00]); // TLS Record Header
-        payload.push(0x01); // ClientHello
-        payload.extend_from_slice(&[0x00, 0x00, 0x00]); // Length placeholder
-        payload.extend_from_slice(&[0x03, 0x03]); // Version TLS 1.2
-        payload.extend_from_slice(&[0u8; 32]); // Random
-        payload.push(0x00); // Session ID len
-        payload.extend_from_slice(&[0x00, 0x02, 0x13, 0x01]); // Ciphers (1 suite)
-        payload.extend_from_slice(&[0x01, 0x00]); // Compression methods
-        payload.extend_from_slice(&(sni_ext.len() as u16).to_be_bytes()); // Ext len
+        payload.extend_from_slice(&[0x16, 0x03, 0x01, 0x00, 0x00]);
+        payload.push(0x01);
+        payload.extend_from_slice(&[0x00, 0x00, 0x00]);
+        payload.extend_from_slice(&[0x03, 0x03]);
+        payload.extend_from_slice(&[0u8; 32]);
+        payload.push(0x00);
+        payload.extend_from_slice(&[0x00, 0x02, 0x13, 0x01]);
+        payload.extend_from_slice(&[0x01, 0x00]);
+        payload.extend_from_slice(&(sni_ext.len() as u16).to_be_bytes());
         payload.extend_from_slice(&sni_ext);
 
         let sniffer = Sniffer::new(None);
@@ -129,9 +125,9 @@ mod tests {
         let mut bt_req = Vec::new();
         bt_req.push(19);
         bt_req.extend_from_slice(b"BitTorrent protocol");
-        bt_req.extend_from_slice(&[0u8; 8]); // reserved
-        bt_req.extend_from_slice(&[1u8; 20]); // info hash
-        bt_req.extend_from_slice(&[2u8; 20]); // peer id
+        bt_req.extend_from_slice(&[0u8; 8]);
+        bt_req.extend_from_slice(&[1u8; 20]);
+        bt_req.extend_from_slice(&[2u8; 20]);
 
         let sniffer = Sniffer::new(None);
         let res = sniffer
@@ -166,35 +162,30 @@ mod tests {
 
         let dest_ip = Destination::new(Address::ip(IpAddr::V4(Ipv4Addr::new(198, 18, 0, 10))), 443);
 
-        // 1. Should override normal TLS
         let res_tls = SniffResult {
             protocol: "tls".into(),
             domain: "google.com".into(),
         };
         assert!(dispatcher.should_override(&res_tls, &req, &dest_ip));
 
-        // 2. Should NOT override regex matched domain
         let res_apple = SniffResult {
             protocol: "tls".into(),
             domain: "service.apple.com".into(),
         };
         assert!(!dispatcher.should_override(&res_apple, &req, &dest_ip));
 
-        // 3. Should NOT override exact excluded domain
         let res_blocked = SniffResult {
             protocol: "http".into(),
             domain: "blocked.com".into(),
         };
         assert!(!dispatcher.should_override(&res_blocked, &req, &dest_ip));
 
-        // 4. FakeDNS pool check
         let res_fakedns = SniffResult {
             protocol: "fakedns".into(),
             domain: "example.org".into(),
         };
         assert!(dispatcher.should_override(&res_fakedns, &req, &dest_ip));
 
-        // Outside pool destination
         let dest_outside =
             Destination::new(Address::ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))), 443);
         let req_fake_only = SniffingRequest {
@@ -241,13 +232,11 @@ mod tests {
         let mut session = SessionContext::new("inbound-http", dest).with_user(user);
         session.source = Some("127.0.0.1:54321".parse().unwrap());
 
-        // Spawn dispatch in background
         let disp_handle =
             tokio::spawn(
                 async move { dispatcher.dispatch(Box::pin(server_stream), session).await },
             );
 
-        // Write some payload through client_stream and read back echo
         let mut client_pinned = Box::pin(client_stream);
         let msg = b"Hello, Xray Dispatcher!";
         client_pinned.write_all(msg).await.unwrap();
@@ -258,12 +247,10 @@ mod tests {
             .unwrap();
         assert_eq!(&buf, msg);
 
-        // Drop client stream to terminate echo loop
         drop(client_pinned);
         let res = disp_handle.await.unwrap();
         assert!(res.is_ok());
 
-        // Check stats counter
         let up_counter = stats_mgr
             .get_counter("user>>>alice@example.com>>>traffic>>>uplink")
             .expect("Uplink counter exists");

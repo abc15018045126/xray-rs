@@ -1,6 +1,3 @@
-// Module: common\log\logger_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\log\logger_test.go
-
 #[cfg(test)]
 mod tests {
     use crate::common::log::logger::{Logger, create_file_log_writer, new_logger};
@@ -35,7 +32,6 @@ mod tests {
             content: "Test Log".to_string(),
         });
 
-        // Give the background worker a moment to process and flush
         thread::sleep(Duration::from_millis(200));
         handler.close();
 

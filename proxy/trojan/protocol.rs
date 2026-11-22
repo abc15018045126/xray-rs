@@ -49,16 +49,16 @@ impl TrojanRequestHeader {
 
         match &self.destination.address {
             Address::Ipv4(v4) => {
-                buf.push(1); // IPv4
+                buf.push(1);
                 buf.extend_from_slice(&v4.octets());
             }
             Address::Domain(dom) => {
-                buf.push(3); // Domain
+                buf.push(3);
                 buf.push(dom.len() as u8);
                 buf.extend_from_slice(dom.as_bytes());
             }
             Address::Ipv6(v6) => {
-                buf.push(4); // IPv6
+                buf.push(4);
                 buf.extend_from_slice(&v6.octets());
             }
         }

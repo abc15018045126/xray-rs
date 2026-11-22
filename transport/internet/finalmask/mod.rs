@@ -20,3 +20,7 @@ pub use finalmask::{
 pub use fragment::{FragmentConfig, Fragmenter};
 pub use noise::{NoiseConfig, NoiseGenerator};
 pub use salamander::SalamanderObfuscator;
+#[cfg(test)]
+mod finalmask_test;
+#[cfg(test)]
+mod finalmask_xdns_test;

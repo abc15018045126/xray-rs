@@ -1,6 +1,3 @@
-// Module: transport\internet\httpupgrade\httpupgrade_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\httpupgrade\httpupgrade_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::config::HttpUpgradeConfig;
@@ -85,7 +82,6 @@ mod tests {
 
         let mut client_stream = Box::pin(c_raw);
 
-        // Server should first yield the prefixed data
         let mut read_buf = [0u8; 19];
         server_stream
             .read_exact(&mut read_buf)
@@ -93,7 +89,6 @@ mod tests {
             .expect("should read prefixed data");
         assert_eq!(&read_buf, b"Prefixed Early Data");
 
-        // Subsequent read comes from stream
         client_stream
             .write_all(b"Stream Data")
             .await

@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\bbr\clock.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\clock.go
-
 use std::time::Instant;
 
 #[derive(Clone)]

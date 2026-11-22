@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\salamander\salamander.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\salamander\salamander.go
-
 use crate::common::errors::{Error, Result};
 use rand::Rng;
 

@@ -1,6 +1,3 @@
-// Module: common\crypto\io_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\crypto\io.go and crypto.go
-
 #[cfg(test)]
 mod tests {
     use super::super::crypto::{StreamCipher, rand_between, rand_bytes_between};
@@ -82,6 +79,6 @@ mod tests {
         let mut block2 = [0u8; 64];
         core.block(&mut block2);
         assert_ne!(block2, [0u8; 64]);
-        assert_ne!(block1, block2); // counter incremented!
+        assert_ne!(block1, block2);
     }
 }

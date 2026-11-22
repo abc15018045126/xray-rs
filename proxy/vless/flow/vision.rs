@@ -1,6 +1,3 @@
-// Module: proxy\vless\flow\vision.rs
-// 1:1 Rust implementation corresponding to Go proxy\vless\flow\vision.go & proxy\vless\encoding\addons.go
-
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -127,7 +124,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        // If remaining decrypted/unpadded payload is in buffer, drain it first
         if !self.read_buf.is_empty() {
             let to_write = std::cmp::min(buf.remaining(), self.read_buf.len());
             buf.put_slice(&self.read_buf[..to_write]);
@@ -135,7 +131,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
             return Poll::Ready(Ok(()));
         }
 
-        // If direct copy mode has been established for this read direction, bypass framing
         if self.read_direct || self.context.is_direct_copy() {
             return Pin::new(&mut self.inner).poll_read(cx, buf);
         }
@@ -154,8 +149,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                     let is_uplink = self.is_inbound;
                     let data = xtls_unpadding(filled, &mut state, is_uplink);
 
-                    // Official Xray Vision: both COMMAND_PADDING_DIRECT (2) and
-                    // COMMAND_PADDING_END (1) end padding on this direction when remaining == 0.
                     let should_direct = if is_uplink {
                         (state.inbound.current_command == (COMMAND_PADDING_DIRECT as i32)
                             || state.inbound.current_command == (COMMAND_PADDING_END as i32)
@@ -181,7 +174,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                 }
 
                 if unpadded.is_empty() {
-                    // Pure padding frame consumed; poll again for actual payload
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
@@ -207,7 +199,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
 
-        // First flush any previously buffered write data
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
                 Poll::Ready(Ok(n)) => {
@@ -218,7 +209,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
             }
         }
 
-        // If direct copy / padding-end mode is on for writes, write directly with 0 overhead
         if this.write_direct || this.context.is_direct_copy() {
             return Pin::new(&mut this.inner).poll_write(cx, buf);
         }
@@ -235,7 +225,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
                 COMMAND_PADDING_CONTINUE
             };
 
-            // Official Xray Vision: include 16-byte user UUID ONLY on the first padded write
             let uuid_opt = if !this.write_uuid_sent {
                 this.write_uuid_sent = true;
                 Some(state.user_uuid.clone())

@@ -1,6 +1,3 @@
-// Module: app\policy\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\policy\config.pb.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -16,7 +13,6 @@ impl Second {
     }
 }
 
-/// Timeout is a message for timeout settings in various stages, in seconds.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyTimeout {
     #[serde(default)]
@@ -47,7 +43,6 @@ pub type Policy_Stats = PolicyStats;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyBuffer {
-    /// Buffer size per connection, in bytes. -1 for unlimited buffer.
     #[serde(default)]
     pub connection: i32,
 }

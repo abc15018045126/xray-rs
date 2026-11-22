@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\http\linkedreadRequest.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\headers\http\linkedreadRequest.go
-
 use crate::common::errors::{Error, Result};
 use std::collections::HashMap;
 

@@ -1,5 +1,3 @@
-// Module: features\extension\mod.rs
-
 pub mod contextreceiver;
 pub mod observatory;
 

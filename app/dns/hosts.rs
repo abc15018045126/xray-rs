@@ -38,14 +38,12 @@ impl StaticHosts {
     pub fn lookup(&self, domain: &str) -> Option<Vec<IpAddr>> {
         let domain_lower = domain.to_lowercase();
 
-        // 1. Exact match
         if let Ok(guard) = self.exact.read()
             && let Some(ips) = guard.get(&domain_lower)
         {
             return Some(ips.clone());
         }
 
-        // 2. Domain suffix match (e.g. "google.com" matches "mail.google.com" or "google.com")
         if let Ok(guard) = self.domain_suffix.read() {
             for (suffix, ips) in guard.iter() {
                 if domain_lower == *suffix || domain_lower.ends_with(&format!(".{}", suffix)) {
@@ -54,7 +52,6 @@ impl StaticHosts {
             }
         }
 
-        // 3. Keyword match
         if let Ok(guard) = self.keywords.read() {
             for (keyword, ips) in guard.iter() {
                 if domain_lower.contains(keyword) {

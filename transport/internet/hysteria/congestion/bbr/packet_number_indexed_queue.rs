@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\bbr\packet_number_indexed_queue.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\packet_number_indexed_queue.go
-
 use std::collections::BTreeMap;
 
 pub struct PacketNumberIndexedQueue<T> {

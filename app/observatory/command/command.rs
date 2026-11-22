@@ -1,6 +1,3 @@
-// Module: app\observatory\command\command.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\command\command.go
-
 use super::command_grpc_pb::ObservatoryService as IObservatoryService;
 use super::command_pb::{GetOutboundStatusRequest, GetOutboundStatusResponse};
 use crate::app::observatory::Observatory;

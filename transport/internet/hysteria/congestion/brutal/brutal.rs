@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\brutal\brutal.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\brutal\brutal.go
-
 use super::super::common::pacer::Pacer;
 
 pub const PKT_INFO_SLOT_COUNT: usize = 5;

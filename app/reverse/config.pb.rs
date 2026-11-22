@@ -1,6 +1,3 @@
-// Module: app\reverse\config.pb.rs
-// 1:1 Rust protobuf message definitions corresponding to Go app\reverse\config.pb.go
-
 use serde::{Deserialize, Serialize};
 
 #[allow(non_camel_case_types)]

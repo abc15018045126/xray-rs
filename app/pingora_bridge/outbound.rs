@@ -10,8 +10,6 @@ use crate::features::outbound::OutboundHandler;
 
 use super::pool::{PingoraStreamPool, PingoraUpstreamBalancer, pool_key};
 
-/// Outbound wrapper backed by Cloudflare `pingora-pool` and optional `pingora-load-balancing`.
-/// Reuses pre-warmed streams when available and delegates fresh dials to the inner `OutboundHandler`s.
 pub struct PingoraPooledOutbound {
     tag: String,
     pool: Arc<PingoraStreamPool>,
@@ -35,7 +33,6 @@ impl PingoraPooledOutbound {
         }
     }
 
-    /// Returns a handle to the underlying Pingora stream pool (for pre-warming or returning clean streams).
     pub fn pool(&self) -> &Arc<PingoraStreamPool> {
         &self.pool
     }
@@ -94,6 +91,6 @@ impl OutboundHandler for PingoraPooledOutbound {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| Error::Closed))
+        Err(last_err.unwrap_or(Error::Closed))
     }
 }

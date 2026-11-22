@@ -27,3 +27,5 @@ pub use mph_matcher_compact::CompactMatcher;
 pub use strmatcher::{
     IndexMatcher, IndexMatcherGroup, Matcher, MatcherEntry, MatcherGroup, MatcherType,
 };
+#[cfg(test)]
+mod scen_strmatcher_test;

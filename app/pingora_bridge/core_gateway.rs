@@ -1,13 +1,3 @@
-//! Pingora-core (`pingora-core 0.9.1`) inbound listening service & outbound L4 transport gateway.
-//!
-//! - **Inbound**: `PingoraInboundApp` implements `pingora_core::apps::ServerApp` and runs inside
-//!   `pingora_core::services::listening::Service`, accepting local proxy connections (SOCKS/HTTP/Mixed)
-//!   with Pingora's L4 buffering, keepalive, and timeout management before handing off to Xray's
-//!   `InboundHandler` and `DefaultDispatcher`.
-//! - **Outbound**: `PingoraCoreConnector` wraps `pingora_core::connectors::TransportConnector` with
-//!   a custom `L4Connect` implementation (`TunAwareL4Connect`) that binds sockets to the Windows
-//!   physical outbound interface (`DEFAULT_OUTBOUND_INTERFACE`) to prevent global TUN loopback.
-
 #[cfg(not(target_os = "android"))]
 mod imp {
 use std::net::SocketAddr;
@@ -33,8 +23,6 @@ use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use crate::features::inbound::InboundHandler;
 
-/// Custom Pingora `L4Connect` that preserves Windows physical interface binding (`IP_UNICAST_IF`)
-/// so `pingora-core::connectors::TransportConnector` works seamlessly alongside global TUN mode.
 #[derive(Debug, Clone, Copy, Default)]
 struct TunAwareL4Connect;
 
@@ -82,11 +70,9 @@ static GLOBAL_TRANSPORT_CONNECTOR: LazyLock<TransportConnector> =
 static TUN_L4_CONNECTOR: LazyLock<Arc<TunAwareL4Connect>> =
     LazyLock::new(|| Arc::new(TunAwareL4Connect));
 
-/// Outbound L4 gateway powered by `pingora-core::connectors::TransportConnector`.
 pub struct PingoraCoreConnector;
 
 impl PingoraCoreConnector {
-    /// Connects to `addr` through Pingora's `TransportConnector` with TUN-safe L4 binding.
     pub async fn dial_tcp(addr: SocketAddr) -> Result<BoxStream> {
         let mut peer = BasicPeer::new(&addr.to_string());
         peer.options.custom_l4 = Some(TUN_L4_CONNECTOR.clone());
@@ -98,8 +84,6 @@ impl PingoraCoreConnector {
     }
 }
 
-/// Pingora `ServerApp` adapter that accepts incoming connections from `pingora-core`
-/// and dispatches them into Xray's `InboundHandler` + `DefaultDispatcher`.
 pub struct PingoraInboundApp {
     handler: Arc<dyn InboundHandler>,
     dispatcher: Arc<DefaultDispatcher>,
@@ -148,15 +132,11 @@ impl ServerApp for PingoraInboundApp {
     }
 }
 
-/// Spawns a `pingora-core` listening service for a single Xray inbound `(addr, handler)`.
-/// Returns `Ok(None)` (with a warning) if the address cannot be bound, matching Xray-core's
-/// graceful multi-inbound startup behavior.
 pub fn spawn_pingora_inbound(
     addr: SocketAddr,
     handler: Arc<dyn InboundHandler>,
     dispatcher: Arc<DefaultDispatcher>,
 ) -> Option<JoinHandle<()>> {
-    // Pre-check bindability so an occupied port logs a clean warning instead of panicking inside Pingora
     if let Err(e) = std::net::TcpListener::bind(addr) {
         warn!(
             "Inbound [{}] could not bind to {} ({}). Continuing other inbounds...",
@@ -170,8 +150,6 @@ pub fn spawn_pingora_inbound(
     let tag = handler.tag().to_string();
     let app = PingoraInboundApp::new(handler, dispatcher);
     let mut service = PingoraListeningService::new(format!("xray-inbound-{}", tag), app);
-    // Disable Pingora's 1460B default L4 write BufWriter so small TLS/HTTP packets are
-    // forwarded immediately with zero buffering delay (transparent L4 proxy semantics).
     service.add_listener(
         ListenerConfig::tcp(addr.to_string()).l4_buffer(L4BufferSettings::unbuffered()),
     );
@@ -183,7 +161,6 @@ pub fn spawn_pingora_inbound(
 
     let (_shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
-        // Keep `_shutdown_tx` alive for the lifetime of the inbound task
         let _keep_tx = _shutdown_tx;
         service
             .start_service(

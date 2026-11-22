@@ -1,5 +1,3 @@
-// Module: features\dns\mod.rs
-
 pub mod client;
 pub mod fakedns;
 pub mod localdns;

@@ -53,7 +53,7 @@ impl BalancingStrategy for RandomStrategy {
                     if let Some(status) = obs.get_status(t) {
                         status.alive
                     } else {
-                        true // Not found candidates considered alive
+                        true
                     }
                 })
                 .cloned()

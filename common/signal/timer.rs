@@ -1,6 +1,3 @@
-// Module: common\signal\timer.rs
-// 1:1 Rust implementation corresponding to Go common\signal\timer.go
-
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -83,7 +80,6 @@ impl ActivityTimer {
 
         *self.timeout.lock().unwrap() = timeout;
 
-        // Cancel previous background checker task
         let mut handle_guard = self.task_handle.lock().unwrap();
         if let Some(handle) = handle_guard.take() {
             handle.abort();

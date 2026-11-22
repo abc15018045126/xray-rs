@@ -1,6 +1,3 @@
-// Module: transport\internet\memory_settings.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\memory_settings.go
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MemorySettings {
     pub buffer_size: usize,

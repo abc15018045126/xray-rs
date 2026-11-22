@@ -14,3 +14,5 @@ pub use encoding::{RequestHeader, ResponseHeader, VMESS_VERSION, fnv1a_32, gener
 pub use inbound::Server as InboundServer;
 pub use outbound::Client as OutboundClient;
 pub use validator::MemoryValidator;
+#[cfg(test)]
+mod vmess_encoding_test;

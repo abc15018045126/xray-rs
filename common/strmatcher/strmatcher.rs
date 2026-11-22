@@ -1,6 +1,3 @@
-// Module: common\strmatcher\strmatcher.rs
-// 1:1 Rust implementation corresponding to Go common\strmatcher\strmatcher.go
-
 use super::domain_matcher::{DomainMatcher, DomainMatcherGroup};
 use super::full_matcher::{FullMatcher, FullMatcherGroup};
 use super::matchers::{RegexMatcher, SubstrMatcher};

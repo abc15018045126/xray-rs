@@ -1,6 +1,3 @@
-// Module: transport\internet\websocket\hub.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\websocket\hub.go
-
 use super::ws::WebSocketStream;
 use crate::common::errors::Result;
 use crate::common::net::BoxStream;

@@ -1,6 +1,3 @@
-// Module: common\protocol\bittorrent\bittorrent.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\bittorrent\bittorrent.go
-
 use crate::common::errors::{Error, Result};
 
 pub struct BittorrentSniffer;
@@ -15,7 +12,6 @@ impl BittorrentSniffer {
             return Ok("bittorrent".into());
         }
 
-        // uTP check
         let type_and_ver = bytes[0];
         let ver = type_and_ver & 0x0F;
         let p_type = type_and_ver >> 4;

@@ -1,6 +1,3 @@
-// Module: infra\conf\serial\loader.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\serial\loader.go
-
 use crate::common::errors::{Error, Result};
 use std::fs;
 use std::path::Path;

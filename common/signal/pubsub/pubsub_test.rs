@@ -1,6 +1,3 @@
-// Module: common\signal\pubsub\pubsub_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\signal\pubsub\pubsub_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::pubsub::Service;

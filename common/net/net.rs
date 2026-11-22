@@ -1,6 +1,3 @@
-// Module: common\net\net.rs
-// 1:1 Rust implementation corresponding to Go common\net\net.go
-
 use std::net::IpAddr;
 use std::time::Duration;
 

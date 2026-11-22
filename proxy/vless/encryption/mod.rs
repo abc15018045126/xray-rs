@@ -13,3 +13,5 @@ pub use common::{
 };
 pub use server::VlessXorServer;
 pub use xor::xor_inplace;
+#[cfg(test)]
+mod vless_encryption_test;

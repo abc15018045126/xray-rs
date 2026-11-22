@@ -1,6 +1,3 @@
-// Module: transport\internet\kcp\io_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\kcp\io_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::io::KcpIoQueue;

@@ -1,6 +1,3 @@
-// Module: proxy\vmess\aead\encrypt.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\aead\encrypt.go
-
 use crate::common::errors::{Error, Result};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Nonce};

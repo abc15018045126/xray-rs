@@ -1,6 +1,3 @@
-// Module: transport\internet\tcp_hub.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tcp_hub.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::Address;
 use std::collections::HashMap;

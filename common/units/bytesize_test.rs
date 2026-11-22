@@ -1,6 +1,3 @@
-// Module: common\units\bytesize_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\units\bytesize_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::bytesize::*;
@@ -44,7 +41,6 @@ mod tests {
     fn assert_size_string(size: ByteSize, expected: &str) -> &'static str {
         let actual = size.to_string();
         assert_eq!(actual, expected, "expect {}, but got {}", expected, actual);
-        // Leak is fine in test to return &'static str matching Go signature
         Box::leak(expected.to_string().into_boxed_str())
     }
 }

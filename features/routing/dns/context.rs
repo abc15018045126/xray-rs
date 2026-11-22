@@ -1,6 +1,3 @@
-// Module: features\routing\dns\context.rs
-// 1:1 Rust implementation corresponding to Go features\routing\dns\context.go
-
 use crate::common::net::Network;
 use crate::features::dns::client::DnsClient;
 use crate::features::routing::context::RoutingContext;

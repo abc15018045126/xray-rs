@@ -1,6 +1,3 @@
-// Module: transport\internet\header.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\header.go
-
 use crate::common::net::BoxStream;
 
 pub trait PacketHeader: Send + Sync {

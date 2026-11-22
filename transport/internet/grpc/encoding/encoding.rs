@@ -1,11 +1,8 @@
-// Module: transport\internet\grpc\encoding\encoding.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\grpc\encoding\encoding.go
-
 use crate::common::errors::{Error, Result};
 
 pub fn encode_grpc_frame(payload: &[u8]) -> Vec<u8> {
     let mut frame = Vec::with_capacity(5 + payload.len());
-    frame.push(0); // uncompressed
+    frame.push(0);
     frame.extend_from_slice(&(payload.len() as u32).to_be_bytes());
     frame.extend_from_slice(payload);
     frame

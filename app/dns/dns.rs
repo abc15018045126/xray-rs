@@ -1,6 +1,3 @@
-// Module: app\dns\dns.rs
-// 1:1 Rust implementation corresponding to Go app\dns\dns.go
-
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -87,8 +84,6 @@ impl DnsClient {
         }
     }
 
-    /// Attach `Router` and `outbounds` so routed DoH (`https://...`) queries follow
-    /// Xray-core routing rules (`inboundTag` -> `direct`/`proxy`) just like `nameserver_doh.go`.
     pub fn attach_routing(
         &self,
         router: Router,
@@ -152,8 +147,12 @@ impl DnsClient {
 
     pub fn add_server(&mut self, server: DnsServerConfig) {
         let addr = server.address.trim();
-        let mut is_fakedns = false;
-        let mut is_local = false;
+        let (mut is_fakedns, mut is_local) = (false, false);
+        let parse_sa = |s: &str| {
+            s.parse::<SocketAddr>()
+                .ok()
+                .or_else(|| s.parse::<IpAddr>().ok().map(|ip| SocketAddr::new(ip, 53)))
+        };
 
         let ns: Option<Arc<dyn NameServer>> = if addr.eq_ignore_ascii_case("fakedns") {
             is_fakedns = true;
@@ -163,7 +162,7 @@ impl DnsClient {
             Some(Arc::new(FakeDnsNameServer::new(holder.clone())))
         } else if let Some(rest) = addr.strip_prefix("https+local://") {
             Some(Arc::new(DohNameServer::new_local_with_ecs(
-                &format!("https://{}", rest),
+                format!("https://{}", rest),
                 server.client_ip,
             )))
         } else if addr.starts_with("https://") || addr.starts_with("http://") {
@@ -176,98 +175,35 @@ impl DnsClient {
         } else if addr.eq_ignore_ascii_case("local") || addr.eq_ignore_ascii_case("localhost") {
             is_local = true;
             Some(Arc::new(LocalNameServer::new()))
-        } else if let Some(stripped) = addr.strip_prefix("tcp+local://") {
-            if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                Some(Arc::new(TcpNameServer::new_local_with_ecs(sa, server.client_ip)))
-            } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                Some(Arc::new(TcpNameServer::new_local_with_ecs(
-                    SocketAddr::new(ip, 53),
-                    server.client_ip,
-                )))
-            } else {
-                None
-            }
-        } else if let Some(stripped) = addr.strip_prefix("tcp://") {
-            if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                Some(Arc::new(TcpNameServer::new_routed(
+        } else if let Some(s) = addr.strip_prefix("tcp+local://") {
+            parse_sa(s).map(|sa| Arc::new(TcpNameServer::new_local_with_ecs(sa, server.client_ip)) as _)
+        } else if let Some(s) = addr.strip_prefix("tcp://") {
+            parse_sa(s).map(|sa| {
+                Arc::new(TcpNameServer::new_routed(
                     sa,
                     server.tag.clone(),
                     self.routing_ctx.clone(),
                     server.client_ip,
-                )))
-            } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                Some(Arc::new(TcpNameServer::new_routed(
-                    SocketAddr::new(ip, 53),
-                    server.tag.clone(),
-                    self.routing_ctx.clone(),
-                    server.client_ip,
-                )))
-            } else {
-                None
-            }
-        } else if let Some(stripped) = addr.strip_prefix("udp+local://") {
-            if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                Some(Arc::new(UdpNameServer::new_local_with_ecs(sa, server.client_ip)))
-            } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                Some(Arc::new(UdpNameServer::new_local_with_ecs(
-                    SocketAddr::new(ip, 53),
-                    server.client_ip,
-                )))
-            } else {
-                None
-            }
-        } else if let Some(stripped) = addr.strip_prefix("udp://") {
-            if let Ok(sa) = stripped.parse::<SocketAddr>() {
-                Some(Arc::new(UdpNameServer::new_routed(
-                    sa,
-                    server.tag.clone(),
-                    self.routing_ctx.clone(),
-                    server.client_ip,
-                )))
-            } else if let Ok(ip) = stripped.parse::<IpAddr>() {
-                Some(Arc::new(UdpNameServer::new_routed(
-                    SocketAddr::new(ip, 53),
-                    server.tag.clone(),
-                    self.routing_ctx.clone(),
-                    server.client_ip,
-                )))
-            } else {
-                None
-            }
-        } else if let Ok(sa) = addr.parse::<SocketAddr>() {
-            Some(Arc::new(UdpNameServer::new_routed(
-                sa,
-                server.tag.clone(),
-                self.routing_ctx.clone(),
-                server.client_ip,
-            )))
-        } else if let Ok(ip) = addr.parse::<IpAddr>() {
-            Some(Arc::new(UdpNameServer::new_routed(
-                SocketAddr::new(ip, 53),
-                server.tag.clone(),
-                self.routing_ctx.clone(),
-                server.client_ip,
-            )))
+                )) as _
+            })
+        } else if let Some(s) = addr.strip_prefix("udp+local://") {
+            parse_sa(s).map(|sa| Arc::new(UdpNameServer::new_local_with_ecs(sa, server.client_ip)) as _)
         } else {
-            None
+            parse_sa(addr.strip_prefix("udp://").unwrap_or(addr)).map(|sa| {
+                Arc::new(UdpNameServer::new_routed(
+                    sa,
+                    server.tag.clone(),
+                    self.routing_ctx.clone(),
+                    server.client_ip,
+                )) as _
+            })
         };
 
         if let Some(ns) = ns {
-            let domain_matchers = server
-                .domains
-                .iter()
-                .map(|d| DomainMatcher::parse(d))
-                .collect();
-            let expect_ip_matchers = server
-                .expect_ips
-                .iter()
-                .filter_map(|ip| IpMatcher::parse(ip))
-                .collect();
-
             self.entries.push(ServerEntry {
                 ns: ns.clone(),
-                domain_matchers,
-                expect_ip_matchers,
+                domain_matchers: server.domains.iter().map(|d| DomainMatcher::parse(d)).collect(),
+                expect_ip_matchers: server.expect_ips.iter().filter_map(|ip| IpMatcher::parse(ip)).collect(),
                 skip_fallback: server.skip_fallback,
                 query_strategy: server.query_strategy,
                 is_fakedns,
@@ -365,14 +301,10 @@ impl DnsClient {
             .map(|(ips, _)| ips)
     }
 
-    /// Outbound dialer DNS resolution (aligned with `Xray-core/transport/internet/dialer.go` `LookupForIP`):
-    /// checks `dns.hosts` -> cache -> direct/local `dns.servers` (skipping proxy-routed nameservers
-    /// so dialing a domain-based proxy server can never recursively deadlock).
     pub async fn lookup_for_dialer(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
         let option = IPOption::default();
 
-        // 1. Static hosts (0ms, e.g. v2rayNG pre-resolved node IPs)
         if let Some(ips) = self.hosts.lookup(clean) {
             let filtered = self.filter_ips(&ips, &option);
             if !filtered.is_empty() {
@@ -380,7 +312,6 @@ impl DnsClient {
             }
         }
 
-        // 2. Cache
         if !self.disable_cache
             && let Some(ips) = self.cache.get(clean)
         {
@@ -390,7 +321,6 @@ impl DnsClient {
             }
         }
 
-        // 3. Domain-matched direct/local nameservers
         let mut tried = vec![false; self.entries.len()];
         for (idx, entry) in self.entries.iter().enumerate() {
             if entry.is_fakedns || entry.ns.routes_via_proxy() {
@@ -406,7 +336,6 @@ impl DnsClient {
             }
         }
 
-        // 4. Fallback to any remaining direct/local nameserver (e.g. domestic 223.5.5.5 / +local)
         for (idx, entry) in self.entries.iter().enumerate() {
             if tried[idx] || entry.is_fakedns || entry.ns.routes_via_proxy() {
                 continue;
@@ -429,7 +358,6 @@ impl DnsClient {
     ) -> Result<(Vec<IpAddr>, u32)> {
         let clean = domain.trim_end_matches('.');
 
-        // 1. Static Hosts
         if let Some(ips) = self.hosts.lookup(clean) {
             let filtered = self.filter_ips(&ips, &option);
             if !filtered.is_empty() {
@@ -437,7 +365,6 @@ impl DnsClient {
             }
         }
 
-        // 2. Cache
         if !self.disable_cache
             && let Some(ips) = self.cache.get(clean)
         {
@@ -447,7 +374,6 @@ impl DnsClient {
             }
         }
 
-        // 3. Domain-matched NameServers (prioritized)
         let mut tried = vec![false; self.entries.len()];
         let mut any_domain_matched = false;
         let mut local_tried = false;
@@ -467,7 +393,6 @@ impl DnsClient {
             }
         }
 
-        // 4. Fallback NameServers (unless disabled by config)
         let block_fallback =
             self.disable_fallback || (self.disable_fallback_if_match && any_domain_matched);
         if !block_fallback {
@@ -483,7 +408,6 @@ impl DnsClient {
                 }
             }
 
-            // 5. System local resolution fallback (disabled on Android VPN TUN to avoid DNS loop)
             #[cfg(not(target_os = "android"))]
             if !local_tried
                 && let Ok(ips) = LocalNameServer::new().query_ip(clean).await
@@ -506,6 +430,16 @@ impl DnsClient {
             "No IP found for domain: {}",
             domain
         )))
+    }
+
+    pub fn r#type(&self) -> &'static str {
+        TYPE_DNS_CLIENT
+    }
+
+    pub fn is_own_link(&self, inbound_tag: &str) -> bool {
+        self.servers
+            .iter()
+            .any(|s| s.tag.as_deref() == Some(inbound_tag))
     }
 }
 

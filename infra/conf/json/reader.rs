@@ -1,6 +1,3 @@
-// Module: infra\conf\json\reader.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\json\reader.go
-
 use crate::common::errors::Result;
 use serde_json::Value;
 

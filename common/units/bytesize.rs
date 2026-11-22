@@ -1,6 +1,3 @@
-// Module: common\units\bytesize.rs
-// 1:1 Rust implementation corresponding to Go common\units\bytesize.go
-
 use crate::common::errors::{Error, Result};
 use std::fmt;
 use std::ops::Deref;
@@ -12,7 +9,6 @@ pub const TB: u64 = 1024 * GB;
 pub const PB: u64 = 1024 * TB;
 pub const EB: u64 = 1024 * PB;
 
-/// ByteSize represents a size in bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct ByteSize(pub u64);
 
@@ -28,7 +24,6 @@ impl ByteSize {
         ByteSize(val)
     }
 
-    /// Parse parses ByteSize from string (e.g. "1.00KB", "2MB", "10GiB")
     pub fn parse(&mut self, s: &str) -> Result<()> {
         let s = s.trim().to_uppercase();
         let i = s

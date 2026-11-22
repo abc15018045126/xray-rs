@@ -1,6 +1,3 @@
-// Module: transport\internet\tls\pin_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\tls\pin_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::pin::{
@@ -107,18 +104,14 @@ mod tests {
         let hash1 = generate_cert_hash(cert1);
         let hash2 = generate_cert_hash(cert2);
 
-        // Matching single cert
         assert!(verify_peer_cert(&[cert1], &[hash1]));
 
-        // Matching CA or intermediate in chain
         assert!(verify_peer_cert(&[cert1, cert2], &[hash2]));
 
-        // Mismatched hash
         let mut bad_hash = hash1;
         bad_hash[0] ^= 0xff;
         assert!(!verify_peer_cert(&[cert1], &[bad_hash]));
 
-        // Hex verification
         let hex1 = generate_cert_hash_hex(cert1);
         assert!(verify_peer_cert_hex(&[cert1], &[hex1]));
         assert!(!verify_peer_cert_hex(&[cert1], &["00112233".to_string()]));

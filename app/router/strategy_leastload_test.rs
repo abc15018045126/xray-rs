@@ -1,6 +1,3 @@
-// Module: app\router\strategy_leastload_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\router\strategy_leastload_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::balancing::BalancingStrategy;

@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\dialer.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -50,12 +47,10 @@ impl SplitHttpDialer {
             format!("http://{}{}", dest.address, norm_path)
         };
 
-        // Open download stream
         let (down_reader, local_addr, remote_addr) = client
             .open_stream(&target_url, &session_id, None, false)
             .await?;
 
-        // Establish upload pipe
         let (upload_tx, mut upload_rx) = tokio::io::duplex(64 * 1024);
 
         let max_post_bytes = self.config.get_normalized_sc_max_each_post_bytes().rand() as usize;
@@ -74,11 +69,11 @@ impl SplitHttpDialer {
             let mut buf = vec![0u8; max_chunk];
             loop {
                 match upload_rx.read(&mut buf).await {
-                    Ok(0) => break, // EOF, pipe closed
+                    Ok(0) => break,
                     Ok(n) => {
                         let cur_seq = seq.fetch_add(1, Ordering::SeqCst);
                         let payload = buf[..n].to_vec();
-                        if let Err(_) = client_clone
+                        if client_clone
                             .post_packet(
                                 &url_clone,
                                 &session_id_clone,
@@ -86,6 +81,7 @@ impl SplitHttpDialer {
                                 payload,
                             )
                             .await
+                            .is_err()
                         {
                             break;
                         }

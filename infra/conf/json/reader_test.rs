@@ -1,6 +1,3 @@
-// Module: infra\conf\json\reader_test.rs
-// 1:1 Rust unit test suite corresponding to Go infra\conf\json\reader_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::reader::parse_json_value;

@@ -1,6 +1,3 @@
-// Module: app\dns\fakedns\fake.rs
-// 1:1 Rust implementation corresponding to Go app\dns\fakedns\fake.go
-
 use crate::common::errors::{Error, Result};
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};

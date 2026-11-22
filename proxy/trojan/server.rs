@@ -1,6 +1,3 @@
-// Module: proxy\trojan\server.rs
-// 1:1 Rust implementation corresponding to Go proxy\trojan\server.go
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;

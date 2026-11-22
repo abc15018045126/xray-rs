@@ -20,6 +20,19 @@ impl PasswordValidator {
         }
     }
 
+    pub fn add(&self, password: &str) {
+        self.add_password(password);
+    }
+
+    pub fn del(&self, password: &str) -> bool {
+        let hash = hash_password(password);
+        self.hashes.write().map(|mut g| g.remove(&hash)).unwrap_or(false)
+    }
+
+    pub fn get_count(&self) -> usize {
+        self.hashes.read().map(|g| g.len()).unwrap_or(0)
+    }
+
     pub fn validate(&self, hash: &[u8; 56]) -> bool {
         if let Ok(guard) = self.hashes.read() {
             if guard.is_empty() {

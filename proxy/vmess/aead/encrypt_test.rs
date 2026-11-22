@@ -1,6 +1,3 @@
-// Module: proxy\vmess\aead\encrypt_test.rs
-// 1:1 Rust unit test suite corresponding to Go proxy\vmess\aead\encrypt_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::encrypt::VmessAeadEncryptor;

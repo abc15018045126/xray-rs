@@ -1,5 +1,3 @@
-// Module: common\drain\drain_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::drain::*;

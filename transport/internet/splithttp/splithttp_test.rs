@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\splithttp_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\splithttp\splithttp_test.go
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -72,7 +69,6 @@ mod tests {
         let hub = SplitHttpHub::listen(addr, cfg.clone()).await.unwrap();
         let local_addr = hub.local_addr().unwrap();
 
-        // Hub accept task
         tokio::spawn(async move {
             if let Ok((mut stream, _)) = hub.accept().await {
                 let mut buf = vec![0u8; 12];
@@ -82,7 +78,6 @@ mod tests {
             }
         });
 
-        // Dialer
         let dialer = SplitHttpDialer::new(cfg);
         let dest = Destination::tcp(Address::ip(local_addr.ip()), local_addr.port());
 

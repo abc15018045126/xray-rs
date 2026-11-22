@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xdns\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\xdns\config.go
-
 use super::client::XDnsClient;
 use super::server::XDnsServer;
 use crate::common::errors::Result;

@@ -1,6 +1,3 @@
-// Module: common\platform\filesystem\file.rs
-// 1:1 Rust implementation corresponding to Go common\platform\filesystem\file.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::platform::platform::{get_asset_location, get_cert_location};
 use std::fs::{self, File};

@@ -1,6 +1,3 @@
-// Module: core\core.rs
-// 1:1 Rust implementation corresponding to Go core\core.go
-
 pub const VERSION_X: u8 = 26;
 pub const VERSION_Y: u8 = 3;
 pub const VERSION_Z: u8 = 27;

@@ -1,4 +1,3 @@
-// Module: transport\internet\finalmask\udp_test.rs
 #[cfg(test)]
 mod tests {
     use super::super::finalmask::{
@@ -26,7 +25,7 @@ mod tests {
         let payload = b"udp-dtls-payload";
         let wrapped = dtls.wrap_payload(payload);
         assert_eq!(wrapped.len(), 13 + payload.len());
-        assert_eq!(wrapped[0], 23); // ContentType
+        assert_eq!(wrapped[0], 23);
         let unwrapped = dtls.unwrap_payload(&wrapped).expect("unwrap success");
         assert_eq!(unwrapped, payload);
     }
@@ -102,14 +101,12 @@ mod tests {
         let client = UdpCustomClient::new(&cfg);
         let server = UdpCustomServer::new(&cfg);
 
-        // Client sends packet to server
         let client_payload = b"client-to-server-udp";
         let client_packet = client.wrap_payload(client_payload);
         assert!(server.matches(&client_packet));
         let server_received = server.unwrap_payload(&client_packet).unwrap();
         assert_eq!(server_received, client_payload);
 
-        // Server replies to client
         let server_payload = b"server-to-client-udp";
         let server_packet = server.wrap_payload(server_payload);
         assert!(client.matches(&server_packet));
@@ -126,7 +123,7 @@ mod tests {
         ];
 
         let mut mgr = HeaderManager::new(headers);
-        assert_eq!(mgr.total_size(), 13 + 13 + 4); // 30 bytes
+        assert_eq!(mgr.total_size(), 13 + 13 + 4);
         assert_eq!(mgr.len(), 3);
         assert!(!mgr.is_empty());
 
@@ -137,7 +134,6 @@ mod tests {
         let unwrapped = mgr.unwrap_incoming(&wrapped).expect("unwrap success");
         assert_eq!(unwrapped, payload);
 
-        // Test short packet rejection
         let short_packet = &wrapped[..20];
         assert!(mgr.unwrap_incoming(short_packet).is_err());
     }

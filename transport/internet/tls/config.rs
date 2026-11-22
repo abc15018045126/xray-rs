@@ -1,6 +1,3 @@
-// Module: transport\internet\tls\config.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tls\config.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -121,7 +118,6 @@ impl TlsConfig {
         }
     }
 
-    /// Build all standard server certificates (usage == Encipherment).
     pub fn build_certificates(&self) -> Vec<Certificate> {
         self.certificate
             .iter()
@@ -130,7 +126,6 @@ impl TlsConfig {
             .collect()
     }
 
-    /// Get client verification root certs (usage == AuthorityVerify).
     pub fn get_client_verify_certs(&self) -> Vec<Certificate> {
         self.certificate
             .iter()
@@ -139,7 +134,6 @@ impl TlsConfig {
             .collect()
     }
 
-    /// Issue a dynamic self-signed certificate for the given SNI if an authority issuer is configured.
     pub fn get_certificate_for_sni(&mut self, sni: &str) -> Option<Certificate> {
         let cache = self.get_or_init_cache();
         {
@@ -149,7 +143,6 @@ impl TlsConfig {
             }
         }
 
-        // Check if we have an AUTHORITY_ISSUE certificate
         let has_issuer = self
             .certificate
             .iter()
@@ -165,7 +158,6 @@ impl TlsConfig {
             return Some(cert);
         }
 
-        // Fallback to static encipherment certificates
         self.build_certificates().into_iter().next()
     }
 }

@@ -1,6 +1,3 @@
-// Module: proxy\hysteria\client.rs
-// 1:1 Rust implementation corresponding to Go proxy\hysteria\client.go
-
 use async_trait::async_trait;
 use tokio::io::AsyncWriteExt;
 

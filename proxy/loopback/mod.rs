@@ -45,3 +45,6 @@ impl crate::features::outbound::OutboundHandler for LoopbackOutbound {
         Ok(Box::pin(client))
     }
 }
+#[cfg(test)]
+mod loopback_dns_test;
+

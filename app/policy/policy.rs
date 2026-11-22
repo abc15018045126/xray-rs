@@ -1,6 +1,3 @@
-// Module: app\policy\policy.rs
-// 1:1 Rust implementation corresponding to Go app\policy\policy.go
-
 use std::collections::HashMap;
 use std::time::Duration;
 

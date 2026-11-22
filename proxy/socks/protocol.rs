@@ -23,14 +23,12 @@ impl SocksProtocol {
         stream: &mut S,
         target: &Destination,
     ) -> Result<()> {
-        // 1. Client greeting: version 5, 1 auth method (No Auth = 0x00)
         stream
             .write_all(&[SOCKS5_VERSION, 0x01, AUTH_NO_AUTH])
             .await
             .map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
 
-        // 2. Server choice
         let mut resp = [0u8; 2];
         stream.read_exact(&mut resp).await.map_err(Error::Io)?;
         if resp[0] != SOCKS5_VERSION || resp[1] != AUTH_NO_AUTH {
@@ -40,7 +38,6 @@ impl SocksProtocol {
             )));
         }
 
-        // 3. Connect request: [0x05, 0x01, 0x00, ATYP, ADDR, PORT]
         let mut req = vec![SOCKS5_VERSION, CMD_TCP_CONNECT, 0x00];
         match &target.address {
             Address::Ipv4(v4) => {
@@ -62,7 +59,6 @@ impl SocksProtocol {
         stream.write_all(&req).await.map_err(Error::Io)?;
         stream.flush().await.map_err(Error::Io)?;
 
-        // 4. Server reply: [0x05, REP, 0x00, ATYP, ADDR, PORT]
         let mut reply_hdr = [0u8; 4];
         stream.read_exact(&mut reply_hdr).await.map_err(Error::Io)?;
         if reply_hdr[0] != SOCKS5_VERSION {
@@ -78,7 +74,6 @@ impl SocksProtocol {
             )));
         }
 
-        // Skip bound addr & port
         match reply_hdr[3] {
             0x01 => {
                 let mut b = [0u8; 4 + 2];

@@ -1,6 +1,3 @@
-// Module: proxy\hysteria\account\config.rs
-// 1:1 Rust implementation corresponding to Go proxy\hysteria\account\config.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

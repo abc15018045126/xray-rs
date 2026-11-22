@@ -1,6 +1,3 @@
-// Module: transport\internet\tagged\mod.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tagged
-
 pub mod tagged;
 pub mod taggedimpl;
 

@@ -1,6 +1,3 @@
-// Module: transport\internet\grpc\dial.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\grpc\dial.go
-
 use super::config::GrpcConfig;
 use crate::common::errors::Result;
 use crate::common::net::{BoxStream, Destination};

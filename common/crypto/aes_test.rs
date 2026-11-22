@@ -1,14 +1,11 @@
-// Module: common\crypto\aes_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\crypto\aes.go
-
 #[cfg(test)]
 mod tests {
     use super::super::aes::{AesGcmCipher, new_aes_gcm};
 
     #[test]
     fn test_aes_gcm_128_roundtrip() {
-        let key = b"0123456789abcdef"; // 16 bytes
-        let nonce = b"unique_nonce"; // 12 bytes
+        let key = b"0123456789abcdef";
+        let nonce = b"unique_nonce";
         let plaintext = b"hello AES-128-GCM encrypted message";
 
         let ciphertext = AesGcmCipher::encrypt_128(key, nonce, plaintext).unwrap();
@@ -20,8 +17,8 @@ mod tests {
 
     #[test]
     fn test_aes_gcm_256_roundtrip() {
-        let key = b"0123456789abcdef0123456789abcdef"; // 32 bytes
-        let nonce = b"unique_nonce"; // 12 bytes
+        let key = b"0123456789abcdef0123456789abcdef";
+        let nonce = b"unique_nonce";
         let plaintext = b"hello AES-256-GCM encrypted message";
 
         let ciphertext = AesGcmCipher::encrypt_256(key, nonce, plaintext).unwrap();

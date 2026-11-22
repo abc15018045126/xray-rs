@@ -1,6 +1,3 @@
-// Module: infra\conf\trojan_test.rs
-// Unit tests for Trojan inbound and outbound configuration parsing
-
 #[cfg(test)]
 mod tests {
     use super::super::trojan::{TrojanOutboundConfig, TrojanServerConfig};

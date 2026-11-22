@@ -5,7 +5,6 @@ use std::fmt;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 
-/// Represents a network destination (Address + Port + Network).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Destination {
     pub address: Address,

@@ -27,3 +27,5 @@ pub use reader::{FrameReader, PacketReader, StreamReader};
 pub use server::{MuxServer, Server};
 pub use session::{Session, SessionManager};
 pub use writer::{FrameWriter, Writer};
+#[cfg(test)]
+mod scen_mux_test;

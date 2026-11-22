@@ -1,6 +1,3 @@
-// Module: proxy\hysteria\ctx\ctx.rs
-// 1:1 Rust implementation corresponding to Go proxy\hysteria\ctx\ctx.go
-
 use crate::common::protocol::SessionContext;
 
 #[derive(Debug, Clone)]

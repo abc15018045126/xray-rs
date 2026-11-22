@@ -1,6 +1,3 @@
-// Module: features\routing\router.rs
-// 1:1 Rust implementation corresponding to Go features\routing\router.go
-
 use super::context::RoutingContext;
 use crate::common::errors::{Error, Result};
 use crate::common::protocol::SessionContext;

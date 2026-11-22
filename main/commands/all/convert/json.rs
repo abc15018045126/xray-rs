@@ -1,6 +1,3 @@
-// Module: main\commands\all\convert\json.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\convert\json.go
-
 use crate::common::errors::{Error, Result};
 use crate::main::commands::base::command::Command;
 

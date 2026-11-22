@@ -1,12 +1,8 @@
-// Module: common\antireplay\mapfilter.rs
-// 1:1 Rust implementation corresponding to Go common\antireplay\mapfilter.go
-
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// ReplayFilter checks for replay attacks across two sliding window pools.
 pub struct ReplayFilter<T: Eq + Hash + Clone> {
     lock: Mutex<ReplayFilterInner<T>>,
 }
@@ -19,7 +15,6 @@ struct ReplayFilterInner<T: Eq + Hash + Clone> {
 }
 
 impl<T: Eq + Hash + Clone> ReplayFilter<T> {
-    /// Create a new filter specifying the expiration time interval in seconds.
     pub fn new(interval_secs: i64) -> Self {
         Self {
             lock: Mutex::new(ReplayFilterInner {
@@ -31,8 +26,6 @@ impl<T: Eq + Hash + Clone> ReplayFilter<T> {
         }
     }
 
-    /// Check determines if there are duplicate records.
-    /// Returns `true` if item is unique (not seen before), `false` if duplicate.
     pub fn check(&self, sum: T) -> bool {
         let mut inner = self.lock.lock().unwrap();
         let now = Instant::now();

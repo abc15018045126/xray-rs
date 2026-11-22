@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\custom\udp.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\custom\udp.go
-
 use rand::Rng;
 
 use super::config::{UDPConfig, UDPItem};

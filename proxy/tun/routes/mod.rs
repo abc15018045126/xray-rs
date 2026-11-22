@@ -70,7 +70,6 @@ pub fn maybe_add_routes(cfg: &TunConfig, tun_name: &str) -> std::io::Result<()> 
                     add_route(&tun_iface, &r)?;
                 }
 
-
                 #[cfg(target_os = "macos")]
                 {
                     macos::maybe_add_default_route()?;

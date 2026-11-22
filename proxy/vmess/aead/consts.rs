@@ -1,6 +1,3 @@
-// Module: proxy\vmess\aead\consts.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\aead\consts.go
-
 pub const AUTH_ID_SIZE: usize = 16;
 pub const VMESS_HEADER_TYPE: u8 = 1;
 pub const KDF_SALT_CONST_VMESS_AEAD_KDF: &[u8] = b"VMess AEAD KDF";

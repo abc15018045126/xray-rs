@@ -1,4 +1,6 @@
 use crate::app::stats::Counter;
+use crate::common::buf::MultiBuffer;
+use crate::common::errors::Result;
 use std::sync::Arc;
 
 pub struct SizeStatCounter {
@@ -25,4 +27,15 @@ impl SizeStatCounter {
             c.add(n as i64);
         }
     }
+
+    pub fn write_multi_buffer(&self, mb: &MultiBuffer) -> Result<()> {
+        self.record_write(mb.len());
+        Ok(())
+    }
+
+    pub fn close(&self) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn interrupt(&self) {}
 }

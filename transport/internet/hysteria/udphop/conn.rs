@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\udphop\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\udphop\conn.go
-
 use super::addr::UDPHopAddr;
 use std::net::SocketAddr;
 use std::sync::Arc;

@@ -1,4 +1,3 @@
-// Aligned with official Xray-core: transport/internet/sockopt_windows.go
 use std::{io, os::windows::io::AsRawSocket};
 use windows::{
     Win32::{
@@ -27,17 +26,12 @@ pub fn must_bind_socket_on_interface(
     let is_udp = is_udp_socket(handle)?;
     let idx = iface.index;
 
-    // Aligned with Xray-core transport/internet/sockopt_windows.go:
-    // If IPv4: setsockopt IPPROTO_IP, IP_UNICAST_IF (network byte order)
-    // If IPv6: setsockopt IPPROTO_IPV6, IPV6_UNICAST_IF (host byte order)
     let errno = match family {
         socket2::Domain::IPV4 => unsafe {
             setsockopt(
                 handle,
                 IPPROTO_IP.0,
                 IP_UNICAST_IF,
-                // https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-ip-socket-options
-                // a 4-byte IPv4 address in network byte order
                 Some(idx.to_be_bytes().as_ref()),
             )
         },
@@ -46,8 +40,6 @@ pub fn must_bind_socket_on_interface(
                 handle,
                 IPPROTO_IPV6.0,
                 IPV6_UNICAST_IF,
-                // https://learn.microsoft.com/en-us/windows/win32/winsock/ipproto-ipv6-socket-options
-                // 4-byte interface index in host byte order
                 Some(idx.to_ne_bytes().as_ref()),
             )
         },
@@ -60,8 +52,6 @@ pub fn must_bind_socket_on_interface(
         return Err(new_io_error(err));
     }
 
-    // UDP supports multicast
-    // MULTICAST must also be bound to an interface
     if is_udp {
         let errno = match family {
             socket2::Domain::IPV4 => unsafe {
@@ -93,7 +83,6 @@ pub fn must_bind_socket_on_interface(
     Ok(())
 }
 
-/// Return true if it's a udp socket
 fn is_udp_socket(socket: SOCKET) -> io::Result<bool> {
     let mut optval = [0u8; 4];
     let mut optlen: i32 = 4;

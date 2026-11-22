@@ -1,6 +1,3 @@
-// Module: transport\internet\websocket\ws_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\websocket\ws_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::config::WebSocketConfig;
@@ -124,7 +121,6 @@ mod tests {
                         .unwrap();
                     *captured_ed_cb.lock().unwrap() = decoded;
                 }
-                // Match a4.txt: return 101 WITHOUT echoing sec-websocket-protocol
                 Ok(resp)
             })
             .await
@@ -135,18 +131,15 @@ mod tests {
             use tokio_tungstenite::tungstenite::Message;
 
             let ed = captured_ed.lock().unwrap().clone();
-            // Expect VLESS header (4B) + Part 1 (1360B) in early data
             assert_eq!(ed.len(), 4 + 1360);
             assert_eq!(&ed[0..4], b"\x00\xaa\xbb\xcc");
 
-            // Read Part 2 (377B) over WS binary frame
             let part2 = match ws_rx.next().await.unwrap().unwrap() {
                 Message::Binary(b) => b,
                 other => panic!("Expected binary frame, got {:?}", other),
             };
             assert_eq!(part2.len(), 377);
 
-            // Reply with VLESS response header [0, 0] + "ECHO_OK"
             ws_tx
                 .send(Message::Binary(b"\x00\x00ECHO_OK".to_vec()))
                 .await
@@ -155,7 +148,6 @@ mod tests {
 
         let dial_fn: DialWsFn = Arc::new(move |ed| {
             Box::pin(async move {
-                // Simulate 50ms network RTT before completing WS handshake
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 let tcp = tokio::net::TcpStream::connect(addr).await?;
                 let url = format!("ws://{}/", addr);
@@ -178,11 +170,9 @@ mod tests {
         let mut vless =
             VlessStream::with_pending_header(Box::pin(delay_conn), false, b"\x00\xaa\xbb\xcc".to_vec());
 
-        // 1. Dispatcher writes initial_payload (Part 1 = 1360B)
         let part1 = vec![0x11u8; 1360];
         vless.write_all(&part1).await.unwrap();
 
-        // 2. Dispatcher enters copy_bidirectional (splits into read + write concurrently)
         let (mut rd, mut wr) = tokio::io::split(vless);
         let write_fut = async {
             let part2 = vec![0x22u8; 377];
@@ -218,7 +208,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
 
         let header = b"\x00\x11\x22\x33\x44".to_vec();
-        let payload = vec![0xABu8; 2048]; // typical coalesced TLS ClientHello <= 4KB
+        let payload = vec![0xABu8; 2048];
         let expected_len = header.len() + payload.len();
 
         let server_task = tokio::spawn(async move {
@@ -226,7 +216,6 @@ mod tests {
             let ws = accept_async(tcp).await.expect("WS server accept failed");
             let (mut ws_tx, mut ws_rx) = ws.split();
 
-            // Must arrive as a SINGLE WebSocket Binary frame (not split at 4KB)
             let first_frame = match ws_rx.next().await.unwrap().unwrap() {
                 Message::Binary(b) => b,
                 other => panic!("Expected binary frame, got {:?}", other),

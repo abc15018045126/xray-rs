@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\congestion\bbr\ringbuffer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\ringbuffer.go
-
 use std::collections::VecDeque;
 
 pub struct RingBuffer<T> {

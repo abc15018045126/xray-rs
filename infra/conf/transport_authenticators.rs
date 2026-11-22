@@ -1,6 +1,3 @@
-// Module: infra\conf\transport_authenticators.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\transport_authenticators.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,6 +1,3 @@
-// Module: core\xray_test.rs
-// 1:1 Rust unit test suite corresponding to Go core\xray_test.go
-
 #[cfg(test)]
 mod tests {
     use crate::core::annotations::{Annotation, ApiStability};

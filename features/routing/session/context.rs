@@ -1,6 +1,3 @@
-// Module: features\routing\session\context.rs
-// 1:1 Rust implementation corresponding to Go features\routing\session\context.go
-
 use crate::common::net::Network;
 use crate::common::protocol::SessionContext;
 use crate::features::routing::context::RoutingContext;

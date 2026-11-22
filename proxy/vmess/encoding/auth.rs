@@ -1,12 +1,8 @@
-// Module: proxy\vmess\encoding\auth.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\encoding\auth.go
-
 use crate::common::errors::Result;
 use md5::{Digest, Md5};
 
 pub const AUTH_TIME_TOLERANCE: u64 = 120;
 
-/// Authenticates a byte array using FNV-1a 32-bit hash.
 pub fn authenticate(b: &[u8]) -> u32 {
     let mut hash: u32 = 0x811c9dc5;
     for &byte in b {
@@ -16,7 +12,6 @@ pub fn authenticate(b: &[u8]) -> u32 {
     hash
 }
 
-/// Generates a 32-byte key from a given 16-byte array via MD5 expansion.
 pub fn generate_chacha20poly1305_key(b: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
     let mut hasher = Md5::new();
@@ -32,7 +27,6 @@ pub fn generate_chacha20poly1305_key(b: &[u8]) -> [u8; 32] {
     key
 }
 
-/// ShakeSizeParser handles length obfuscation using a simple PRNG stream or mask.
 pub struct ShakeSizeParser {
     mask_state: u64,
 }

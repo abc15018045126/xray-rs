@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\client.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\client.go
-
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -144,7 +141,6 @@ impl DialerClient for DefaultDialerClient {
         stream.write_all(req.as_bytes()).await?;
         stream.flush().await?;
 
-        // Read response status
         let mut buf = [0u8; 1024];
         let mut n_read = 0;
         loop {
@@ -249,7 +245,6 @@ impl DialerClient for DefaultDialerClient {
         }
         stream.flush().await?;
 
-        // Read 200 response
         let mut buf = [0u8; 512];
         let n = stream.read(&mut buf).await?;
         if n == 0 {
@@ -266,7 +261,6 @@ impl DialerClient for DefaultDialerClient {
     }
 }
 
-// Client formatter used by scenarios and quick formatting
 pub struct SplitHttpClient {
     pub config: SplitHttpConfig,
     pub session_id: String,

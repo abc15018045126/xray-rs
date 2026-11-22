@@ -1,6 +1,3 @@
-// Module: features\stats\stats.rs
-// 1:1 Rust implementation corresponding to Go features\stats\stats.go
-
 use crate::features::feature::{Feature, TYPE_STATS_MANAGER};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -167,6 +164,15 @@ impl DefaultStatsManager {
         StatsManagerTrait::get_counter(self, name)
     }
 
+    pub fn all_counters(&self) -> Vec<(String, Arc<Counter>)> {
+        self.counters
+            .read()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+
     pub fn register_online_map(&self, name: &str) -> Arc<dyn OnlineMap> {
         StatsManagerTrait::register_online_map(self, name)
     }
@@ -240,7 +246,6 @@ impl StatsManagerTrait for DefaultStatsManager {
     }
 }
 
-// Keep StatsManager struct directly exposing register_counter for scenarios and backward compatibility
 pub type StatsManager = DefaultStatsManager;
 
 #[derive(Default, Clone, Debug)]
@@ -257,6 +262,10 @@ impl NoopStatsManager {
 
     pub fn get_counter(&self, name: &str) -> Option<Arc<Counter>> {
         StatsManagerTrait::get_counter(self, name)
+    }
+
+    pub fn all_counters(&self) -> Vec<(String, Arc<Counter>)> {
+        Vec::new()
     }
 
     pub fn register_online_map(&self, name: &str) -> Arc<dyn OnlineMap> {

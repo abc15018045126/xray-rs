@@ -1,6 +1,3 @@
-// Module: transport\pipe\pipe.rs
-// 1:1 Rust implementation corresponding to Go transport\pipe\pipe.go
-
 use super::impl_::{Pipe, PipeOption};
 use super::reader::Reader;
 use super::writer::Writer;

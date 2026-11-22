@@ -1,6 +1,3 @@
-// Module: features\routing\balancer.rs
-// 1:1 Rust implementation corresponding to Go features\routing\balancer.go
-
 use crate::common::errors::Result;
 use async_trait::async_trait;
 

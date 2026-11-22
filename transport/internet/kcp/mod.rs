@@ -28,3 +28,5 @@ pub use output::SegmentWriter;
 pub use receiving::ReceivingWindow;
 pub use segment::{AckSegment, DataSegment};
 pub use sending::SendingWindow;
+#[cfg(test)]
+mod scen_kcp_test;

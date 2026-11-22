@@ -1,4 +1,3 @@
-// Module: transport\internet\finalmask\tcp_test.rs
 #[cfg(test)]
 mod tests {
     use super::super::finalmask::{

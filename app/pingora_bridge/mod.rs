@@ -30,7 +30,6 @@ mod tests {
         assert!(pool.get(key).is_some(), "Expected pooled stream to be returned");
         assert!(pool.get(key).is_none(), "Expected pool to be empty after get");
 
-        // Verify idle_timeout actively evicts expired streams AND releases the semaphore permit
         let short_pool = PingoraStreamPool::new(4, Duration::from_millis(60));
         let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
         let permit = sem.clone().acquire_owned().await.unwrap();
@@ -60,7 +59,6 @@ mod tests {
         let b2 = lb.select().expect("second backend");
         assert_ne!(b1.addr, b2.addr, "RoundRobin should alternate backends");
 
-        // Verify pingora-ketama consistent hashing sticks identical domains to the same upstream
         let ketama = PingoraUpstreamBalancer::from_labels_ketama(vec![
             "worker-a1.dev:443".into(),
             "worker-a2.dev:443".into(),
@@ -76,7 +74,6 @@ mod tests {
     async fn test_pingora_http_inbound_connect_and_plain_http() {
         let handler = PingoraHttpInbound::new("pg-http");
 
-        // 1. Plain HTTP test: verifies Proxy-Connection stripping via pingora-http
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let client_task = tokio::spawn(async move {
@@ -102,7 +99,6 @@ mod tests {
         );
         client_task.await.unwrap();
 
-        // 2. CONNECT benchmark (50 roundtrips)
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let start = Instant::now();
@@ -148,7 +144,6 @@ mod tests {
         use std::collections::HashMap;
         use std::sync::Arc;
 
-        // 1. Target echo server
         let echo_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let echo_addr = echo_listener.local_addr().unwrap();
         let echo_task = tokio::spawn(async move {
@@ -159,7 +154,6 @@ mod tests {
             s.flush().await.unwrap();
         });
 
-        // 2. Pick a free local port for Pingora-core inbound service
         let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let inbound_addr = probe.local_addr().unwrap();
         drop(probe);
@@ -175,10 +169,8 @@ mod tests {
         let inbound_task = spawn_pingora_inbound(inbound_addr, inbound_handler, dispatcher)
             .expect("Pingora-core inbound should spawn");
 
-        // Give Pingora listener a brief moment to bind
         tokio::time::sleep(Duration::from_millis(80)).await;
 
-        // 3. Connect through Pingora-core Inbound -> Dispatcher -> Freedom -> PingoraCoreConnector Outbound -> Echo
         let mut client = PingoraCoreConnector::dial_tcp(inbound_addr)
             .await
             .expect("PingoraCoreConnector dial to inbound");

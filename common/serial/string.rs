@@ -1,6 +1,3 @@
-// Module: common\serial\string.rs
-// 1:1 Rust implementation corresponding to Go common\serial\string.go
-
 pub trait StringValue {
     fn to_str_value(&self) -> String;
 }

@@ -1,6 +1,3 @@
-// Module: app\router\webhook.rs
-// 1:1 Rust implementation corresponding to Go app\router\webhook.go
-
 use crate::common::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,7 +23,6 @@ pub fn resolve_socket_path(path: &str) -> String {
     if path.is_empty() || !path.starts_with('@') {
         return path.to_string();
     }
-    // Abstract unix socket path handling
     if path.starts_with("@@") {
         path[1..].to_string()
     } else {
@@ -164,7 +160,6 @@ impl WebhookNotifier {
     }
 }
 
-// Backward-compatible types for scenarios
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebhookPayload {
     pub inbound_tag: String,

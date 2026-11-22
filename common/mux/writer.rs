@@ -1,6 +1,3 @@
-// Module: common\mux\writer.rs
-// 1:1 Rust implementation corresponding to Go common\mux\writer.go
-
 use crate::common::errors::Result;
 use crate::common::mux::frame::{Frame, FrameMetadata, OPTION_DATA, SessionStatus};
 use crate::common::net::Destination;
@@ -88,7 +85,6 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
     }
 }
 
-/// FrameWriter writes Frames to an underlying async writer.
 pub struct FrameWriter<W> {
     writer: W,
 }

@@ -1,6 +1,3 @@
-// Module: transport\internet\hysteria\dialer.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\dialer.go
-
 use super::config::HysteriaTransportConfig;
 use super::conn::HysteriaConn;
 use std::net::SocketAddr;

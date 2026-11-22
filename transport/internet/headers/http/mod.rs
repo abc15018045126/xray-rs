@@ -1,6 +1,3 @@
-// Module: transport\internet\headers\http\mod.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\headers\http
-
 pub mod config;
 #[path = "config.pb.rs"]
 pub mod config_pb;

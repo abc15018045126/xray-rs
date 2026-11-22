@@ -1,6 +1,3 @@
-// Module: transport\internet\tls\grpc.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\tls\grpc.go
-
 use super::config::TlsConfig;
 
 pub const GRPC_ALPN: &[&str] = &["h2"];

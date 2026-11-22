@@ -1,6 +1,3 @@
-// Module: proxy\vmess\encoding\commands.rs
-// 1:1 Rust implementation corresponding to Go proxy\vmess\encoding\commands.go
-
 use super::auth::authenticate;
 use crate::common::errors::{Error, Result};
 use uuid::Uuid;

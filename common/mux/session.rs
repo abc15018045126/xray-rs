@@ -1,6 +1,3 @@
-// Module: common\mux\session.rs
-// 1:1 Rust implementation corresponding to Go common\mux\session.go
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, RwLock};

@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks\server.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks\server.go
-
 use async_trait::async_trait;
 use std::net::SocketAddr;
 

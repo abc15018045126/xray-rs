@@ -1,6 +1,3 @@
-// Module: proxy\dokodemo\fakeudp_other.rs
-// 1:1 Rust implementation corresponding to Go proxy\dokodemo\fakeudp_other.go
-
 use crate::common::errors::{Error, Result};
 use std::net::SocketAddr;
 

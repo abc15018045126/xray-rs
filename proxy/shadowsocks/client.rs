@@ -1,6 +1,3 @@
-// Module: proxy\shadowsocks\client.rs
-// 1:1 Rust implementation corresponding to Go proxy\shadowsocks\client.go
-
 use async_trait::async_trait;
 
 use crate::common::errors::Result;

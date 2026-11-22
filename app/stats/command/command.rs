@@ -1,6 +1,3 @@
-// Module: app\\stats\\command\\command.rs
-// 1:1 Rust implementation corresponding to Go app\\stats\\command\\command.go
-
 use crate::app::stats::StatsManager;
 use std::collections::HashMap;
 use std::sync::Arc;

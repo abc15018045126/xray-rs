@@ -1,6 +1,3 @@
-// Module: features\feature.rs
-// 1:1 Rust implementation corresponding to Go features\feature.go
-
 use crate::common::errors::Result;
 
 pub const TYPE_DNS_CLIENT: &str = "dns_client";

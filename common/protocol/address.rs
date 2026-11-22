@@ -1,6 +1,3 @@
-// Module: common\protocol\address.rs
-// 1:1 Rust implementation corresponding to Go common\protocol\address.go
-
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};

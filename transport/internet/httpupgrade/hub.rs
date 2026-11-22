@@ -1,6 +1,3 @@
-// Module: transport\internet\httpupgrade\hub.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\hub.go
-
 use super::config::HttpUpgradeConfig;
 use super::connection::HttpUpgradeConnection;
 use super::httpupgrade::HttpUpgradeStream;

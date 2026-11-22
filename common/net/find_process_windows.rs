@@ -1,6 +1,3 @@
-// Module: common\net\find_process_windows.rs
-// 1:1 Rust implementation corresponding to Go common\net\find_process_windows.go
-
 pub use super::find_process::{ProcessFinder, ProcessInfo};
 
 pub fn find_process_name_by_pid(pid: u32) -> Option<String> {

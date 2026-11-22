@@ -1,6 +1,3 @@
-// Module: common\net\network.rs
-// 1:1 Rust implementation corresponding to Go common\net\network.go
-
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;

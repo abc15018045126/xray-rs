@@ -1,6 +1,3 @@
-// Module: common\singbridge\packet.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\packet.go
-
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -14,8 +11,6 @@ use crate::transport::pipe::{Reader as PipeReader, Writer as PipeWriter};
 
 pub const PACKET_READ_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// PacketConnWrapper wraps a Link and manages packet read/write with address translation.
-/// 1:1 corresponding to PacketConnWrapper in packet.go.
 pub struct PacketConnWrapper {
     reader: PipeReader,
     writer: PipeWriter,
@@ -37,7 +32,6 @@ impl PacketConnWrapper {
         Self::new(link.reader.clone(), link.writer.clone(), dest)
     }
 
-    /// ReadPacket retrieves a packet payload and its target/source Socksaddr.
     pub async fn read_packet(&mut self) -> Result<(Buffer, Socksaddr)> {
         if !self.cached.is_empty() {
             let buf = self.cached.remove(0);
@@ -70,7 +64,6 @@ impl PacketConnWrapper {
         }
     }
 
-    /// WritePacket writes a packet buffer directed to a target Socksaddr.
     pub async fn write_packet(&self, buffer: Buffer, dest: Socksaddr) -> Result<()> {
         let _target = to_destination(&dest, Network::Udp);
         let mut mb = MultiBuffer::new();
@@ -83,8 +76,6 @@ impl PacketConnWrapper {
     }
 }
 
-/// CopyPacketConn copies packets between a Link and a packet connection.
-/// 1:1 corresponding to CopyPacketConn() in packet.go.
 pub async fn copy_packet_conn(link: &Link, destination: Destination) -> Result<()> {
     let mut wrapper = PacketConnWrapper::from_link(link, destination);
     match wrapper.read_packet().await {
@@ -96,7 +87,6 @@ pub async fn copy_packet_conn(link: &Link, destination: Destination) -> Result<(
     }
 }
 
-/// Backwards compatibility struct
 pub struct SingPacket {
     pub data: Vec<u8>,
     pub source: Option<SocketAddr>,

@@ -1,6 +1,3 @@
-// Module: app\policy\config.rs
-// 1:1 Rust implementation corresponding to Go app\policy\config.go
-
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -129,7 +126,6 @@ impl SystemPolicy {
     }
 }
 
-// Legacy struct for backward compatibility
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PolicyLevelConfig {
     #[serde(default)]

@@ -15,6 +15,7 @@ pub mod tun;
 pub mod tun_android;
 pub mod tun_darwin;
 pub mod tun_default;
+pub mod tun_freebsd;
 pub mod tun_linux;
 pub mod tun_windows;
 pub mod udp_fullcone;
@@ -31,3 +32,7 @@ pub use stack_gvisor::GVisorStack;
 pub use stack_gvisor_endpoint::GVisorEndpoint;
 pub use tun::{DEFAULT_TUN_MTU, PROTOCOL_NAME};
 pub use udp_fullcone::UdpNatTable;
+#[cfg(test)]
+mod udp_tun_test;
+#[cfg(test)]
+mod wintun_test;

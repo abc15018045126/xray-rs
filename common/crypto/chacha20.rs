@@ -1,6 +1,3 @@
-// Module: common\crypto\chacha20.rs
-// 1:1 Rust implementation corresponding to Go common\crypto\chacha20.go
-
 use crate::common::errors::{Error, Result};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};

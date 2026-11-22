@@ -1,6 +1,3 @@
-// Module: app\dns\nameserver_tcp.rs
-// 1:1 Rust implementation corresponding to Go app\dns\nameserver_tcp.go
-
 use async_trait::async_trait;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, OnceLock};

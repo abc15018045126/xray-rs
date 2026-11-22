@@ -1,4 +1,3 @@
-// Module: app\proxyman\command\command_grpc.pb.rs
 use async_trait::async_trait;
 use crate::common::errors::Result;
 use super::command_pb::*;

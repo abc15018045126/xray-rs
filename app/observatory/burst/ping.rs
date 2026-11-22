@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\ping.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\burst\ping.go
-
 use super::burst::RTT_FAILED;
 use crate::common::errors::{Error, Result};
 use std::time::{Duration, Instant};

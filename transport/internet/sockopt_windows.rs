@@ -1,6 +1,3 @@
-// Module: transport\internet\sockopt_windows.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\sockopt_windows.go
-
 use std::net::TcpStream;
 use std::time::Duration;
 use socket2::{SockRef, TcpKeepalive};

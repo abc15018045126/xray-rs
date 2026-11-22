@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\mux_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\splithttp\mux_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::mux::XmuxManager;
@@ -23,7 +20,6 @@ mod tests {
         let client2 = mux.get_client().await;
         let c1_id = client1.lock().await.id;
         let c2_id = client2.lock().await.id;
-        // Same client reused while under max_concurrency
         assert_eq!(c1_id, c2_id);
     }
 }

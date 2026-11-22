@@ -27,19 +27,19 @@ impl UotPacket {
         let mut buf = Vec::new();
         match version {
             UotVersion::Standard => {
-                buf.push(0x00); // Command: Connect/Data
+                buf.push(0x00);
                 match &self.destination.address {
                     Address::Ipv4(ip) => {
-                        buf.push(0x01); // ATYP IPv4
+                        buf.push(0x01);
                         buf.extend_from_slice(&ip.octets());
                     }
                     Address::Domain(dom) => {
-                        buf.push(0x03); // ATYP Domain
+                        buf.push(0x03);
                         buf.push(dom.len() as u8);
                         buf.extend_from_slice(dom.as_bytes());
                     }
                     Address::Ipv6(ip) => {
-                        buf.push(0x04); // ATYP IPv6
+                        buf.push(0x04);
                         buf.extend_from_slice(&ip.octets());
                     }
                 }

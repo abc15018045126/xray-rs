@@ -1,6 +1,3 @@
-// Module: transport\internet\httpupgrade\config_pb.rs
-// 1:1 Rust protobuf mapping corresponding to Go transport\internet\httpupgrade\config.pb.go
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

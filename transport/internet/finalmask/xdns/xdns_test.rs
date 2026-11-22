@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\xdns\xdns_test.rs
-// 1:1 Rust unit test suite for XDnsClient and XDnsServer end-to-end operation
-
 #[cfg(test)]
 mod tests {
     use super::super::client::XDnsClient;
@@ -36,7 +33,6 @@ mod tests {
         let client = XDnsClient::new_with_id(domain, client_id).unwrap();
         let server = XDnsServer::new(domain).unwrap();
 
-        // Encode poll query (no payload)
         let poll_wire = client
             .encode_packet(None)
             .expect("client poll encode should succeed");
@@ -46,7 +42,7 @@ mod tests {
             .expect("server decode poll should succeed");
         assert_eq!(query_info.client_id, client_id);
         assert_eq!(query_info.rcode, RCODE_NO_ERROR);
-        assert_eq!(query_info.packets.len(), 0); // No data packets in a poll
+        assert_eq!(query_info.packets.len(), 0);
     }
 
     #[test]
@@ -59,7 +55,6 @@ mod tests {
         let req_wire = client.encode_packet(Some(b"request")).unwrap();
         let (_, mut resp_msg) = server.decode_query(&req_wire).unwrap();
 
-        // Server replies with two downlink packets
         let reply_pkt1 = b"downlink packet 1";
         let reply_pkt2 = b"downlink packet 2 - larger binary sequence \x00\x01\x02";
         let resp_wire = server

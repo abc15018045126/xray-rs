@@ -1,5 +1,3 @@
-// Module: app\commander\commander_test.rs
-
 #[cfg(test)]
 mod tests {
     use crate::app::commander::{Commander, CommanderOutbound, Service};
@@ -32,7 +30,6 @@ mod tests {
 
         assert!(cmd.get_service("NonExistent").await.is_err());
 
-        // Outbound wrapper
         let outbound = CommanderOutbound::new("api_out", cmd.clone());
         assert_eq!(outbound.tag(), "api_out");
         assert!(outbound.start().await.is_ok());

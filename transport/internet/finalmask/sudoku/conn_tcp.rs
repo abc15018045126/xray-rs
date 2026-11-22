@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\sudoku\conn_tcp.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\conn_tcp.go
-
 use super::codec::{SudokuCodec, decode_bytes};
 use super::config::SudokuConfig;
 use super::conn_tcp_packed::{PackedEncoder, PackedStreamDecoder};
@@ -78,7 +75,6 @@ impl SudokuTcpConn {
         })
     }
 
-    /// Client writes pure sudoku; Server writes packed sudoku
     pub fn encode_stream(&mut self, data: &[u8]) -> Result<Vec<u8>> {
         if self.is_client {
             self.pure_encoder.encode(data)
@@ -87,7 +83,6 @@ impl SudokuTcpConn {
         }
     }
 
-    /// Client reads packed sudoku; Server reads pure sudoku
     pub fn decode_stream(&mut self, chunk: &[u8]) -> Result<Vec<u8>> {
         let mut decoded = Vec::new();
         if self.is_client {
@@ -98,7 +93,6 @@ impl SudokuTcpConn {
         Ok(decoded)
     }
 
-    /// Feeds raw incoming bytes and drains into user buffer
     pub fn feed_and_read(&mut self, raw: &[u8], user_buf: &mut [u8]) -> Result<usize> {
         if !raw.is_empty() {
             let decoded = self.decode_stream(raw)?;
@@ -116,7 +110,6 @@ impl SudokuTcpConn {
 
 impl TcpMaskConn for SudokuTcpConn {
     fn splice(&self) -> bool {
-        // Sudoku transforms the entire stream; bypassing it would disable masking.
         false
     }
 }

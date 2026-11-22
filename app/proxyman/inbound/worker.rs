@@ -12,11 +12,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// Stream-layer transport wrapper for inbound handlers, aligned with official Xray-core
-/// `app/proxyman/inbound/worker.go` (`tcpWorker`): terminates inbound TLS/REALITY and
-/// WebSocket/XHTTP/HttpUpgrade, attaches inbound `SniffingRequest` to `SessionContext`,
-/// and tracks per-inbound counters before handing the decrypted stream to the protocol
-/// `InboundHandler` (VLESS/VMess/Trojan/etc.).
 pub struct StreamInboundHandler {
     inner: Arc<dyn InboundHandler>,
     tls_server: Option<Arc<TlsServer>>,

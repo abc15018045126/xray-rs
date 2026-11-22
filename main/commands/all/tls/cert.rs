@@ -1,6 +1,3 @@
-// Module: main\commands\all\tls\cert.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\tls\cert.go
-
 use crate::common::errors::{Error, Result};
 use crate::main::commands::base::command::Command;
 

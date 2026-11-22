@@ -1,6 +1,3 @@
-// Module: proxy\\vmess\\validator_test.rs
-// 1:1 Rust unit test suite corresponding to Go proxy\\vmess\\validator_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::validator::MemoryValidator;

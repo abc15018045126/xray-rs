@@ -1,10 +1,7 @@
-// Module: transport\internet\hysteria\congestion\bbr\bandwidth.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\hysteria\congestion\bbr\bandwidth.go
-
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
-pub struct Bandwidth(pub u64); // bits per second
+pub struct Bandwidth(pub u64);
 
 impl Bandwidth {
     pub const ZERO: Self = Self(0);

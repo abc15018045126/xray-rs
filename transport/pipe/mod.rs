@@ -1,6 +1,3 @@
-// Module: transport\pipe\mod.rs
-// 1:1 Rust module definition for pipe package
-
 #[path = "impl.rs"]
 pub mod impl_;
 pub mod pipe;
@@ -19,3 +16,5 @@ pub use self::writer::Writer;
 
 pub type PipeReader = Reader;
 pub type PipeWriter = Writer;
+#[cfg(test)]
+mod pipe_full_test;

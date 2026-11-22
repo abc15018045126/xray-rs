@@ -1,6 +1,3 @@
-// Module: transport\internet\grpc\encoding\hunkconn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\grpc\encoding\hunkconn.go
-
 pub struct HunkConnection {
     pub buffer: Vec<u8>,
 }

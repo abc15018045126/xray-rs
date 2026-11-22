@@ -1,6 +1,3 @@
-// Module: transport\internet\sockopt_linux_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\sockopt_linux_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::sockopt::SocketOptions;

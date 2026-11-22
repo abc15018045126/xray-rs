@@ -1,6 +1,3 @@
-// Module: transport\pipe\reader.rs
-// 1:1 Rust implementation corresponding to Go transport\pipe\reader.go
-
 use std::sync::Arc;
 use std::time::Duration;
 

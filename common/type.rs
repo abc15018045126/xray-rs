@@ -1,6 +1,3 @@
-// Module: common\type.rs
-// 1:1 Rust implementation corresponding to Go common\type.go
-
 use crate::common::errors::{Error, Result};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;

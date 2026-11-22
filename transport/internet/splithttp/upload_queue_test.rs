@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\upload_queue_test.rs
-// 1:1 Rust unit test suite corresponding to Go transport\internet\splithttp\upload_queue_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::upload_queue::UploadQueue;
@@ -9,7 +6,6 @@ mod tests {
     async fn test_upload_queue_reordering() {
         let queue = UploadQueue::new(16);
 
-        // Push out-of-order packets: seq 2, seq 0, seq 1
         queue.push(b"world!".to_vec(), 2).await.unwrap();
         queue.push(b"hello ".to_vec(), 0).await.unwrap();
         queue.push(b"beautiful ".to_vec(), 1).await.unwrap();

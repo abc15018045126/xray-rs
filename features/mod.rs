@@ -1,5 +1,3 @@
-// Module: features\mod.rs
-
 pub mod dns;
 pub mod extension;
 pub mod feature;

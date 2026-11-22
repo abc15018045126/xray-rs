@@ -1,6 +1,3 @@
-// Module: common\singbridge\reader.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\reader.go
-
 use async_trait::async_trait;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
@@ -10,8 +7,6 @@ use crate::common::buf::{Buffer, MultiBuffer, Reader, TimeoutReader, Writer};
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 
-/// Conn wraps an async stream and adapts it to Xray MultiBuffer Reader/Writer traits.
-/// 1:1 corresponding to Conn in reader.go.
 pub struct Conn {
     stream: BoxStream,
 }
@@ -71,7 +66,6 @@ impl Writer for Conn {
     }
 }
 
-/// Backwards-compatibility wrapper
 pub struct SingReader<R> {
     inner: R,
 }

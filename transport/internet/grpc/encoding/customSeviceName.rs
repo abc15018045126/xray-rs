@@ -1,6 +1,3 @@
-// Module: transport\internet\grpc\encoding\customSeviceName.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\grpc\encoding\customSeviceName.go
-
 pub struct CustomServiceName {
     pub name: String,
 }

@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\header\utp\conn.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\header\utp\conn.go
-
 use super::UtpHeader;
 
 pub struct UtpPacketConn {

@@ -1,6 +1,3 @@
-// Module: transport\internet\splithttp\browser_client.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\splithttp\browser_client.go
-
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -47,7 +44,6 @@ impl DialerClient for BrowserDialerClient {
                 "bidirectional streaming for browser dialer not implemented yet".into(),
             ));
         }
-        // Browser dialer operates via external browser websocket bridge when configured
         Err(Error::Protocol(
             "browser dialer not active or available".into(),
         ))

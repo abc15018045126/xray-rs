@@ -1,6 +1,3 @@
-// Module: main\commands\base\command.rs
-// 1:1 Rust implementation corresponding to Go main\commands\base\command.go
-
 use crate::common::errors::Result;
 use std::sync::Arc;
 

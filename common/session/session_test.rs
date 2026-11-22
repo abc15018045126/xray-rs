@@ -1,6 +1,3 @@
-// Module: common\session\session_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\session\session_test.go
-
 #[cfg(test)]
 mod tests {
     use crate::common::ctx::Context;

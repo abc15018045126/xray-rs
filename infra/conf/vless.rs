@@ -1,6 +1,3 @@
-// Module: infra\conf\vless.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\vless.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

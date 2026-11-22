@@ -1,6 +1,3 @@
-// Module: common\mux\mux.rs
-// 1:1 Rust implementation corresponding to Go common\mux\mux.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,6 +1,3 @@
-// Module: features\routing\context.rs
-// 1:1 Rust implementation corresponding to Go features\routing\context.go
-
 use crate::common::net::{Destination, Network};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};

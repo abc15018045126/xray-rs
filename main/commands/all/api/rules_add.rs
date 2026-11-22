@@ -1,6 +1,3 @@
-// Module: main\commands\all\api\rules_add.rs
-// 1:1 Rust implementation corresponding to Go main\commands\all\api\rules_add.go
-
 use super::shared::ApiClientConfig;
 use crate::main::commands::base::command::Command;
 

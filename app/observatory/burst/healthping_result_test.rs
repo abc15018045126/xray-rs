@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\healthping_result_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\observatory\burst\healthping_result_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::burst::RTT_FAILED;
@@ -57,7 +54,6 @@ mod tests {
         let mut hr = new_health_ping_result(4, Duration::from_millis(15));
         for (i, rtt) in rtts.into_iter().enumerate() {
             if i == 2 {
-                // wait for previous 2 to become outdated
                 sleep(Duration::from_millis(20));
             }
             hr.put(Duration::from_nanos(rtt));
@@ -74,7 +70,6 @@ mod tests {
         };
         assert_eq!(actual, expected);
 
-        // wait for all to become outdated
         sleep(Duration::from_millis(20));
         let expected_outdated = HealthPingStats {
             all: 0,
@@ -90,7 +85,7 @@ mod tests {
         let expected_single = HealthPingStats {
             all: 1,
             fail: 0,
-            deviation: Duration::from_nanos(30), // 1 sample, std = avg / 2
+            deviation: Duration::from_nanos(30),
             average: Duration::from_nanos(60),
             max: Duration::from_nanos(60),
             min: Duration::from_nanos(60),

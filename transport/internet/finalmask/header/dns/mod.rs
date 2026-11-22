@@ -40,7 +40,7 @@ impl DnsHeader {
         if offset >= buf.len() {
             return Err(Error::BufferOverflow);
         }
-        buf[offset] = 0x00; // Trailing zero
+        buf[offset] = 0x00;
         offset += 1;
         Ok(offset)
     }
@@ -50,19 +50,19 @@ impl DnsHeader {
             return Err(Error::BufferOverflow);
         }
         buf[0..2].copy_from_slice(&self.id.to_be_bytes());
-        buf[2..4].copy_from_slice(&0x0100u16.to_be_bytes()); // Standard query flags
-        buf[4..6].copy_from_slice(&0x0001u16.to_be_bytes()); // QDCOUNT = 1
-        buf[6..8].copy_from_slice(&0x0000u16.to_be_bytes()); // ANCOUNT = 0
-        buf[8..10].copy_from_slice(&0x0000u16.to_be_bytes()); // NSCOUNT = 0
-        buf[10..12].copy_from_slice(&0x0000u16.to_be_bytes()); // ARCOUNT = 0
+        buf[2..4].copy_from_slice(&0x0100u16.to_be_bytes());
+        buf[4..6].copy_from_slice(&0x0001u16.to_be_bytes());
+        buf[6..8].copy_from_slice(&0x0000u16.to_be_bytes());
+        buf[8..10].copy_from_slice(&0x0000u16.to_be_bytes());
+        buf[10..12].copy_from_slice(&0x0000u16.to_be_bytes());
 
         let domain_len = Self::pack_domain_name(&self.domain, &mut buf[12..])?;
         let total = 12 + domain_len;
         if total + 4 > buf.len() {
             return Err(Error::BufferOverflow);
         }
-        buf[total..total + 2].copy_from_slice(&0x0001u16.to_be_bytes()); // QTYPE: A (IPv4)
-        buf[total + 2..total + 4].copy_from_slice(&0x0001u16.to_be_bytes()); // QCLASS: IN
+        buf[total..total + 2].copy_from_slice(&0x0001u16.to_be_bytes());
+        buf[total + 2..total + 4].copy_from_slice(&0x0001u16.to_be_bytes());
         Ok(total + 4)
     }
 }

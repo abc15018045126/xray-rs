@@ -1,6 +1,3 @@
-// Module: app\router\weight.rs
-// 1:1 Rust implementation corresponding to Go app\router\weight.go
-
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
@@ -78,7 +75,6 @@ impl WeightManager {
             if w.value > 0.0 {
                 return w.value;
             }
-            // Auto weight from matched numbers in tag
             if let Some(mat) = NUMBER_FINDER.find(&matched)
                 && let Ok(val) = mat.as_str().parse::<f64>()
             {

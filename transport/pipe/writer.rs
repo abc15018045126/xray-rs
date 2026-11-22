@@ -1,6 +1,3 @@
-// Module: transport\pipe\writer.rs
-// 1:1 Rust implementation corresponding to Go transport\pipe\writer.go
-
 use std::sync::Arc;
 
 use super::impl_::Pipe;
@@ -33,6 +30,10 @@ impl Writer {
 
     pub async fn len(&self) -> usize {
         self.pipe.len().await
+    }
+
+    pub async fn is_empty(&self) -> bool {
+        self.len().await == 0
     }
 
     pub async fn interrupt(&self) {

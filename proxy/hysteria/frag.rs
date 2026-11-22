@@ -1,6 +1,3 @@
-// Module: proxy\hysteria\frag.rs
-// 1:1 Rust implementation corresponding to Go proxy\hysteria\frag.go
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UDPMessage {
     pub session_id: u32,
@@ -24,7 +21,6 @@ impl UDPMessage {
     }
 
     pub fn header_size(&self) -> usize {
-        // approximate UDP message header overhead: session(4) + packet_id(2) + frag_id(1) + frag_count(1) + addr_len(2) + addr
         8 + 2 + self.address.len()
     }
 
@@ -153,7 +149,6 @@ mod tests {
         let original_data = vec![0x42u8; 1000];
         let msg = UDPMessage::new(1, 100, "1.2.3.4:53".into(), original_data.clone());
 
-        // Split into packets of max size 300
         let frags = frag_udp_message(&msg, 300);
         assert!(frags.len() > 1);
 

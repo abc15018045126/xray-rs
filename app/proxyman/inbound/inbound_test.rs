@@ -1,6 +1,3 @@
-// Module: app\proxyman\inbound\inbound_test.rs
-// 1:1 Rust unit test suite corresponding to Go app\proxyman\inbound\always_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::{AlwaysOnInboundHandler, InboundWorker, always::ALWAYS_ON};
@@ -22,7 +19,6 @@ mod tests {
         assert_eq!(handler.receiver_settings(), Some(vec![1, 2, 3]));
         assert_eq!(handler.proxy_settings(), Some(vec![4, 5, 6]));
 
-        // Check stats counters
         assert!(handler.uplink_counter().is_some());
         assert!(handler.downlink_counter().is_some());
 
@@ -30,13 +26,11 @@ mod tests {
         up.add(1024);
         assert_eq!(up.value(), 1024);
 
-        // Add workers
         let worker1 = InboundWorker::new("socks-in", "127.0.0.1", 1080);
         let worker2 = InboundWorker::new("socks-in", "127.0.0.1", 1081);
         handler.add_worker(worker1).await;
         handler.add_worker(worker2).await;
 
-        // Start and close
         handler.start().await.expect("start handler");
         handler.close().await.expect("close handler");
     }
@@ -50,7 +44,6 @@ mod tests {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         use tokio::net::TcpListener;
 
-        // 1. Start local TCP echo target
         let echo_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let echo_addr = echo_listener.local_addr().unwrap();
         let echo_task = tokio::spawn(async move {
@@ -69,7 +62,6 @@ mod tests {
             }
         });
 
-        // 2. Generate self-signed PEM cert/key via rcgen
         let cert_key =
             rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).unwrap();
         let cert_pem_lines: Vec<String> = cert_key
@@ -85,7 +77,6 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
 
-        // Pick a free port for the VLESS+WS+TLS server
         let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let server_port = probe.local_addr().unwrap().port();
         drop(probe);
@@ -126,7 +117,6 @@ mod tests {
         let server_tasks = server_instance.start().await.unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(120)).await;
 
-        // 3. Build a standard VLESS+WS+TLS client outbound on `/` with Pingora testpre pool enabled
         let client_json = serde_json::json!({
             "inbounds": [],
             "outbounds": [{
@@ -155,10 +145,8 @@ mod tests {
         let client_cfg: Config = serde_json::from_value(client_json).unwrap();
         let built_client = client_cfg.build().unwrap();
         let proxy_out = built_client.outbounds.get("proxy").unwrap().clone();
-        // Give the Pingora testpre pool a brief moment to pre-warm connections to the server
         tokio::time::sleep(std::time::Duration::from_millis(120)).await;
 
-        // 4. Dial twice through VLESS+WS+TLS server -> Freedom -> local echo target
         for idx in 0..2 {
             let dest = Destination::from_ip_port(echo_addr.ip(), echo_addr.port());
             let session = SessionContext::new("test-client", dest);
@@ -561,7 +549,6 @@ mod tests {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
         use tokio::net::{TcpListener, TcpStream};
 
-        // Fake camouflage dest server that echoes back what the prober sends
         let dest_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let dest_addr = dest_listener.local_addr().unwrap();
         let dest_task = tokio::spawn(async move {
@@ -611,7 +598,6 @@ mod tests {
         let server_tasks = server_instance.start().await.unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(120)).await;
 
-        // Send a non-REALITY active probe -> must be transparently mirrored to dest_addr
         let mut prober = TcpStream::connect(("127.0.0.1", server_port))
             .await
             .unwrap();

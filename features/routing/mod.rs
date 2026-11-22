@@ -1,5 +1,3 @@
-// Module: features\routing\mod.rs
-
 pub mod balancer;
 pub mod context;
 pub mod dispatcher;

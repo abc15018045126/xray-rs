@@ -1,6 +1,3 @@
-// Module: app\observatory\burst\healthping.rs
-// 1:1 Rust implementation corresponding to Go app\observatory\burst\healthping.go
-
 use std::collections::HashMap;
 use std::sync::RwLock;
 use std::time::Duration;

@@ -1,6 +1,3 @@
-// Module: transport\internet\sockopt_darwin.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\sockopt_darwin.go
-
 use std::net::TcpStream;
 use crate::common::errors::Result;
 use super::sockopt::SocketOptions;

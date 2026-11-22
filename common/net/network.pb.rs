@@ -1,4 +1,3 @@
-// Module: common\net\network.pb.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

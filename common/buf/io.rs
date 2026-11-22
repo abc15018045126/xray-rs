@@ -1,6 +1,3 @@
-// Module: common\buf\io.rs
-// 1:1 Rust implementation corresponding to Go common\buf\io.go
-
 use async_trait::async_trait;
 use std::time::Duration;
 use tokio::io::{AsyncWrite, AsyncWriteExt};

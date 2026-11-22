@@ -1,6 +1,3 @@
-// Module: infra\conf\lint.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\lint.go
-
 use super::Config;
 use crate::common::errors::{Error, Result};
 use std::sync::RwLock;
@@ -48,7 +45,6 @@ mod tests {
     impl ConfigureFilePostProcessingStage for DummyStage {
         fn process(&self, conf: &mut Config) -> Result<()> {
             if conf.inbounds.is_empty() {
-                // Pass
             }
             Ok(())
         }

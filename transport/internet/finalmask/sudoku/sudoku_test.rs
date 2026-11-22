@@ -1,5 +1,3 @@
-// Module: transport\internet\finalmask\sudoku\sudoku_test.rs
-
 #[cfg(test)]
 mod tests {
     use super::super::config::SudokuConfig;
@@ -112,7 +110,6 @@ mod tests {
         let mut client = SudokuTcpConn::new_client(&config).expect("client");
         let mut server = SudokuTcpConn::new_server(&config).expect("server");
 
-        // Client to Server (Uplink: client writes pure, server reads pure)
         let uplink_data = b"Uplink request from client to server";
         let client_sent = client.encode_stream(uplink_data).expect("client send");
         let mut server_buf = vec![0u8; 1024];
@@ -121,7 +118,6 @@ mod tests {
             .expect("server read");
         assert_eq!(&server_buf[..n1], uplink_data);
 
-        // Server to Client (Downlink: server writes packed, client reads packed)
         let downlink_data = b"Downlink response from server to client with high compression";
         let server_sent = server.encode_stream(downlink_data).expect("server send");
         let mut client_buf = vec![0u8; 1024];

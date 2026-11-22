@@ -1,6 +1,3 @@
-// Module: proxy\vless\encryption\common.rs
-// 1:1 Rust implementation corresponding to Go proxy\vless\encryption\common.go
-
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes128Gcm, Nonce as AesNonce};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce as ChaChaNonce};
@@ -54,7 +51,7 @@ pub fn decode_header(h: &[u8]) -> Result<usize> {
 }
 
 pub enum VlessCipher {
-    AesGcm(Aes128Gcm),
+    AesGcm(Box<Aes128Gcm>),
     ChaCha(ChaCha20Poly1305),
 }
 
@@ -67,7 +64,7 @@ impl VlessAead {
     pub fn new(key: &[u8; 32], use_aes: bool) -> Self {
         let cipher = if use_aes {
             let k = aes_gcm::Key::<Aes128Gcm>::from_slice(&key[..16]);
-            VlessCipher::AesGcm(Aes128Gcm::new(k))
+            VlessCipher::AesGcm(Box::new(Aes128Gcm::new(k)))
         } else {
             let k = chacha20poly1305::Key::from_slice(key);
             VlessCipher::ChaCha(ChaCha20Poly1305::new(k))
@@ -244,7 +241,6 @@ impl<S: AsyncRead + Unpin> AsyncRead for CommonConn<S> {
             return Poll::Ready(Ok(()));
         }
 
-        // Read encrypted chunk: 5 bytes header + ciphertext
         let mut raw_chunk = [0u8; MAX_CHUNK_SIZE + HEADER_LEN + TAG_LEN];
         let mut raw_buf = ReadBuf::new(&mut raw_chunk);
         match Pin::new(&mut this.inner).poll_read(cx, &mut raw_buf) {
@@ -307,7 +303,6 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
 
-        // Flush any pending write data
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
                 Poll::Ready(Ok(n)) => {

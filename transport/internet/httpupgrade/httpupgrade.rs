@@ -1,6 +1,3 @@
-// Module: transport\internet\httpupgrade\httpupgrade.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\httpupgrade\httpupgrade.go
-
 use crate::common::errors::{Error, Result};
 use crate::common::net::BoxStream;
 use std::collections::HashMap;
@@ -86,7 +83,6 @@ impl HttpUpgradeStream {
         stream.write_all(req.as_bytes()).await?;
         stream.flush().await?;
 
-        // Read until header termination
         let mut buf = Vec::new();
         let mut temp = [0u8; 1024];
         let header_end;
@@ -160,7 +156,6 @@ impl HttpUpgradeStream {
         let header_str = String::from_utf8_lossy(&buf[..header_end]);
         let header_lower = header_str.to_ascii_lowercase();
 
-        // Check request line
         let first_line = header_str.lines().next().unwrap_or("");
         let mut parts = first_line.split_whitespace();
         let method = parts.next().unwrap_or("");

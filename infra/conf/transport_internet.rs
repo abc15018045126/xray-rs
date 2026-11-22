@@ -1,6 +1,3 @@
-// Module: infra\conf\transport_internet.rs
-// 1:1 Rust implementation corresponding to Go infra\conf\transport_internet.go
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

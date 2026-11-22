@@ -1,6 +1,3 @@
-// Module: common\singbridge\handler.rs
-// 1:1 Rust implementation corresponding to Go common\singbridge\handler.go
-
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -12,8 +9,6 @@ use crate::common::net::{BoxStream, Network};
 use crate::common::protocol::SessionContext;
 use crate::features::routing::Dispatcher as RoutingDispatcher;
 
-/// Metadata contains connection routing source and destination addresses.
-/// 1:1 corresponding to sagernet/sing/common/metadata.Metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Metadata {
     pub source: Socksaddr,
@@ -29,8 +24,6 @@ impl Metadata {
     }
 }
 
-/// TCPConnectionHandler handles inbound TCP connections.
-/// 1:1 corresponding to sagernet/sing/common/network.TCPConnectionHandler.
 #[async_trait]
 pub trait TcpConnectionHandler: Send + Sync {
     async fn new_connection(
@@ -41,8 +34,6 @@ pub trait TcpConnectionHandler: Send + Sync {
     ) -> Result<()>;
 }
 
-/// UDPConnectionHandler handles inbound UDP packet connections.
-/// 1:1 corresponding to sagernet/sing/common/network.UDPConnectionHandler.
 #[async_trait]
 pub trait UdpConnectionHandler: Send + Sync {
     async fn new_packet_connection(
@@ -53,8 +44,6 @@ pub trait UdpConnectionHandler: Send + Sync {
     ) -> Result<()>;
 }
 
-/// Dispatcher routes singbridge TCP and UDP connections through an Xray routing dispatcher.
-/// 1:1 corresponding to Dispatcher in handler.go.
 pub struct Dispatcher {
     upstream: Arc<dyn RoutingDispatcher>,
 }
@@ -100,7 +89,6 @@ impl UdpConnectionHandler for Dispatcher {
     }
 }
 
-/// Backwards compatibility trait
 #[async_trait]
 pub trait SingHandler: Send + Sync {
     async fn handle(&self, stream: BoxStream, session: &SessionContext) -> Result<()>;

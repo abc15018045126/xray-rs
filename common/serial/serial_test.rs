@@ -1,6 +1,3 @@
-// Module: common\serial\serial_test.rs
-// 1:1 Rust unit test suite corresponding to Go common\serial\serial_test.go
-
 #[cfg(test)]
 mod tests {
     use super::super::serial::*;

@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\sudoku\table.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\table.go
-
 use super::config::SudokuConfig;
 use super::rng_cooked::RNG_COOKED;
 use crate::common::errors::{Error, Result};

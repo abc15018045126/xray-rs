@@ -1,6 +1,3 @@
-// Module: transport\internet\finalmask\sudoku\conn_tcp_packed.rs
-// 1:1 Rust implementation corresponding to Go transport\internet\finalmask\sudoku\conn_tcp_packed.go
-
 use super::codec::SudokuCodec;
 use super::table::{ByteLayout, SudokuTable, entropy_layout};
 use crate::common::errors::{Error, Result};

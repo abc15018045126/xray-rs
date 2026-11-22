@@ -26,7 +26,6 @@ mod tests {
         assert_eq!(to_network("UDP"), Network::Udp);
         assert_eq!(to_network("unknown"), Network::Tcp);
 
-        // IPv4 Socksaddr roundtrip
         let ipv4 = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
         let sa_ip = Socksaddr::new_ip(ipv4, 8080);
         assert!(sa_ip.is_ip());
@@ -41,7 +40,6 @@ mod tests {
         let sa_back = to_socksaddr(&dest_ip);
         assert_eq!(sa_back, sa_ip);
 
-        // IPv6 Socksaddr roundtrip
         let ipv6 = IpAddr::V6(Ipv6Addr::LOCALHOST);
         let sa_v6 = Socksaddr::new_ip(ipv6, 9000);
         let dest_v6 = to_destination(&sa_v6, Network::Udp);
@@ -49,7 +47,6 @@ mod tests {
         assert_eq!(dest_v6.port, 9000);
         assert_eq!(to_socksaddr(&dest_v6), sa_v6);
 
-        // FQDN Socksaddr roundtrip
         let sa_fqdn = Socksaddr::new_fqdn("example.com", 443);
         assert!(sa_fqdn.is_fqdn());
         assert!(!sa_fqdn.is_ip());
@@ -161,13 +158,11 @@ mod tests {
         let link = Link::new(reader, writer);
         let mut wrapper = PacketConnWrapper::from_link(&link, dest.clone());
 
-        // Write a packet
         let mut b = Buffer::new();
         let _ = b.write(b"dns query packet");
         let target_sa = to_socksaddr(&dest);
         wrapper.write_packet(b, target_sa.clone()).await.unwrap();
 
-        // Read the packet back
         let (pkt, sa) = wrapper.read_packet().await.unwrap();
         assert_eq!(pkt.as_slice(), b"dns query packet");
         assert_eq!(sa, target_sa);
@@ -204,14 +199,12 @@ mod tests {
         let ctx = Context::new();
         let target_sa = Socksaddr::new_ip(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 80);
 
-        // Test XrayDialer
         let dialer = XrayDialer::new(Arc::new(MockInternetDialer));
         let stream = dialer.dial_context(&ctx, "tcp", target_sa.clone()).await;
         assert!(stream.is_ok());
 
         assert!(dialer.listen_packet(&ctx, target_sa.clone()).await.is_err());
 
-        // Test XrayOutboundDialer
         let ob_dialer = XrayOutboundDialer::new(Arc::new(MockOutboundHandler), None);
         let ob_stream = ob_dialer.dial_context(&ctx, "tcp", target_sa).await;
         assert!(ob_stream.is_ok());
