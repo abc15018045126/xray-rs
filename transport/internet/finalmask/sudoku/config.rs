@@ -76,43 +76,20 @@ impl SudokuConfig {
     }
 
     pub fn normalize_custom_table(pattern: &str) -> Result<String> {
-        let cleaned: String = pattern
-            .trim()
-            .to_ascii_lowercase()
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .collect();
-        if cleaned.len() != 8 {
-            return Err(Error::Config(format!(
-                "customTable must be 8 chars, got {}",
-                cleaned.len()
-            )));
-        }
-
-        let mut x_count = 0;
-        let mut p_count = 0;
-        let mut v_count = 0;
-
+        let cleaned: String = pattern.trim().to_ascii_lowercase().chars().filter(|c| !c.is_whitespace()).collect();
+        if cleaned.len() != 8 { return Err(Error::Config(format!("customTable must be 8 chars, got {}", cleaned.len()))); }
+        let (mut x, mut p, mut v) = (0, 0, 0);
         for ch in cleaned.chars() {
             match ch {
-                'x' => x_count += 1,
-                'p' => p_count += 1,
-                'v' => v_count += 1,
-                _ => {
-                    return Err(Error::Config(format!(
-                        "customTable has invalid char {:?}",
-                        ch
-                    )));
-                }
+                'x' => x += 1,
+                'p' => p += 1,
+                'v' => v += 1,
+                _ => return Err(Error::Config(format!("customTable has invalid char {:?}", ch))),
             }
         }
-
-        if x_count != 2 || p_count != 2 || v_count != 4 {
-            return Err(Error::Config(
-                "customTable must contain exactly 2 x, 2 p and 4 v".to_string(),
-            ));
+        if (x, p, v) != (2, 2, 4) {
+            return Err(Error::Config("customTable must contain exactly 2 x, 2 p and 4 v".into()));
         }
-
         Ok(cleaned)
     }
 

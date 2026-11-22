@@ -70,24 +70,14 @@ impl Periodic {
         F: FnMut() -> Fut + Send + 'static,
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
-        if self.running.swap(true, Ordering::SeqCst) {
-            return;
-        }
-
-        let running = self.running.clone();
-        let notify_stop = self.notify_stop.clone();
-        let interval = self.interval;
-
-        let handle = tokio::spawn(async move {
+        if self.running.swap(true, Ordering::SeqCst) { return; }
+        let (running, notify_stop, interval) = (self.running.clone(), self.notify_stop.clone(), self.interval);
+        self.handle = Some(tokio::spawn(async move {
             while running.load(Ordering::Relaxed) {
                 tokio::select! {
-                    _ = notify_stop.notified() => {
-                        break;
-                    }
+                    _ = notify_stop.notified() => break,
                     _ = tokio::time::sleep(interval) => {
-                        if !running.load(Ordering::Relaxed) {
-                            break;
-                        }
+                        if !running.load(Ordering::Relaxed) { break; }
                         if let Err(e) = task().await {
                             tracing::debug!("Periodic task encountered error: {}", e);
                             running.store(false, Ordering::Relaxed);
@@ -96,9 +86,7 @@ impl Periodic {
                     }
                 }
             }
-        });
-
-        self.handle = Some(handle);
+        }));
     }
 
     pub fn close(&mut self) {

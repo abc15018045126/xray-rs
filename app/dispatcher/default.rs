@@ -94,44 +94,20 @@ impl DefaultDispatcher {
         Ok(())
     }
 
-    pub fn should_override(
-        &self,
-        result: &SniffResult,
-        request: &SniffingRequest,
-        destination: &Destination,
-    ) -> bool {
+    pub fn should_override(&self, result: &SniffResult, request: &SniffingRequest, destination: &Destination) -> bool {
         let domain = &result.domain;
-        if domain.is_empty() {
+        if domain.is_empty() { return false; }
+        if request.exclude_for_domain.iter().any(|exc| {
+            exc.strip_prefix("regexp:")
+                .map_or_else(|| domain.eq_ignore_ascii_case(exc), |pat| Regex::new(pat).is_ok_and(|re| re.is_match(domain)))
+        }) {
             return false;
         }
-
-        for exc in &request.exclude_for_domain {
-            if let Some(pattern) = exc.strip_prefix("regexp:") {
-                if let Ok(re) = Regex::new(pattern)
-                    && re.is_match(domain)
-                {
-                    return false;
-                }
-            } else if domain.eq_ignore_ascii_case(exc) {
-                return false;
-            }
-        }
-
-        let protocol_str = &result.protocol;
-        for p in &request.override_destination_for_protocol {
-            if protocol_str.starts_with(p) || p.starts_with(protocol_str) {
-                return true;
-            }
-            if p == "fakedns"
-                && protocol_str != "bittorrent"
-                && let Some(ip) = destination.address.as_ip()
-                && self.sniffer.is_in_fake_ip_pool(&ip)
-            {
-                return true;
-            }
-        }
-
-        false
+        let proto = &result.protocol;
+        request.override_destination_for_protocol.iter().any(|p| {
+            proto.starts_with(p) || p.starts_with(proto)
+                || (p == "fakedns" && proto != "bittorrent" && destination.address.as_ip().is_some_and(|ip| self.sniffer.is_in_fake_ip_pool(&ip)))
+        })
     }
 
     fn apply_sniff(

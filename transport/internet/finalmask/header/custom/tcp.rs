@@ -49,12 +49,8 @@ fn generate_delay(min_d: u64, max_d: u64) -> u64 {
     }
 }
 
-pub async fn write_sequence<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    sequence: &TCPSequence,
-) -> Result<()> {
+pub async fn write_sequence<W: AsyncWrite + Unpin>(writer: &mut W, sequence: &TCPSequence) -> Result<()> {
     let mut merged = Vec::new();
-
     for item in &sequence.sequence {
         if item.delay_max > 0 {
             if !merged.is_empty() {
@@ -62,22 +58,16 @@ pub async fn write_sequence<W: AsyncWrite + Unpin>(
                 writer.flush().await.map_err(Error::Io)?;
                 merged.clear();
             }
-            let min_d = item.delay_min.max(0) as u64;
-            let max_d = item.delay_max.max(item.delay_min) as u64;
-            let delay = generate_delay(min_d, max_d);
+            let delay = generate_delay(item.delay_min.max(0) as u64, item.delay_max.max(item.delay_min) as u64);
             tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
         }
-
         if item.rand > 0 {
             let r_min = (item.rand_min as u8).min(item.rand_max as u8);
-            let r_max = (item.rand_max as u8).max(r_min);
-            let rand_bytes = generate_rand_bytes(item.rand as usize, r_min, r_max);
-            merged.extend_from_slice(&rand_bytes);
+            merged.extend_from_slice(&generate_rand_bytes(item.rand as usize, r_min, (item.rand_max as u8).max(r_min)));
         } else {
             merged.extend_from_slice(&item.packet);
         }
     }
-
     if !merged.is_empty() {
         writer.write_all(&merged).await.map_err(Error::Io)?;
         writer.flush().await.map_err(Error::Io)?;

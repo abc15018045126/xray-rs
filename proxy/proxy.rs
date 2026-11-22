@@ -113,46 +113,16 @@ impl TrafficState {
 }
 
 pub fn is_complete_record(data: &[u8]) -> bool {
-    let mut header_len = 5;
-    let mut record_len = 0usize;
-    let total_len = data.len();
     let mut i = 0;
-
-    while i < total_len {
-        if header_len > 0 {
-            let b = data[i];
-            i += 1;
-            match header_len {
-                5 => {
-                    if b != 0x17 {
-                        return false;
-                    }
-                }
-                4 | 3 => {
-                    if b != 0x03 {
-                        return false;
-                    }
-                }
-                2 => record_len = (b as usize) << 8,
-                1 => record_len |= b as usize,
-                _ => return false,
-            }
-            header_len -= 1;
-        } else if record_len > 0 {
-            let remaining = total_len - i;
-            if remaining < record_len {
-                return false;
-            } else {
-                i += record_len;
-                record_len = 0;
-                header_len = 5;
-            }
-        } else {
+    while i < data.len() {
+        if i + 5 > data.len() || data[i] != 0x17 || data[i + 1] != 0x03 || data[i + 2] != 0x03 {
             return false;
         }
+        let record_len = u16::from_be_bytes([data[i + 3], data[i + 4]]) as usize;
+        if record_len == 0 || data.len() - (i + 5) < record_len { return false; }
+        i += 5 + record_len;
     }
-
-    header_len == 5 && record_len == 0
+    true
 }
 
 pub fn xtls_padding(

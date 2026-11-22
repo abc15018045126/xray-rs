@@ -52,45 +52,23 @@ pub fn apply_tcp_options(s: &TcpStream) -> std::io::Result<()> {
     s.set_nodelay(true)
 }
 
-pub async fn new_tcp_stream(
-    endpoint: SocketAddr,
-    iface: Option<&OutboundInterface>,
-) -> std::io::Result<TcpStream> {
-    let (socket, family) = match endpoint {
-        SocketAddr::V4(_) => (
-            socket2::Socket::new(socket2::Domain::IPV4, socket2::Type::STREAM, None)?,
-            socket2::Domain::IPV4,
-        ),
-        SocketAddr::V6(_) => (
-            socket2::Socket::new(socket2::Domain::IPV6, socket2::Type::STREAM, None)?,
-            socket2::Domain::IPV6,
-        ),
-    };
+pub async fn new_tcp_stream(endpoint: SocketAddr, iface: Option<&OutboundInterface>) -> std::io::Result<TcpStream> {
+    let family = if endpoint.is_ipv4() { socket2::Domain::IPV4 } else { socket2::Domain::IPV6 };
+    let socket = socket2::Socket::new(family, socket2::Type::STREAM, None)?;
     debug!("created tcp socket for {}", endpoint);
-
     #[cfg(target_os = "android")]
     if !endpoint.ip().is_loopback() {
         use std::os::fd::AsRawFd;
         protect_android_socket(socket.as_raw_fd());
     }
-
-    if !cfg!(target_os = "android")
-        && !endpoint.ip().is_loopback()
-        && let Some(iface) = iface
-    {
+    if !cfg!(target_os = "android") && !endpoint.ip().is_loopback() && let Some(iface) = iface {
         must_bind_socket_on_interface(&socket, iface, family)?;
         trace!("tcp socket bound to interface: {socket:?}");
     }
-
     socket.set_keepalive(true)?;
     socket.set_nodelay(true)?;
     socket.set_nonblocking(true)?;
-
-    timeout(
-        Duration::from_secs(10),
-        TcpSocket::from_std_stream(socket.into()).connect(endpoint),
-    )
-    .await?
+    timeout(Duration::from_secs(10), TcpSocket::from_std_stream(socket.into()).connect(endpoint)).await?
 }
 
 pub async fn new_udp_socket(

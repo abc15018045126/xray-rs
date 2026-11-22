@@ -73,33 +73,16 @@ impl<W: AsyncWrite + Unpin> PacketWriter<W> {
     }
 
     pub async fn write_packet(&mut self, payload: &[u8], is_proxy_req: bool) -> Result<()> {
-        let mut meta = Vec::new();
-        meta.extend_from_slice(&[0, 0]);
-        meta.extend_from_slice(&[0, 0]);
-
+        let mut meta = vec![0, 0, 0, 0, if self.is_first { 1 } else { 2 }, 1, 2];
+        write_address_port(&mut meta, &self.dest.address, self.dest.port);
         if self.is_first {
-            meta.push(1);
-            meta.push(1);
-            meta.push(2);
-            write_address_port(&mut meta, &self.dest.address, self.dest.port);
-            if is_proxy_req {
-                meta.extend_from_slice(&self.global_id);
-            }
+            if is_proxy_req { meta.extend_from_slice(&self.global_id); }
             self.is_first = false;
-        } else {
-            meta.push(2);
-            meta.push(1);
-            meta.push(2);
-            write_address_port(&mut meta, &self.dest.address, self.dest.port);
         }
-
         let meta_len = (meta.len() - 2) as u16;
         meta[0..2].copy_from_slice(&meta_len.to_be_bytes());
-
-        let payload_len = payload.len() as u16;
-        meta.extend_from_slice(&payload_len.to_be_bytes());
+        meta.extend_from_slice(&(payload.len() as u16).to_be_bytes());
         meta.extend_from_slice(payload);
-
         self.writer.write_all(&meta).await.map_err(Error::Io)?;
         self.writer.flush().await.map_err(Error::Io)?;
         Ok(())
@@ -117,35 +100,20 @@ impl<R: AsyncRead + Unpin> PacketReader<R> {
 
     pub async fn read_packet(&mut self) -> Result<(Destination, Vec<u8>)> {
         let mut len_buf = [0u8; 2];
-        self.reader
-            .read_exact(&mut len_buf)
-            .await
-            .map_err(Error::Io)?;
+        self.reader.read_exact(&mut len_buf).await.map_err(Error::Io)?;
         let meta_len = u16::from_be_bytes(len_buf) as usize;
-        if meta_len < 4 {
-            return Err(Error::Protocol("XUDP meta too short".into()));
-        }
-
+        if meta_len < 4 { return Err(Error::Protocol("XUDP meta too short".into())); }
         let mut meta = vec![0u8; meta_len];
         self.reader.read_exact(&mut meta).await.map_err(Error::Io)?;
-
-        let mut dest = Destination::udp(Address::Ipv4(Ipv4Addr::UNSPECIFIED), 0);
-        if meta.len() > 4 && meta[4] == 2 {
+        let dest = if meta.len() > 4 && meta[4] == 2 {
             let (addr, port, _) = read_address_port(&meta[5..])?;
-            dest = Destination::udp(addr, port);
-        }
-
-        self.reader
-            .read_exact(&mut len_buf)
-            .await
-            .map_err(Error::Io)?;
-        let payload_len = u16::from_be_bytes(len_buf) as usize;
-        let mut payload = vec![0u8; payload_len];
-        self.reader
-            .read_exact(&mut payload)
-            .await
-            .map_err(Error::Io)?;
-
+            Destination::udp(addr, port)
+        } else {
+            Destination::udp(Address::Ipv4(Ipv4Addr::UNSPECIFIED), 0)
+        };
+        self.reader.read_exact(&mut len_buf).await.map_err(Error::Io)?;
+        let mut payload = vec![0u8; u16::from_be_bytes(len_buf) as usize];
+        self.reader.read_exact(&mut payload).await.map_err(Error::Io)?;
         Ok((dest, payload))
     }
 }

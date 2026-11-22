@@ -13,33 +13,17 @@ pub struct FakeDnsHolder {
 
 impl FakeDnsHolder {
     pub fn new(cidr: &str) -> Result<Self> {
-        let parts: Vec<&str> = cidr.split('/').collect();
-        if parts.len() != 2 {
-            return Err(Error::Config("Invalid FakeDNS CIDR format".into()));
-        }
-        let base_ip: Ipv4Addr = parts[0]
-            .parse()
-            .map_err(|e| Error::Config(format!("Invalid FakeDNS IP: {}", e)))?;
-        let prefix_len: u32 = parts[1]
-            .parse()
-            .map_err(|e| Error::Config(format!("Invalid FakeDNS prefix len: {}", e)))?;
-
-        if prefix_len > 32 {
-            return Err(Error::Config("Prefix length cannot exceed 32".into()));
-        }
-
+        let (ip_s, pfx_s) = cidr.split_once('/').filter(|(_, r)| !r.contains('/'))
+            .ok_or_else(|| Error::Config("Invalid FakeDNS CIDR format".into()))?;
+        let base_ip: Ipv4Addr = ip_s.parse().map_err(|e| Error::Config(format!("Invalid FakeDNS IP: {}", e)))?;
+        let prefix_len: u32 = pfx_s.parse().map_err(|e| Error::Config(format!("Invalid FakeDNS prefix len: {}", e)))?;
+        if prefix_len > 32 { return Err(Error::Config("Prefix length cannot exceed 32".into())); }
         let base_u32 = u32::from(base_ip);
-        let mask = if prefix_len == 0 {
-            0
-        } else {
-            !((1u32 << (32 - prefix_len)) - 1)
-        };
+        let mask = if prefix_len == 0 { 0 } else { !0u32 << (32 - prefix_len) };
         let pool_start = (base_u32 & mask) + 1;
-        let pool_end = (base_u32 | !mask).saturating_sub(1);
-
         Ok(Self {
             pool_start,
-            pool_end,
+            pool_end: (base_u32 | !mask).saturating_sub(1),
             next_ip: Mutex::new(pool_start),
             domain_to_ip: Mutex::new(HashMap::new()),
             ip_to_domain: Mutex::new(HashMap::new()),

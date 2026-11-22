@@ -32,42 +32,19 @@ impl CommandSwitchAccount {
     }
 
     pub fn decode(b: &[u8]) -> Result<Self> {
-        if b.is_empty() {
-            return Err(Error::Protocol("Empty switch account data".into()));
-        }
+        if b.is_empty() { return Err(Error::Protocol("Empty switch account data".into())); }
         let host_len = b[0] as usize;
-        let mut idx = 1;
-        if b.len() < idx + host_len + 2 + 16 + 2 + 4 + 1 {
-            return Err(Error::Protocol(
-                "Insufficient length for CommandSwitchAccount".into(),
-            ));
-        }
-        let host = String::from_utf8(b[idx..idx + host_len].to_vec())
+        if b.len() < 1 + host_len + 25 { return Err(Error::Protocol("Insufficient length for CommandSwitchAccount".into())); }
+        let host = String::from_utf8(b[1..1 + host_len].to_vec())
             .map_err(|e| Error::Protocol(format!("Invalid host in CommandSwitchAccount: {}", e)))?;
-        idx += host_len;
-
-        let port = u16::from_be_bytes([b[idx], b[idx + 1]]);
-        idx += 2;
-
-        let id = Uuid::from_slice(&b[idx..idx + 16])
-            .map_err(|e| Error::Protocol(format!("Invalid UUID: {}", e)))?;
-        idx += 16;
-
-        let alter_id = u16::from_be_bytes([b[idx], b[idx + 1]]);
-        idx += 2;
-
-        let level = u32::from_be_bytes([b[idx], b[idx + 1], b[idx + 2], b[idx + 3]]);
-        idx += 4;
-
-        let valid_min = b[idx];
-
+        let r = &b[1 + host_len..];
         Ok(Self {
             host,
-            port,
-            id,
-            alter_id,
-            level,
-            valid_min,
+            port: u16::from_be_bytes([r[0], r[1]]),
+            id: Uuid::from_slice(&r[2..18]).map_err(|e| Error::Protocol(format!("Invalid UUID: {}", e)))?,
+            alter_id: u16::from_be_bytes([r[18], r[19]]),
+            level: u32::from_be_bytes([r[20], r[21], r[22], r[23]]),
+            valid_min: r[24],
         })
     }
 }

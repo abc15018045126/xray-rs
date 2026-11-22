@@ -94,35 +94,19 @@ mod imp {
     }
 
     impl AsyncWrite for AndroidTunDevice {
-        fn poll_write(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
+        fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
             loop {
                 let mut guard = match self.inner.poll_write_ready(cx) {
                     Poll::Ready(Ok(g)) => g,
                     Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                     Poll::Pending => return Poll::Pending,
                 };
-                let res = guard.try_io(|inner| {
-                    let n = unsafe {
-                        libc::write(
-                            inner.as_raw_fd(),
-                            buf.as_ptr() as *const libc::c_void,
-                            buf.len(),
-                        )
-                    };
-                    if n < 0 {
-                        Err(io::Error::last_os_error())
-                    } else {
-                        Ok(n as usize)
-                    }
-                });
-                match res {
-                    Ok(Ok(n)) => return Poll::Ready(Ok(n)),
-                    Ok(Err(e)) => return Poll::Ready(Err(e)),
-                    Err(_would_block) => continue,
+                match guard.try_io(|inner| {
+                    let n = unsafe { libc::write(inner.as_raw_fd(), buf.as_ptr() as *const libc::c_void, buf.len()) };
+                    if n < 0 { Err(io::Error::last_os_error()) } else { Ok(n as usize) }
+                }) {
+                    Ok(res) => return Poll::Ready(res),
+                    Err(_) => continue,
                 }
             }
         }

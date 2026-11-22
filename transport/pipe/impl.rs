@@ -89,33 +89,20 @@ impl Pipe {
         loop {
             {
                 let mut guard = self.inner.lock().await;
-
-                if let Some(err) = guard.pending_error.take() {
-                    return Err(err);
-                }
-
-                match Self::check_read_state(&guard) {
-                    Ok(_) => {
-                        if !guard.data.is_empty() {
-                            let data = std::mem::take(&mut guard.data);
-                            self.write_signal.notify_waiters();
-                            return Ok(data);
-                        }
-                    }
-                    Err(err) => return Err(err),
+                if let Some(err) = guard.pending_error.take() { return Err(err); }
+                Self::check_read_state(&guard)?;
+                if !guard.data.is_empty() {
+                    let data = std::mem::take(&mut guard.data);
+                    self.write_signal.notify_waiters();
+                    return Ok(data);
                 }
             }
-
             tokio::select! {
                 _ = self.read_signal.notified() => continue,
                 _ = self.done_notify.notified() => {
                     let guard = self.inner.lock().await;
-                    if guard.state == State::Errord {
-                        return Err(Error::Closed);
-                    }
-                    if guard.data.is_empty() {
-                        return Err(Error::Eof);
-                    }
+                    if guard.state == State::Errord { return Err(Error::Closed); }
+                    if guard.data.is_empty() { return Err(Error::Eof); }
                 }
             }
         }

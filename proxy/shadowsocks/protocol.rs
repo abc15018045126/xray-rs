@@ -21,37 +21,17 @@ pub fn derive_subkey(key: &[u8], salt: &[u8], subkey: &mut [u8]) -> Result<()> {
 }
 
 pub async fn read_target_address<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Destination> {
-    let atyp = reader.read_u8().await?;
-    let address = match atyp {
-        0x01 => {
-            let mut ip_bytes = [0u8; 4];
-            reader.read_exact(&mut ip_bytes).await?;
-            Address::Ipv4(Ipv4Addr::from(ip_bytes))
-        }
+    let address = match reader.read_u8().await? {
+        0x01 => { let mut b = [0u8; 4]; reader.read_exact(&mut b).await?; Address::Ipv4(Ipv4Addr::from(b)) }
         0x03 => {
-            let len = reader.read_u8().await? as usize;
-            let mut domain_bytes = vec![0u8; len];
-            reader.read_exact(&mut domain_bytes).await?;
-            let domain = String::from_utf8(domain_bytes).map_err(|e| {
-                Error::Protocol(format!("Invalid domain string in Shadowsocks: {}", e))
-            })?;
-            Address::Domain(domain)
+            let mut b = vec![0u8; reader.read_u8().await? as usize];
+            reader.read_exact(&mut b).await?;
+            Address::Domain(String::from_utf8(b).map_err(|e| Error::Protocol(format!("Invalid domain string in Shadowsocks: {}", e)))?)
         }
-        0x04 => {
-            let mut ip_bytes = [0u8; 16];
-            reader.read_exact(&mut ip_bytes).await?;
-            Address::Ipv6(Ipv6Addr::from(ip_bytes))
-        }
-        _ => {
-            return Err(Error::Protocol(format!(
-                "Unsupported Shadowsocks ATYP: {}",
-                atyp
-            )));
-        }
+        0x04 => { let mut b = [0u8; 16]; reader.read_exact(&mut b).await?; Address::Ipv6(Ipv6Addr::from(b)) }
+        atyp => return Err(Error::Protocol(format!("Unsupported Shadowsocks ATYP: {}", atyp))),
     };
-
-    let port = reader.read_u16().await?;
-    Ok(Destination::new(address, port))
+    Ok(Destination::new(address, reader.read_u16().await?))
 }
 
 pub async fn write_target_address<W: AsyncWrite + Unpin>(

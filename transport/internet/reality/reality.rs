@@ -61,36 +61,15 @@ pub fn seal_session_id(
     client_hello_raw: &[u8],
 ) -> Result<[u8; 32]> {
     let mut pt = [0u8; 16];
-    pt[0] = version.0;
-    pt[1] = version.1;
-    pt[2] = version.2;
-    pt[3] = 0;
+    pt[0..3].copy_from_slice(&[version.0, version.1, version.2]);
     pt[4..8].copy_from_slice(&timestamp.to_be_bytes());
-
-    let sid_len = std::cmp::min(8, short_id.len());
+    let sid_len = short_id.len().min(8);
     pt[8..8 + sid_len].copy_from_slice(&short_id[..sid_len]);
-
     let cipher = Aes256Gcm::new_from_slice(auth_key)
         .map_err(|e| Error::Protocol(format!("Invalid AES-GCM key: {:?}", e)))?;
-    let nonce = Nonce::from_slice(nonce_12);
-
-    let ciphertext = cipher
-        .encrypt(
-            nonce,
-            Payload {
-                msg: &pt,
-                aad: client_hello_raw,
-            },
-        )
+    let ct = cipher.encrypt(Nonce::from_slice(nonce_12), Payload { msg: &pt, aad: client_hello_raw })
         .map_err(|e| Error::Protocol(format!("REALITY SessionId seal error: {:?}", e)))?;
-
-    if ciphertext.len() != 32 {
-        return Err(Error::Protocol("Sealed session ID must be 32 bytes".into()));
-    }
-
-    let mut out = [0u8; 32];
-    out.copy_from_slice(&ciphertext);
-    Ok(out)
+    ct.try_into().map_err(|_| Error::Protocol("Sealed session ID must be 32 bytes".into()))
 }
 
 pub fn open_session_id(

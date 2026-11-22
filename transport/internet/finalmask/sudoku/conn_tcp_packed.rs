@@ -126,37 +126,22 @@ pub fn decode_packed_bytes(
     mut group_index: usize,
     out: &mut Vec<u8>,
 ) -> Result<(u64, usize, usize)> {
-    if layouts.is_empty() {
-        return Err(Error::Config("sudoku layout set missing".into()));
-    }
-
+    if layouts.is_empty() { return Err(Error::Config("sudoku layout set missing".into())); }
     for &b in input {
         let layout = &layouts[group_index % layouts.len()];
         if !layout.is_hint(b) {
-            if b == layout.pad_marker {
-                bit_buf = 0;
-                bit_count = 0;
-            }
+            if b == layout.pad_marker { bit_buf = 0; bit_count = 0; }
             continue;
         }
-
-        let group = (layout.decode_group)(b)
-            .ok_or_else(|| Error::Protocol(format!("invalid packed sudoku byte: {}", b)))?;
+        let group = (layout.decode_group)(b).ok_or_else(|| Error::Protocol(format!("invalid packed sudoku byte: {}", b)))?;
         group_index += 1;
-
         bit_buf = (bit_buf << 6) | (group as u64);
         bit_count += 6;
-
         while bit_count >= 8 {
             bit_count -= 8;
             out.push((bit_buf >> bit_count) as u8);
-            if bit_count > 0 {
-                bit_buf &= (1u64 << bit_count) - 1;
-            } else {
-                bit_buf = 0;
-            }
+            bit_buf = if bit_count > 0 { bit_buf & ((1u64 << bit_count) - 1) } else { 0 };
         }
     }
-
     Ok((bit_buf, bit_count, group_index))
 }

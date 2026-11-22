@@ -36,38 +36,22 @@ impl H1Conn {
     }
 
     pub async fn read_response_status(&mut self) -> io::Result<u16> {
-        let mut line = String::new();
-        let mut byte = [0u8; 1];
+        let (mut line, mut byte) = (String::new(), [0u8; 1]);
         loop {
-            let n = self.stream.read(&mut byte).await?;
-            if n == 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "EOF while reading HTTP status",
-                ));
+            if self.stream.read(&mut byte).await? == 0 {
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "EOF while reading HTTP status"));
             }
             line.push(byte[0] as char);
-            if line.ends_with("\r\n") {
-                break;
-            }
+            if line.ends_with("\r\n") { break; }
             if line.len() > 1024 {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "HTTP status line too long",
-                ));
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "HTTP status line too long"));
             }
         }
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 2
-            && let Ok(code) = parts[1].parse::<u16>()
-        {
+        if let Some(Ok(code)) = line.split_whitespace().nth(1).map(str::parse::<u16>) {
             self.dec_unread();
             return Ok(code);
         }
-        Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Invalid HTTP status line",
-        ))
+        Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid HTTP status line"))
     }
 }
 

@@ -241,33 +241,19 @@ impl DnsClient {
 
     async fn query_entry(&self, entry: &ServerEntry, clean: &str, option: &IPOption) -> Option<Vec<IpAddr>> {
         let ips = match entry.ns.query_ip(clean).await {
-            Ok(ips) => ips,
-            Err(e) => {
-                tracing::warn!("DNS nameserver '{}' failed for '{}': {}", entry.ns.name(), clean, e);
-                return None;
-            }
+            Ok(ips) if !ips.is_empty() => ips,
+            Ok(_) => return None,
+            Err(e) => { tracing::warn!("DNS nameserver '{}' failed for '{}': {}", entry.ns.name(), clean, e); return None; }
         };
-        if ips.is_empty() {
-            return None;
-        }
-        let strategy = entry.query_strategy.unwrap_or(self.query_strategy);
-        let mut filtered = Self::filter_ips_with_strategy(strategy, &ips, option);
+        let mut filtered = Self::filter_ips_with_strategy(entry.query_strategy.unwrap_or(self.query_strategy), &ips, option);
         if !entry.expect_ip_matchers.is_empty() {
             filtered.retain(|ip| entry.expect_ip_matchers.iter().any(|m| m.matches(ip)));
         }
         if filtered.is_empty() {
-            tracing::debug!(
-                "DNS nameserver '{}' returned {:?} for '{}', all filtered out by strategy/expectIPs",
-                entry.ns.name(),
-                ips,
-                clean
-            );
+            tracing::debug!("DNS nameserver '{}' returned {:?} for '{}', all filtered out by strategy/expectIPs", entry.ns.name(), ips, clean);
             return None;
         }
-        if !self.disable_cache && !entry.is_fakedns {
-            self.cache
-                .set(clean, filtered.clone(), Duration::from_secs(300));
-        }
+        if !self.disable_cache && !entry.is_fakedns { self.cache.set(clean, filtered.clone(), Duration::from_secs(300)); }
         Some(filtered)
     }
 

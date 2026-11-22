@@ -36,41 +36,21 @@ impl CopyOptions {
     }
 }
 
-pub async fn copy<R: Reader, W: Writer>(
-    reader: &mut R,
-    writer: &mut W,
-    options: &CopyOptions,
-) -> Result<u64> {
+pub async fn copy<R: Reader, W: Writer>(reader: &mut R, writer: &mut W, options: &CopyOptions) -> Result<u64> {
     let mut total = 0u64;
     loop {
         match reader.read_multi_buffer().await {
+            Ok(mb) if mb.is_empty() => break,
             Ok(mb) => {
-                if mb.is_empty() {
-                    break;
-                }
                 let len = mb.len();
                 total += len as u64;
-
-                if let Some(timer) = &options.timer {
-                    timer.update();
-                }
-                if let Some(counter) = &options.counter {
-                    counter.add(len as i64);
-                }
-                if let Some(size) = &options.size_counter {
-                    size.fetch_add(len as i64, Ordering::Relaxed);
-                }
-
+                if let Some(t) = &options.timer { t.update(); }
+                if let Some(c) = &options.counter { c.add(len as i64); }
+                if let Some(s) = &options.size_counter { s.fetch_add(len as i64, Ordering::Relaxed); }
                 writer.write_multi_buffer(mb).await?;
             }
-            Err(e) => {
-                if let Error::Io(ref io_err) = e
-                    && io_err.kind() == std::io::ErrorKind::UnexpectedEof
-                {
-                    break;
-                }
-                return Err(e);
-            }
+            Err(Error::Io(ref io_err)) if io_err.kind() == std::io::ErrorKind::UnexpectedEof => break,
+            Err(e) => return Err(e),
         }
     }
     Ok(total)

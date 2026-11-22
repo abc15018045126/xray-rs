@@ -50,46 +50,18 @@ impl XIcmpClient {
     }
 
     pub fn encode_request(&mut self, payload: Option<&[u8]>) -> Result<Vec<u8>> {
-        let (need_seq_byte, seq_byte) = match payload {
-            Some(p) if !p.is_empty() => (true, p[0]),
-            _ => (false, 0),
-        };
-
-        let typ = if self.is_ipv6 {
-            ICMP_TYPE_ECHO_V6
-        } else {
-            ICMP_TYPE_ECHO_V4
-        };
-
         let data = payload.unwrap_or(&[]);
+        let typ = if self.is_ipv6 { ICMP_TYPE_ECHO_V6 } else { ICMP_TYPE_ECHO_V4 };
         let mut pkt = Vec::with_capacity(8 + data.len());
-        pkt.push(typ);
-        pkt.push(0);
-        pkt.extend_from_slice(&[0, 0]);
+        pkt.extend_from_slice(&[typ, 0, 0, 0]);
         pkt.extend_from_slice(&self.id.to_be_bytes());
         pkt.extend_from_slice(&self.seq.to_be_bytes());
         pkt.extend_from_slice(data);
-
         let csum = calculate_checksum(&pkt);
         pkt[2..4].copy_from_slice(&csum.to_be_bytes());
-
-        self.seq_status.insert(
-            self.seq,
-            SeqStatus {
-                need_seq_byte,
-                seq_byte,
-            },
-        );
-
-        let old_seq = self.seq.wrapping_sub(WINDOW_SIZE);
-        self.seq_status.remove(&old_seq);
-
-        if self.seq == 65535 {
-            self.seq = 1;
-        } else {
-            self.seq += 1;
-        }
-
+        self.seq_status.insert(self.seq, SeqStatus { need_seq_byte: !data.is_empty(), seq_byte: data.first().copied().unwrap_or(0) });
+        self.seq_status.remove(&self.seq.wrapping_sub(WINDOW_SIZE));
+        self.seq = if self.seq == 65535 { 1 } else { self.seq + 1 };
         Ok(pkt)
     }
 
