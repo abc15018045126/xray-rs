@@ -73,11 +73,7 @@ mod imp {
     }
 
     impl AsyncRead for AndroidTunDevice {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-            buf: &mut ReadBuf<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
             loop {
                 let mut guard = match self.inner.poll_read_ready(cx) {
                     Poll::Ready(Ok(g)) => g,
@@ -85,27 +81,13 @@ mod imp {
                     Poll::Pending => return Poll::Pending,
                 };
                 let dst = buf.initialize_unfilled();
-                let res = guard.try_io(|inner| {
-                    let n = unsafe {
-                        libc::read(
-                            inner.as_raw_fd(),
-                            dst.as_mut_ptr() as *mut libc::c_void,
-                            dst.len(),
-                        )
-                    };
-                    if n < 0 {
-                        Err(io::Error::last_os_error())
-                    } else {
-                        Ok(n as usize)
-                    }
-                });
-                match res {
-                    Ok(Ok(n)) => {
-                        buf.advance(n);
-                        return Poll::Ready(Ok(()));
-                    }
+                match guard.try_io(|inner| {
+                    let n = unsafe { libc::read(inner.as_raw_fd(), dst.as_mut_ptr() as *mut libc::c_void, dst.len()) };
+                    if n < 0 { Err(io::Error::last_os_error()) } else { Ok(n as usize) }
+                }) {
+                    Ok(Ok(n)) => { buf.advance(n); return Poll::Ready(Ok(())); }
                     Ok(Err(e)) => return Poll::Ready(Err(e)),
-                    Err(_would_block) => continue,
+                    Err(_) => continue,
                 }
             }
         }

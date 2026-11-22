@@ -74,47 +74,18 @@ pub enum IpMatcher {
 impl IpMatcher {
     pub fn parse(s: &str) -> Option<Self> {
         let s = s.trim();
-        let s_lower = s.to_lowercase();
-
-        if let Some(rest) = s_lower.strip_prefix("geoip:") {
-            if rest == "private" {
-                return Some(IpMatcher::Private);
-            }
-            return Some(IpMatcher::GeoIp(rest.to_string()));
+        let lower = s.to_lowercase();
+        let geo = |tag: &str| if tag == "private" { Self::Private } else { Self::GeoIp(tag.to_string()) };
+        if let Some(rest) = lower.strip_prefix("geoip:") { return Some(geo(rest)); }
+        if let Some(rest) = lower.strip_prefix("ext:") {
+            return rest.rsplit_once(':').filter(|(_, t)| !t.is_empty()).map(|(_, t)| geo(t));
         }
-
-        if let Some(rest) = s_lower.strip_prefix("ext:") {
-            if let Some((_file, tag)) = rest.rsplit_once(':')
-                && !tag.is_empty()
-            {
-                if tag == "private" {
-                    return Some(IpMatcher::Private);
-                }
-                return Some(IpMatcher::GeoIp(tag.to_string()));
-            }
-            return None;
+        if lower == "private" { return Some(Self::Private); }
+        if let Some((ip_part, mask_part)) = s.split_once('/') && let Ok(mask) = mask_part.parse::<u8>() {
+            if let Ok(v4) = Ipv4Addr::from_str(ip_part) { return Some(Self::CidrV4(v4, mask)); }
+            if let Ok(v6) = Ipv6Addr::from_str(ip_part) { return Some(Self::CidrV6(v6, mask)); }
         }
-
-        if s_lower == "private" {
-            return Some(IpMatcher::Private);
-        }
-
-        if let Some((ip_part, mask_part)) = s.split_once('/')
-            && let Ok(mask) = mask_part.parse::<u8>()
-        {
-            if let Ok(v4) = Ipv4Addr::from_str(ip_part) {
-                return Some(IpMatcher::CidrV4(v4, mask));
-            }
-            if let Ok(v6) = Ipv6Addr::from_str(ip_part) {
-                return Some(IpMatcher::CidrV6(v6, mask));
-            }
-        }
-
-        if let Ok(ip) = IpAddr::from_str(s) {
-            return Some(IpMatcher::Exact(ip));
-        }
-
-        None
+        IpAddr::from_str(s).ok().map(Self::Exact)
     }
 
     pub fn matches(&self, ip: &IpAddr) -> bool {

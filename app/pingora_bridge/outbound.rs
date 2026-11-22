@@ -61,36 +61,21 @@ impl OutboundHandler for PingoraPooledOutbound {
         let key = pool_key(&format!("{}:{}", self.tag, session.destination));
         if let Some(reused) = self.pool.get(key) {
             #[cfg(debug_assertions)]
-            crate::debug_panel::metrics().record_pool_reuse(
-                &session.destination.address.to_string(),
-                &self.tag,
-            );
+            crate::debug_panel::metrics().record_pool_reuse(&session.destination.address.to_string(), &self.tag);
             return Ok(reused);
         }
-
         if self.upstreams.is_empty() {
-            return Err(Error::NotFound(format!(
-                "PingoraPooledOutbound '{}' has no upstreams",
-                self.tag
-            )));
+            return Err(Error::NotFound(format!("PingoraPooledOutbound '{}' has no upstreams", self.tag)));
         }
-
-        let target_key = session
-            .sniffed_domain
-            .clone()
-            .unwrap_or_else(|| session.destination.address.to_string());
+        let target_key = session.sniffed_domain.clone().unwrap_or_else(|| session.destination.address.to_string());
         let start = self.pick_upstream_index(target_key.as_bytes());
         let mut last_err = None;
         for offset in 0..self.upstreams.len() {
-            let idx = (start + offset) % self.upstreams.len();
-            match self.upstreams[idx].connect(session).await {
+            match self.upstreams[(start + offset) % self.upstreams.len()].connect(session).await {
                 Ok(stream) => return Ok(stream),
-                Err(e) => {
-                    last_err = Some(e);
-                }
+                Err(e) => last_err = Some(e),
             }
         }
-
         Err(last_err.unwrap_or(Error::Closed))
     }
 }

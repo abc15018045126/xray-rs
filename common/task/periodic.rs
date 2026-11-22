@@ -47,44 +47,21 @@ impl Periodic {
     }
 
     pub fn start_execute(&mut self) -> Result<()> {
-        if self.running.swap(true, Ordering::SeqCst) {
-            return Ok(());
-        }
-
-        let execute = match &self.execute {
-            Some(e) => e.clone(),
-            None => return Ok(()),
-        };
-
-        if let Err(e) = execute() {
-            self.running.store(false, Ordering::Relaxed);
-            return Err(e);
-        }
-
-        let running = self.running.clone();
-        let notify_stop = self.notify_stop.clone();
-        let interval = self.interval;
-
-        let handle = tokio::spawn(async move {
+        if self.running.swap(true, Ordering::SeqCst) { return Ok(()); }
+        let Some(execute) = self.execute.clone() else { return Ok(()); };
+        if let Err(e) = execute() { self.running.store(false, Ordering::Relaxed); return Err(e); }
+        let (running, notify_stop, interval) = (self.running.clone(), self.notify_stop.clone(), self.interval);
+        self.handle = Some(tokio::spawn(async move {
             while running.load(Ordering::Relaxed) {
                 tokio::select! {
-                    _ = notify_stop.notified() => {
-                        break;
-                    }
+                    _ = notify_stop.notified() => break,
                     _ = tokio::time::sleep(interval) => {
-                        if !running.load(Ordering::Relaxed) {
-                            break;
-                        }
-                        if execute().is_err() {
-                            running.store(false, Ordering::Relaxed);
-                            break;
-                        }
+                        if !running.load(Ordering::Relaxed) { break; }
+                        if execute().is_err() { running.store(false, Ordering::Relaxed); break; }
                     }
                 }
             }
-        });
-
-        self.handle = Some(handle);
+        }));
         Ok(())
     }
 

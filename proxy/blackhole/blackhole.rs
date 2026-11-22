@@ -66,33 +66,18 @@ impl OutboundHandler for Handler {
 
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
         let (mut client_stream, server_stream) = tokio::io::duplex(1024);
-        match self.response {
-            ResponseType::Http403 => {
-                tokio::spawn(async move {
-                    use tokio::io::AsyncWriteExt;
-                    let _ = client_stream
-                        .write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n")
-                        .await;
-                    let _ = client_stream.flush().await;
-                });
-                Ok(Box::pin(server_stream))
-            }
-            ResponseType::Http500 => {
-                tokio::spawn(async move {
-                    use tokio::io::AsyncWriteExt;
-                    let _ = client_stream
-                        .write_all(
-                            b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n",
-                        )
-                        .await;
-                    let _ = client_stream.flush().await;
-                });
-                Ok(Box::pin(server_stream))
-            }
-            ResponseType::None => {
-                drop(client_stream);
-                Ok(Box::pin(server_stream))
-            }
+        let msg: Option<&'static [u8]> = match self.response {
+            ResponseType::Http403 => Some(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"),
+            ResponseType::Http500 => Some(b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n"),
+            ResponseType::None => None,
+        };
+        if let Some(bytes) = msg {
+            tokio::spawn(async move {
+                use tokio::io::AsyncWriteExt;
+                let _ = client_stream.write_all(bytes).await;
+                let _ = client_stream.flush().await;
+            });
         }
+        Ok(Box::pin(server_stream))
     }
 }

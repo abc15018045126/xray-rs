@@ -233,37 +233,16 @@ impl Client {
         ws_path: Option<String>,
         ws_host: Option<String>,
     ) -> Self {
-        let (clean_ws_path, ws_ed) = match ws_path {
-            Some(p) => {
-                let (c, ed) = parse_ws_early_data(&p);
-                (Some(c), ed)
-            }
-            None => (None, 0),
-        };
+        let (ws_path, ws_ed) = ws_path.map_or((None, 0), |p| { let (c, ed) = parse_ws_early_data(&p); (Some(c), ed) });
         Self {
-            tag: tag.into(),
-            user_id,
-            flow: None,
-            encryption: None,
+            tag: tag.into(), user_id, flow: None, encryption: None,
             dial_params: DialParams {
-                server_addr,
-                tls_client: tls_client.map(Arc::new),
-                tls_sni,
-                reality_client: None,
-                ws_path: clean_ws_path,
-                ws_host,
-                ws_headers: HashMap::new(),
-                ws_heartbeat: 0,
-                ws_ed,
-                httpupgrade_path: None,
-                httpupgrade_host: None,
-                httpupgrade_headers: HashMap::new(),
-                splithttp_cfg: None,
-                fragment_cfg: None,
+                server_addr, tls_client: tls_client.map(Arc::new), tls_sni, reality_client: None,
+                ws_path, ws_host, ws_headers: HashMap::new(), ws_heartbeat: 0, ws_ed,
+                httpupgrade_path: None, httpupgrade_host: None, httpupgrade_headers: HashMap::new(),
+                splithttp_cfg: None, fragment_cfg: None,
             },
-            testpre: 0,
-            testpre_idle_secs: DEFAULT_TESTPRE_IDLE_SECS,
-            pre_conns: OnceLock::new(),
+            testpre: 0, testpre_idle_secs: DEFAULT_TESTPRE_IDLE_SECS, pre_conns: OnceLock::new(),
         }
     }
 
@@ -458,40 +437,14 @@ impl OutboundHandler for Client {
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let stream = self.take_or_dial(session).await?;
-
-        let command = match session.destination.network {
-            Network::Tcp => RequestCommand::Tcp,
-            Network::Udp => RequestCommand::Udp,
-        };
-
+        let command = if session.destination.network == Network::Udp { RequestCommand::Udp } else { RequestCommand::Tcp };
         let mut req = RequestHeader::new(self.user_id, command, session.destination.clone());
-        if let Some(ref flow) = self.flow {
-            req.addons = Addons::new(flow.clone());
-        }
-        let header_bytes = req.encode_bytes();
-        let is_vision = matches!(
-            self.flow.as_deref(),
-            Some(FLOW_VISION) | Some(crate::proxy::vless::flow::FLOW_VISION_UDP443)
-        );
-        let is_udp = command == RequestCommand::Udp && !is_vision;
-
-        let vless_stream: BoxStream =
-            Box::pin(VlessStream::with_pending_header(stream, is_udp, header_bytes));
-
-        let final_stream: BoxStream = if is_vision {
-            Box::pin(VisionStream::new(
-                vless_stream,
-                crate::proxy::vless::flow::VisionContext::new(
-                    self.user_id.into_bytes().to_vec(),
-                    true,
-                ),
-                false,
-            ))
-        } else {
-            vless_stream
-        };
-
-        Ok(final_stream)
+        if let Some(ref flow) = self.flow { req.addons = Addons::new(flow.clone()); }
+        let is_vision = matches!(self.flow.as_deref(), Some(FLOW_VISION) | Some(crate::proxy::vless::flow::FLOW_VISION_UDP443));
+        let vless: BoxStream = Box::pin(VlessStream::with_pending_header(stream, command == RequestCommand::Udp && !is_vision, req.encode_bytes()));
+        Ok(if is_vision {
+            Box::pin(VisionStream::new(vless, crate::proxy::vless::flow::VisionContext::new(self.user_id.into_bytes().to_vec(), true), false))
+        } else { vless })
     }
 }
 

@@ -41,47 +41,15 @@ impl XIcmpServer {
     }
 
     pub fn decode_request(&self, packet: &[u8]) -> Result<Option<XIcmpServerRequest>> {
-        if packet.len() < 8 {
-            return Err(Error::Protocol("ICMP request too short (< 8 bytes)".into()));
-        }
-
-        let typ = packet[0];
-        let code = packet[1];
-        if code != 0 {
-            return Err(Error::Protocol("ICMP request code non-zero".into()));
-        }
-
-        let expected_typ = if self.is_ipv6 {
-            ICMP_TYPE_ECHO_V6
-        } else {
-            ICMP_TYPE_ECHO_V4
-        };
-
-        if typ != expected_typ {
-            return Ok(None);
-        }
-
-        if !verify_checksum(packet) {
-            return Err(Error::Protocol("ICMP request checksum invalid".into()));
-        }
-
+        if packet.len() < 8 { return Err(Error::Protocol("ICMP request too short (< 8 bytes)".into())); }
+        if packet[1] != 0 { return Err(Error::Protocol("ICMP request code non-zero".into())); }
+        if packet[0] != if self.is_ipv6 { ICMP_TYPE_ECHO_V6 } else { ICMP_TYPE_ECHO_V4 } { return Ok(None); }
+        if !verify_checksum(packet) { return Err(Error::Protocol("ICMP request checksum invalid".into())); }
         let id = u16::from_be_bytes([packet[4], packet[5]]);
-        if self.config.id != 0 && id != self.config.id {
-            return Ok(None);
-        }
-
-        let seq = u16::from_be_bytes([packet[6], packet[7]]);
-        let data = &packet[8..];
-
-        let need_seq_byte = !data.is_empty();
-        let seq_byte = if need_seq_byte { data[0] } else { 0 };
-
+        if self.config.id != 0 && id != self.config.id { return Ok(None); }
+        let (seq, data) = (u16::from_be_bytes([packet[6], packet[7]]), &packet[8..]);
         Ok(Some(XIcmpServerRequest {
-            id,
-            seq,
-            need_seq_byte,
-            seq_byte,
-            payload: data.to_vec(),
+            id, seq, need_seq_byte: !data.is_empty(), seq_byte: data.first().copied().unwrap_or(0), payload: data.to_vec(),
         }))
     }
 

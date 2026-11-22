@@ -247,38 +247,18 @@ pub struct MultiServerSettings {
 
 impl MultiServerSettings {
     fn normalize_flat_outbound(&mut self) {
-        if let Some(ref addr) = self.address
-            && !addr.is_empty()
-        {
-            if self.vnext.is_empty()
-                && let Some(ref id) = self.id
-                && !id.is_empty()
-            {
-                self.vnext.push(ServerTargetConfig {
-                    address: Some(addr.clone()),
-                    port: self.port,
-                    users: vec![UserConfig {
-                        id: id.clone(),
-                        password: self.password.clone(),
-                        level: self.level,
-                        flow: self.flow.clone(),
-                        testpre: self.testpre,
-                        testpre_idle: self.testpre_idle,
-                    }],
-                    password: self.password.clone(),
-                    method: self.method.clone(),
-                });
-            }
-            if self.servers.is_empty() {
-                self.servers.push(ServerTargetConfig {
-                    address: Some(addr.clone()),
-                    port: self.port,
-                    users: Vec::new(),
-                    password: self.password.clone(),
-                    method: self.method.clone(),
-                });
-            }
+        let Some(ref addr) = self.address.as_ref().filter(|a| !a.is_empty()) else { return; };
+        let base = |users| ServerTargetConfig {
+            address: Some((*addr).clone()), port: self.port, users,
+            password: self.password.clone(), method: self.method.clone(),
+        };
+        if self.vnext.is_empty() && let Some(ref id) = self.id && !id.is_empty() {
+            self.vnext.push(base(vec![UserConfig {
+                id: id.clone(), password: self.password.clone(), level: self.level,
+                flow: self.flow.clone(), testpre: self.testpre, testpre_idle: self.testpre_idle,
+            }]));
         }
+        if self.servers.is_empty() { self.servers.push(base(Vec::new())); }
     }
 }
 

@@ -35,42 +35,19 @@ pub struct OutboundInterface {
 
 impl From<NetworkInterface> for OutboundInterface {
     fn from(iface: NetworkInterface) -> Self {
-        let mut v4 = None;
-        let mut v6 = None;
-
-        for addr in iface.addr.iter() {
-            if v4.is_some() && v6.is_some() {
-                break;
-            }
+        let (mut v4, mut v6) = (None, None);
+        for addr in &iface.addr {
+            if v4.is_some() && v6.is_some() { break; }
             match addr {
-                network_interface::Addr::V4(addr) => {
-                    if !addr.ip.is_loopback()
-                        && !addr.ip.is_link_local()
-                        && !addr.ip.is_unspecified()
-                    {
-                        v4 = Some(*addr);
-                    }
-                }
-                network_interface::Addr::V6(addr) => {
-                    if addr.ip.is_unique_local()
-                        || (!addr.ip.is_loopback() && !addr.ip.is_unspecified())
-                    {
-                        v6 = Some(*addr);
-                    }
-                }
+                network_interface::Addr::V4(a) if !a.ip.is_loopback() && !a.ip.is_link_local() && !a.ip.is_unspecified() => v4 = Some(*a),
+                network_interface::Addr::V6(a) if a.ip.is_unique_local() || (!a.ip.is_loopback() && !a.ip.is_unspecified()) => v6 = Some(*a),
+                _ => {}
             }
         }
-
         OutboundInterface {
-            name: iface.name,
-            addr_v4: v4.map(|x| x.ip),
-            netmask_v4: v4.and_then(|x| x.netmask),
-            broadcast_v4: v4.and_then(|x| x.broadcast),
-            addr_v6: v6.map(|x| x.ip),
-            netmask_v6: v6.and_then(|x| x.netmask),
-            broadcast_v6: v6.and_then(|x| x.broadcast),
-            index: iface.index,
-            mac_addr: iface.mac_addr,
+            name: iface.name, index: iface.index, mac_addr: iface.mac_addr,
+            addr_v4: v4.map(|x| x.ip), netmask_v4: v4.and_then(|x| x.netmask), broadcast_v4: v4.and_then(|x| x.broadcast),
+            addr_v6: v6.map(|x| x.ip), netmask_v6: v6.and_then(|x| x.netmask), broadcast_v6: v6.and_then(|x| x.broadcast),
         }
     }
 }
@@ -92,43 +69,15 @@ pub fn get_interface_by_name(name: &str) -> Option<OutboundInterface> {
 
 pub fn get_outbound_interface() -> Option<OutboundInterface> {
     let now = std::time::Instant::now();
-
-    let mut all_outbounds = network_interface::NetworkInterface::show()
-        .ok()?
-        .into_iter()
-        .map(Into::into)
-        .filter(|iface: &OutboundInterface| {
-            !iface.name.contains("tun") && (iface.addr_v4.is_some() || iface.addr_v6.is_some())
-        })
-        .collect::<Vec<_>>();
-
-    let priority: &[&str] = if cfg!(target_os = "windows") {
-        &["Ethernet", "Wi-Fi", "Tailscale"]
-    } else if cfg!(target_os = "linux") {
-        &["eth", "wlp", "en", "Tailscale"]
-    } else if cfg!(target_os = "macos") {
-        &["en", "pdp_ip", "Tailscale"]
-    } else {
-        &["eth", "en", "wlp"]
-    };
-
-    all_outbounds.sort_by(|left, right| {
-        let left_pos = priority
-            .iter()
-            .position(|x| left.name.contains(x))
-            .unwrap_or(usize::MAX);
-        let right_pos = priority
-            .iter()
-            .position(|x| right.name.contains(x))
-            .unwrap_or(usize::MAX);
-        left_pos.cmp(&right_pos)
-    });
-
-    trace!(
-        "sorted outbound interfaces: {:?}, took: {}ms",
-        all_outbounds,
-        now.elapsed().as_millis()
-    );
-
-    all_outbounds.into_iter().next()
+    let mut outbounds: Vec<OutboundInterface> = network_interface::NetworkInterface::show().ok()?
+        .into_iter().map(Into::into)
+        .filter(|i: &OutboundInterface| !i.name.contains("tun") && (i.addr_v4.is_some() || i.addr_v6.is_some()))
+        .collect();
+    let prio: &[&str] = if cfg!(target_os = "windows") { &["Ethernet", "Wi-Fi", "Tailscale"] }
+        else if cfg!(target_os = "linux") { &["eth", "wlp", "en", "Tailscale"] }
+        else if cfg!(target_os = "macos") { &["en", "pdp_ip", "Tailscale"] }
+        else { &["eth", "en", "wlp"] };
+    outbounds.sort_by_key(|i| prio.iter().position(|x| i.name.contains(x)).unwrap_or(usize::MAX));
+    trace!("sorted outbound interfaces: {:?}, took: {}ms", outbounds, now.elapsed().as_millis());
+    outbounds.into_iter().next()
 }

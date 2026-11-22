@@ -30,35 +30,17 @@ struct TunAwareL4Connect;
 impl L4Connect for TunAwareL4Connect {
     async fn connect(&self, addr: &PingoraSocketAddr) -> pingora_core::Result<PingoraL4Stream> {
         let inet = addr.as_inet().copied().ok_or_else(|| {
-            pingora_core::Error::explain(
-                pingora_core::ConnectError,
-                format!("non-inet address not supported: {}", addr),
-            )
+            pingora_core::Error::explain(pingora_core::ConnectError, format!("non-inet address not supported: {}", addr))
         })?;
-
         #[cfg(any(target_os = "windows", target_os = "android"))]
         let tcp = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            crate::proxy::tun::socket_helpers::new_tcp_stream(inet, iface.as_ref())
-                .await
-                .map_err(|e| {
-                    pingora_core::Error::because(
-                        pingora_core::ConnectError,
-                        format!("TUN-safe TCP connect to {} failed", inet),
-                        e,
-                    )
-                })?
+            crate::proxy::tun::socket_helpers::new_tcp_stream(inet, iface.as_ref()).await
+                .map_err(|e| pingora_core::Error::because(pingora_core::ConnectError, format!("TUN-safe TCP connect to {} failed", inet), e))?
         };
-
         #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
-        let tcp = tokio::net::TcpStream::connect(inet).await.map_err(|e| {
-            pingora_core::Error::because(
-                pingora_core::ConnectError,
-                format!("TCP connect to {} failed", inet),
-                e,
-            )
-        })?;
-
+        let tcp = tokio::net::TcpStream::connect(inet).await
+            .map_err(|e| pingora_core::Error::because(pingora_core::ConnectError, format!("TCP connect to {} failed", inet), e))?;
         let _ = tcp.set_nodelay(true);
         Ok(PingoraL4Stream::from(tcp))
     }

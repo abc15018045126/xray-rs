@@ -205,40 +205,18 @@ impl XudpPacket {
 
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
         let port = reader.read_u16().await?;
-        let addr_type = reader.read_u8().await?;
-        let address = match addr_type {
-            1 => {
-                let mut ip = [0u8; 4];
-                reader.read_exact(&mut ip).await?;
-                Address::Ipv4(Ipv4Addr::from(ip))
-            }
+        let address = match reader.read_u8().await? {
+            1 => { let mut ip = [0u8; 4]; reader.read_exact(&mut ip).await?; Address::Ipv4(Ipv4Addr::from(ip)) }
             2 => {
-                let len = reader.read_u8().await? as usize;
-                let mut dom = vec![0u8; len];
+                let mut dom = vec![0u8; reader.read_u8().await? as usize];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom)
-                    .map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in XUDP: {}", e)))?;
-                Address::Domain(s)
+                Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in XUDP: {}", e)))?)
             }
-            3 => {
-                let mut ip = [0u8; 16];
-                reader.read_exact(&mut ip).await?;
-                Address::Ipv6(Ipv6Addr::from(ip))
-            }
-            other => {
-                return Err(Error::Protocol(format!(
-                    "Invalid XUDP address type: {}",
-                    other
-                )));
-            }
+            3 => { let mut ip = [0u8; 16]; reader.read_exact(&mut ip).await?; Address::Ipv6(Ipv6Addr::from(ip)) }
+            other => return Err(Error::Protocol(format!("Invalid XUDP address type: {}", other))),
         };
-
         let mut payload = Vec::new();
         reader.read_to_end(&mut payload).await?;
-
-        Ok(Self {
-            destination: Destination::udp(address, port),
-            payload,
-        })
+        Ok(Self { destination: Destination::udp(address, port), payload })
     }
 }

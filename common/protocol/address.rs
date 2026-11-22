@@ -50,28 +50,13 @@ impl AddressParser {
     }
 
     pub async fn read_address<R: AsyncRead + Unpin>(&self, reader: &mut R) -> Result<Address> {
-        let addr_type = reader.read_u8().await.map_err(Error::Io)?;
-        match addr_type {
-            ADDR_TYPE_IPV4 => {
-                let mut ip_bytes = [0u8; 4];
-                reader.read_exact(&mut ip_bytes).await.map_err(Error::Io)?;
-                Ok(Address::Ipv4(Ipv4Addr::from(ip_bytes)))
-            }
-            ADDR_TYPE_IPV6 => {
-                let mut ip_bytes = [0u8; 16];
-                reader.read_exact(&mut ip_bytes).await.map_err(Error::Io)?;
-                Ok(Address::Ipv6(Ipv6Addr::from(ip_bytes)))
-            }
+        match reader.read_u8().await.map_err(Error::Io)? {
+            ADDR_TYPE_IPV4 => { let mut b = [0u8; 4]; reader.read_exact(&mut b).await.map_err(Error::Io)?; Ok(Address::Ipv4(Ipv4Addr::from(b))) }
+            ADDR_TYPE_IPV6 => { let mut b = [0u8; 16]; reader.read_exact(&mut b).await.map_err(Error::Io)?; Ok(Address::Ipv6(Ipv6Addr::from(b))) }
             ADDR_TYPE_DOMAIN => {
-                let len = reader.read_u8().await.map_err(Error::Io)? as usize;
-                let mut domain_bytes = vec![0u8; len];
-                reader
-                    .read_exact(&mut domain_bytes)
-                    .await
-                    .map_err(Error::Io)?;
-                let s = String::from_utf8(domain_bytes)
-                    .map_err(|_| Error::Protocol("invalid utf8 domain".into()))?;
-                Address::from_str(&s)
+                let mut b = vec![0u8; reader.read_u8().await.map_err(Error::Io)? as usize];
+                reader.read_exact(&mut b).await.map_err(Error::Io)?;
+                Address::from_str(&String::from_utf8(b).map_err(|_| Error::Protocol("invalid utf8 domain".into()))?)
             }
             other => Err(Error::Protocol(format!("unknown address type: {}", other))),
         }

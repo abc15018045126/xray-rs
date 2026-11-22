@@ -303,53 +303,22 @@ pub fn pack_key(in_b: [u8; 4]) -> u32 {
 }
 
 fn generate_all_grids() -> Vec<[u8; 16]> {
-    let mut grids = Vec::with_capacity(288);
-    let mut g = [0u8; 16];
-
+    let (mut grids, mut g) = (Vec::with_capacity(288), [0u8; 16]);
     fn dfs(idx: usize, g: &mut [u8; 16], grids: &mut Vec<[u8; 16]>) {
-        if idx == 16 {
-            grids.push(*g);
-            return;
-        }
-
-        let row = idx / 4;
-        let col = idx % 4;
-        let box_row = (row / 2) * 2;
-        let box_col = (col / 2) * 2;
-
+        if idx == 16 { grids.push(*g); return; }
+        let (row, col) = (idx / 4, idx % 4);
+        let (br, bc) = ((row / 2) * 2, (col / 2) * 2);
         for num in 1..=4u8 {
-            let mut valid = true;
-            for i in 0..4 {
-                if g[row * 4 + i] == num || g[i * 4 + col] == num {
-                    valid = false;
-                    break;
-                }
-            }
-            if !valid {
+            if (0..4).any(|i| g[row * 4 + i] == num || g[i * 4 + col] == num)
+                || (0..2).any(|r| (0..2).any(|c| g[(br + r) * 4 + bc + c] == num))
+            {
                 continue;
             }
-
-            for r in 0..2 {
-                for c in 0..2 {
-                    if g[(box_row + r) * 4 + (box_col + c)] == num {
-                        valid = false;
-                        break;
-                    }
-                }
-                if !valid {
-                    break;
-                }
-            }
-            if !valid {
-                continue;
-            }
-
             g[idx] = num;
             dfs(idx + 1, g, grids);
             g[idx] = 0;
         }
     }
-
     dfs(0, &mut g, &mut grids);
     grids
 }
@@ -374,44 +343,22 @@ fn clue_group(g: &[u8; 16], pos: u8) -> u8 {
 
 fn build_base_patterns() -> Result<Vec<Vec<[u8; 4]>>> {
     let grids = generate_all_grids();
-    let positions = hint_positions();
-
     let mut patterns = vec![Vec::new(); grids.len()];
-
-    for ps in positions {
+    for ps in hint_positions() {
         let mut counts: HashMap<u32, u16> = HashMap::with_capacity(grids.len());
-        let mut keys = Vec::with_capacity(grids.len());
-        let mut groups_by_grid = Vec::with_capacity(grids.len());
-
-        for g in &grids {
-            let groups = sort4([
-                clue_group(g, ps[0]),
-                clue_group(g, ps[1]),
-                clue_group(g, ps[2]),
-                clue_group(g, ps[3]),
-            ]);
+        let items: Vec<_> = grids.iter().map(|g| {
+            let groups = sort4(ps.map(|p| clue_group(g, p)));
             let key = pack_key(groups);
-            keys.push(key);
-            groups_by_grid.push(groups);
             *counts.entry(key).or_insert(0) += 1;
-        }
-
-        for (gi, &key) in keys.iter().enumerate() {
-            if counts.get(&key) == Some(&1) {
-                patterns[gi].push(groups_by_grid[gi]);
-            }
+            (key, groups)
+        }).collect();
+        for (gi, (key, groups)) in items.into_iter().enumerate() {
+            if counts.get(&key) == Some(&1) { patterns[gi].push(groups); }
         }
     }
-
-    for (gi, list) in patterns.iter().enumerate() {
-        if list.is_empty() {
-            return Err(Error::Config(format!(
-                "grid {} has no uniquely decodable clue set",
-                gi
-            )));
-        }
+    if let Some(gi) = patterns.iter().position(|list| list.is_empty()) {
+        return Err(Error::Config(format!("grid {} has no uniquely decodable clue set", gi)));
     }
-
     Ok(patterns)
 }
 

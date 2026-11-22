@@ -67,45 +67,20 @@ impl Sniffer {
     }
 
     pub fn sniff(&self, payload: &[u8], network: Network) -> Result<SniffResult> {
-        if network == Network::Tcp
-            && payload.len() >= 5
-            && payload[0] == 0x16
-            && payload[1] == 0x03
+        if network == Network::Tcp && payload.len() >= 5 && payload[0] == 0x16 && payload[1] == 0x03
             && let Some(domain) = Self::sniff_tls_sni(payload)
         {
-            return Ok(SniffResult {
-                protocol: "tls".into(),
-                domain,
-            });
+            return Ok(SniffResult { protocol: "tls".into(), domain });
         }
-
-        if network == Network::Tcp
-            && payload.len() >= 10
-            && let Some(domain) = Self::sniff_http_host(payload)
-        {
-            return Ok(SniffResult {
-                protocol: "http".into(),
-                domain,
-            });
+        if network == Network::Tcp && payload.len() >= 10 && let Some(domain) = Self::sniff_http_host(payload) {
+            return Ok(SniffResult { protocol: "http".into(), domain });
         }
-
-        if network == Network::Udp
-            && payload.len() >= 12
-            && let Some(domain) = Self::sniff_quic_sni(payload)
-        {
-            return Ok(SniffResult {
-                protocol: "quic".into(),
-                domain,
-            });
+        if network == Network::Udp && payload.len() >= 12 && let Some(domain) = Self::sniff_quic_sni(payload) {
+            return Ok(SniffResult { protocol: "quic".into(), domain });
         }
-
-        if let Ok(proto) = crate::common::protocol::bittorrent::BittorrentSniffer::sniff(payload) {
-            return Ok(SniffResult {
-                protocol: proto,
-                domain: String::new(),
-            });
+        if let Ok(protocol) = crate::common::protocol::bittorrent::BittorrentSniffer::sniff(payload) {
+            return Ok(SniffResult { protocol, domain: String::new() });
         }
-
         Err(Error::Protocol("unknown content".into()))
     }
 

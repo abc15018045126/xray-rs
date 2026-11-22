@@ -27,38 +27,14 @@ impl Cidr {
 
     pub fn contains(&self, target: &IpAddr) -> bool {
         match (self.ip, target) {
-            (IpAddr::V4(net), IpAddr::V4(tgt)) => {
-                if self.prefix == 0 {
-                    return true;
-                }
-                if self.prefix > 32 {
-                    return false;
-                }
-                let shift = 32 - self.prefix;
-                let mask = if shift >= 32 {
-                    0
-                } else {
-                    !((1u32 << shift) - 1)
-                };
-                (u32::from_be_bytes(net.octets()) & mask)
-                    == (u32::from_be_bytes(tgt.octets()) & mask)
-            }
-            (IpAddr::V6(net), IpAddr::V6(tgt)) => {
-                if self.prefix == 0 {
-                    return true;
-                }
-                if self.prefix > 128 {
-                    return false;
-                }
-                let shift = 128 - self.prefix;
-                let mask = if shift >= 128 {
-                    0
-                } else {
-                    !((1u128 << shift) - 1)
-                };
-                (u128::from_be_bytes(net.octets()) & mask)
-                    == (u128::from_be_bytes(tgt.octets()) & mask)
-            }
+            (IpAddr::V4(net), IpAddr::V4(tgt)) => self.prefix == 0 || (self.prefix <= 32 && {
+                let mask = !0u32 << (32 - self.prefix);
+                (u32::from_be_bytes(net.octets()) & mask) == (u32::from_be_bytes(tgt.octets()) & mask)
+            }),
+            (IpAddr::V6(net), IpAddr::V6(tgt)) => self.prefix == 0 || (self.prefix <= 128 && {
+                let mask = !0u128 << (128 - self.prefix);
+                (u128::from_be_bytes(net.octets()) & mask) == (u128::from_be_bytes(tgt.octets()) & mask)
+            }),
             _ => false,
         }
     }

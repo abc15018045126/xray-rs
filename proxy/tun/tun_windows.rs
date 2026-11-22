@@ -18,39 +18,22 @@ pub mod device {
 
     impl WintunAsyncDevice {
         pub fn create(name: &str, guid: u128, ring_capacity: u32) -> io::Result<Self> {
-            let adapter =
-                Adapter::open(name).or_else(|_| Adapter::create(name, "Xray", Some(guid)))?;
+            let adapter = Adapter::open(name).or_else(|_| Adapter::create(name, "Xray", Some(guid)))?;
             let session = Arc::new(adapter.start_session(ring_capacity)?);
-
             let (read_tx, read_rx) = tokio::sync::mpsc::channel(2048);
             let cancel = CancellationToken::new();
-
-            let session_rx = session.clone();
-            let cancel_rx = cancel.clone();
-
-            std::thread::Builder::new()
-                .name("wintun-recv".into())
-                .spawn(move || {
-                    while !cancel_rx.is_cancelled() {
-                        let mut had_packet = false;
-                        while let Ok(Some(pkt)) = session_rx.receive_packet() {
-                            had_packet = true;
-                            if read_tx.blocking_send(pkt.to_vec()).is_err() {
-                                return;
-                            }
-                        }
-                        if !had_packet {
-                            session_rx.wait_for_data(250);
-                        }
+            let (session_rx, cancel_rx) = (session.clone(), cancel.clone());
+            std::thread::Builder::new().name("wintun-recv".into()).spawn(move || {
+                while !cancel_rx.is_cancelled() {
+                    let mut had_packet = false;
+                    while let Ok(Some(pkt)) = session_rx.receive_packet() {
+                        had_packet = true;
+                        if read_tx.blocking_send(pkt.to_vec()).is_err() { return; }
                     }
-                })?;
-
-            Ok(Self {
-                _adapter: adapter,
-                session,
-                read_rx,
-                cancel,
-            })
+                    if !had_packet { session_rx.wait_for_data(250); }
+                }
+            })?;
+            Ok(Self { _adapter: adapter, session, read_rx, cancel })
         }
     }
 
