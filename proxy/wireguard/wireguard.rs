@@ -7,46 +7,23 @@ pub const PROTOCOL_NAME: &str = "wireguard";
 pub const DEFAULT_MTU: u32 = 1420;
 
 pub fn parse_endpoints(endpoints: &[String]) -> Result<(Vec<IpAddr>, bool, bool)> {
-    let mut addrs = Vec::with_capacity(endpoints.len());
-    let mut has_ipv4 = false;
-    let mut has_ipv6 = false;
-
+    let (mut addrs, mut has_v4, mut has_v6) = (Vec::with_capacity(endpoints.len()), false, false);
     for s in endpoints {
-        let addr = if let Some((ip_str, prefix_str)) = s.split_once('/') {
-            let ip = IpAddr::from_str(ip_str)
-                .map_err(|e| Error::Config(format!("invalid IP: {}", e)))?;
-            let prefix: u8 = prefix_str
-                .parse()
-                .map_err(|_| Error::Config("invalid subnet prefix".into()))?;
-            match ip {
-                IpAddr::V4(_) => {
-                    if prefix != 32 {
-                        return Err(Error::Config(
-                            "interface address subnet should be /32 for IPv4".into(),
-                        ));
-                    }
-                }
-                IpAddr::V6(_) => {
-                    if prefix != 128 {
-                        return Err(Error::Config(
-                            "interface address subnet should be /128 for IPv6".into(),
-                        ));
-                    }
-                }
+        let (ip_str, prefix_opt) = s.split_once('/').map_or((s.as_str(), None), |(i, p)| (i, Some(p)));
+        let addr = IpAddr::from_str(ip_str).map_err(|e| Error::Config(format!("invalid IP: {}", e)))?;
+        if let Some(p_str) = prefix_opt {
+            let prefix: u8 = p_str.parse().map_err(|_| Error::Config("invalid subnet prefix".into()))?;
+            match addr {
+                IpAddr::V4(_) if prefix != 32 => return Err(Error::Config("interface address subnet should be /32 for IPv4".into())),
+                IpAddr::V6(_) if prefix != 128 => return Err(Error::Config("interface address subnet should be /128 for IPv6".into())),
+                _ => {}
             }
-            ip
-        } else {
-            IpAddr::from_str(s).map_err(|e| Error::Config(format!("invalid IP: {}", e)))?
-        };
-
-        match addr {
-            IpAddr::V4(_) => has_ipv4 = true,
-            IpAddr::V6(_) => has_ipv6 = true,
         }
+        has_v4 |= addr.is_ipv4();
+        has_v6 |= addr.is_ipv6();
         addrs.push(addr);
     }
-
-    Ok((addrs, has_ipv4, has_ipv6))
+    Ok((addrs, has_v4, has_v6))
 }
 
 pub fn create_ipc_request(

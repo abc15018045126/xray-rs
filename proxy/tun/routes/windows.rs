@@ -116,26 +116,13 @@ pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()>
     }
 
     let row = MIB_UNICASTIPADDRESS_ROW {
-        InterfaceIndex: iface.index,
-        Address: addr_inet,
-        OnLinkPrefixLength: addr_net.prefix_len(),
-        PrefixOrigin: IpPrefixOriginManual,
-        SuffixOrigin: IpSuffixOriginManual,
-        ValidLifetime: 0xffffffff,
-        PreferredLifetime: 0xffffffff,
-        SkipAsSource: false,
-        ..Default::default()
+        InterfaceIndex: iface.index, Address: addr_inet, OnLinkPrefixLength: addr_net.prefix_len(),
+        PrefixOrigin: IpPrefixOriginManual, SuffixOrigin: IpSuffixOriginManual,
+        ValidLifetime: 0xffffffff, PreferredLifetime: 0xffffffff, SkipAsSource: false, ..Default::default()
     };
-
     let res = unsafe { CreateUnicastIpAddressEntry(&row) }.to_hresult();
-    if res.is_ok() || res == ERROR_OBJECT_ALREADY_EXISTS.to_hresult() {
-        Ok(())
-    } else {
-        Err(io::Error::other(format!(
-            "failed to add address to tun interface: {}",
-            res.message()
-        )))
-    }
+    if res.is_ok() || res == ERROR_OBJECT_ALREADY_EXISTS.to_hresult() { Ok(()) }
+    else { Err(io::Error::other(format!("failed to add address to tun interface: {}", res.message()))) }
 }
 
 pub fn maybe_routes_clean_up(cfg: &TunConfig, tun_name: &str) -> io::Result<()> {

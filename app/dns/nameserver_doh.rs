@@ -115,43 +115,25 @@ impl DohNameServer {
     }
 
     async fn dial_direct(&self, host: &str, port: u16, hosts: Option<&StaticHosts>) -> Result<BoxStream> {
-        let mut addrs: Vec<SocketAddr> = Vec::new();
-        if let Ok(ip) = host.parse::<IpAddr>() {
-            addrs.push(SocketAddr::new(ip, port));
-        } else if let Some(h) = hosts
-            && let Some(static_ips) = h.lookup(host)
-        {
-            for ip in static_ips {
-                addrs.push(SocketAddr::new(ip, port));
-            }
-        }
+        let mut addrs: Vec<SocketAddr> = if let Ok(ip) = host.parse::<IpAddr>() {
+            vec![SocketAddr::new(ip, port)]
+        } else if let Some(ips) = hosts.and_then(|h| h.lookup(host)) {
+            ips.into_iter().map(|ip| SocketAddr::new(ip, port)).collect()
+        } else { Vec::new() };
         if addrs.is_empty() {
-            addrs.extend(
-                tokio::net::lookup_host(format!("{}:{}", host, port))
-                    .await
-                    .map_err(Error::Io)?,
-            );
+            addrs.extend(tokio::net::lookup_host(format!("{}:{}", host, port)).await.map_err(Error::Io)?);
         }
-
         let mut last_err = None;
         for addr in addrs {
-            match pingora_timeout::timeout(
-                self.timeout,
-                crate::app::pingora_bridge::PingoraCoreConnector::dial_tcp(addr),
-            )
-            .await
-            {
+            match pingora_timeout::timeout(self.timeout, crate::app::pingora_bridge::PingoraCoreConnector::dial_tcp(addr)).await {
                 Ok(Ok(s)) => return Ok(s),
                 Ok(Err(e)) => last_err = Some(e),
                 Err(_) => return Err(Error::Timeout),
             }
         }
-        Err(last_err.unwrap_or_else(|| {
-            Error::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Failed to connect to {}:{}", host, port),
-            ))
-        }))
+        Err(last_err.unwrap_or_else(|| Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound, format!("Failed to connect to {}:{}", host, port),
+        ))))
     }
 
     async fn dial_transport(&self, host: &str, port: u16) -> Result<BoxStream> {

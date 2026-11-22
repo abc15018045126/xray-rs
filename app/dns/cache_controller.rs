@@ -25,40 +25,27 @@ impl CacheController {
         serve_expired_ttl: Duration,
     ) -> Self {
         let records = Arc::new(RwLock::new(HashMap::<String, DnsRecord>::new()));
-
-        if !disable_cache {
+        if !disable_cache
+            && let Ok(handle) = tokio::runtime::Handle::try_current()
+        {
             let cleaner = Arc::clone(&records);
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                handle.spawn(async move {
-                    let mut interval = tokio::time::interval(Duration::from_secs(300));
-                    loop {
-                        interval.tick().await;
-                        let now = Instant::now();
-                        if let Ok(mut guard) = cleaner.write() {
-                            let len_before = guard.len();
-                            guard.retain(|_, r| {
-                                if serve_stale {
-                                    now <= r.expire_at + serve_expired_ttl
-                                } else {
-                                    now <= r.expire_at
-                                }
-                            });
-                            if guard.len() < len_before {
-                                guard.shrink_to_fit();
-                            }
+            handle.spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(300));
+                loop {
+                    interval.tick().await;
+                    let now = Instant::now();
+                    if let Ok(mut guard) = cleaner.write() {
+                        let before = guard.len();
+                        let extra = if serve_stale { serve_expired_ttl } else { Duration::ZERO };
+                        guard.retain(|_, r| now <= r.expire_at + extra);
+                        if guard.len() < before {
+                            guard.shrink_to_fit();
                         }
                     }
-                });
-            }
+                }
+            });
         }
-
-        Self {
-            name,
-            disable_cache,
-            serve_stale,
-            serve_expired_ttl,
-            records,
-        }
+        Self { name, disable_cache, serve_stale, serve_expired_ttl, records }
     }
 
     pub fn get(&self, domain: &str) -> Option<Vec<IpAddr>> {

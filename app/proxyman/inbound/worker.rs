@@ -82,34 +82,20 @@ impl InboundHandler for StreamInboundHandler {
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
         if let Some(ref reality) = self.reality_server {
-            match reality.accept(stream).await? {
-                Some(s) => stream = s,
-                None => return Err(Error::Closed),
-            }
+            stream = reality.accept(stream).await?.ok_or(Error::Closed)?;
         } else if let Some(ref tls) = self.tls_server {
             stream = tls.accept(stream).await?;
         }
         if let Some(ref xhttp) = self.splithttp_server {
-            match xhttp.accept_stream(stream, remote_addr).await? {
-                Some(conn) => stream = conn,
-                None => return Err(Error::Closed),
-            }
+            stream = xhttp.accept_stream(stream, remote_addr).await?.ok_or(Error::Closed)?;
         } else if let Some((ref path, ref host)) = self.httpupgrade {
-            stream = HttpUpgradeStream::server_handshake(stream, host.as_deref(), path.as_deref())
-                .await?;
+            stream = HttpUpgradeStream::server_handshake(stream, host.as_deref(), path.as_deref()).await?;
         } else if self.is_ws {
-            stream = WebSocketStream::server_handshake_with_config(
-                stream,
-                self.ws_path.as_deref(),
-                self.ws_host.as_deref(),
-            )
-            .await?;
+            stream = WebSocketStream::server_handshake_with_config(stream, self.ws_path.as_deref(), self.ws_host.as_deref()).await?;
         }
         let mut res = self.inner.handle_connection(stream, remote_addr).await?;
-        if res.session.sniffing_request.is_none()
-            && let Some(ref sniff) = self.sniffing_request
-        {
-            res.session.sniffing_request = Some(sniff.clone());
+        if res.session.sniffing_request.is_none() {
+            res.session.sniffing_request = self.sniffing_request.clone();
         }
         Ok(res)
     }

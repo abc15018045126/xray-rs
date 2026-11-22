@@ -149,61 +149,19 @@ pub fn parse_padding(padding: &str) -> Result<(Vec<[i32; 3]>, Vec<[i32; 3]>)> {
     Ok((padding_lens, padding_gaps))
 }
 
-pub fn create_padding(
-    padding_lens: &[[i32; 3]],
-    padding_gaps: &[[i32; 3]],
-) -> (usize, Vec<usize>, Vec<Duration>) {
+pub fn create_padding(padding_lens: &[[i32; 3]], padding_gaps: &[[i32; 3]]) -> (usize, Vec<usize>, Vec<Duration>) {
     let mut rng = rand::thread_rng();
-    let default_lens = [[100, 111, 1111], [50, 0, 3333]];
-    let default_gaps = [[75, 0, 111]];
-
-    let lens_to_use = if padding_lens.is_empty() {
-        &default_lens[..]
-    } else {
-        padding_lens
+    let sample = |rng: &mut rand::rngs::ThreadRng, y: &[i32; 3]| {
+        if y[0] >= rng.gen_range(0..=100) {
+            let (lo, hi) = (y[1].min(y[2]), y[1].max(y[2]));
+            if hi > lo { rng.gen_range(lo..=hi) } else { lo }
+        } else { 0 }
     };
-    let gaps_to_use = if padding_gaps.is_empty() {
-        &default_gaps[..]
-    } else {
-        padding_gaps
-    };
-
-    let mut total_len = 0;
-    let mut lens = Vec::new();
-    let mut gaps = Vec::new();
-
-    for y in lens_to_use {
-        let mut l = 0;
-        let prob = rng.gen_range(0..=100);
-        if y[0] >= prob {
-            let min_v = y[1].min(y[2]);
-            let max_v = y[1].max(y[2]);
-            l = if max_v > min_v {
-                rng.gen_range(min_v..=max_v) as usize
-            } else {
-                min_v as usize
-            };
-        }
-        lens.push(l);
-        total_len += l;
-    }
-
-    for y in gaps_to_use {
-        let mut g = 0;
-        let prob = rng.gen_range(0..=100);
-        if y[0] >= prob {
-            let min_v = y[1].min(y[2]);
-            let max_v = y[1].max(y[2]);
-            g = if max_v > min_v {
-                rng.gen_range(min_v..=max_v) as u64
-            } else {
-                min_v as u64
-            };
-        }
-        gaps.push(Duration::from_millis(g));
-    }
-
-    (total_len, lens, gaps)
+    let lens_in = if padding_lens.is_empty() { &[[100, 111, 1111], [50, 0, 3333]][..] } else { padding_lens };
+    let gaps_in = if padding_gaps.is_empty() { &[[75, 0, 111]][..] } else { padding_gaps };
+    let lens: Vec<usize> = lens_in.iter().map(|y| sample(&mut rng, y) as usize).collect();
+    let gaps: Vec<Duration> = gaps_in.iter().map(|y| Duration::from_millis(sample(&mut rng, y) as u64)).collect();
+    (lens.iter().sum(), lens, gaps)
 }
 
 pub struct CommonConn<S> {

@@ -9,31 +9,19 @@ pub fn generate_dot_config(fields: &[&str]) -> String {
 }
 
 pub fn cmd_vlessenc() -> Command {
-    Command::new(
-        "vlessenc",
-        "xray vlessenc",
-        "Generate decryption/encryption json pair (VLESS Encryption)",
-    )
-    .with_run(|_args| {
-        let (private_key, password, _) = gen_curve25519(None)?;
-        let server_key = URL_SAFE_NO_PAD.encode(private_key);
-        let client_key = URL_SAFE_NO_PAD.encode(password);
-
-        let decryption = generate_dot_config(&["mlkem768x25519plus", "native", "600s", &server_key]);
-        let encryption = generate_dot_config(&["mlkem768x25519plus", "native", "0rtt", &client_key]);
-
-        let (seed, client, _) = gen_mlkem768(None);
-        let server_key_pq = URL_SAFE_NO_PAD.encode(seed);
-        let client_key_pq = URL_SAFE_NO_PAD.encode(&client);
-
-        let decryption_pq = generate_dot_config(&["mlkem768x25519plus", "native", "600s", &server_key_pq]);
-        let encryption_pq = generate_dot_config(&["mlkem768x25519plus", "native", "0rtt", &client_key_pq]);
-
+    Command::new("vlessenc", "xray vlessenc", "Generate decryption/encryption json pair (VLESS Encryption)").with_run(|_| {
+        let dot = |t, k: &str| generate_dot_config(&["mlkem768x25519plus", "native", t, k]);
+        let (priv_k, pass, _) = gen_curve25519(None)?;
+        let (seed, cli, _) = gen_mlkem768(None);
+        let (sk, ck, sk_pq, ck_pq) = (
+            URL_SAFE_NO_PAD.encode(priv_k), URL_SAFE_NO_PAD.encode(pass),
+            URL_SAFE_NO_PAD.encode(seed), URL_SAFE_NO_PAD.encode(&cli),
+        );
         Ok(format!(
             "Choose one Authentication to use, do not mix them. Ephemeral key exchange is Post-Quantum safe anyway.\n\n\
             Authentication: X25519, not Post-Quantum\n\"decryption\": \"{}\"\n\"encryption\": \"{}\"\n\n\
             Authentication: ML-KEM-768, Post-Quantum\n\"decryption\": \"{}\"\n\"encryption\": \"{}\"",
-            decryption, encryption, decryption_pq, encryption_pq
+            dot("600s", &sk), dot("0rtt", &ck), dot("600s", &sk_pq), dot("0rtt", &ck_pq)
         ))
     })
 }

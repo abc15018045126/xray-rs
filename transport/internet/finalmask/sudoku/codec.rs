@@ -72,50 +72,24 @@ impl SudokuCodec {
     }
 
     pub fn encode(&mut self, input: &[u8]) -> Result<Vec<u8>> {
-        if input.is_empty() {
-            return Ok(Vec::new());
-        }
-
+        if input.is_empty() { return Ok(Vec::new()); }
         let mut out = Vec::with_capacity(input.len() * 6 + 8);
         for &b in input {
-            let t = self
-                .current_table()
-                .ok_or_else(|| Error::Config("sudoku table set missing".into()))?;
-            if self.should_pad() {
-                let pad = self.random_padding(&t);
-                out.push(pad);
-            }
-
+            let t = self.current_table().ok_or_else(|| Error::Config("sudoku table set missing".into()))?;
+            if self.should_pad() { let p = self.random_padding(&t); out.push(p); }
             let enc = &t.encode[b as usize];
-            if enc.is_empty() {
-                return Err(Error::Config(format!(
-                    "sudoku encode table missing for byte {}",
-                    b
-                )));
-            }
-
-            let hint_idx = self.rng.intn(enc.len());
-            let hints = enc[hint_idx];
-            let perm_idx = self.rng.intn(PERM4.len());
-            let perm = PERM4[perm_idx];
-
-            for idx in perm {
-                if self.should_pad() {
-                    let pad = self.random_padding(&t);
-                    out.push(pad);
-                }
+            if enc.is_empty() { return Err(Error::Config(format!("sudoku encode table missing for byte {}", b))); }
+            let hints = enc[self.rng.intn(enc.len())];
+            for idx in PERM4[self.rng.intn(PERM4.len())] {
+                if self.should_pad() { let p = self.random_padding(&t); out.push(p); }
                 out.push(hints[idx]);
             }
             self.table_index += 1;
         }
-
-        if self.should_pad()
-            && let Some(t) = self.current_table()
-        {
-            let pad = self.random_padding(&t);
-            out.push(pad);
+        if self.should_pad() && let Some(t) = self.current_table() {
+            let p = self.random_padding(&t);
+            out.push(p);
         }
-
         Ok(out)
     }
 }

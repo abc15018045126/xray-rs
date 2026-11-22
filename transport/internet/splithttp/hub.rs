@@ -205,42 +205,20 @@ impl SplitHttpHub {
         let local_addr = listener.local_addr()?;
         let sessions = Arc::new(Mutex::new(HashMap::new()));
         let (conn_tx, conn_rx) = mpsc::channel(64);
-
-        let sessions_clone = Arc::clone(&sessions);
-        let config_clone = config.clone();
+        let (sessions_c, config_c) = (Arc::clone(&sessions), config.clone());
 
         tokio::spawn(async move {
-            loop {
-                let (stream, remote_addr) = match listener.accept().await {
-                    Ok(res) => res,
-                    Err(_) => break,
-                };
-
-                let sessions_inner = Arc::clone(&sessions_clone);
-                let config_inner = config_clone.clone();
-                let tx_inner = conn_tx.clone();
-
+            while let Ok((stream, remote_addr)) = listener.accept().await {
+                let (s, c, tx) = (Arc::clone(&sessions_c), config_c.clone(), conn_tx.clone());
                 tokio::spawn(async move {
-                    if let Ok(Some(conn)) = SplitHttpServer::handle_stream(
-                        Box::pin(stream),
-                        remote_addr,
-                        &config_inner,
-                        &sessions_inner,
-                    )
-                    .await
-                    {
-                        let _ = tx_inner.send((conn, remote_addr)).await;
+                    if let Ok(Some(conn)) = SplitHttpServer::handle_stream(Box::pin(stream), remote_addr, &c, &s).await {
+                        let _ = tx.send((conn, remote_addr)).await;
                     }
                 });
             }
         });
 
-        Ok(Self {
-            local_addr,
-            config,
-            sessions,
-            conn_rx: Arc::new(Mutex::new(conn_rx)),
-        })
+        Ok(Self { local_addr, config, sessions, conn_rx: Arc::new(Mutex::new(conn_rx)) })
     }
 
     pub fn sessions(&self) -> &Arc<Mutex<HashMap<String, Arc<HttpSession>>>> {

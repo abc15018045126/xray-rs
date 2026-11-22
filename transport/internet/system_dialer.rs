@@ -147,15 +147,10 @@ pub struct SystemDialer;
 impl SystemDialer {
     pub async fn dial_tcp(dest: &Destination) -> Result<TcpStream> {
         let addr_str = match &dest.address {
-            Address::Ipv4(ip) => format!("{}:{}", ip, dest.port),
             Address::Ipv6(ip) => format!("[{}]:{}", ip, dest.port),
-            Address::Domain(host) => format!("{}:{}", host, dest.port),
+            _ => format!("{}:{}", dest.address, dest.port),
         };
-
-        let addrs = tokio::net::lookup_host(&addr_str)
-            .await
-            .map_err(Error::Io)?;
-
+        let addrs = tokio::net::lookup_host(&addr_str).await?;
         #[cfg(any(target_os = "windows", target_os = "android"))]
         let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
 
@@ -165,23 +160,16 @@ impl SystemDialer {
             let res = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await;
             #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
             let res = TcpStream::connect(addr).await;
-
             match res {
                 Ok(stream) => {
                     let _ = stream.set_nodelay(true);
                     return Ok(stream);
                 }
-                Err(e) => {
-                    last_err = Some(e);
-                }
+                Err(e) => last_err = Some(e),
             }
         }
-
         Err(Error::Io(last_err.unwrap_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("Failed to resolve or connect to {}", addr_str),
-            )
+            std::io::Error::new(std::io::ErrorKind::NotFound, format!("Failed to resolve or connect to {}", addr_str))
         })))
     }
 

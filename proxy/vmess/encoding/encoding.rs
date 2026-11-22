@@ -67,38 +67,15 @@ impl RequestHeader {
         buf.push(self.version);
         buf.extend_from_slice(&self.request_body_iv);
         buf.extend_from_slice(&self.request_body_key);
-        buf.push(self.response_header_byte);
-        buf.push(0x01);
-        buf.push(0x03);
-        buf.push(0x00);
-
-        let cmd_byte = match self.command {
-            RequestCommand::Tcp => 1,
-            RequestCommand::Udp => 2,
-            RequestCommand::Mux | RequestCommand::Rvs => 3,
-        };
-        buf.push(cmd_byte);
+        let cmd = match self.command { RequestCommand::Tcp => 1, RequestCommand::Udp => 2, _ => 3 };
+        buf.extend_from_slice(&[self.response_header_byte, 0x01, 0x03, 0x00, cmd]);
         buf.extend_from_slice(&self.destination.port.to_be_bytes());
-
         match &self.destination.address {
-            Address::Ipv4(v4) => {
-                buf.push(1);
-                buf.extend_from_slice(&v4.octets());
-            }
-            Address::Domain(dom) => {
-                buf.push(2);
-                buf.push(dom.len() as u8);
-                buf.extend_from_slice(dom.as_bytes());
-            }
-            Address::Ipv6(v6) => {
-                buf.push(3);
-                buf.extend_from_slice(&v6.octets());
-            }
+            Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+            Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+            Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
         }
-
-        let checksum = fnv1a_32(&buf);
-        buf.extend_from_slice(&checksum.to_be_bytes());
-
+        buf.extend_from_slice(&fnv1a_32(&buf).to_be_bytes());
         writer.write_all(&buf).await?;
         writer.flush().await?;
         Ok(())

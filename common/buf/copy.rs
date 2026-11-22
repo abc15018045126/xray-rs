@@ -124,47 +124,28 @@ where
     Ok(total)
 }
 
-pub async fn copy_one_way<R, W, F>(
+pub async fn copy_one_way<R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: FnMut(&[u8])>(
     mut reader: R,
     mut writer: W,
     activity_tx: tokio::sync::mpsc::Sender<()>,
     counter: Option<Arc<crate::features::stats::Counter>>,
     mut on_chunk: F,
-) -> std::io::Result<u64>
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-    F: FnMut(&[u8]),
-{
+) -> std::io::Result<u64> {
     let mut buf = [0u8; super::buffer::DEFAULT_BUFFER_SIZE];
     let mut total = 0u64;
     loop {
         match reader.read(&mut buf).await {
-            Ok(0) => {
-                let _ = writer.flush().await;
-                let _ = writer.shutdown().await;
-                return Ok(total);
+            Ok(0) => { let _ = writer.flush().await; let _ = writer.shutdown().await; return Ok(total); }
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                let _ = writer.flush().await; let _ = writer.shutdown().await; return Ok(total);
             }
+            Err(e) => { let _ = writer.shutdown().await; return Err(e); }
             Ok(n) => {
                 total += n as u64;
-                if let Some(c) = &counter {
-                    c.add(n as i64);
-                }
+                if let Some(c) = &counter { c.add(n as i64); }
                 let _ = activity_tx.try_send(());
                 on_chunk(&buf[..n]);
-                if let Err(e) = writer.write_all(&buf[..n]).await {
-                    let _ = writer.shutdown().await;
-                    return Err(e);
-                }
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                let _ = writer.flush().await;
-                let _ = writer.shutdown().await;
-                return Ok(total);
-            }
-            Err(e) => {
-                let _ = writer.shutdown().await;
-                return Err(e);
+                if let Err(e) = writer.write_all(&buf[..n]).await { let _ = writer.shutdown().await; return Err(e); }
             }
         }
     }

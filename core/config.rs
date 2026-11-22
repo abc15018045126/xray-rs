@@ -138,42 +138,23 @@ pub fn load_config(format_name: &str, data: &[u8]) -> Result<Config> {
 }
 
 pub fn get_merged_config(files: &[ConfigSource]) -> Result<String> {
-    let mut merged = serde_json::Map::new();
-    let mut all_inbounds = Vec::new();
-    let mut all_outbounds = Vec::new();
-
+    let (mut merged, mut inbs, mut outbs) = (serde_json::Map::new(), Vec::new(), Vec::new());
     for src in files {
-        if let Ok(content) = std::fs::read_to_string(&src.name)
-            && let Ok(val) = serde_json::from_str::<serde_json::Value>(&content)
-            && let Some(obj) = val.as_object()
+        if let Ok(s) = std::fs::read_to_string(&src.name)
+            && let Ok(serde_json::Value::Object(obj)) = serde_json::from_str(&s)
         {
-            if let Some(inbounds) = obj.get("inbounds").and_then(|v| v.as_array()) {
-                all_inbounds.extend(inbounds.clone());
-            }
-            if let Some(outbounds) = obj.get("outbounds").and_then(|v| v.as_array()) {
-                all_outbounds.extend(outbounds.clone());
-            }
             for (k, v) in obj {
-                if k != "inbounds" && k != "outbounds" {
-                    merged.insert(k.clone(), v.clone());
+                match (k.as_str(), v) {
+                    ("inbounds", serde_json::Value::Array(a)) => inbs.extend(a),
+                    ("outbounds", serde_json::Value::Array(a)) => outbs.extend(a),
+                    ("inbounds" | "outbounds", _) => {}
+                    (_, v) => { merged.insert(k, v); }
                 }
             }
         }
     }
-
-    if !all_inbounds.is_empty() {
-        merged.insert(
-            "inbounds".to_string(),
-            serde_json::Value::Array(all_inbounds),
-        );
-    }
-    if !all_outbounds.is_empty() {
-        merged.insert(
-            "outbounds".to_string(),
-            serde_json::Value::Array(all_outbounds),
-        );
-    }
-
+    if !inbs.is_empty() { merged.insert("inbounds".into(), serde_json::Value::Array(inbs)); }
+    if !outbs.is_empty() { merged.insert("outbounds".into(), serde_json::Value::Array(outbs)); }
     serde_json::to_string(&serde_json::Value::Object(merged))
         .map_err(|e| Error::Config(format!("Failed to serialize merged config: {}", e)))
 }

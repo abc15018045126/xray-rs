@@ -28,40 +28,27 @@ impl PackedEncoder {
 
     pub fn encode(&mut self, p: &[u8]) -> Result<Vec<u8>> {
         let mut out = Vec::with_capacity(p.len() * 2 + 8);
-        let mut bit_buf: u64 = 0;
-        let mut bit_count: u8 = 0;
+        let (mut bit_buf, mut bit_count) = (0u64, 0u8);
 
         for &b in p {
-            bit_buf = (bit_buf << 8) | (b as u64);
+            bit_buf = (bit_buf << 8) | b as u64;
             bit_count += 8;
-
             while bit_count >= 6 {
                 bit_count -= 6;
                 let layout = self.layouts[self.group_index % self.layouts.len()].clone();
-                let group = (bit_buf >> bit_count) as u8;
                 self.maybe_pad(&mut out, &layout);
-                out.push((layout.encode_group)(group & 0x3f));
+                out.push((layout.encode_group)((bit_buf >> bit_count) as u8 & 0x3f));
                 self.group_index += 1;
-
-                if bit_count > 0 {
-                    bit_buf &= (1u64 << bit_count) - 1;
-                } else {
-                    bit_buf = 0;
-                }
+                bit_buf = if bit_count > 0 { bit_buf & ((1u64 << bit_count) - 1) } else { 0 };
             }
         }
-
         if bit_count > 0 {
             let layout = self.layouts[self.group_index % self.layouts.len()].clone();
-            let group = (bit_buf << (6 - bit_count)) as u8;
             self.maybe_pad(&mut out, &layout);
-            out.push((layout.encode_group)(group & 0x3f));
+            out.push((layout.encode_group)((bit_buf << (6 - bit_count)) as u8 & 0x3f));
             self.group_index += 1;
-
-            let next_layout = self.layouts[self.group_index % self.layouts.len()].clone();
-            out.push(next_layout.pad_marker);
+            out.push(self.layouts[self.group_index % self.layouts.len()].pad_marker);
         }
-
         let cur_layout = self.layouts[self.group_index % self.layouts.len()].clone();
         self.maybe_pad(&mut out, &cur_layout);
         Ok(out)

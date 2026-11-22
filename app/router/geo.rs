@@ -363,45 +363,21 @@ impl GeoDatabase {
             return;
         }
         let path_opt = self.geoip_path.read().unwrap().clone();
-        let Some(path) = path_opt else {
-            self.attempted_geoips
-                .write()
-                .unwrap()
-                .insert(group_key.to_string());
+        if !self.attempted_geoips.write().unwrap().insert(group_key.to_string()) {
             return;
-        };
-
-        {
-            let mut att = self.attempted_geoips.write().unwrap();
-            if !att.insert(group_key.to_string()) {
-                return;
-            }
         }
+        let Some(path) = path_opt else { return };
 
         match load_geoip_code_from_dat(&path, group_key) {
             Ok(Some(idx)) => {
                 tracing::info!(
                     "Loaded geoip:{} (v4_ranges={}, v6_ranges={}) from {}",
-                    group_key,
-                    idx.v4.len(),
-                    idx.v6.len(),
-                    path.display()
+                    group_key, idx.v4.len(), idx.v6.len(), path.display()
                 );
-                self.geoips
-                    .write()
-                    .unwrap()
-                    .insert(group_key.to_string(), idx);
+                self.geoips.write().unwrap().insert(group_key.to_string(), idx);
             }
-            Ok(None) => {
-                tracing::warn!(
-                    "geoip:{} not found in {}; keeping fallback if any",
-                    group_key,
-                    path.display()
-                );
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load geoip:{} from {}: {}", group_key, path.display(), e);
-            }
+            Ok(None) => tracing::warn!("geoip:{} not found in {}; keeping fallback if any", group_key, path.display()),
+            Err(e) => tracing::warn!("Failed to load geoip:{} from {}: {}", group_key, path.display(), e),
         }
     }
 

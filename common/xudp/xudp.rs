@@ -30,40 +30,24 @@ pub fn read_address_port(data: &[u8]) -> Result<(Address, u16, usize)> {
         return Err(Error::Protocol("short address buffer".into()));
     }
     let port = u16::from_be_bytes([data[0], data[1]]);
-    let addr_type = data[2];
-    match addr_type {
+    match data[2] {
         1 => {
-            if data.len() < 7 {
-                return Err(Error::Protocol("short IPv4 buffer".into()));
-            }
-            let mut ip = [0u8; 4];
-            ip.copy_from_slice(&data[3..7]);
+            let ip: [u8; 4] = data.get(3..7).and_then(|s| s.try_into().ok())
+                .ok_or_else(|| Error::Protocol("short IPv4 buffer".into()))?;
             Ok((Address::Ipv4(Ipv4Addr::from(ip)), port, 7))
         }
         2 => {
-            if data.len() < 4 {
-                return Err(Error::Protocol("short domain length byte".into()));
-            }
-            let len = data[3] as usize;
-            if data.len() < 4 + len {
-                return Err(Error::Protocol("short domain buffer".into()));
-            }
-            let s = String::from_utf8(data[4..4 + len].to_vec())
-                .map_err(|e| Error::Protocol(format!("invalid domain: {}", e)))?;
-            Ok((Address::Domain(s), port, 4 + len))
+            let len = *data.get(3).ok_or_else(|| Error::Protocol("short domain length byte".into()))? as usize;
+            let raw = data.get(4..4 + len).ok_or_else(|| Error::Protocol("short domain buffer".into()))?;
+            let s = std::str::from_utf8(raw).map_err(|e| Error::Protocol(format!("invalid domain: {}", e)))?;
+            Ok((Address::Domain(s.to_string()), port, 4 + len))
         }
         3 => {
-            if data.len() < 19 {
-                return Err(Error::Protocol("short IPv6 buffer".into()));
-            }
-            let mut ip = [0u8; 16];
-            ip.copy_from_slice(&data[3..19]);
+            let ip: [u8; 16] = data.get(3..19).and_then(|s| s.try_into().ok())
+                .ok_or_else(|| Error::Protocol("short IPv6 buffer".into()))?;
             Ok((Address::Ipv6(Ipv6Addr::from(ip)), port, 19))
         }
-        other => Err(Error::Protocol(format!(
-            "unknown address family: {}",
-            other
-        ))),
+        other => Err(Error::Protocol(format!("unknown address family: {}", other))),
     }
 }
 

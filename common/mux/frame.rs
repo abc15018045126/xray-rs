@@ -51,39 +51,19 @@ impl FrameMetadata {
 
     pub fn write_to(&self, buf: &mut Vec<u8>) -> Result<()> {
         let len_pos = buf.len();
-        buf.extend_from_slice(&[0u8, 0u8]);
-
+        buf.extend_from_slice(&[0, 0]);
         let meta_start = buf.len();
         buf.extend_from_slice(&self.session_id.to_be_bytes());
-        buf.push(self.session_status as u8);
-        buf.push(self.option);
-
-        if self.session_status == SessionStatus::New
-            && let Some(target) = &self.target
-        {
-            let net_byte = match target.network {
-                Network::Tcp => TARGET_NETWORK_TCP,
-                Network::Udp => TARGET_NETWORK_UDP,
-            };
-            buf.push(net_byte);
+        buf.extend_from_slice(&[self.session_status as u8, self.option]);
+        if self.session_status == SessionStatus::New && let Some(target) = &self.target {
+            buf.push(if target.network == Network::Udp { TARGET_NETWORK_UDP } else { TARGET_NETWORK_TCP });
             buf.extend_from_slice(&target.port.to_be_bytes());
             match &target.address {
-                Address::Ipv4(v4) => {
-                    buf.push(1);
-                    buf.extend_from_slice(&v4.octets());
-                }
-                Address::Ipv6(v6) => {
-                    buf.push(2);
-                    buf.extend_from_slice(&v6.octets());
-                }
-                Address::Domain(domain) => {
-                    buf.push(3);
-                    buf.push(domain.len() as u8);
-                    buf.extend_from_slice(domain.as_bytes());
-                }
+                Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+                Address::Ipv6(v6) => { buf.push(2); buf.extend_from_slice(&v6.octets()); }
+                Address::Domain(d) => { buf.extend_from_slice(&[3, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
             }
         }
-
         let meta_len = (buf.len() - meta_start) as u16;
         buf[len_pos..len_pos + 2].copy_from_slice(&meta_len.to_be_bytes());
         Ok(())

@@ -58,43 +58,30 @@ impl NoisePacketConn {
 
     pub fn generate_noise_packets(&self) -> Vec<(Vec<u8>, Duration)> {
         let mut rng = rand::thread_rng();
-        let mut packets = Vec::with_capacity(self.config.items.len());
-
-        for item in &self.config.items {
-            let pkt = if item.rand_max > 0 {
-                let min_sz = std::cmp::max(0, item.rand_min) as usize;
-                let max_sz = std::cmp::max(min_sz, item.rand_max as usize);
-                let size = if max_sz > min_sz {
-                    rng.gen_range(min_sz..=max_sz)
+        self.config
+            .items
+            .iter()
+            .map(|item| {
+                let pkt = if item.rand_max > 0 {
+                    let min_sz = item.rand_min.max(0) as usize;
+                    let max_sz = min_sz.max(item.rand_max as usize);
+                    let size = if max_sz > min_sz { rng.gen_range(min_sz..=max_sz) } else { min_sz };
+                    let r_min = item.rand_range_min.clamp(0, 255) as u8;
+                    let r_max = item.rand_range_max.clamp(r_min as i32, 255) as u8;
+                    (0..size)
+                        .map(|_| if r_max > r_min { rng.gen_range(r_min..=r_max) } else { r_min })
+                        .collect()
                 } else {
-                    min_sz
+                    item.packet.clone()
                 };
-                let r_min = item.rand_range_min.clamp(0, 255) as u8;
-                let r_max = item.rand_range_max.clamp(r_min as i32, 255) as u8;
-                let mut buf = vec![0u8; size];
-                for b in &mut buf {
-                    *b = if r_max > r_min {
-                        rng.gen_range(r_min..=r_max)
-                    } else {
-                        r_min
-                    };
-                }
-                buf
-            } else {
-                item.packet.clone()
-            };
-
-            let delay_ms = if item.delay_max > item.delay_min {
-                rng.gen_range(item.delay_min..=item.delay_max)
-            } else {
-                item.delay_min
-            };
-            let delay = Duration::from_millis(std::cmp::max(0, delay_ms) as u64);
-
-            packets.push((pkt, delay));
-        }
-
-        packets
+                let delay_ms = if item.delay_max > item.delay_min {
+                    rng.gen_range(item.delay_min..=item.delay_max)
+                } else {
+                    item.delay_min
+                };
+                (pkt, Duration::from_millis(delay_ms.max(0) as u64))
+            })
+            .collect()
     }
 
     pub fn mark_sent(&self, addr_str: &str) {

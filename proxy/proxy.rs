@@ -163,51 +163,17 @@ pub fn xtls_padding(
     testseed: Option<&[u32]>,
 ) -> Vec<u8> {
     let seed = testseed.unwrap_or(&[900, 500, 900, 256]);
-    let content_len = content.map(|c| c.len()).unwrap_or(0) as i32;
-
+    let content_len = content.map_or(0, |c| c.len()) as i32;
     let mut rng = rand::thread_rng();
-    let mut padding_len = if (content_len as u32) < seed[0] && long_padding {
-        let rand_val = if seed[1] > 0 {
-            rng.gen_range(0..seed[1]) as i32
-        } else {
-            0
-        };
-        rand_val + (seed[2] as i32) - content_len
-    } else {
-        if seed[3] > 0 {
-            rng.gen_range(0..seed[3]) as i32
-        } else {
-            0
-        }
-    };
-
-    let max_padding = (BUFFER_SIZE as i32) - 21 - content_len;
-    if padding_len > max_padding {
-        padding_len = max_padding.max(0);
-    }
-    if padding_len < 0 {
-        padding_len = 0;
-    }
-
+    let mut pad = if (content_len as u32) < seed[0] && long_padding {
+        (if seed[1] > 0 { rng.gen_range(0..seed[1]) as i32 } else { 0 }) + seed[2] as i32 - content_len
+    } else if seed[3] > 0 { rng.gen_range(0..seed[3]) as i32 } else { 0 };
+    pad = pad.min(((BUFFER_SIZE as i32) - 21 - content_len).max(0)).max(0);
     let mut out = Vec::new();
-    if let Some(uuid) = user_uuid {
-        out.extend_from_slice(uuid);
-    }
-
-    out.push(command);
-    out.push((content_len >> 8) as u8);
-    out.push(content_len as u8);
-    out.push((padding_len >> 8) as u8);
-    out.push(padding_len as u8);
-
-    if let Some(c) = content {
-        out.extend_from_slice(c);
-    }
-
-    if padding_len > 0 {
-        out.resize(out.len() + padding_len as usize, 0u8);
-    }
-
+    if let Some(u) = user_uuid { out.extend_from_slice(u); }
+    out.extend_from_slice(&[command, (content_len >> 8) as u8, content_len as u8, (pad >> 8) as u8, pad as u8]);
+    if let Some(c) = content { out.extend_from_slice(c); }
+    if pad > 0 { out.resize(out.len() + pad as usize, 0); }
     out
 }
 
