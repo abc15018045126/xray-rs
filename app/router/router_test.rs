@@ -93,4 +93,41 @@ mod tests {
         assert_eq!(rc.domain_strategy, "AsIs");
         assert_eq!(rc.domain_matcher, "mph");
     }
+
+    #[test]
+    fn test_router_ip_if_non_match_and_sniffed_original_ip() {
+        use super::super::condition::IpMatcher;
+        use super::super::router::DomainStrategy;
+
+        let mut dom_rule = Rule::new("proxy");
+        dom_rule.domain_matchers.push(DomainMatcher::parse("regexp:^.*\\.openai\\.com$"));
+
+        let mut ip_rule = Rule::new("direct");
+        ip_rule.ip_matchers.push(IpMatcher::parse("223.5.5.0/24").unwrap());
+
+        let mut router = Router::new(vec![dom_rule, ip_rule], Some("fallback".into()));
+        router.set_domain_strategy(DomainStrategy::IpIfNonMatch);
+        router.set_ip_resolver(Arc::new(|d: &str| {
+            if d == "alidns.com" {
+                vec!["223.5.5.5".parse().unwrap()]
+            } else {
+                Vec::new()
+            }
+        }));
+
+        let s1 = SessionContext::new("in", Destination::tcp(Address::Domain("api.openai.com".into()), 443));
+        assert_eq!(router.pick_outbound(&s1), Some("proxy"));
+
+        let s2 = SessionContext::new("in", Destination::tcp(Address::Domain("alidns.com".into()), 443));
+        assert_eq!(router.pick_outbound(&s2), Some("direct"));
+
+        let mut s3 = SessionContext::new("tun-in", Destination::tcp(Address::ip("223.5.5.6".parse().unwrap()), 443));
+        s3.sniffed_domain = Some("unknown-cn-site.example".into());
+        s3.destination = Destination::tcp(Address::Domain("unknown-cn-site.example".into()), 443);
+        assert_eq!(router.pick_outbound(&s3), Some("direct"));
+
+        let inv_geoip = IpMatcher::parse("geoip:!private").unwrap();
+        assert!(inv_geoip.matches(&"8.8.8.8".parse().unwrap()));
+        assert!(!inv_geoip.matches(&"192.168.1.1".parse().unwrap()));
+    }
 }

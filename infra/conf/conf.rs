@@ -165,26 +165,59 @@ pub struct RoutingConfig {
     pub domain_strategy: Option<String>,
     #[serde(default)]
     pub rules: Option<Vec<RuleConfig>>,
+    #[serde(default)]
+    pub balancers: Option<Vec<BalancerRuleConfig>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BalancerStrategyConfig {
+    #[serde(default, rename = "type")]
+    pub strategy_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BalancerRuleConfig {
+    pub tag: String,
+    #[serde(default)]
+    pub selector: Vec<String>,
+    #[serde(default)]
+    pub strategy: Option<BalancerStrategyConfig>,
+    #[serde(default, rename = "fallbackTag")]
+    pub fallback_tag: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleConfig {
     #[serde(default, rename = "type")]
     pub rule_type: Option<String>,
-    #[serde(rename = "outboundTag")]
+    #[serde(default, rename = "ruleTag")]
+    pub rule_tag: Option<String>,
+    #[serde(default, rename = "outboundTag")]
     pub outbound_tag: String,
+    #[serde(default, rename = "balancerTag")]
+    pub balancer_tag: Option<String>,
     #[serde(default, rename = "inboundTag")]
     pub inbound_tag: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, alias = "domains")]
     pub domain: Option<Vec<String>>,
     #[serde(default)]
     pub ip: Option<Vec<String>>,
+    #[serde(default, rename = "sourceIP", alias = "source")]
+    pub source_ip: Option<Vec<String>>,
     #[serde(default)]
     pub port: Option<serde_json::Value>,
+    #[serde(default, rename = "sourcePort")]
+    pub source_port: Option<serde_json::Value>,
     #[serde(default)]
     pub network: Option<String>,
     #[serde(default)]
+    pub protocol: Option<Vec<String>>,
+    #[serde(default)]
+    pub user: Option<Vec<String>>,
+    #[serde(default)]
     pub process: Option<Vec<String>>,
+    #[serde(default, rename = "localOS")]
+    pub local_os: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -790,8 +823,8 @@ impl Config {
             };
             inbounds.push((bind_addr, handler));
         }
-        let rules = build_routing_rules(self.routing);
-        let router = Router::new(rules, default_outbound_tag.clone());
+        let outbound_tags: Vec<String> = outbounds.keys().cloned().collect();
+        let router = build_router(self.routing, default_outbound_tag.clone(), &outbound_tags, dns_client.clone());
         dns_client.attach_routing(router.clone(), outbounds.clone());
         crate::transport::internet::tcp::dialer::init_system_dialer_dns(dns_client.clone());
         Ok(BuiltConfig {
@@ -910,11 +943,67 @@ fn build_vless_outbound(
     wrap_pingora_multi_outbound(tag, handlers, lbs)
 }
 
+fn parse_port_value(port_val: serde_json::Value, ports: &mut Vec<u16>, ranges: &mut Vec<(u16, u16)>) {
+    let ports_str = match port_val {
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => s,
+        _ => String::new(),
+    };
+    for part in ports_str.split(',').map(str::trim) {
+        if let Some((a, b)) = part.split_once('-') {
+            if let (Ok(s), Ok(e)) = (a.trim().parse::<u16>(), b.trim().parse::<u16>()) {
+                if s <= e { ranges.push((s, e)); } else { ranges.push((e, s)); }
+            }
+        } else if let Ok(p) = part.parse::<u16>() {
+            ports.push(p);
+        }
+    }
+}
+
+fn build_router(
+    routing: Option<RoutingConfig>,
+    default_outbound_tag: Option<String>,
+    outbound_tags: &[String],
+    dns_client: Arc<crate::app::dns::DnsClient>,
+) -> Router {
+    let domain_strategy = routing
+        .as_ref()
+        .and_then(|r| r.domain_strategy.as_deref())
+        .map(crate::app::router::router::DomainStrategy::parse)
+        .unwrap_or_default();
+    let balancers_cfg = routing.as_ref().and_then(|r| r.balancers.clone()).unwrap_or_default();
+    let rules = build_routing_rules(routing);
+    let mut router = Router::new(rules, default_outbound_tag);
+    router.set_domain_strategy(domain_strategy);
+    router.set_ip_resolver(Arc::new(move |domain: &str| dns_client.lookup_cached_or_hosts(domain)));
+    for b_cfg in balancers_cfg {
+        if b_cfg.tag.is_empty() || b_cfg.selector.is_empty() { continue; }
+        let strategy: Arc<dyn crate::app::router::balancing::BalancingStrategy> =
+            match b_cfg.strategy.as_ref().and_then(|s| s.strategy_type.as_deref()).unwrap_or("random").to_ascii_lowercase().as_str() {
+                "roundrobin" => Arc::new(crate::app::router::balancing::RoundRobinStrategy::new(b_cfg.fallback_tag.clone())),
+                _ => Arc::new(crate::app::router::balancing::RandomStrategy::new()),
+            };
+        let balancer = crate::app::router::balancing::Balancer::with_candidates(
+            &b_cfg.tag,
+            b_cfg.selector,
+            outbound_tags.to_vec(),
+            strategy,
+            b_cfg.fallback_tag,
+        );
+        router.add_balancer(b_cfg.tag, Arc::new(balancer));
+    }
+    router
+}
+
 fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
     let mut rules = Vec::new();
     let Some(rule_configs) = routing.and_then(|r| r.rules) else { return rules };
     for r_cfg in rule_configs {
+        if r_cfg.outbound_tag.is_empty() && r_cfg.balancer_tag.as_deref().unwrap_or("").is_empty() {
+            continue;
+        }
         let mut rule = Rule::new(&r_cfg.outbound_tag);
+        rule.balancer_tag = r_cfg.balancer_tag.filter(|s| !s.is_empty());
         if let Some(in_tags) = r_cfg.inbound_tag { rule.inbound_tags = in_tags; }
         if let Some(domains) = r_cfg.domain {
             rule.domain_matchers.extend(domains.iter().map(|d| DomainMatcher::parse(d)));
@@ -933,21 +1022,22 @@ fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
                 continue;
             }
         }
-        if let Some(port_val) = r_cfg.port {
-            let ports_str = match port_val {
-                serde_json::Value::Number(n) => n.to_string(),
-                serde_json::Value::String(s) => s,
-                _ => String::new(),
-            };
-            for part in ports_str.split(',').map(str::trim) {
-                if let Some((a, b)) = part.split_once('-') {
-                    if let (Ok(s), Ok(e)) = (a.trim().parse::<u16>(), b.trim().parse::<u16>()) {
-                        rule.ports.extend(s..=e);
-                    }
-                } else if let Ok(p) = part.parse::<u16>() {
-                    rule.ports.push(p);
+        if let Some(src_ips) = r_cfg.source_ip {
+            let had_src_ips = !src_ips.is_empty();
+            for ip_str in src_ips {
+                if let Some(m) = IpMatcher::parse(&ip_str) {
+                    rule.source_ip_matchers.push(m);
                 }
             }
+            if had_src_ips && rule.source_ip_matchers.is_empty() {
+                continue;
+            }
+        }
+        if let Some(port_val) = r_cfg.port {
+            parse_port_value(port_val, &mut rule.ports, &mut rule.port_ranges);
+        }
+        if let Some(src_port_val) = r_cfg.source_port {
+            parse_port_value(src_port_val, &mut rule.source_ports, &mut rule.source_port_ranges);
         }
         if let Some(net_str) = r_cfg.network {
             rule.network = match net_str.to_lowercase().as_str() {
@@ -956,7 +1046,10 @@ fn build_routing_rules(routing: Option<RoutingConfig>) -> Vec<Rule> {
                 _ => None,
             };
         }
+        if let Some(protos) = r_cfg.protocol { rule.protocols = protos; }
+        if let Some(users) = r_cfg.user { rule.user_emails = users; }
         if let Some(proc_list) = r_cfg.process { rule.process = proc_list; }
+        if let Some(os_list) = r_cfg.local_os { rule.local_os = os_list; }
         rules.push(rule);
     }
     rules

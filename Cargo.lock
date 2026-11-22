@@ -3470,6 +3470,8 @@ dependencies = [
 [[package]]
 name = "xray-rs-window"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "342e767bc82373f3008f7c540c43420460aa0a5479ea420573887c51f1b9bdfb"
 dependencies = [
  "ipnet",
  "windows",

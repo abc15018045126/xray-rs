@@ -189,6 +189,14 @@ impl DnsClient {
         if !self.disable_cache && !entry.is_fakedns { self.cache.set(clean, filtered.clone(), Duration::from_secs(300)); }
         Some(filtered)
     }
+    pub fn lookup_cached_or_hosts(&self, domain: &str) -> Vec<IpAddr> {
+        let (clean, opt) = (domain.trim_end_matches('.'), IPOption::default());
+        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+            let filtered = self.filter_ips(&ips, &opt);
+            if !filtered.is_empty() { return filtered; }
+        }
+        Vec::new()
+    }
     pub fn lookup_hosts_or_cache_ipv6(&self, domain: &str) -> Vec<IpAddr> {
         let (clean, opt) = (domain.trim_end_matches('.'), IPOption { ipv4_enable: false, ipv6_enable: true, fake_enable: false });
         for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
