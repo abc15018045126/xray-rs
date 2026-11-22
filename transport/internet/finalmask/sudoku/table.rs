@@ -213,11 +213,7 @@ pub fn entropy_layout() -> ByteLayout {
 
 pub fn custom_layout(pattern: &str) -> Result<ByteLayout> {
     let pattern = SudokuConfig::normalize_custom_table(pattern)?;
-
-    let mut x_bits = Vec::new();
-    let mut p_bits = Vec::new();
-    let mut v_bits = Vec::new();
-
+    let (mut x_bits, mut p_bits, mut v_bits) = (Vec::new(), Vec::new(), Vec::new());
     for (i, c) in pattern.chars().enumerate() {
         let bit = (7 - i) as u8;
         match c {
@@ -227,103 +223,49 @@ pub fn custom_layout(pattern: &str) -> Result<ByteLayout> {
             _ => {}
         }
     }
+    let x_mask = x_bits.iter().fold(0u8, |acc, &bit| acc | (1 << bit));
 
-    let mut x_mask: u8 = 0;
-    for &bit in &x_bits {
-        x_mask |= 1 << bit;
-    }
-
-    let x_bits_enc = x_bits.clone();
-    let p_bits_enc = p_bits.clone();
-    let v_bits_enc = v_bits.clone();
-    let encode_with_drop = move |group: u8, drop_x: isize| -> u8 {
-        let mut out = x_mask;
-        if drop_x >= 0 && (drop_x as usize) < x_bits_enc.len() {
-            out &= !(1 << x_bits_enc[drop_x as usize]);
-        }
-
-        let val = (group >> 4) & 0x03;
-        let pos = group & 0x0f;
-
+    let (p_enc, v_enc) = (p_bits.clone(), v_bits.clone());
+    let encode_group: EncodeGroupFn = Arc::new(move |group: u8| {
+        let (mut out, val, pos) = (x_mask, (group >> 4) & 0x03, group & 0x0f);
         if (val & 0x02) != 0 {
-            out |= 1 << p_bits_enc[0];
+            out |= 1 << p_enc[0];
         }
         if (val & 0x01) != 0 {
-            out |= 1 << p_bits_enc[1];
+            out |= 1 << p_enc[1];
         }
-        for (i, &bit) in v_bits_enc.iter().enumerate() {
+        for (i, &bit) in v_enc.iter().enumerate() {
             if ((pos >> (3 - i)) & 0x01) == 1 {
                 out |= 1 << bit;
             }
         }
         out
-    };
+    });
 
     let mut padding = Vec::new();
     let mut padding_set = std::collections::HashSet::new();
-
-    for drop in 0..x_bits.len() {
-        for val in 0..4u8 {
-            for pos in 0..16u8 {
-                let group = (val << 4) | pos;
-                let b = encode_with_drop(group, drop as isize);
-                if b.count_ones() >= 5 && padding_set.insert(b) {
-                    padding.push(b);
-                }
+    for &drop_bit in &x_bits {
+        for group in 0..64u8 {
+            let b = encode_group(group) & !(1 << drop_bit);
+            if b.count_ones() >= 5 && padding_set.insert(b) {
+                padding.push(b);
             }
         }
     }
     padding.sort();
     if padding.is_empty() {
-        return Err(Error::Config(
-            "customTable produced empty padding pool".to_string(),
-        ));
+        return Err(Error::Config("customTable produced empty padding pool".to_string()));
     }
 
-    let p_bits_copy = p_bits.clone();
-    let v_bits_copy = v_bits.clone();
     let decode_group: DecodeGroupFn = Arc::new(move |b: u8| {
         if (b & x_mask) != x_mask {
             return None;
         }
-
-        let mut val = 0u8;
-        let mut pos = 0u8;
-
-        if (b & (1 << p_bits_copy[0])) != 0 {
-            val |= 0x02;
-        }
-        if (b & (1 << p_bits_copy[1])) != 0 {
-            val |= 0x01;
-        }
-        for (i, &bit) in v_bits_copy.iter().enumerate() {
-            if (b & (1 << bit)) != 0 {
-                pos |= 1 << (3 - i);
-            }
-        }
-
-        Some(((val & 0x03) << 4) | (pos & 0x0f))
-    });
-
-    let p_bits_c = p_bits.clone();
-    let v_bits_c = v_bits.clone();
-    let encode_group: EncodeGroupFn = Arc::new(move |group: u8| {
-        let mut out = x_mask;
-        let val = (group >> 4) & 0x03;
-        let pos = group & 0x0f;
-
-        if (val & 0x02) != 0 {
-            out |= 1 << p_bits_c[0];
-        }
-        if (val & 0x01) != 0 {
-            out |= 1 << p_bits_c[1];
-        }
-        for (i, &bit) in v_bits_c.iter().enumerate() {
-            if ((pos >> (3 - i)) & 0x01) == 1 {
-                out |= 1 << bit;
-            }
-        }
-        out
+        let val = (((b & (1 << p_bits[0])) != 0) as u8) << 1 | (((b & (1 << p_bits[1])) != 0) as u8);
+        let pos = v_bits.iter().enumerate().fold(0u8, |acc, (i, &bit)| {
+            if (b & (1 << bit)) != 0 { acc | (1 << (3 - i)) } else { acc }
+        });
+        Some((val << 4) | pos)
     });
 
     Ok(ByteLayout {

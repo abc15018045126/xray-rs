@@ -42,80 +42,68 @@ pub fn sniff_tls(b: &[u8]) -> Result<TlsSniffHeader> {
 }
 
 pub fn read_client_hello(mut data: &[u8]) -> Result<String> {
+    let err = |m: &str| Error::Protocol(m.into());
+    let u16_be = |b: &[u8]| u16::from_be_bytes([b[0], b[1]]) as usize;
+
     if data.len() < 42 {
-        return Err(Error::Protocol("client hello too short".into()));
+        return Err(err("client hello too short"));
     }
-    let session_id_len = data[38] as usize;
-    if session_id_len > 32 || data.len() < 39 + session_id_len {
-        return Err(Error::Protocol("invalid session id len".into()));
+    let sid_len = data[38] as usize;
+    if sid_len > 32 || data.len() < 39 + sid_len {
+        return Err(err("invalid session id len"));
     }
-    data = &data[39 + session_id_len..];
+    data = &data[39 + sid_len..];
 
     if data.len() < 2 {
-        return Err(Error::Protocol("no cipher suite len".into()));
+        return Err(err("no cipher suite len"));
     }
-    let cipher_suite_len = u16::from_be_bytes([data[0], data[1]]) as usize;
-    if data.len() < 2 + cipher_suite_len {
-        return Err(Error::Protocol("invalid cipher suite len".into()));
-    }
-    data = &data[2 + cipher_suite_len..];
+    let cs_len = u16_be(data);
+    data = data.get(2 + cs_len..).ok_or_else(|| err("invalid cipher suite len"))?;
 
-    if data.is_empty() {
-        return Err(Error::Protocol("no compression method len".into()));
-    }
-    let comp_len = data[0] as usize;
-    if data.len() < 1 + comp_len {
-        return Err(Error::Protocol("invalid compression method len".into()));
-    }
-    data = &data[1 + comp_len..];
+    let comp_len = *data.first().ok_or_else(|| err("no compression method len"))? as usize;
+    data = data.get(1 + comp_len..).ok_or_else(|| err("invalid compression method len"))?;
 
     if data.len() < 2 {
-        return Err(Error::Protocol("no extensions len".into()));
+        return Err(err("no extensions len"));
     }
-    let ext_len = u16::from_be_bytes([data[0], data[1]]) as usize;
+    let ext_len = u16_be(data);
     data = &data[2..];
     if ext_len != data.len() {
-        return Err(Error::Protocol("extensions length mismatch".into()));
+        return Err(err("extensions length mismatch"));
     }
 
     while data.len() >= 4 {
-        let ext_type = u16::from_be_bytes([data[0], data[1]]);
-        let length = u16::from_be_bytes([data[2], data[3]]) as usize;
+        let (ext_type, len) = (u16_be(data), u16_be(&data[2..]));
         data = &data[4..];
-        if data.len() < length {
-            return Err(Error::Protocol("extension truncated".into()));
+        if data.len() < len {
+            return Err(err("extension truncated"));
         }
-
         if ext_type == 0x00 {
-            let mut sni_data = &data[..length];
-            if sni_data.len() < 2 {
-                return Err(Error::Protocol("sni data too short".into()));
+            let mut sni = &data[..len];
+            if sni.len() < 2 {
+                return Err(err("sni data too short"));
             }
-            let names_len = u16::from_be_bytes([sni_data[0], sni_data[1]]) as usize;
-            sni_data = &sni_data[2..];
-            if sni_data.len() < names_len {
-                return Err(Error::Protocol("sni names len mismatch".into()));
+            let names_len = u16_be(sni);
+            sni = &sni[2..];
+            if sni.len() < names_len {
+                return Err(err("sni names len mismatch"));
             }
-
-            while sni_data.len() >= 3 {
-                let name_type = sni_data[0];
-                let name_len = u16::from_be_bytes([sni_data[1], sni_data[2]]) as usize;
-                sni_data = &sni_data[3..];
-                if sni_data.len() < name_len {
-                    return Err(Error::Protocol("sni name truncated".into()));
+            while sni.len() >= 3 {
+                let (ntype, nlen) = (sni[0], u16_be(&sni[1..]));
+                sni = &sni[3..];
+                if sni.len() < nlen {
+                    return Err(err("sni name truncated"));
                 }
-
-                if name_type == 0 {
-                    let domain_bytes = &sni_data[..name_len];
-                    let domain = std::str::from_utf8(domain_bytes)
-                        .map_err(|_| Error::Protocol("invalid utf8 sni".into()))?;
-                    return Ok(domain.to_string());
+                if ntype == 0 {
+                    return Ok(std::str::from_utf8(&sni[..nlen])
+                        .map_err(|_| err("invalid utf8 sni"))?
+                        .to_string());
                 }
-                sni_data = &sni_data[name_len..];
+                sni = &sni[nlen..];
             }
         }
-        data = &data[length..];
+        data = &data[len..];
     }
 
-    Err(Error::Protocol("SNI extension not found".into()))
+    Err(err("SNI extension not found"))
 }

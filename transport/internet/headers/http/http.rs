@@ -98,10 +98,10 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         if self.prefix_pos < self.prefix_buf.len() {
-            let remaining = &self.prefix_buf[self.prefix_pos..];
-            let to_copy = remaining.len().min(buf.remaining());
-            buf.put_slice(&remaining[..to_copy]);
-            self.prefix_pos += to_copy;
+            let rem = &self.prefix_buf[self.prefix_pos..];
+            let n = rem.len().min(buf.remaining());
+            buf.put_slice(&rem[..n]);
+            self.prefix_pos += n;
             return Poll::Ready(Ok(()));
         }
 
@@ -112,52 +112,38 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
                 Poll::Ready(Ok(())) => {
                     let filled = read_buf.filled();
                     if filled.is_empty() {
-                        return Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::UnexpectedEof,
-                            "EOF before HTTP header completed",
-                        )));
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof, "EOF before HTTP header completed")));
                     }
                     self.header_buf.extend_from_slice(filled);
                     if let Some(pos) = self.header_buf.windows(4).position(|w| w == b"\r\n\r\n") {
                         let header_end = pos + 4;
-                        let header_bytes = &self.header_buf[..header_end];
-
-                        if !self.expected_uris.is_empty() {
-                            let hr = HeaderReader::new(self.expected_uris.clone());
-                            if let Err(e) = hr.parse_and_validate(header_bytes) {
-                                return Poll::Ready(Err(io::Error::new(
-                                    io::ErrorKind::InvalidData,
-                                    format!("{:?}", e),
-                                )));
-                            }
+                        if !self.expected_uris.is_empty()
+                            && let Err(e) = HeaderReader::new(self.expected_uris.clone())
+                                .parse_and_validate(&self.header_buf[..header_end])
+                        {
+                            return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidData, format!("{:?}", e))));
                         }
-
                         if header_end < self.header_buf.len() {
                             self.prefix_buf = self.header_buf[header_end..].to_vec();
                             self.prefix_pos = 0;
                         }
                         self.read_header = true;
                         self.header_buf.clear();
-
                         if self.prefix_pos < self.prefix_buf.len() {
-                            let remaining = &self.prefix_buf[self.prefix_pos..];
-                            let to_copy = remaining.len().min(buf.remaining());
-                            buf.put_slice(&remaining[..to_copy]);
-                            self.prefix_pos += to_copy;
+                            let rem = &self.prefix_buf[self.prefix_pos..];
+                            let n = rem.len().min(buf.remaining());
+                            buf.put_slice(&rem[..n]);
+                            self.prefix_pos += n;
                         }
                         return Poll::Ready(Ok(()));
                     }
                     if self.header_buf.len() > MAX_HEADER_LENGTH {
-                        return Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::InvalidData,
-                            "Header too long.",
-                        )));
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::InvalidData, "Header too long.")));
                     }
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                Poll::Pending => return Poll::Pending,
+                other => return other,
             }
         }
 

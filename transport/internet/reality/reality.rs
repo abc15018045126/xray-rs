@@ -147,89 +147,64 @@ struct ParsedClientHello {
 }
 
 fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
-    if record.len() < 5 + 4 + 2 + 32 + 1 || record[0] != 0x16 {
+    let u16_be = |s: &[u8], i: usize| u16::from_be_bytes([s[i], s[i + 1]]) as usize;
+    if record.len() < 44 || record[0] != 0x16 {
         return None;
     }
     let hs = &record[5..];
-    if hs.first().copied()? != 0x01 {
-        return None;
-    }
     let hs_len = ((hs[1] as usize) << 16) | ((hs[2] as usize) << 8) | (hs[3] as usize);
-    if hs.len() < 4 + hs_len {
+    if hs[0] != 0x01 || hs.len() < 4 + hs_len {
         return None;
     }
     let body = &hs[4..4 + hs_len];
-    if body.len() < 35 {
+    if body.len() < 67 || body[34] != 32 {
         return None;
     }
-    let mut client_random = [0u8; 32];
-    client_random.copy_from_slice(&body[2..34]);
-
-    let sid_len = body[34] as usize;
-    if sid_len != 32 || body.len() < 35 + sid_len {
-        return None;
-    }
-    let sid_start_in_hs = 4 + 35;
-    let mut session_id = [0u8; 32];
-    session_id.copy_from_slice(&body[35..35 + 32]);
-
+    let client_random: [u8; 32] = body[2..34].try_into().ok()?;
+    let session_id: [u8; 32] = body[35..67].try_into().ok()?;
     let mut aad_zeroed_handshake = hs[..4 + hs_len].to_vec();
-    for b in &mut aad_zeroed_handshake[sid_start_in_hs..sid_start_in_hs + 32] {
-        *b = 0;
-    }
+    aad_zeroed_handshake[39..71].fill(0);
 
-    let mut pos = 35 + sid_len;
+    let mut pos = 67;
     if pos + 2 > body.len() {
         return None;
     }
-    let cs_len = u16::from_be_bytes([body[pos], body[pos + 1]]) as usize;
-    pos += 2 + cs_len;
+    pos += 2 + u16_be(body, pos);
     if pos + 1 > body.len() {
         return None;
     }
-    let comp_len = body[pos] as usize;
-    pos += 1 + comp_len;
+    pos += 1 + body[pos] as usize;
     if pos + 2 > body.len() {
         return None;
     }
-    let ext_total = u16::from_be_bytes([body[pos], body[pos + 1]]) as usize;
+    let ext_end = (pos + 2 + u16_be(body, pos)).min(body.len());
     pos += 2;
-    let ext_end = (pos + ext_total).min(body.len());
 
-    let mut sni = String::new();
-    let mut client_pub: Option<[u8; 32]> = None;
-
+    let (mut sni, mut client_pub) = (String::new(), None);
     while pos + 4 <= ext_end {
-        let ext_type = u16::from_be_bytes([body[pos], body[pos + 1]]);
-        let ext_len = u16::from_be_bytes([body[pos + 2], body[pos + 3]]) as usize;
+        let (ext_type, ext_len) = (u16_be(body, pos), u16_be(body, pos + 2));
         pos += 4;
         if pos + ext_len > ext_end {
             break;
         }
-        let ext_data = &body[pos..pos + ext_len];
+        let ext = &body[pos..pos + ext_len];
         pos += ext_len;
 
-        if ext_type == 0x0000 && ext_data.len() >= 5 {
-            let name_len = u16::from_be_bytes([ext_data[3], ext_data[4]]) as usize;
-            if ext_data.len() >= 5 + name_len {
-                sni = String::from_utf8_lossy(&ext_data[5..5 + name_len]).to_string();
+        if ext_type == 0x0000 && ext.len() >= 5 {
+            let nlen = u16_be(ext, 3);
+            if ext.len() >= 5 + nlen {
+                sni = String::from_utf8_lossy(&ext[5..5 + nlen]).to_string();
             }
-        }
-        if ext_type == 0x0033 && ext_data.len() >= 2 {
-            let shares_len = u16::from_be_bytes([ext_data[0], ext_data[1]]) as usize;
-            let mut sp = 2usize;
-            let sp_end = (2 + shares_len).min(ext_data.len());
+        } else if ext_type == 0x0033 && ext.len() >= 2 {
+            let (mut sp, sp_end) = (2usize, (2 + u16_be(ext, 0)).min(ext.len()));
             while sp + 4 <= sp_end {
-                let group = u16::from_be_bytes([ext_data[sp], ext_data[sp + 1]]);
-                let klen = u16::from_be_bytes([ext_data[sp + 2], ext_data[sp + 3]]) as usize;
+                let (group, klen) = (u16_be(ext, sp), u16_be(ext, sp + 2));
                 sp += 4;
                 if sp + klen > sp_end {
                     break;
                 }
                 if group == 0x001d && klen == 32 {
-                    let mut pk = [0u8; 32];
-                    pk.copy_from_slice(&ext_data[sp..sp + 32]);
-                    client_pub = Some(pk);
+                    client_pub = ext[sp..sp + 32].try_into().ok();
                     break;
                 }
                 sp += klen;
@@ -237,13 +212,7 @@ fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
         }
     }
 
-    Some(ParsedClientHello {
-        client_random,
-        session_id,
-        client_pub: client_pub?,
-        sni,
-        aad_zeroed_handshake,
-    })
+    Some(ParsedClientHello { client_random, session_id, client_pub: client_pub?, sni, aad_zeroed_handshake })
 }
 
 impl RealityServer {

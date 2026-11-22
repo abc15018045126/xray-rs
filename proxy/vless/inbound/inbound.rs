@@ -155,100 +155,66 @@ impl InboundHandler for Handler {
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
         let (req_result, recorded) = {
-            let mut rec = RecordingReader {
-                inner: &mut stream,
-                recorded: Vec::with_capacity(64),
-            };
-            let res = RequestHeader::decode(&mut rec).await;
-            (res, rec.recorded)
+            let mut rec = RecordingReader { inner: &mut stream, recorded: Vec::with_capacity(64) };
+            (RequestHeader::decode(&mut rec).await, rec.recorded)
         };
 
-        let replay_stream = |prefix: Vec<u8>, inner: BoxStream| -> BoxStream {
-            if prefix.is_empty() {
-                inner
-            } else {
-                Box::pin(PrefixedStream {
-                    prefix,
-                    offset: 0,
-                    inner,
-                })
-            }
+        let make_fallback = |recorded: Vec<u8>, stream: BoxStream| -> Option<Result<InboundResult>> {
+            let fb = self.match_fallback("", "", "")?;
+            Some(Destination::parse_str(&fb.dest, Network::Tcp).map(|dest| {
+                let mut session = SessionContext::new(&self.tag, dest);
+                session.source = Some(remote_addr);
+                let out = if recorded.is_empty() {
+                    stream
+                } else {
+                    Box::pin(PrefixedStream { prefix: recorded, offset: 0, inner: stream })
+                };
+                InboundResult { stream: out, session }
+            }))
         };
 
         let req = match req_result {
             Ok(r) => r,
-            Err(e) => {
-                if let Some(fb) = self.match_fallback("", "", "") {
-                    let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
-                    let mut session = SessionContext::new(&self.tag, fallback_dest);
-                    session.source = Some(remote_addr);
-                    return Ok(InboundResult {
-                        stream: replay_stream(recorded, stream),
-                        session,
-                    });
-                }
-                return Err(e);
-            }
+            Err(e) => return make_fallback(recorded, stream).unwrap_or(Err(e)),
         };
 
         let user = if self.validator.get_count() > 0 {
             match self.validator.get(&req.user_id) {
                 Some(u) => Some(u),
                 None => {
-                    if let Some(fb) = self.match_fallback("", "", "") {
-                        let fallback_dest = Destination::parse_str(&fb.dest, Network::Tcp)?;
-                        let mut session = SessionContext::new(&self.tag, fallback_dest);
-                        session.source = Some(remote_addr);
-                        return Ok(InboundResult {
-                            stream: replay_stream(recorded, stream),
-                            session,
-                        });
-                    }
-                    return Err(Error::AuthFailed(format!(
-                        "Unauthorized VLESS user UUID: {}",
-                        req.user_id
-                    )));
+                    return make_fallback(recorded, stream).unwrap_or_else(|| {
+                        Err(Error::AuthFailed(format!("Unauthorized VLESS user UUID: {}", req.user_id)))
+                    });
                 }
             }
         } else {
             None
         };
 
-        let resp = ResponseHeader::new();
-        resp.encode(&mut stream).await?;
+        ResponseHeader::new().encode(&mut stream).await?;
 
         let mut session = SessionContext::new(&self.tag, req.destination);
         session.source = Some(remote_addr);
-        session.destination.network = match req.command {
-            RequestCommand::Tcp => Network::Tcp,
-            RequestCommand::Udp => Network::Udp,
-            RequestCommand::Mux => Network::Tcp,
-            RequestCommand::Rvs => Network::Tcp,
-        };
-
-        if let Some(u) = user {
-            session.user = Some(u);
+        session.destination.network = if matches!(req.command, RequestCommand::Udp) {
+            Network::Udp
         } else {
-            session.user = Some(User::new(req.user_id));
-        }
-
-        let is_vision =
-            req.addons.flow == FLOW_VISION || req.addons.flow == FLOW_VISION_UDP443;
-        let final_stream: BoxStream = if is_vision {
-            session.sniffed_protocol = Some("tls".into());
-            Box::pin(VisionStream::new(
-                stream,
-                VisionContext::new(req.user_id.into_bytes().to_vec(), false),
-                true,
-            ))
-        } else {
-            stream
+            Network::Tcp
         };
+        session.user = Some(user.unwrap_or_else(|| User::new(req.user_id)));
 
-        Ok(InboundResult {
-            stream: final_stream,
-            session,
-        })
+        let final_stream: BoxStream =
+            if req.addons.flow == FLOW_VISION || req.addons.flow == FLOW_VISION_UDP443 {
+                session.sniffed_protocol = Some("tls".into());
+                Box::pin(VisionStream::new(
+                    stream,
+                    VisionContext::new(req.user_id.into_bytes().to_vec(), false),
+                    true,
+                ))
+            } else {
+                stream
+            };
+
+        Ok(InboundResult { stream: final_stream, session })
     }
 }
 

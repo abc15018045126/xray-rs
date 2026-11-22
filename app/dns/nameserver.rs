@@ -266,105 +266,74 @@ pub fn parse_dns_response(resp: &[u8], domain: &str) -> Result<Vec<IpAddr>> {
 pub fn parse_dns_response_with_ttl(resp: &[u8], domain: &str) -> Result<(Vec<IpAddr>, u32)> {
     let n = resp.len();
     if n < 12 {
-        return Err(Error::Protocol(
-            "DNS response too short (< 12 bytes)".into(),
-        ));
+        return Err(Error::Protocol("DNS response too short (< 12 bytes)".into()));
     }
-
     let rcode = resp[3] & 0x0F;
     if rcode != 0 {
-        return Err(Error::NotFound(format!(
-            "DNS server returned error code {} for domain {}",
-            rcode, domain
-        )));
+        return Err(Error::NotFound(format!("DNS server returned error code {} for domain {}", rcode, domain)));
     }
 
     let qdcount = u16::from_be_bytes([resp[4], resp[5]]) as usize;
     let ancount = u16::from_be_bytes([resp[6], resp[7]]) as usize;
-
-    let mut pos = 12;
-
-    for _ in 0..qdcount {
-        while pos < n {
-            let len = resp[pos] as usize;
+    let skip_name = |pos: &mut usize| {
+        while *pos < n {
+            let len = resp[*pos] as usize;
             if len == 0 {
-                pos += 1;
-                break;
+                *pos += 1;
+                return;
             }
             if len & 0xc0 == 0xc0 {
-                pos += 2;
-                break;
+                *pos += 2;
+                return;
             }
-            pos += 1 + len;
+            *pos += 1 + len;
         }
+    };
+
+    let mut pos = 12;
+    for _ in 0..qdcount {
+        skip_name(&mut pos);
         pos += 4;
     }
-
     if pos > n {
         return Err(Error::Protocol("Malformed DNS response questions".into()));
     }
 
-    let mut ips = Vec::new();
-    let mut min_ttl = u32::MAX;
-
+    let (mut ips, mut min_ttl) = (Vec::new(), u32::MAX);
     for _ in 0..ancount {
         if pos >= n {
             break;
         }
-        if resp[pos] & 0xc0 == 0xc0 {
-            pos += 2;
-        } else {
-            while pos < n && resp[pos] != 0 {
-                pos += (resp[pos] as usize) + 1;
-            }
-            pos += 1;
-        }
-
+        skip_name(&mut pos);
         if pos + 10 > n {
             break;
         }
-
         let rtype = u16::from_be_bytes([resp[pos], resp[pos + 1]]);
         let ttl = u32::from_be_bytes([resp[pos + 4], resp[pos + 5], resp[pos + 6], resp[pos + 7]]);
         let rdlength = u16::from_be_bytes([resp[pos + 8], resp[pos + 9]]) as usize;
         pos += 10;
-
         if pos + rdlength > n {
             break;
         }
-
-        if rtype == 1 && rdlength == 4 {
-            let ip = IpAddr::V4(std::net::Ipv4Addr::new(
-                resp[pos],
-                resp[pos + 1],
-                resp[pos + 2],
-                resp[pos + 3],
-            ));
-            ips.push(ip);
-            if ttl < min_ttl {
-                min_ttl = ttl;
+        match (rtype, rdlength) {
+            (1, 4) => {
+                let b: [u8; 4] = resp[pos..pos + 4].try_into().unwrap();
+                ips.push(IpAddr::V4(std::net::Ipv4Addr::from(b)));
+                min_ttl = min_ttl.min(ttl);
             }
-        } else if rtype == 28 && rdlength == 16 {
-            let mut octets = [0u8; 16];
-            octets.copy_from_slice(&resp[pos..pos + 16]);
-            let ip = IpAddr::V6(std::net::Ipv6Addr::from(octets));
-            ips.push(ip);
-            if ttl < min_ttl {
-                min_ttl = ttl;
+            (28, 16) => {
+                let b: [u8; 16] = resp[pos..pos + 16].try_into().unwrap();
+                ips.push(IpAddr::V6(std::net::Ipv6Addr::from(b)));
+                min_ttl = min_ttl.min(ttl);
             }
+            _ => {}
         }
-
         pos += rdlength;
     }
 
     if ips.is_empty() {
         Err(Error::NotFound(format!("No IP resolved for {}", domain)))
     } else {
-        let final_ttl = if min_ttl == u32::MAX || min_ttl == 0 {
-            300
-        } else {
-            min_ttl
-        };
-        Ok((ips, final_ttl))
+        Ok((ips, if min_ttl == u32::MAX || min_ttl == 0 { 300 } else { min_ttl }))
     }
 }

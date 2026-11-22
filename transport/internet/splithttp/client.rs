@@ -96,43 +96,21 @@ impl DialerClient for DefaultDialerClient {
         Option<SocketAddr>,
     )> {
         let (mut stream, local_addr, remote_addr) = self.dial_stream().await?;
-
-        let method = if upload_only {
-            self.transport_config.get_normalized_uplink_http_method()
-        } else {
-            "GET"
-        };
-
+        let method = if upload_only { self.transport_config.get_normalized_uplink_http_method() } else { "GET" };
         let norm_path = self.transport_config.get_normalized_path();
-        let target_path = if !session_id.is_empty()
-            && self.transport_config.get_normalized_session_placement() == PLACEMENT_PATH
-        {
+        let placement = self.transport_config.get_normalized_session_placement();
+        let target_path = if !session_id.is_empty() && placement == PLACEMENT_PATH {
             SplitHttpConfig::append_to_path(&norm_path, session_id)
         } else {
             norm_path
         };
 
         let host_fallback = self.dest.address.to_string();
-        let host = if !self.transport_config.host.is_empty() {
-            self.transport_config.host.as_str()
-        } else {
-            host_fallback.as_str()
-        };
-
-        let mut req = format!(
-            "{} {} HTTP/1.1\r\nHost: {}\r\nAccept-Encoding: identity\r\n",
-            method, target_path, host
-        );
-        if !session_id.is_empty()
-            && self.transport_config.get_normalized_session_placement() == PLACEMENT_HEADER
-        {
-            req.push_str(&format!(
-                "{}: {}\r\n",
-                self.transport_config.get_normalized_session_key(),
-                session_id
-            ));
+        let host = if self.transport_config.host.is_empty() { host_fallback.as_str() } else { self.transport_config.host.as_str() };
+        let mut req = format!("{} {} HTTP/1.1\r\nHost: {}\r\nAccept-Encoding: identity\r\n", method, target_path, host);
+        if !session_id.is_empty() && placement == PLACEMENT_HEADER {
+            req.push_str(&format!("{}: {}\r\n", self.transport_config.get_normalized_session_key(), session_id));
         }
-
         for (k, v) in &self.transport_config.headers {
             req.push_str(&format!("{}: {}\r\n", k, v));
         }
@@ -150,25 +128,17 @@ impl DialerClient for DefaultDialerClient {
             }
             n_read += n;
             if let Some(pos) = buf[..n_read].windows(4).position(|w| w == b"\r\n\r\n") {
-                let header_str = String::from_utf8_lossy(&buf[..pos]);
-                let status_line = header_str.lines().next().unwrap_or("");
+                let status_line = String::from_utf8_lossy(&buf[..pos]).lines().next().unwrap_or("").to_string();
                 if !status_line.contains("200") {
-                    return Err(Error::Protocol(format!(
-                        "unexpected HTTP status: {}",
-                        status_line
-                    )));
+                    return Err(Error::Protocol(format!("unexpected HTTP status: {}", status_line)));
                 }
-                let remainder = buf[pos + 4..n_read].to_vec();
-                let combined_reader: Pin<Box<dyn AsyncRead + Send + Sync>> =
-                    if !remainder.is_empty() {
-                        Box::pin(tokio::io::AsyncReadExt::chain(
-                            std::io::Cursor::new(remainder),
-                            stream,
-                        ))
-                    } else {
-                        Box::pin(stream)
-                    };
-                return Ok((combined_reader, local_addr, remote_addr));
+                let rem = buf[pos + 4..n_read].to_vec();
+                let reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if rem.is_empty() {
+                    Box::pin(stream)
+                } else {
+                    Box::pin(tokio::io::AsyncReadExt::chain(std::io::Cursor::new(rem), stream))
+                };
+                return Ok((reader, local_addr, remote_addr));
             }
             if n_read >= buf.len() {
                 return Err(Error::Protocol("HTTP response headers too long".into()));

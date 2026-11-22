@@ -42,88 +42,54 @@ impl Hub {
         stream_settings: Option<&MemoryStreamConfig>,
         options: &[HubOption],
     ) -> Result<Self> {
-        let mut capacity = 256;
-        let mut recv_orig_dest = false;
-
+        let (mut capacity, mut recv_orig_dest) = (256, false);
         for opt in options {
-            match opt {
-                HubOption::Capacity(c) => capacity = *c,
-                HubOption::ReceiveOriginalDestination(r) => recv_orig_dest = *r,
+            match *opt {
+                HubOption::Capacity(c) => capacity = c,
+                HubOption::ReceiveOriginalDestination(r) => recv_orig_dest = r,
             }
         }
-
-        let bind_addr = if let Some(domain) = address.domain_name() {
-            if domain == "localhost" {
-                Address::ip([127, 0, 0, 1].into())
-            } else {
-                return Err(Error::Other(format!(
-                    "domain address is not allowed for listening: {}",
-                    domain
-                )));
-            }
-        } else {
-            address.clone()
-        };
-
-        if let Some(ss) = stream_settings
-            && let Some(sockopt) = &ss.socket_settings
-            && sockopt.receive_original_dest_address
+        if stream_settings
+            .and_then(|ss| ss.socket_settings.as_ref())
+            .is_some_and(|s| s.receive_original_dest_address)
         {
             recv_orig_dest = true;
         }
 
-        let ip = bind_addr
-            .to_ip()
-            .ok_or_else(|| Error::Other("invalid IP address".into()))?;
-        let sock_addr = SocketAddr::new(ip, port.value());
-        let socket = Arc::new(UdpSocket::bind(sock_addr).await.map_err(Error::Io)?);
+        let bind_addr = match address.domain_name() {
+            Some("localhost") => Address::ip([127, 0, 0, 1].into()),
+            Some(domain) => return Err(Error::Other(format!("domain address is not allowed for listening: {}", domain))),
+            None => address.clone(),
+        };
+        let ip = bind_addr.to_ip().ok_or_else(|| Error::Other("invalid IP address".into()))?;
+        let socket = Arc::new(UdpSocket::bind(SocketAddr::new(ip, port.value())).await?);
 
         let (cache_tx, cache_rx) = mpsc::channel(capacity);
         let closed = Arc::new(AtomicBool::new(false));
-
-        let s_clone = socket.clone();
-        let closed_clone = closed.clone();
+        let (s_clone, closed_clone) = (socket.clone(), closed.clone());
 
         tokio::spawn(async move {
-            let mut payload = vec![0u8; 65535];
-            let mut oob = vec![0u8; 256];
-
+            let (mut payload, mut oob) = (vec![0u8; 65535], vec![0u8; 256]);
             while !closed_clone.load(Ordering::Relaxed) {
                 match platform_hub::read_udp_msg(&s_clone, &mut payload, &mut oob).await {
-                    Ok((n, noob, _, Some(addr))) => {
-                        if n == 0 {
-                            continue;
-                        }
-                        let buffer = Buffer::from_bytes(&payload[..n]);
+                    Ok((n, noob, _, Some(addr))) if n > 0 => {
                         let source = Destination::udp(Address::from(addr.ip()), addr.port());
                         let target = if recv_orig_dest && noob > 0 {
                             platform_hub::retrieve_original_dest(&oob[..noob]).unwrap_or_default()
                         } else {
                             Destination::default()
                         };
-
-                        let packet = UdpPacket::new(buffer, source, target);
-                        if cache_tx.send(packet).await.is_err() {
+                        if cache_tx.send(UdpPacket::new(Buffer::from_bytes(&payload[..n]), source, target)).await.is_err() {
                             break;
                         }
                     }
-                    Ok((_, _, _, None)) => {}
-                    Err(_) => {
-                        if closed_clone.load(Ordering::Relaxed) {
-                            break;
-                        }
-                    }
+                    Err(_) if closed_clone.load(Ordering::Relaxed) => break,
+                    _ => {}
                 }
             }
         });
 
-        Ok(Self {
-            socket,
-            cache_rx,
-            capacity,
-            recv_orig_dest,
-            closed,
-        })
+        Ok(Self { socket, cache_rx, capacity, recv_orig_dest, closed })
     }
 
     pub async fn bind(addr: SocketAddr) -> Result<Self> {

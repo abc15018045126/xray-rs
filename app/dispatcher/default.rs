@@ -647,15 +647,9 @@ where
     A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + ?Sized,
     B: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + ?Sized,
 {
-    let timeout_duration = if idle_timeout.is_zero() {
-        Duration::from_secs(300)
-    } else {
-        idle_timeout
-    };
-
+    let timeout_duration = if idle_timeout.is_zero() { Duration::from_secs(300) } else { idle_timeout };
     let (mut a_read, mut a_write) = tokio::io::split(a);
     let (mut b_read, mut b_write) = tokio::io::split(b);
-
     let (activity_tx, mut activity_rx) = tokio::sync::mpsc::channel::<()>(1);
     let activity_tx_b = activity_tx.clone();
 
@@ -664,18 +658,10 @@ where
         tokio::pin!(sleep);
         loop {
             tokio::select! {
-                _ = &mut sleep => {
-                    break;
-                }
-                msg = activity_rx.recv() => {
-                    match msg {
-                        Some(()) => {
-                            sleep.as_mut().reset(tokio::time::Instant::now() + timeout_duration);
-                        }
-                        None => {
-                            break;
-                        }
-                    }
+                _ = &mut sleep => break,
+                msg = activity_rx.recv() => match msg {
+                    Some(()) => sleep.as_mut().reset(tokio::time::Instant::now() + timeout_duration),
+                    None => break,
                 }
             }
         }
@@ -684,27 +670,24 @@ where
     tokio::select! {
         (res_a, res_b) = async {
             #[cfg(debug_assertions)]
-            let (tap_a, tap_b) = match tap {
-                Some(m) => (
-                    Some((m.clone(), crate::debug_panel::Direction::ClientToServer)),
-                    Some((m, crate::debug_panel::Direction::ServerToClient)),
-                ),
-                None => (None, None),
-            };
+            let (tap_a, tap_b) = tap.map_or((None, None), |m| (
+                Some((m.clone(), crate::debug_panel::Direction::ClientToServer)),
+                Some((m, crate::debug_panel::Direction::ServerToClient)),
+            ));
             #[cfg(debug_assertions)]
-            let fut_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter, tap_a);
-            #[cfg(debug_assertions)]
-            let fut_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter, tap_b);
+            let (fut_a, fut_b) = (
+                copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter, tap_a),
+                copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter, tap_b),
+            );
             #[cfg(not(debug_assertions))]
-            let fut_a = copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter);
-            #[cfg(not(debug_assertions))]
-            let fut_b = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter);
+            let (fut_a, fut_b) = (
+                copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter),
+                copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter),
+            );
             tokio::join!(fut_a, fut_b)
-        } => {
-            match (res_a, res_b) {
-                (Ok(from_client), Ok(from_server)) => Ok((from_client, from_server)),
-                (Err(e), _) | (_, Err(e)) => Err(e),
-            }
+        } => match (res_a, res_b) {
+            (Ok(c), Ok(s)) => Ok((c, s)),
+            (Err(e), _) | (_, Err(e)) => Err(e),
         },
         _ = timer_task => {
             debug!("Session idle for {:?}, terminating connection", timeout_duration);

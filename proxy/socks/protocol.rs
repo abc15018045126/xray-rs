@@ -23,19 +23,13 @@ impl SocksProtocol {
         stream: &mut S,
         target: &Destination,
     ) -> Result<()> {
-        stream
-            .write_all(&[SOCKS5_VERSION, 0x01, AUTH_NO_AUTH])
-            .await
-            .map_err(Error::Io)?;
-        stream.flush().await.map_err(Error::Io)?;
+        stream.write_all(&[SOCKS5_VERSION, 0x01, AUTH_NO_AUTH]).await?;
+        stream.flush().await?;
 
         let mut resp = [0u8; 2];
-        stream.read_exact(&mut resp).await.map_err(Error::Io)?;
+        stream.read_exact(&mut resp).await?;
         if resp[0] != SOCKS5_VERSION || resp[1] != AUTH_NO_AUTH {
-            return Err(Error::Protocol(format!(
-                "SOCKS5 auth negotiation failed: {:?}",
-                resp
-            )));
+            return Err(Error::Protocol(format!("SOCKS5 auth negotiation failed: {:?}", resp)));
         }
 
         let mut req = vec![SOCKS5_VERSION, CMD_TCP_CONNECT, 0x00];
@@ -55,47 +49,26 @@ impl SocksProtocol {
             }
         }
         req.extend_from_slice(&target.port.to_be_bytes());
-
-        stream.write_all(&req).await.map_err(Error::Io)?;
-        stream.flush().await.map_err(Error::Io)?;
+        stream.write_all(&req).await?;
+        stream.flush().await?;
 
         let mut reply_hdr = [0u8; 4];
-        stream.read_exact(&mut reply_hdr).await.map_err(Error::Io)?;
+        stream.read_exact(&mut reply_hdr).await?;
         if reply_hdr[0] != SOCKS5_VERSION {
-            return Err(Error::Protocol(format!(
-                "Invalid SOCKS5 reply version: {}",
-                reply_hdr[0]
-            )));
+            return Err(Error::Protocol(format!("Invalid SOCKS5 reply version: {}", reply_hdr[0])));
         }
         if reply_hdr[1] != STATUS_SUCCESS {
-            return Err(Error::Protocol(format!(
-                "SOCKS5 server replied error status: 0x{:02X}",
-                reply_hdr[1]
-            )));
+            return Err(Error::Protocol(format!("SOCKS5 server replied error status: 0x{:02X}", reply_hdr[1])));
         }
 
-        match reply_hdr[3] {
-            0x01 => {
-                let mut b = [0u8; 4 + 2];
-                stream.read_exact(&mut b).await.map_err(Error::Io)?;
-            }
-            0x04 => {
-                let mut b = [0u8; 16 + 2];
-                stream.read_exact(&mut b).await.map_err(Error::Io)?;
-            }
-            0x03 => {
-                let len = stream.read_u8().await.map_err(Error::Io)? as usize;
-                let mut b = vec![0u8; len + 2];
-                stream.read_exact(&mut b).await.map_err(Error::Io)?;
-            }
-            other => {
-                return Err(Error::Protocol(format!(
-                    "Unknown ATYP in reply: 0x{:02X}",
-                    other
-                )));
-            }
-        }
-
+        let skip_len = match reply_hdr[3] {
+            0x01 => 6,
+            0x04 => 18,
+            0x03 => stream.read_u8().await? as usize + 2,
+            other => return Err(Error::Protocol(format!("Unknown ATYP in reply: 0x{:02X}", other))),
+        };
+        let mut b = vec![0u8; skip_len];
+        stream.read_exact(&mut b).await?;
         Ok(())
     }
 }

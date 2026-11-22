@@ -43,70 +43,45 @@ impl DnsOutbound {
         let req = Message::from_vec(raw_query).ok()?;
         let q = req.queries.first()?.clone();
         let domain = q.name().to_utf8();
-        let clean_domain = domain.trim_end_matches('.');
-        if clean_domain.is_empty() {
+        let clean = domain.trim_end_matches('.');
+        if clean.is_empty() {
             return None;
         }
-        let qtype = q.query_type();
 
         let mut resp = Message::response(req.metadata.id, OpCode::Query);
         resp.metadata.authoritative = true;
         resp.metadata.recursion_desired = true;
         resp.metadata.recursion_available = true;
+        resp.metadata.response_code = ResponseCode::NoError;
         resp.queries.push(q.clone());
 
-        match qtype {
+        match q.query_type() {
             RecordType::A => {
-                let opt = IPOption {
-                    ipv4_enable: true,
-                    ipv6_enable: false,
-                    fake_enable: true,
-                };
-                match self
-                    .dns_client
-                    .lookup_ip_with_option(clean_domain, opt)
-                    .await
-                {
+                let opt = IPOption { ipv4_enable: true, ipv6_enable: false, fake_enable: true };
+                match self.dns_client.lookup_ip_with_option(clean, opt).await {
                     Ok((ips, ttl)) => {
                         let ttl = ttl.max(1);
-                        resp.metadata.response_code = ResponseCode::NoError;
                         for ip in ips {
                             if let IpAddr::V4(v4) = ip {
-                                resp.answers.push(Record::from_rdata(
-                                    q.name().clone(),
-                                    ttl,
-                                    RData::A(A(v4)),
-                                ));
+                                resp.answers.push(Record::from_rdata(q.name().clone(), ttl, RData::A(A(v4))));
                             }
                         }
-                        tracing::info!(
-                            "DNS-OUT A '{}' -> {} answers",
-                            clean_domain,
-                            resp.answers.len()
-                        );
+                        tracing::info!("DNS-OUT A '{}' -> {} answers", clean, resp.answers.len());
                     }
                     Err(e) => {
-                        tracing::warn!("DNS-OUT A '{}' failed: {}", clean_domain, e);
+                        tracing::warn!("DNS-OUT A '{}' failed: {}", clean, e);
                         resp.metadata.response_code = ResponseCode::ServFail;
                     }
                 }
             }
             RecordType::AAAA => {
-                let ips = self.dns_client.lookup_hosts_or_cache_ipv6(clean_domain);
-                resp.metadata.response_code = ResponseCode::NoError;
-                for ip in ips {
+                for ip in self.dns_client.lookup_hosts_or_cache_ipv6(clean) {
                     if let IpAddr::V6(v6) = ip {
-                        resp.answers.push(Record::from_rdata(
-                            q.name().clone(),
-                            300,
-                            RData::AAAA(AAAA(v6)),
-                        ));
+                        resp.answers.push(Record::from_rdata(q.name().clone(), 300, RData::AAAA(AAAA(v6))));
                     }
                 }
             }
-            _ => {
-                resp.metadata.response_code = ResponseCode::NoError;
-            }
+            _ => {}
         }
 
         resp.to_vec().ok()

@@ -105,40 +105,24 @@ impl RequestHeader {
     }
 
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
-        let mut user_id_bytes = [0u8; 16];
-        reader.read_exact(&mut user_id_bytes).await?;
-        let user_id = Uuid::from_bytes(user_id_bytes);
-
-        let version = reader.read_u8().await?;
+        let mut hdr = [0u8; 57];
+        reader.read_exact(&mut hdr).await?;
+        let user_id = Uuid::from_bytes(hdr[..16].try_into().unwrap());
+        let version = hdr[16];
         if version != VMESS_VERSION {
-            return Err(Error::Protocol(format!(
-                "Unsupported VMess version: {}",
-                version
-            )));
+            return Err(Error::Protocol(format!("Unsupported VMess version: {}", version)));
         }
-
-        let mut request_body_iv = [0u8; 16];
-        reader.read_exact(&mut request_body_iv).await?;
-
-        let mut request_body_key = [0u8; 16];
-        reader.read_exact(&mut request_body_key).await?;
-
-        let response_header_byte = reader.read_u8().await?;
-        let _options = reader.read_u8().await?;
-        let _security = reader.read_u8().await?;
-        let _reserved = reader.read_u8().await?;
-
-        let cmd_byte = reader.read_u8().await?;
-        let command = match cmd_byte {
+        let request_body_iv: [u8; 16] = hdr[17..33].try_into().unwrap();
+        let request_body_key: [u8; 16] = hdr[33..49].try_into().unwrap();
+        let response_header_byte = hdr[49];
+        let command = match hdr[53] {
             1 => RequestCommand::Tcp,
             2 => RequestCommand::Udp,
             3 => RequestCommand::Mux,
             other => return Err(Error::Protocol(format!("Invalid VMess command: {}", other))),
         };
-
-        let port = reader.read_u16().await?;
-        let addr_type = reader.read_u8().await?;
-        let address = match addr_type {
+        let port = u16::from_be_bytes([hdr[54], hdr[55]]);
+        let address = match hdr[56] {
             1 => {
                 let mut ip = [0u8; 4];
                 reader.read_exact(&mut ip).await?;
@@ -148,41 +132,22 @@ impl RequestHeader {
                 let len = reader.read_u8().await? as usize;
                 let mut dom = vec![0u8; len];
                 reader.read_exact(&mut dom).await?;
-                let s = String::from_utf8(dom).map_err(|e| {
-                    Error::Protocol(format!("Invalid UTF-8 domain in VMess header: {}", e))
-                })?;
-                Address::Domain(s)
+                Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in VMess header: {}", e)))?)
             }
             3 => {
                 let mut ip = [0u8; 16];
                 reader.read_exact(&mut ip).await?;
                 Address::Ipv6(std::net::Ipv6Addr::from(ip))
             }
-            other => {
-                return Err(Error::Protocol(format!(
-                    "Invalid VMess address type: {}",
-                    other
-                )));
-            }
+            other => return Err(Error::Protocol(format!("Invalid VMess address type: {}", other))),
         };
-
         let _checksum = reader.read_u32().await?;
-
         let destination = if command == RequestCommand::Udp {
             Destination::udp(address, port)
         } else {
             Destination::tcp(address, port)
         };
-
-        Ok(Self {
-            version,
-            user_id,
-            request_body_iv,
-            request_body_key,
-            response_header_byte,
-            command,
-            destination,
-        })
+        Ok(Self { version, user_id, request_body_iv, request_body_key, response_header_byte, command, destination })
     }
 }
 

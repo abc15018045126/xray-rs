@@ -93,68 +93,41 @@ impl NameServer for UdpNameServer {
         let query_a = build_dns_query_with_ecs(clean, 1, self.client_ip);
 
         if let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) {
-            let addr = match self.server_addr.ip() {
-                IpAddr::V4(v4) => Address::Ipv4(v4),
-                IpAddr::V6(v6) => Address::Ipv6(v6),
-            };
-            let dest = Destination::udp(addr, self.server_addr.port());
+            let dest = Destination::udp(Address::ip(self.server_addr.ip()), self.server_addr.port());
             let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), dest);
             let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
             if matches!(picked, "block" | "blackhole") {
-                return Err(Error::Protocol(format!(
-                    "UDP DNS server '{}' blocked by routing rule",
-                    self.server_addr
-                )));
-            } else if !matches!(picked, "direct" | "freedom" | "dns")
+                return Err(Error::Protocol(format!("UDP DNS server '{}' blocked by routing rule", self.server_addr)));
+            }
+            if !matches!(picked, "direct" | "freedom" | "dns")
                 && let Some(outbound) = ctx.outbounds.get(picked)
             {
                 let mut stream = pingora_timeout::timeout(self.timeout, outbound.connect(&session))
                     .await
                     .map_err(|_| Error::Timeout)??;
-                stream.write_all(&query_a).await.map_err(Error::Io)?;
+                stream.write_all(&query_a).await?;
                 let mut buf = [0u8; 2048];
                 let n = pingora_timeout::timeout(self.timeout, stream.read(&mut buf))
                     .await
-                    .map_err(|_| Error::Timeout)?
-                    .map_err(Error::Io)?;
+                    .map_err(|_| Error::Timeout)??;
                 return parse_dns_response(&buf[..n], clean);
             }
         }
 
-        let _bind_addr = if self.server_addr.is_ipv6() {
-            "[::]:0"
-        } else {
-            "0.0.0.0:0"
-        };
-
         #[cfg(any(target_os = "windows", target_os = "android"))]
         let socket = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let sock = crate::proxy::tun::socket_helpers::new_udp_socket(
-                None,
-                iface.as_ref(),
-                Some(self.server_addr),
-            )
-            .await
-            .map_err(Error::Io)?;
-            sock.connect(self.server_addr).await.map_err(Error::Io)?;
-            sock
+            crate::proxy::tun::socket_helpers::new_udp_socket(None, iface.as_ref(), Some(self.server_addr)).await?
         };
         #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
-        let socket = {
-            let socket = UdpSocket::bind(_bind_addr).await.map_err(Error::Io)?;
-            socket.connect(self.server_addr).await.map_err(Error::Io)?;
-            socket
-        };
+        let socket = UdpSocket::bind(if self.server_addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" }).await?;
 
-        socket.send(&query_a).await.map_err(Error::Io)?;
-
+        socket.connect(self.server_addr).await?;
+        socket.send(&query_a).await?;
         let mut buf = [0u8; 2048];
         let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut buf))
             .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(Error::Io)?;
-
+            .map_err(|_| Error::Timeout)??;
         parse_dns_response(&buf[..n], clean)
     }
 }

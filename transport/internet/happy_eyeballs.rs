@@ -133,75 +133,51 @@ pub async fn tcp_race_dial(
         return Err(Error::Other("at least 1 ip is required to dial".into()));
     }
     if ips.len() == 1 {
-        let addr = SocketAddr::new(ips[0], port);
-        return TcpStream::connect(addr).await.map_err(Error::Io);
+        return TcpStream::connect(SocketAddr::new(ips[0], port)).await.map_err(Error::Io);
     }
 
     let sorted = sort_ips(ips, config.prioritize_ipv6, config.interleave);
     let (tx, mut rx) = mpsc::channel(sorted.len());
     let cancelled = Arc::new(AtomicBool::new(false));
-
     let try_delay = Duration::from_millis(config.try_delay_ms);
     let max_concurrent = config.max_concurrent_try.max(1);
 
-    let mut next_try_idx = 0;
-    let mut active_num = 0;
+    let spawn_next = |ip: IpAddr, tx: mpsc::Sender<std::io::Result<TcpStream>>, cancelled: Arc<AtomicBool>| {
+        tokio::spawn(async move {
+            let res = TcpStream::connect(SocketAddr::new(ip, port)).await;
+            if !cancelled.load(Ordering::Relaxed) {
+                let _ = tx.send(res).await;
+            }
+        });
+    };
 
-    let tx_clone = tx.clone();
-    let cancelled_clone = cancelled.clone();
-    let addr = SocketAddr::new(sorted[0], port);
-    tokio::spawn(async move {
-        let res = TcpStream::connect(addr).await;
-        if !cancelled_clone.load(Ordering::Relaxed) {
-            let _ = tx_clone.send(res).await;
-        }
-    });
-    active_num += 1;
-    next_try_idx += 1;
-
+    spawn_next(sorted[0], tx.clone(), cancelled.clone());
+    let (mut next_idx, mut active) = (1usize, 1usize);
     let mut delay_fut = Box::pin(sleep(try_delay));
 
     loop {
         tokio::select! {
             Some(result) = rx.recv() => {
-                active_num -= 1;
+                active -= 1;
                 match result {
                     Ok(conn) => {
                         cancelled.store(true, Ordering::SeqCst);
                         return Ok(conn);
                     }
-                    Err(e) => {
-                        if next_try_idx < sorted.len() && active_num < max_concurrent {
-                            let tx_clone = tx.clone();
-                            let cancelled_clone = cancelled.clone();
-                            let addr = SocketAddr::new(sorted[next_try_idx], port);
-                            tokio::spawn(async move {
-                                let res = TcpStream::connect(addr).await;
-                                if !cancelled_clone.load(Ordering::Relaxed) {
-                                    let _ = tx_clone.send(res).await;
-                                }
-                            });
-                            active_num += 1;
-                            next_try_idx += 1;
-                            delay_fut = Box::pin(sleep(try_delay));
-                        } else if active_num == 0 {
-                            return Err(Error::Io(e));
-                        }
+                    Err(_) if next_idx < sorted.len() && active < max_concurrent => {
+                        spawn_next(sorted[next_idx], tx.clone(), cancelled.clone());
+                        active += 1;
+                        next_idx += 1;
+                        delay_fut = Box::pin(sleep(try_delay));
                     }
+                    Err(e) if active == 0 => return Err(Error::Io(e)),
+                    Err(_) => {}
                 }
             }
-            _ = &mut delay_fut, if next_try_idx < sorted.len() && active_num < max_concurrent => {
-                let tx_clone = tx.clone();
-                let cancelled_clone = cancelled.clone();
-                let addr = SocketAddr::new(sorted[next_try_idx], port);
-                tokio::spawn(async move {
-                    let res = TcpStream::connect(addr).await;
-                    if !cancelled_clone.load(Ordering::Relaxed) {
-                        let _ = tx_clone.send(res).await;
-                    }
-                });
-                active_num += 1;
-                next_try_idx += 1;
+            _ = &mut delay_fut, if next_idx < sorted.len() && active < max_concurrent => {
+                spawn_next(sorted[next_idx], tx.clone(), cancelled.clone());
+                active += 1;
+                next_idx += 1;
                 delay_fut = Box::pin(sleep(try_delay));
             }
         }

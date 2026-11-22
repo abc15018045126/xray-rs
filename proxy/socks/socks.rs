@@ -31,91 +31,54 @@ impl InboundHandler for Server {
         mut stream: BoxStream,
         remote_addr: SocketAddr,
     ) -> Result<InboundResult> {
-        let ver = stream.read_u8().await.map_err(Error::Io)?;
+        let ver = stream.read_u8().await?;
         if ver != 0x05 {
-            return Err(Error::Protocol(format!(
-                "Unsupported SOCKS version: {}",
-                ver
-            )));
+            return Err(Error::Protocol(format!("Unsupported SOCKS version: {}", ver)));
         }
-
-        let nmethods = stream.read_u8().await.map_err(Error::Io)? as usize;
+        let nmethods = stream.read_u8().await? as usize;
         let mut methods = vec![0u8; nmethods];
-        stream.read_exact(&mut methods).await.map_err(Error::Io)?;
+        stream.read_exact(&mut methods).await?;
+        stream.write_all(&[0x05, 0x00]).await?;
+        stream.flush().await?;
 
-        stream.write_all(&[0x05, 0x00]).await.map_err(Error::Io)?;
-        stream.flush().await.map_err(Error::Io)?;
-
-        let ver = stream.read_u8().await.map_err(Error::Io)?;
-        if ver != 0x05 {
-            return Err(Error::Protocol(format!(
-                "Invalid SOCKS5 version in request: {}",
-                ver
-            )));
+        let mut hdr = [0u8; 4];
+        stream.read_exact(&mut hdr).await?;
+        if hdr[0] != 0x05 {
+            return Err(Error::Protocol(format!("Invalid SOCKS5 version in request: {}", hdr[0])));
         }
 
-        let cmd = stream.read_u8().await.map_err(Error::Io)?;
-        let _rsv = stream.read_u8().await.map_err(Error::Io)?;
-        let atyp = stream.read_u8().await.map_err(Error::Io)?;
-
-        let address = match atyp {
+        let address = match hdr[3] {
             0x01 => {
-                let mut ip_bytes = [0u8; 4];
-                stream.read_exact(&mut ip_bytes).await.map_err(Error::Io)?;
-                Address::Ipv4(Ipv4Addr::from(ip_bytes))
+                let mut ip = [0u8; 4];
+                stream.read_exact(&mut ip).await?;
+                Address::Ipv4(Ipv4Addr::from(ip))
             }
             0x03 => {
-                let len = stream.read_u8().await.map_err(Error::Io)? as usize;
-                let mut domain_bytes = vec![0u8; len];
-                stream
-                    .read_exact(&mut domain_bytes)
-                    .await
-                    .map_err(Error::Io)?;
-                let domain = String::from_utf8(domain_bytes)
-                    .map_err(|e| Error::Protocol(format!("Invalid domain string: {}", e)))?;
-                Address::Domain(domain)
+                let len = stream.read_u8().await? as usize;
+                let mut buf = vec![0u8; len];
+                stream.read_exact(&mut buf).await?;
+                Address::Domain(String::from_utf8(buf).map_err(|e| Error::Protocol(format!("Invalid domain string: {}", e)))?)
             }
             0x04 => {
-                let mut ip_bytes = [0u8; 16];
-                stream.read_exact(&mut ip_bytes).await.map_err(Error::Io)?;
-                Address::Ipv6(Ipv6Addr::from(ip_bytes))
+                let mut ip = [0u8; 16];
+                stream.read_exact(&mut ip).await?;
+                Address::Ipv6(Ipv6Addr::from(ip))
             }
-            _ => {
-                return Err(Error::Protocol(format!(
-                    "Unsupported SOCKS5 ATYP: {}",
-                    atyp
-                )));
-            }
+            atyp => return Err(Error::Protocol(format!("Unsupported SOCKS5 ATYP: {}", atyp))),
         };
 
-        let port = stream.read_u16().await.map_err(Error::Io)?;
-
-        let network = match cmd {
+        let port = stream.read_u16().await?;
+        let network = match hdr[1] {
             0x01 => Network::Tcp,
             0x03 => Network::Udp,
-            _ => {
-                return Err(Error::Protocol(format!(
-                    "Unsupported SOCKS5 command: {}",
-                    cmd
-                )));
-            }
+            cmd => return Err(Error::Protocol(format!("Unsupported SOCKS5 command: {}", cmd))),
         };
 
-        stream
-            .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
-            .await
-            .map_err(Error::Io)?;
-        stream.flush().await.map_err(Error::Io)?;
+        stream.write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+        stream.flush().await?;
 
-        let destination = Destination {
-            network,
-            address,
-            port,
-        };
-
-        let mut session = SessionContext::new(&self.tag, destination);
+        let mut session = SessionContext::new(&self.tag, Destination { network, address, port });
         session.source = Some(remote_addr);
-
         Ok(InboundResult { stream, session })
     }
 }

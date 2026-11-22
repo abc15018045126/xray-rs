@@ -125,12 +125,11 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
         if !self.read_buf.is_empty() {
-            let to_write = std::cmp::min(buf.remaining(), self.read_buf.len());
-            buf.put_slice(&self.read_buf[..to_write]);
-            self.read_buf.drain(..to_write);
+            let n = buf.remaining().min(self.read_buf.len());
+            buf.put_slice(&self.read_buf[..n]);
+            self.read_buf.drain(..n);
             return Poll::Ready(Ok(()));
         }
-
         if self.read_direct || self.context.is_direct_copy() {
             return Pin::new(&mut self.inner).poll_read(cx, buf);
         }
@@ -143,26 +142,19 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                 if filled.is_empty() {
                     return Poll::Ready(Ok(()));
                 }
-
                 let (unpadded, switch_direct) = {
                     let mut state = self.context.traffic_state.lock().unwrap();
-                    let is_uplink = self.is_inbound;
-                    let data = xtls_unpadding(filled, &mut state, is_uplink);
-
-                    let should_direct = if is_uplink {
-                        (state.inbound.current_command == (COMMAND_PADDING_DIRECT as i32)
-                            || state.inbound.current_command == (COMMAND_PADDING_END as i32)
-                            || state.inbound.uplink_reader_direct_copy)
-                            && state.inbound.remaining_content <= 0
-                            && state.inbound.remaining_padding <= 0
+                    let data = xtls_unpadding(filled, &mut state, self.is_inbound);
+                    let (cmd, direct_flag, rem_c, rem_p) = if self.is_inbound {
+                        let s = &state.inbound;
+                        (s.current_command, s.uplink_reader_direct_copy, s.remaining_content, s.remaining_padding)
                     } else {
-                        (state.outbound.current_command == (COMMAND_PADDING_DIRECT as i32)
-                            || state.outbound.current_command == (COMMAND_PADDING_END as i32)
-                            || state.outbound.downlink_reader_direct_copy)
-                            && state.outbound.remaining_content <= 0
-                            && state.outbound.remaining_padding <= 0
+                        let s = &state.outbound;
+                        (s.current_command, s.downlink_reader_direct_copy, s.remaining_content, s.remaining_padding)
                     };
-
+                    let should_direct = (cmd == COMMAND_PADDING_DIRECT as i32 || cmd == COMMAND_PADDING_END as i32 || direct_flag)
+                        && rem_c <= 0
+                        && rem_p <= 0;
                     (data, should_direct)
                 };
 
@@ -172,21 +164,16 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                         self.context.set_direct_copy(true);
                     }
                 }
-
                 if unpadded.is_empty() {
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
                 }
-
-                let to_write = std::cmp::min(buf.remaining(), unpadded.len());
-                buf.put_slice(&unpadded[..to_write]);
-                if to_write < unpadded.len() {
-                    self.read_buf.extend_from_slice(&unpadded[to_write..]);
-                }
+                let n = buf.remaining().min(unpadded.len());
+                buf.put_slice(&unpadded[..n]);
+                self.read_buf.extend_from_slice(&unpadded[n..]);
                 Poll::Ready(Ok(()))
             }
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => Poll::Pending,
+            other => other,
         }
     }
 }

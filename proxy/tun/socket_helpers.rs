@@ -99,17 +99,13 @@ pub async fn new_udp_socket(
     family_hint: Option<std::net::SocketAddr>,
 ) -> std::io::Result<UdpSocket> {
     let (socket, family) = match (family_hint, src, iface) {
-        (Some(family_hint), ..) => {
-            let domain = socket2::Domain::for_address(family_hint);
-            (
-                socket2::Socket::new(domain, socket2::Type::DGRAM, None)?,
-                domain,
-            )
+        (Some(hint), ..) => {
+            let d = socket2::Domain::for_address(hint);
+            (socket2::Socket::new(d, socket2::Type::DGRAM, None)?, d)
         }
-        (None, Some(src), _) if src.is_ipv6() => (
-            try_create_dualstack_socket(src, socket2::Type::DGRAM)?.0,
-            socket2::Domain::IPV6,
-        ),
+        (None, Some(src), _) if src.is_ipv6() => {
+            (try_create_dualstack_socket(src, socket2::Type::DGRAM)?.0, socket2::Domain::IPV6)
+        }
         (None, _, Some(iface)) if iface.addr_v6.is_some() => (
             socket2::Socket::new(socket2::Domain::IPV6, socket2::Type::DGRAM, None)?,
             socket2::Domain::IPV6,
@@ -128,18 +124,16 @@ pub async fn new_udp_socket(
     }
 
     if !cfg!(target_os = "android") {
-        let dst_is_loopback = family_hint.map(|a| a.ip().is_loopback()).unwrap_or(false);
+        let dst_is_loopback = family_hint.is_some_and(|a| a.ip().is_loopback());
         match (src, iface) {
             (_, Some(iface)) if !dst_is_loopback => {
-                must_bind_socket_on_interface(&socket, iface, family).map_err(|x| {
+                must_bind_socket_on_interface(&socket, iface, family).inspect_err(|x| {
                     error!("failed to bind socket to interface: {}", x);
-                    x
                 })?;
                 #[cfg(target_os = "windows")]
                 if let Some(addr) = src {
                     socket.bind(&socket2::SockAddr::from(addr))?;
                 }
-
                 trace!(iface = ?iface, "udp socket bound: {socket:?}");
             }
             (Some(src), _) => {
@@ -149,11 +143,7 @@ pub async fn new_udp_socket(
             (None, _) => {
                 #[cfg(target_os = "windows")]
                 {
-                    let bind_addr = match family {
-                        socket2::Domain::IPV4 => "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
-                        socket2::Domain::IPV6 => "[::]:0".parse::<SocketAddr>().unwrap(),
-                        _ => "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
-                    };
+                    let bind_addr: SocketAddr = if family == socket2::Domain::IPV6 { "[::]:0" } else { "0.0.0.0:0" }.parse().unwrap();
                     socket.bind(&socket2::SockAddr::from(bind_addr))?;
                     trace!(addr = ?bind_addr, "udp socket bound to default address on Windows: {socket:?}");
                 }
@@ -165,7 +155,6 @@ pub async fn new_udp_socket(
 
     socket.set_broadcast(true)?;
     socket.set_nonblocking(true)?;
-
     UdpSocket::from_std(socket.into())
 }
 

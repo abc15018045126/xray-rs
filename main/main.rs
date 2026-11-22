@@ -97,90 +97,58 @@ fn find_config_path(cli: &Cli) -> Option<PathBuf> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let (mut log_level, mut log_file) = ("info".to_string(), None);
 
-    let mut log_level = "info".to_string();
-    let mut log_file: Option<String> = None;
-
-    if let Some(cfg_path) = find_config_path(&cli) {
-        let resolved = resolve_path(&cfg_path);
-        if let Ok(content) = std::fs::read_to_string(&resolved)
-            && let Ok(cfg) = serde_json::from_str::<Config>(&content)
-            && let Some(log_cfg) = cfg.log
-        {
-            if let Some(level) = log_cfg.loglevel
-                && !level.is_empty()
-            {
-                log_level = level;
-            }
-            if let Some(err_path) = log_cfg.error {
-                if !err_path.is_empty() {
-                    log_file = Some(err_path);
-                }
-            } else if let Some(acc_path) = log_cfg.access
-                && !acc_path.is_empty()
-            {
-                log_file = Some(acc_path);
-            }
+    if let Some(cfg_path) = find_config_path(&cli)
+        && let Ok(content) = std::fs::read_to_string(resolve_path(&cfg_path))
+        && let Ok(cfg) = serde_json::from_str::<Config>(&content)
+        && let Some(log_cfg) = cfg.log
+    {
+        if let Some(level) = log_cfg.loglevel.filter(|s| !s.is_empty()) {
+            log_level = level;
         }
+        log_file = log_cfg
+            .error
+            .or(log_cfg.access)
+            .filter(|s| !s.is_empty());
     }
 
     init_logger_ext(&log_level, log_file.as_deref());
 
     match cli.command {
-        Some(Commands::Version) => {
-            println!("Xray-core {} (Rust 1:1 Edition)", env!("CARGO_PKG_VERSION"));
-            return Ok(());
-        }
-        Some(Commands::Uuid) => {
-            println!("{}", uuid::Uuid::new_v4());
-            return Ok(());
-        }
+        Some(Commands::Version) => println!("Xray-core {} (Rust 1:1 Edition)", env!("CARGO_PKG_VERSION")),
+        Some(Commands::Uuid) => println!("{}", uuid::Uuid::new_v4()),
         Some(Commands::X25519) => {
             use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-            use rand::rngs::OsRng;
-            use x25519_dalek::{PublicKey, StaticSecret};
-
-            let secret = StaticSecret::random_from_rng(OsRng);
-            let public = PublicKey::from(&secret);
+            let secret = x25519_dalek::StaticSecret::random_from_rng(rand::rngs::OsRng);
+            let public = x25519_dalek::PublicKey::from(&secret);
             println!("Private Key: {}", URL_SAFE_NO_PAD.encode(secret.to_bytes()));
             println!("Public Key:  {}", URL_SAFE_NO_PAD.encode(public.as_bytes()));
-            return Ok(());
         }
-        Some(Commands::Tls { subcmd }) => {
-            match subcmd {
-                TlsCommands::Ping { domain } => {
-                    info!("TLS ping to domain: {}", domain);
-                    println!("TLS connection to {} succeeded.", domain);
-                }
-                TlsCommands::Cert { domain } => {
-                    info!("Generating self-signed certificate for: {}", domain);
-                    println!("Certificate generated for {}.", domain);
-                }
+        Some(Commands::Tls { subcmd }) => match subcmd {
+            TlsCommands::Ping { domain } => {
+                info!("TLS ping to domain: {}", domain);
+                println!("TLS connection to {} succeeded.", domain);
             }
-            return Ok(());
-        }
+            TlsCommands::Cert { domain } => {
+                info!("Generating self-signed certificate for: {}", domain);
+                println!("Certificate generated for {}.", domain);
+            }
+        },
         Some(Commands::Api { server, service }) => {
             info!("Calling Xray API at {} (service: {:?})", server, service);
             println!("API response from {}: OK", server);
-            return Ok(());
         }
         Some(Commands::Test { config }) => {
             info!("Testing configuration file: {:?}", config);
             let content = std::fs::read_to_string(&config)
                 .with_context(|| format!("Failed to read config file {:?}", config))?;
-            let cfg: Config =
-                serde_json::from_str(&content).with_context(|| "Failed to parse JSON config")?;
-            let _built = cfg.build().with_context(|| "Configuration build failed")?;
+            let cfg: Config = serde_json::from_str(&content).with_context(|| "Failed to parse JSON config")?;
+            let _ = cfg.build().with_context(|| "Configuration build failed")?;
             info!("Configuration test passed successfully!");
-            return Ok(());
         }
-        Some(Commands::Run { config }) => {
-            run_instance(config).await?;
-        }
-        None => {
-            let config_path = cli.config.unwrap_or_else(|| PathBuf::from("config.json"));
-            run_instance(config_path).await?;
-        }
+        Some(Commands::Run { config }) => run_instance(config).await?,
+        None => run_instance(cli.config.unwrap_or_else(|| PathBuf::from("config.json"))).await?,
     }
 
     Ok(())
