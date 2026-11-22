@@ -103,16 +103,22 @@ pub struct FinalmaskLayerJson {
     pub settings: Option<FinalmaskSettingsJson>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FinalmaskSettingsJson {
     #[serde(default)]
     pub packets: Option<String>,
     #[serde(default)]
-    pub length: Option<String>,
+    pub length: Option<serde_json::Value>,
     #[serde(default)]
-    pub delay: Option<String>,
-    #[serde(default, rename = "maxSplit")]
-    pub max_split: Option<String>,
+    pub delay: Option<serde_json::Value>,
+    #[serde(default)]
+    pub interval: Option<serde_json::Value>,
+    #[serde(default)]
+    pub lengths: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub delays: Option<Vec<serde_json::Value>>,
+    #[serde(default, rename = "maxSplit", alias = "max_split")]
+    pub max_split: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,49 +267,91 @@ impl MultiServerSettings {
     }
 }
 
+fn parse_i64_range_val(val: &serde_json::Value, def_min: i64, def_max: i64) -> (i64, i64) {
+    match val {
+        serde_json::Value::Number(n) => {
+            let v = n.as_i64().unwrap_or(def_min);
+            (v, v)
+        }
+        serde_json::Value::String(s) => {
+            if let Some((a, b)) = s.split_once('-') {
+                (a.trim().parse().unwrap_or(def_min), b.trim().parse().unwrap_or(def_max))
+            } else if let Ok(v) = s.trim().parse() {
+                (v, v)
+            } else {
+                (def_min, def_max)
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            let from = obj.get("from").and_then(|v| v.as_i64()).unwrap_or(def_min);
+            let to = obj.get("to").and_then(|v| v.as_i64()).unwrap_or(from);
+            (from, to)
+        }
+        _ => (def_min, def_max),
+    }
+}
+
+fn build_fragment_from_settings(s: &FinalmaskSettingsJson) -> crate::transport::internet::finalmask::fragment::Config {
+    let mut cfg = crate::transport::internet::finalmask::fragment::Config::default();
+    match s.packets.as_deref().map(str::trim).unwrap_or("") {
+        "" => { cfg.packets_from = 0; cfg.packets_to = 0; }
+        p if p.eq_ignore_ascii_case("tlshello") => { cfg.packets_from = 0; cfg.packets_to = 1; }
+        p => {
+            if let Some((from_str, to_str)) = p.split_once('-') {
+                cfg.packets_from = from_str.trim().parse().unwrap_or(1);
+                cfg.packets_to = to_str.trim().parse().unwrap_or(cfg.packets_from);
+            } else if let Ok(v) = p.parse() {
+                cfg.packets_from = v;
+                cfg.packets_to = v;
+            }
+        }
+    }
+    if let Some(ref list) = s.lengths && !list.is_empty() {
+        for item in list {
+            let (lo, hi) = parse_i64_range_val(item, 50, 100);
+            cfg.lengths_min.push(lo);
+            cfg.lengths_max.push(hi);
+        }
+        cfg.length_min = cfg.lengths_min[0];
+        cfg.length_max = cfg.lengths_max[0];
+    } else if let Some(ref l) = s.length {
+        let (lo, hi) = parse_i64_range_val(l, 50, 100);
+        cfg.length_min = lo;
+        cfg.length_max = hi;
+        cfg.lengths_min.push(lo);
+        cfg.lengths_max.push(hi);
+    }
+    if let Some(ref list) = s.delays && !list.is_empty() {
+        for item in list {
+            let (lo, hi) = parse_i64_range_val(item, 0, 0);
+            cfg.delays_min.push(lo);
+            cfg.delays_max.push(hi);
+        }
+        cfg.delay_min = cfg.delays_min[0];
+        cfg.delay_max = cfg.delays_max[0];
+    } else if let Some(d) = s.delay.as_ref().or(s.interval.as_ref()) {
+        let (lo, hi) = parse_i64_range_val(d, 0, 0);
+        cfg.delay_min = lo;
+        cfg.delay_max = hi;
+        cfg.delays_min.push(lo);
+        cfg.delays_max.push(hi);
+    }
+    if let Some(ref ms) = s.max_split {
+        let (lo, hi) = parse_i64_range_val(ms, 0, 0);
+        cfg.max_split_min = lo;
+        cfg.max_split_max = hi;
+    }
+    cfg
+}
+
 fn parse_fragment_config(fm: &FinalmaskConfigJson) -> Option<crate::transport::internet::finalmask::fragment::Config> {
     let tcp_layers = fm.tcp.as_ref()?;
     for layer in tcp_layers {
         if layer.mask_type.eq_ignore_ascii_case("fragment") {
-            let mut cfg = crate::transport::internet::finalmask::fragment::Config::default();
-            if let Some(ref s) = layer.settings {
-                if let Some(ref p) = s.packets {
-                    if p.eq_ignore_ascii_case("tlshello") {
-                        cfg.packets_from = 0;
-                        cfg.packets_to = 1;
-                    } else if let Some((from_str, to_str)) = p.split_once('-') {
-                        cfg.packets_from = from_str.trim().parse().unwrap_or(0);
-                        cfg.packets_to = to_str.trim().parse().unwrap_or(1);
-                    }
-                }
-                if let Some(ref l) = s.length {
-                    if let Some((min_str, max_str)) = l.split_once('-') {
-                        cfg.length_min = min_str.trim().parse().unwrap_or(50);
-                        cfg.length_max = max_str.trim().parse().unwrap_or(100);
-                    } else if let Ok(val) = l.trim().parse() {
-                        cfg.length_min = val;
-                        cfg.length_max = val;
-                    }
-                }
-                if let Some(ref d) = s.delay {
-                    if let Some((min_str, max_str)) = d.split_once('-') {
-                        cfg.delay_min = min_str.trim().parse().unwrap_or(10);
-                        cfg.delay_max = max_str.trim().parse().unwrap_or(20);
-                    } else if let Ok(val) = d.trim().parse() {
-                        cfg.delay_min = val;
-                        cfg.delay_max = val;
-                    }
-                }
-                if let Some(ref ms) = s.max_split {
-                    if let Some((min_str, max_str)) = ms.split_once('-') {
-                        cfg.max_split_min = min_str.trim().parse().unwrap_or(0);
-                        cfg.max_split_max = max_str.trim().parse().unwrap_or(0);
-                    } else if let Ok(val) = ms.trim().parse() {
-                        cfg.max_split_min = val;
-                        cfg.max_split_max = val;
-                    }
-                }
-            }
+            let cfg = match layer.settings {
+                Some(ref s) => build_fragment_from_settings(s),
+                None => crate::transport::internet::finalmask::fragment::Config::default(),
+            };
             return Some(cfg);
         }
     }
@@ -397,7 +445,28 @@ impl Config {
             let tag = out_cfg.tag.unwrap_or_else(|| format!("outbound-{}", i));
             if default_outbound_tag.is_none() { default_outbound_tag = Some(tag.clone()); }
             let handler: Arc<dyn OutboundHandler> = match out_cfg.protocol.to_lowercase().as_str() {
-                "freedom" | "direct" => Arc::new(p::freedom::Handler::new(&tag)),
+                "freedom" | "direct" => {
+                    let mut h = p::freedom::Handler::new(&tag);
+                    if let Some(ref st) = out_cfg.settings {
+                        if let Some(ds) = st.get("targetStrategy").or_else(|| st.get("domainStrategy")).and_then(|v| v.as_str()) {
+                            h = h.with_strategy(p::freedom::DomainStrategy::parse(ds));
+                        }
+                        if let Some(red) = st.get("redirect").and_then(|v| v.as_str()).filter(|s| !s.is_empty())
+                            && let Ok(dest) = Destination::from_str(red)
+                        {
+                            h = h.with_destination_override(dest);
+                        }
+                        if let Some(frag_val) = st.get("fragment")
+                            && let Ok(fs) = serde_json::from_value::<FinalmaskSettingsJson>(frag_val.clone())
+                        {
+                            h = h.with_fragment(build_fragment_from_settings(&fs));
+                        }
+                    }
+                    if let Some(f_cfg) = out_cfg.stream_settings.as_ref().and_then(|ss| ss.finalmask.as_ref()).and_then(parse_fragment_config) {
+                        h = h.with_fragment(f_cfg);
+                    }
+                    Arc::new(h)
+                }
                 "blackhole" | "block" => {
                     let resp_type = out_cfg
                         .settings

@@ -18,4 +18,12 @@ pub struct Config {
     pub max_split_min: i64,
     #[serde(default)]
     pub max_split_max: i64,
+    #[serde(default)]
+    pub lengths_min: Vec<i64>,
+    #[serde(default)]
+    pub lengths_max: Vec<i64>,
+    #[serde(default)]
+    pub delays_min: Vec<i64>,
+    #[serde(default)]
+    pub delays_max: Vec<i64>,
 }

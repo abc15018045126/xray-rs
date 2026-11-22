@@ -44,6 +44,8 @@ pub struct FreedomConfig {
     pub destination_override: Option<Destination>,
     #[serde(default)]
     pub user_level: u32,
+    #[serde(default)]
+    pub fragment: Option<crate::transport::internet::finalmask::fragment::Config>,
 }
 
 pub struct Handler {
@@ -72,6 +74,10 @@ impl Handler {
         self.config.destination_override = Some(dest);
         self
     }
+    pub fn with_fragment(mut self, fragment: crate::transport::internet::finalmask::fragment::Config) -> Self {
+        self.config.fragment = Some(fragment);
+        self
+    }
     async fn resolve_destination(&self, dest: &Destination) -> Result<Destination> {
         let Address::Domain(ref domain) = dest.address else { return Ok(dest.clone()) };
         if self.config.domain_strategy == DomainStrategy::AsIs { return Ok(dest.clone()); }
@@ -95,7 +101,11 @@ impl OutboundHandler for Handler {
         if dial_dest.network == crate::common::net::Network::Udp {
             crate::transport::internet::dialer::dial_system(&dial_dest, None).await
         } else {
-            TcpDialer::dial(&dial_dest).await
+            let s = TcpDialer::dial(&dial_dest).await?;
+            match &self.config.fragment {
+                Some(f_cfg) => Ok(Box::pin(crate::transport::internet::finalmask::fragment::FragmentConn::new_client(f_cfg.clone(), s))),
+                None => Ok(s),
+            }
         }
     }
 }

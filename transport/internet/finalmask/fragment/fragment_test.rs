@@ -30,6 +30,7 @@ mod tests {
             delay_max: 0,
             max_split_min: 3,
             max_split_max: 5,
+            ..Default::default()
         };
 
         let client_conn = config.wrap_conn_client(Box::pin(client_io)).unwrap();
@@ -53,6 +54,7 @@ mod tests {
             delay_max: 0,
             max_split_min: 2,
             max_split_max: 4,
+            ..Default::default()
         };
 
         let mut client_conn = FragmentConn::new_client(config, Box::pin(client_io));
@@ -105,6 +107,7 @@ mod tests {
             delay_max: 0,
             max_split_min: 2,
             max_split_max: 3,
+            ..Default::default()
         };
 
         let mut client_conn = FragmentConn::new_client(config, Box::pin(client_io));
@@ -126,6 +129,57 @@ mod tests {
                 received.extend_from_slice(&buf[..n]);
             }
             assert_eq!(received, data);
+        });
+
+        write_task.await.unwrap();
+        read_task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_fragment_conn_poll_write_and_segment_arrays() {
+        use tokio::io::AsyncWriteExt;
+        let (client_io, mut server_io) = duplex(4096);
+        let config = Config {
+            packets_from: 0,
+            packets_to: 1,
+            lengths_min: vec![4, 6],
+            lengths_max: vec![4, 6],
+            delays_min: vec![1, 1],
+            delays_max: vec![2, 2],
+            max_split_min: 3,
+            max_split_max: 3,
+            ..Default::default()
+        };
+        assert_eq!(config.length_for_segment(0), (4, 4));
+        assert_eq!(config.length_for_segment(1), (6, 6));
+        assert_eq!(config.length_for_segment(5), (6, 6));
+        assert!(!config.merge_tls_hello_segments());
+
+        let mut client_conn = FragmentConn::new_client(config, Box::pin(client_io));
+        let mut tls_record = vec![22, 0x03, 0x01, 0x00, 20];
+        let payload = b"0123456789abcdefghij";
+        tls_record.extend_from_slice(payload);
+
+        let write_task = tokio::spawn(async move {
+            client_conn.write_all(&tls_record).await.unwrap();
+            client_conn.flush().await.unwrap();
+        });
+
+        let read_task = tokio::spawn(async move {
+            let mut raw = Vec::new();
+            let mut buf = [0u8; 256];
+            while raw.len() < 35 {
+                let n = server_io.read(&mut buf).await.unwrap();
+                assert!(n > 0);
+                raw.extend_from_slice(&buf[..n]);
+            }
+            assert_eq!(raw.len(), 35);
+            assert_eq!(&raw[0..5], &[22, 0x03, 0x01, 0x00, 4]);
+            assert_eq!(&raw[5..9], b"0123");
+            assert_eq!(&raw[9..14], &[22, 0x03, 0x01, 0x00, 6]);
+            assert_eq!(&raw[14..20], b"456789");
+            assert_eq!(&raw[20..25], &[22, 0x03, 0x01, 0x00, 10]);
+            assert_eq!(&raw[25..35], b"abcdefghij");
         });
 
         write_task.await.unwrap();
