@@ -41,27 +41,16 @@ impl Validator for MemoryValidator {
 
     fn add(&self, user: User) -> Result<()> {
         let normalized = process_uuid(*user.id.as_bytes());
-        let mut users_guard = self
-            .users
-            .write()
-            .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
-        let mut emails_guard = self
-            .emails
-            .write()
-            .map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
-
+        let mut users = self.users.write().map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
+        let mut emails = self.emails.write().map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
         if !user.email.is_empty() {
-            let email_lower = user.email.to_lowercase();
-            if emails_guard.contains_key(&email_lower) {
-                return Err(Error::Config(format!(
-                    "User email '{}' already exists",
-                    user.email
-                )));
+            let lower = user.email.to_lowercase();
+            if emails.contains_key(&lower) {
+                return Err(Error::Config(format!("User email '{}' already exists", user.email)));
             }
-            emails_guard.insert(email_lower, normalized);
+            emails.insert(lower, normalized);
         }
-
-        users_guard.insert(normalized, user);
+        users.insert(normalized, user);
         Ok(())
     }
 

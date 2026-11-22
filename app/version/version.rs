@@ -22,38 +22,12 @@ impl Version {
 }
 
 pub fn compare_versions(v1: &str, v2: &str) -> Result<i32> {
-    let mut parts1: Vec<u32> = v1
-        .split('.')
-        .map(|s| {
-            s.parse::<u32>()
-                .map_err(|_| Error::Config(format!("Invalid version segment: {}", s)))
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    let mut parts2: Vec<u32> = v2
-        .split('.')
-        .map(|s| {
-            s.parse::<u32>()
-                .map_err(|_| Error::Config(format!("Invalid version segment: {}", s)))
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    while parts1.len() < parts2.len() {
-        parts1.push(0);
-    }
-    while parts2.len() < parts1.len() {
-        parts2.push(0);
-    }
-
-    for (p1, p2) in parts1.iter().zip(parts2.iter()) {
-        if p1 < p2 {
-            return Ok(-1);
-        } else if p1 > p2 {
-            return Ok(1);
-        }
-    }
-
-    Ok(0)
+    let parse = |v: &str| v.split('.').map(|s| s.parse::<u32>().map_err(|_| Error::Config(format!("Invalid version segment: {}", s)))).collect::<Result<Vec<_>>>();
+    let (mut p1, mut p2) = (parse(v1)?, parse(v2)?);
+    let len = p1.len().max(p2.len());
+    p1.resize(len, 0);
+    p2.resize(len, 0);
+    Ok(match p1.cmp(&p2) { std::cmp::Ordering::Less => -1, std::cmp::Ordering::Greater => 1, std::cmp::Ordering::Equal => 0 })
 }
 
 pub fn validate_version(core_version: &str, min_version: &str, max_version: &str) -> Result<()> {

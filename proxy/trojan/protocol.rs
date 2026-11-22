@@ -134,25 +134,14 @@ impl TrojanUdpPacket {
     pub async fn encode<W: AsyncWrite + Unpin>(&self, writer: &mut W) -> Result<()> {
         let mut buf = Vec::new();
         match &self.destination.address {
-            Address::Ipv4(v4) => {
-                buf.push(1);
-                buf.extend_from_slice(&v4.octets());
-            }
-            Address::Domain(dom) => {
-                buf.push(3);
-                buf.push(dom.len() as u8);
-                buf.extend_from_slice(dom.as_bytes());
-            }
-            Address::Ipv6(v6) => {
-                buf.push(4);
-                buf.extend_from_slice(&v6.octets());
-            }
+            Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+            Address::Domain(d) => { buf.extend_from_slice(&[3, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+            Address::Ipv6(v6) => { buf.push(4); buf.extend_from_slice(&v6.octets()); }
         }
         buf.extend_from_slice(&self.destination.port.to_be_bytes());
         buf.extend_from_slice(&(self.payload.len() as u16).to_be_bytes());
         buf.extend_from_slice(CRLF);
         buf.extend_from_slice(&self.payload);
-
         writer.write_all(&buf).await?;
         writer.flush().await?;
         Ok(())

@@ -25,23 +25,11 @@ impl UotPacket {
 
     pub fn encode(&self, version: UotVersion) -> Vec<u8> {
         let mut buf = Vec::new();
-        if version == UotVersion::Standard {
-            buf.push(0x00);
-        }
+        if version == UotVersion::Standard { buf.push(0x00); }
         match &self.destination.address {
-            Address::Ipv4(ip) => {
-                buf.push(0x01);
-                buf.extend_from_slice(&ip.octets());
-            }
-            Address::Domain(dom) => {
-                buf.push(0x03);
-                buf.push(dom.len() as u8);
-                buf.extend_from_slice(dom.as_bytes());
-            }
-            Address::Ipv6(ip) => {
-                buf.push(0x04);
-                buf.extend_from_slice(&ip.octets());
-            }
+            Address::Ipv4(ip) => { buf.push(0x01); buf.extend_from_slice(&ip.octets()); }
+            Address::Domain(d) => { buf.extend_from_slice(&[0x03, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+            Address::Ipv6(ip) => { buf.push(0x04); buf.extend_from_slice(&ip.octets()); }
         }
         buf.extend_from_slice(&self.destination.port.to_be_bytes());
         buf.extend_from_slice(&(self.payload.len() as u16).to_be_bytes());

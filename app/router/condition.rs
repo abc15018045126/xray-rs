@@ -18,25 +18,15 @@ pub enum DomainMatcher {
 
 impl DomainMatcher {
     pub fn parse(s: &str) -> Self {
-        let s_lower = s.to_lowercase();
-        if let Some(rest) = s_lower.strip_prefix("geosite:") {
-            DomainMatcher::GeoSite(rest.to_string())
-        } else if let Some(rest) = s_lower.strip_prefix("ext:") {
-            if let Some((_file, tag)) = rest.rsplit_once(':')
-                && !tag.is_empty()
-            {
-                return DomainMatcher::GeoSite(tag.to_string());
-            }
-            DomainMatcher::Plain(s_lower)
-        } else if let Some(rest) = s_lower.strip_prefix("full:") {
-            DomainMatcher::Exact(rest.to_string())
-        } else if let Some(rest) = s_lower.strip_prefix("domain:") {
-            DomainMatcher::Suffix(rest.to_string())
-        } else if let Some(rest) = s_lower.strip_prefix("keyword:") {
-            DomainMatcher::Keyword(rest.to_string())
-        } else {
-            DomainMatcher::Plain(s_lower)
-        }
+        let lower = s.to_lowercase();
+        if let Some(r) = lower.strip_prefix("geosite:") { Self::GeoSite(r.to_string()) }
+        else if let Some(r) = lower.strip_prefix("ext:") {
+            if let Some((_, t)) = r.rsplit_once(':').filter(|(_, t)| !t.is_empty()) { return Self::GeoSite(t.to_string()); }
+            Self::Plain(lower)
+        } else if let Some(r) = lower.strip_prefix("full:") { Self::Exact(r.to_string()) }
+        else if let Some(r) = lower.strip_prefix("domain:") { Self::Suffix(r.to_string()) }
+        else if let Some(r) = lower.strip_prefix("keyword:") { Self::Keyword(r.to_string()) }
+        else { Self::Plain(lower) }
     }
 
     pub fn matches(&self, domain: &str) -> bool {

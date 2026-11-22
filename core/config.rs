@@ -72,27 +72,14 @@ fn json_loader(data: &[u8]) -> Result<Config> {
 
 pub fn register_config_loader(format: ConfigFormat) -> Result<()> {
     let name = format.name.to_lowercase();
-    let mut names = LOADERS_BY_NAME
-        .write()
-        .map_err(|_| Error::Config("Loader lock poisoned".into()))?;
-    if names.contains_key(&name) {
-        return Err(Error::Config(format!(
-            "{} already registered.",
-            format.name
-        )));
-    }
+    let mut names = LOADERS_BY_NAME.write().map_err(|_| Error::Config("Loader lock poisoned".into()))?;
+    if names.contains_key(&name) { return Err(Error::Config(format!("{} already registered.", format.name))); }
     names.insert(name.clone(), format.loader);
-
-    let mut exts = LOADERS_BY_EXT
-        .write()
-        .map_err(|_| Error::Config("Loader lock poisoned".into()))?;
+    let mut exts = LOADERS_BY_EXT.write().map_err(|_| Error::Config("Loader lock poisoned".into()))?;
     for ext in format.extensions {
         let lext = ext.to_lowercase();
         if let Some(existing) = exts.get(&lext) {
-            return Err(Error::Config(format!(
-                "{} already registered to {}",
-                ext, existing
-            )));
+            return Err(Error::Config(format!("{} already registered to {}", ext, existing)));
         }
         exts.insert(lext, name.clone());
     }

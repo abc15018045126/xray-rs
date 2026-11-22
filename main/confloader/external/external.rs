@@ -29,26 +29,13 @@ pub fn fetch_http_content(target: &str) -> Result<Vec<u8>> {
 
 pub fn fetch_unix_socket_http_content(target: &str) -> Result<Vec<u8>> {
     let path = target.strip_prefix("http+unix://").unwrap_or(target);
-    if !path.starts_with('/') {
-        return Err(Error::Other("unix socket path must be absolute".into()));
-    }
-    let sock_idx = path.find(".sock").ok_or_else(|| {
-        Error::Other("cannot determine socket path, socket file should have .sock extension".into())
-    })?;
+    if !path.starts_with('/') { return Err(Error::Other("unix socket path must be absolute".into())); }
+    let sock_idx = path.find(".sock").ok_or_else(|| Error::Other("cannot determine socket path, socket file should have .sock extension".into()))?;
     let socket_path = &path[..sock_idx + 5];
-    let http_path = &path[sock_idx + 5..];
-    let _effective_http_path = if http_path.is_empty() { "/" } else { http_path };
-
     if !std::path::Path::new(socket_path).exists() {
-        return Err(Error::Other(format!(
-            "socket file not found: {}",
-            socket_path
-        )));
+        return Err(Error::Other(format!("socket file not found: {}", socket_path)));
     }
-
-    Err(Error::Other(format!(
-        "unix socket connection to {socket_path} not available"
-    )))
+    Err(Error::Other(format!("unix socket connection to {socket_path} not available")))
 }
 
 pub fn init_external_loader() {

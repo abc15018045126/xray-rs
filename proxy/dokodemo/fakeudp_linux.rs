@@ -5,29 +5,17 @@ pub fn fake_udp_linux(addr: SocketAddr, _mark: u32) -> Result<tokio::net::UdpSoc
     #[cfg(target_os = "linux")]
     {
         use socket2::{Domain, Protocol, Socket, Type};
-        let domain = if addr.is_ipv4() {
-            Domain::IPV4
-        } else {
-            Domain::IPV6
-        };
+        let domain = if addr.is_ipv4() { Domain::IPV4 } else { Domain::IPV6 };
         let socket = Socket::new(domain, Type::DGRAM, Some(Protocol::UDP))?;
         socket.set_reuse_address(true)?;
-        #[cfg(target_os = "linux")]
-        {
-        }
-        let sock_addr = socket2::SockAddr::from(addr);
-        socket.bind(&sock_addr)?;
+        socket.bind(&socket2::SockAddr::from(addr))?;
         socket.set_nonblocking(true)?;
-        let std_udp: std::net::UdpSocket = socket.into();
-        let tokio_udp = tokio::net::UdpSocket::from_std(std_udp)?;
-        Ok(tokio_udp)
+        Ok(tokio::net::UdpSocket::from_std(socket.into())?)
     }
     #[cfg(not(target_os = "linux"))]
     {
         let _ = addr;
-        Err(Error::Unsupported(
-            "fake UDP is only supported on Linux".into(),
-        ))
+        Err(Error::Unsupported("fake UDP is only supported on Linux".into()))
     }
 }
 

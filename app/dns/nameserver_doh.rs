@@ -344,27 +344,17 @@ impl DohNameServer {
 }
 
 fn decode_chunked_complete(input: &[u8]) -> Option<Vec<u8>> {
-    let mut out = Vec::new();
-    let mut pos = 0;
+    let (mut out, mut pos) = (Vec::new(), 0);
     loop {
         let rest = input.get(pos..)?;
         let line_end = rest.windows(2).position(|w| w == b"\r\n")?;
-        let size_line = std::str::from_utf8(&rest[..line_end]).ok()?;
-        let size_hex = size_line.split(';').next()?.trim();
-        let chunk_size = usize::from_str_radix(size_hex, 16).ok()?;
+        let chunk_size = usize::from_str_radix(std::str::from_utf8(&rest[..line_end]).ok()?.split(';').next()?.trim(), 16).ok()?;
         pos += line_end + 2;
         if chunk_size == 0 {
             let trailer = input.get(pos..)?;
-            if trailer.starts_with(b"\r\n")
-                || trailer.windows(4).any(|w| w == b"\r\n\r\n")
-            {
-                return Some(out);
-            }
-            return None;
+            return (trailer.starts_with(b"\r\n") || trailer.windows(4).any(|w| w == b"\r\n\r\n")).then_some(out);
         }
-        if input.len() < pos + chunk_size + 2 {
-            return None;
-        }
+        if input.len() < pos + chunk_size + 2 { return None; }
         out.extend_from_slice(&input[pos..pos + chunk_size]);
         pos += chunk_size + 2;
     }

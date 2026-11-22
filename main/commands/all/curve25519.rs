@@ -8,30 +8,15 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 pub fn gen_curve25519(input_key: Option<&[u8]>) -> Result<([u8; 32], [u8; 32], [u8; 32])> {
     let mut priv_bytes = [0u8; 32];
-    if let Some(input) = input_key {
-        if input.len() == 32 {
-            priv_bytes.copy_from_slice(input);
-        } else {
-            return Err(crate::common::errors::Error::Config(
-                "Invalid length of X25519 private key".into(),
-            ));
-        }
-    } else {
-        rand::thread_rng().fill_bytes(&mut priv_bytes);
+    match input_key {
+        Some(input) if input.len() == 32 => priv_bytes.copy_from_slice(input),
+        Some(_) => return Err(crate::common::errors::Error::Config("Invalid length of X25519 private key".into())),
+        None => rand::thread_rng().fill_bytes(&mut priv_bytes),
     }
-
     priv_bytes[0] &= 248;
-    priv_bytes[31] &= 127;
-    priv_bytes[31] |= 64;
-
-    let secret = StaticSecret::from(priv_bytes);
-    let public = PublicKey::from(&secret);
-    let pub_bytes = *public.as_bytes();
-
-    let mut hasher = Sha256::new();
-    hasher.update(pub_bytes);
-    let hash: [u8; 32] = hasher.finalize().into();
-
+    priv_bytes[31] = (priv_bytes[31] & 127) | 64;
+    let pub_bytes = *PublicKey::from(&StaticSecret::from(priv_bytes)).as_bytes();
+    let hash: [u8; 32] = Sha256::digest(pub_bytes).into();
     Ok((priv_bytes, pub_bytes, hash))
 }
 

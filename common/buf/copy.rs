@@ -67,39 +67,22 @@ pub async fn copy_once_timeout<R: TimeoutReader, W: Writer>(
     Ok(len)
 }
 
-pub async fn copy_stream<R, W>(
+pub async fn copy_stream<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     mut reader: R,
     mut writer: W,
     buffer_size: usize,
     options: CopyOptions,
-) -> Result<u64>
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    let mut buf = vec![0u8; buffer_size.max(4096)];
-    let mut total = 0u64;
-
+) -> Result<u64> {
+    let (mut buf, mut total) = (vec![0u8; buffer_size.max(4096)], 0u64);
     loop {
         let n = reader.read(&mut buf).await.map_err(Error::Io)?;
-        if n == 0 {
-            break;
-        }
-
+        if n == 0 { break; }
         writer.write_all(&buf[..n]).await.map_err(Error::Io)?;
         total += n as u64;
-
-        if let Some(timer) = &options.timer {
-            timer.update();
-        }
-        if let Some(counter) = &options.counter {
-            counter.add(n as i64);
-        }
-        if let Some(size) = &options.size_counter {
-            size.fetch_add(n as i64, Ordering::Relaxed);
-        }
+        if let Some(t) = &options.timer { t.update(); }
+        if let Some(c) = &options.counter { c.add(n as i64); }
+        if let Some(s) = &options.size_counter { s.fetch_add(n as i64, Ordering::Relaxed); }
     }
-
     writer.flush().await.map_err(Error::Io)?;
     Ok(total)
 }

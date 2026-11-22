@@ -43,35 +43,16 @@ impl SudokuConfig {
     }
 
     pub fn normalized_custom_patterns(&self, mode: &str) -> Result<Vec<String>> {
-        if mode == "prefer_ascii" {
-            return Ok(vec![String::new()]);
+        if mode == "prefer_ascii" { return Ok(vec![String::new()]); }
+        let mut raw = self.custom_tables.clone();
+        if raw.is_empty() && !self.custom_table.is_empty() { raw.push(self.custom_table.clone()); }
+        let (mut patterns, mut seen) = (Vec::new(), HashSet::new());
+        for r in raw {
+            let p = r.trim();
+            let norm = if p.is_empty() { String::new() } else { Self::normalize_custom_table(p)? };
+            if seen.insert(norm.clone()) { patterns.push(norm); }
         }
-
-        let mut raw_patterns = self.custom_tables.clone();
-        if raw_patterns.is_empty() && !self.custom_table.is_empty() {
-            raw_patterns.push(self.custom_table.clone());
-        }
-
-        let mut patterns = Vec::new();
-        let mut seen = HashSet::new();
-
-        for raw in raw_patterns {
-            let pattern = raw.trim();
-            let norm = if !pattern.is_empty() {
-                Self::normalize_custom_table(pattern)?
-            } else {
-                String::new()
-            };
-
-            if seen.insert(norm.clone()) {
-                patterns.push(norm);
-            }
-        }
-
-        if patterns.is_empty() {
-            patterns.push(String::new());
-        }
-
+        if patterns.is_empty() { patterns.push(String::new()); }
         Ok(patterns)
     }
 

@@ -31,27 +31,13 @@ impl InboundHandler for Server {
         &self.tag
     }
 
-    async fn handle_connection(
-        &self,
-        mut stream: BoxStream,
-        remote_addr: SocketAddr,
-    ) -> Result<InboundResult> {
-        let first_byte = stream.read_u8().await?;
-        let prepended_stream: BoxStream = Box::pin(PrefixedStream::new(vec![first_byte], stream));
-
-        if first_byte == 0x04 || first_byte == 0x05 {
-            self.socks_server
-                .handle_connection(prepended_stream, remote_addr)
-                .await
-        } else if first_byte.is_ascii_alphabetic() || first_byte == b'/' {
-            self.http_server
-                .handle_connection(prepended_stream, remote_addr)
-                .await
-        } else {
-            Err(Error::Protocol(format!(
-                "Unsupported protocol byte on mixed port: {}",
-                first_byte
-            )))
+    async fn handle_connection(&self, mut stream: BoxStream, remote_addr: SocketAddr) -> Result<InboundResult> {
+        let first = stream.read_u8().await?;
+        let prefixed: BoxStream = Box::pin(PrefixedStream::new(vec![first], stream));
+        match first {
+            0x04 | 0x05 => self.socks_server.handle_connection(prefixed, remote_addr).await,
+            b if b.is_ascii_alphabetic() || b == b'/' => self.http_server.handle_connection(prefixed, remote_addr).await,
+            b => Err(Error::Protocol(format!("Unsupported protocol byte on mixed port: {}", b))),
         }
     }
 }

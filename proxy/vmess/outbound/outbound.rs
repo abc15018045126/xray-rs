@@ -42,29 +42,16 @@ impl OutboundHandler for Client {
     }
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
-        let tcp_stream = TcpDialer::dial(&self.server_addr).await?;
-
+        let tcp = TcpDialer::dial(&self.server_addr).await?;
         let mut stream = if let Some(tls) = &self.tls_client {
-            let sni = self
-                .tls_sni
-                .as_deref()
-                .unwrap_or_else(|| match &self.server_addr.address {
-                    crate::common::net::Address::Domain(d) => d.as_str(),
-                    _ => "localhost",
-                });
-            tls.connect(sni, tcp_stream).await?
-        } else {
-            tcp_stream
-        };
-
-        let command = match session.destination.network {
-            Network::Tcp => RequestCommand::Tcp,
-            Network::Udp => RequestCommand::Udp,
-        };
-
-        let req = RequestHeader::new(self.user_id, command, session.destination.clone());
-        req.encode(&mut stream).await?;
-
+            let sni = self.tls_sni.as_deref().unwrap_or_else(|| match &self.server_addr.address {
+                crate::common::net::Address::Domain(d) => d.as_str(),
+                _ => "localhost",
+            });
+            tls.connect(sni, tcp).await?
+        } else { tcp };
+        let cmd = if session.destination.network == Network::Udp { RequestCommand::Udp } else { RequestCommand::Tcp };
+        RequestHeader::new(self.user_id, cmd, session.destination.clone()).encode(&mut stream).await?;
         Ok(stream)
     }
 }

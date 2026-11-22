@@ -41,27 +41,11 @@ impl NameServer for LocalNameServer {
 
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
-        if let Some(resolver) = self.hickory()
-            && let Ok(lookup) = resolver.lookup_ip(clean).await
-        {
+        if let Some(r) = self.hickory() && let Ok(lookup) = r.lookup_ip(clean).await {
             let ips: Vec<IpAddr> = lookup.iter().collect();
-            if !ips.is_empty() {
-                return Ok(ips);
-            }
+            if !ips.is_empty() { return Ok(ips); }
         }
-        match tokio::net::lookup_host(format!("{}:53", clean)).await {
-            Ok(addrs) => {
-                let ips: Vec<IpAddr> = addrs.map(|a| a.ip()).collect();
-                if ips.is_empty() {
-                    Err(Error::NotFound(format!(
-                        "Domain '{}' not resolved locally",
-                        clean
-                    )))
-                } else {
-                    Ok(ips)
-                }
-            }
-            Err(e) => Err(Error::Io(e)),
-        }
+        let ips: Vec<IpAddr> = tokio::net::lookup_host(format!("{}:53", clean)).await.map_err(Error::Io)?.map(|a| a.ip()).collect();
+        if ips.is_empty() { Err(Error::NotFound(format!("Domain '{}' not resolved locally", clean))) } else { Ok(ips) }
     }
 }

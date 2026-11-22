@@ -226,26 +226,15 @@ impl LogManager {
 
     pub fn mask_ip(&self, ip: &IpAddr) -> IpAddr {
         match ip {
-            IpAddr::V4(v4) => {
-                if self.mask4 == 0 {
-                    return IpAddr::V4(*v4);
-                }
-                let octets = v4.octets();
-                let shift = self.mask4.min(32);
-                let mask = !((1u32 << (32 - shift)) - 1);
-                let masked = u32::from_be_bytes(octets) & mask;
-                IpAddr::V4(Ipv4Addr::from(masked))
+            IpAddr::V4(v4) if self.mask4 > 0 => {
+                let mask = !0u32 << (32 - self.mask4.min(32));
+                IpAddr::V4(Ipv4Addr::from(u32::from_be_bytes(v4.octets()) & mask))
             }
-            IpAddr::V6(v6) => {
-                if self.mask6 == 0 {
-                    return IpAddr::V6(*v6);
-                }
-                let octets = v6.octets();
-                let shift = self.mask6.min(128);
-                let mask = !((1u128 << (128 - shift)) - 1);
-                let masked = u128::from_be_bytes(octets) & mask;
-                IpAddr::V6(Ipv6Addr::from(masked))
+            IpAddr::V6(v6) if self.mask6 > 0 => {
+                let mask = !0u128 << (128 - self.mask6.min(128));
+                IpAddr::V6(Ipv6Addr::from(u128::from_be_bytes(v6.octets()) & mask))
             }
+            _ => *ip,
         }
     }
 

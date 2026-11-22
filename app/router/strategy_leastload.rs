@@ -55,46 +55,19 @@ pub fn leastload_sort(nodes: &mut [LeastLoadNode]) {
     });
 }
 
-pub fn select_least_load(
-    nodes: &[LeastLoadNode],
-    baselines: &[i64],
-    expected_count: i32,
-) -> Vec<LeastLoadNode> {
-    if nodes.is_empty() {
-        return Vec::new();
-    }
-
-    let available_count = nodes.len();
-    let expected = if expected_count <= 0 {
-        1
-    } else {
-        expected_count as usize
-    };
-
-    if expected > available_count {
-        return nodes.to_vec();
-    }
-
-    if baselines.is_empty() {
-        return nodes[..expected].to_vec();
-    }
-
+pub fn select_least_load(nodes: &[LeastLoadNode], baselines: &[i64], expected_count: i32) -> Vec<LeastLoadNode> {
+    if nodes.is_empty() { return Vec::new(); }
+    let expected = if expected_count <= 0 { 1 } else { expected_count as usize };
+    if expected > nodes.len() { return nodes.to_vec(); }
+    if baselines.is_empty() { return nodes[..expected].to_vec(); }
     let mut count = 0;
     for &b in baselines {
         let baseline = Duration::from_millis(b as u64);
-        while count < available_count && nodes[count].rtt_deviation_cost < baseline {
-            count += 1;
-        }
-        if count >= expected {
-            break;
-        }
+        while count < nodes.len() && nodes[count].rtt_deviation_cost < baseline { count += 1; }
+        if count >= expected { break; }
     }
-
-    if expected_count > 0 && count < expected {
-        count = expected;
-    }
-
-    nodes[..count.min(available_count)].to_vec()
+    if expected_count > 0 && count < expected { count = expected; }
+    nodes[..count.min(nodes.len())].to_vec()
 }
 
 pub struct LeastLoadStrategy {
@@ -131,31 +104,15 @@ impl BalancingStrategy for LeastLoadStrategy {
     }
 
     fn pick_outbound(&self, tags: &[String]) -> Option<String> {
-        if tags.is_empty() {
-            return self.fallback_tag.clone();
-        }
-
-        if let Some(obs) = &self.observatory
-            && let Some(best) = obs.select_best_outbound(tags)
-        {
+        if tags.is_empty() { return self.fallback_tag.clone(); }
+        if let Some(best) = self.observatory.as_ref().and_then(|o| o.select_best_outbound(tags)) {
             return Some(best);
         }
-
-        let mut nodes: Vec<LeastLoadNode> = tags
-            .iter()
-            .enumerate()
-            .map(|(i, tag)| {
-                let cost_ms = 100 + (i as u64 * 50);
-                LeastLoadNode::new(tag, cost_ms, cost_ms)
-            })
+        let mut nodes: Vec<LeastLoadNode> = tags.iter().enumerate()
+            .map(|(i, tag)| { let c = 100 + (i as u64 * 50); LeastLoadNode::new(tag, c, c) })
             .collect();
-
         leastload_sort(&mut nodes);
-        let selected = select_least_load(&nodes, &self.settings.baselines, self.settings.expected);
-
-        selected
-            .first()
-            .map(|n| n.tag.clone())
-            .or_else(|| self.fallback_tag.clone())
+        select_least_load(&nodes, &self.settings.baselines, self.settings.expected)
+            .first().map(|n| n.tag.clone()).or_else(|| self.fallback_tag.clone())
     }
 }

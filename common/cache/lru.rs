@@ -68,25 +68,19 @@ where
     }
 
     pub fn put(&self, key: K, val: V) {
-        if let Ok(mut inner) = self.entries.lock() {
-            if inner.key_to_val.contains_key(&key) {
-                if let Some(old_val) = inner.key_to_val.remove(&key) {
-                    inner.val_to_key.remove(&old_val);
-                }
-                if let Some(pos) = inner.order.iter().position(|x| x == &key) {
-                    inner.order.remove(pos);
-                }
-            } else if inner.order.len() >= self.capacity
-                && let Some(lru_key) = inner.order.pop_front()
-                && let Some(old_val) = inner.key_to_val.remove(&lru_key)
-            {
-                inner.val_to_key.remove(&old_val);
-            }
-
-            inner.key_to_val.insert(key.clone(), val.clone());
-            inner.val_to_key.insert(val, key.clone());
-            inner.order.push_back(key);
+        let Ok(mut inner) = self.entries.lock() else { return; };
+        if let Some(old_val) = inner.key_to_val.remove(&key) {
+            inner.val_to_key.remove(&old_val);
+            if let Some(pos) = inner.order.iter().position(|x| x == &key) { inner.order.remove(pos); }
+        } else if inner.order.len() >= self.capacity
+            && let Some(lru_key) = inner.order.pop_front()
+            && let Some(old_val) = inner.key_to_val.remove(&lru_key)
+        {
+            inner.val_to_key.remove(&old_val);
         }
+        inner.key_to_val.insert(key.clone(), val.clone());
+        inner.val_to_key.insert(val, key.clone());
+        inner.order.push_back(key);
     }
 }
 

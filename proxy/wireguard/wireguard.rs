@@ -26,37 +26,16 @@ pub fn parse_endpoints(endpoints: &[String]) -> Result<(Vec<IpAddr>, bool, bool)
     Ok((addrs, has_v4, has_v6))
 }
 
-pub fn create_ipc_request(
-    conf: &WireGuardConfig,
-    is_client: bool,
-    listen_port: Option<u16>,
-) -> String {
-    let mut request = String::new();
-    request.push_str(&format!("private_key={}\n", conf.secret_key));
-
-    if !is_client {
-        let port = listen_port.unwrap_or(1337);
-        request.push_str(&format!("listen_port={}\n", port));
-    }
-
+pub fn create_ipc_request(conf: &WireGuardConfig, is_client: bool, listen_port: Option<u16>) -> String {
+    use std::fmt::Write;
+    let mut req = format!("private_key={}\n", conf.secret_key);
+    if !is_client { let _ = writeln!(req, "listen_port={}", listen_port.unwrap_or(1337)); }
     for peer in &conf.peers {
-        if !peer.public_key.is_empty() {
-            request.push_str(&format!("public_key={}\n", peer.public_key));
-        }
-
-        if !peer.endpoint.is_empty() {
-            request.push_str(&format!("endpoint={}\n", peer.endpoint));
-        }
-
-        if peer.keepalive != 0 {
-            request.push_str(&format!(
-                "persistent_keepalive_interval={}\n",
-                peer.keepalive
-            ));
-        }
+        if !peer.public_key.is_empty() { let _ = writeln!(req, "public_key={}", peer.public_key); }
+        if !peer.endpoint.is_empty() { let _ = writeln!(req, "endpoint={}", peer.endpoint); }
+        if peer.keepalive != 0 { let _ = writeln!(req, "persistent_keepalive_interval={}", peer.keepalive); }
     }
-
-    request
+    req
 }
 
 #[cfg(test)]

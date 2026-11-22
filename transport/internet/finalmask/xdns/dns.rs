@@ -303,29 +303,12 @@ impl MessageBuilder {
     pub fn write_message(&mut self, msg: &Message) -> Result<()> {
         self.buf.extend_from_slice(&msg.id.to_be_bytes());
         self.buf.extend_from_slice(&msg.flags.to_be_bytes());
-        for count in [
-            msg.questions.len(),
-            msg.answers.len(),
-            msg.authority.len(),
-            msg.additional.len(),
-        ] {
-            if count > 65535 {
-                return Err(Error::Protocol("integer overflow".into()));
-            }
+        for count in [msg.questions.len(), msg.answers.len(), msg.authority.len(), msg.additional.len()] {
+            if count > 65535 { return Err(Error::Protocol("integer overflow".into())); }
             self.buf.extend_from_slice(&(count as u16).to_be_bytes());
         }
-        for q in &msg.questions {
-            self.write_question(q);
-        }
-        for rr in &msg.answers {
-            self.write_rr(rr)?;
-        }
-        for rr in &msg.authority {
-            self.write_rr(rr)?;
-        }
-        for rr in &msg.additional {
-            self.write_rr(rr)?;
-        }
+        for q in &msg.questions { self.write_question(q); }
+        for rr in msg.answers.iter().chain(&msg.authority).chain(&msg.additional) { self.write_rr(rr)?; }
         Ok(())
     }
 }

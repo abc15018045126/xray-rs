@@ -62,31 +62,16 @@ impl SessionHeader {
     }
 
     pub async fn decode<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Self> {
-        let header_type = reader.read_u8().await?;
-        let timestamp = reader.read_u64().await?;
-        let session_id = reader.read_u64().await?;
-
+        let (header_type, timestamp, session_id) = (reader.read_u8().await?, reader.read_u64().await?, reader.read_u64().await?);
         let destination = if header_type == HEADER_TYPE_CLIENT {
             let len = reader.read_u16().await? as usize;
             if len > 0 {
                 let mut buf = vec![0u8; len];
                 reader.read_exact(&mut buf).await?;
-                let s = String::from_utf8(buf).map_err(|e| Error::Protocol(e.to_string()))?;
                 use std::str::FromStr;
-
-                Some(Destination::from_str(&s)?)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        Ok(Self {
-            header_type,
-            timestamp,
-            session_id,
-            destination,
-        })
+                Some(Destination::from_str(&String::from_utf8(buf).map_err(|e| Error::Protocol(e.to_string()))?)?)
+            } else { None }
+        } else { None };
+        Ok(Self { header_type, timestamp, session_id, destination })
     }
 }

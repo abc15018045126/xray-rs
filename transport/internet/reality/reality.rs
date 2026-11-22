@@ -16,25 +16,16 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
 
 pub fn decode_reality_key32(raw: &str) -> Result<[u8; 32]> {
-    let trimmed = raw.trim();
-    let bytes = if trimmed.len() == 64 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
-        hex::decode(trimmed)
-            .map_err(|e| Error::Config(format!("Invalid REALITY hex key: {}", e)))?
+    let t = raw.trim();
+    let bytes = if t.len() == 64 && t.chars().all(|c| c.is_ascii_hexdigit()) {
+        hex::decode(t).map_err(|e| Error::Config(format!("Invalid REALITY hex key: {}", e)))?
     } else {
-        base64::engine::general_purpose::URL_SAFE_NO_PAD
-            .decode(trimmed.trim_end_matches('='))
-            .or_else(|_| base64::engine::general_purpose::STANDARD.decode(trimmed))
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(t.trim_end_matches('='))
+            .or_else(|_| base64::engine::general_purpose::STANDARD.decode(t))
             .map_err(|e| Error::Config(format!("Invalid REALITY key (base64url/hex): {}", e)))?
     };
-    if bytes.len() != 32 {
-        return Err(Error::Config(format!(
-            "REALITY key must be 32 bytes, got {}",
-            bytes.len()
-        )));
-    }
-    let mut arr = [0u8; 32];
-    arr.copy_from_slice(&bytes);
-    Ok(arr)
+    let len = bytes.len();
+    bytes.try_into().map_err(|_| Error::Config(format!("REALITY key must be 32 bytes, got {}", len)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,33 +169,14 @@ fn parse_tls_client_hello(record: &[u8]) -> Option<ParsedClientHello> {
 impl RealityServer {
     pub fn new(config: &RealityConfig) -> Result<Self> {
         let server_names = config.server_names.iter().cloned().collect();
-        let mut short_ids = HashSet::new();
-
-        for sid in &config.short_ids {
-            if let Ok(bytes) = hex::decode(sid) {
-                short_ids.insert(bytes);
-            }
-        }
-
-        let private_key = if let Some(pk_str) = &config.private_key {
-            Some(StaticSecret::from(decode_reality_key32(pk_str)?))
-        } else {
-            None
-        };
-
+        let short_ids = config.short_ids.iter().filter_map(|s| hex::decode(s).ok()).collect();
+        let private_key = config.private_key.as_deref().map(decode_reality_key32).transpose()?.map(StaticSecret::from);
         let max_time_diff_sec = match config.max_time_diff {
             Some(0) | None => 60,
             Some(ms) if ms > 1000 => (ms / 1000) as u32,
             Some(s) => s as u32,
         };
-
-        Ok(Self {
-            server_names,
-            short_ids,
-            private_key,
-            dest: config.dest.clone(),
-            max_time_diff_sec,
-        })
+        Ok(Self { server_names, short_ids, private_key, dest: config.dest.clone(), max_time_diff_sec })
     }
 
     pub async fn accept(&self, mut stream: BoxStream) -> Result<Option<BoxStream>> {

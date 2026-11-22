@@ -117,33 +117,16 @@ pub fn decode_bytes(
     hint_buf: &mut Vec<u8>,
     out: &mut Vec<u8>,
 ) -> Result<()> {
-    if tables.is_empty() {
-        return Err(Error::Config("sudoku table set missing".into()));
-    }
-
+    if tables.is_empty() { return Err(Error::Config("sudoku table set missing".into())); }
     for &b in input {
         let t = &tables[*table_index % tables.len()];
-        if !t.layout.is_hint(b) {
-            continue;
-        }
-
+        if !t.layout.is_hint(b) { continue; }
         hint_buf.push(b);
-        if hint_buf.len() < 4 {
-            continue;
-        }
-
-        let key_bytes = sort4([hint_buf[0], hint_buf[1], hint_buf[2], hint_buf[3]]);
-        let key = pack_key(key_bytes);
-        let decoded = t
-            .decode
-            .get(&key)
-            .copied()
-            .ok_or_else(|| Error::Protocol("invalid sudoku hint tuple".into()))?;
-
-        out.push(decoded);
+        if hint_buf.len() < 4 { continue; }
+        let key = pack_key(sort4([hint_buf[0], hint_buf[1], hint_buf[2], hint_buf[3]]));
+        out.push(*t.decode.get(&key).ok_or_else(|| Error::Protocol("invalid sudoku hint tuple".into()))?);
         hint_buf.clear();
         *table_index += 1;
     }
-
     Ok(())
 }

@@ -162,28 +162,14 @@ impl FromStr for Address {
 
     fn from_str(s: &str) -> Result<Self> {
         let trimmed = s.trim();
-        let cleaned = if trimmed.starts_with('[') && trimmed.ends_with(']') && trimmed.len() >= 2 {
-            &trimmed[1..trimmed.len() - 1]
-        } else {
-            trimmed
-        };
-
+        let cleaned = trimmed.strip_prefix('[').and_then(|r| r.strip_suffix(']')).unwrap_or(trimmed);
         if let Ok(ip) = cleaned.parse::<IpAddr>() {
-            return match ip {
-                IpAddr::V4(v4) => Ok(Address::Ipv4(v4)),
-                IpAddr::V6(v6) => {
-                    if let Some(v4) = v6.to_ipv4_mapped() {
-                        Ok(Address::Ipv4(v4))
-                    } else {
-                        Ok(Address::Ipv6(v6))
-                    }
-                }
-            };
+            return Ok(match ip {
+                IpAddr::V4(v4) => Address::Ipv4(v4),
+                IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(Address::Ipv6(v6), Address::Ipv4),
+            });
         }
-
-        if !trimmed.is_empty() {
-            return Ok(Address::Domain(trimmed.to_string()));
-        }
+        if !trimmed.is_empty() { return Ok(Address::Domain(trimmed.to_string())); }
         Err(Error::Protocol("Empty address string".into()))
     }
 }

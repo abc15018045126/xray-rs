@@ -29,35 +29,17 @@ struct GeoSiteIndex {
 impl GeoSiteIndex {
     fn matches(&self, domain_lower: &str) -> bool {
         let d = domain_lower.trim_end_matches('.');
-        if d.is_empty() {
-            return false;
-        }
-        if self.full.contains(d) {
-            return true;
-        }
+        if d.is_empty() { return false; }
+        if self.full.contains(d) { return true; }
         if !self.domain.is_empty() {
             let mut cur = d;
             loop {
-                if self.domain.contains(cur) {
-                    return true;
-                }
-                match cur.find('.') {
-                    Some(idx) => cur = &cur[idx + 1..],
-                    None => break,
-                }
+                if self.domain.contains(cur) { return true; }
+                let Some(idx) = cur.find('.') else { break; };
+                cur = &cur[idx + 1..];
             }
         }
-        for sub in &self.substr {
-            if d.contains(sub.as_str()) {
-                return true;
-            }
-        }
-        for re in &self.regex {
-            if re.is_match(d) {
-                return true;
-            }
-        }
-        false
+        self.substr.iter().any(|s| d.contains(s.as_str())) || self.regex.iter().any(|re| re.is_match(d))
     }
 }
 
