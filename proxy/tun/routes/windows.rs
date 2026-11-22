@@ -28,20 +28,7 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
 
     row.InterfaceIndex = via.index;
     row.DestinationPrefix = IP_ADDRESS_PREFIX {
-        Prefix: match dest {
-            IpNet::V4(ipv4) => {
-                let mut s = SOCKADDR_INET::default();
-                s.Ipv4.sin_family = AF_INET;
-                s.Ipv4.sin_addr = ipv4.addr().into();
-                s
-            }
-            IpNet::V6(ipv6) => {
-                let mut s = SOCKADDR_INET::default();
-                s.Ipv6.sin6_family = AF_INET6;
-                s.Ipv6.sin6_addr = ipv6.addr().into();
-                s
-            }
-        },
+        Prefix: SocketAddr::new(dest.addr(), 0).into(),
         PrefixLength: dest.prefix_len(),
     };
     let metric = 0;
@@ -63,26 +50,15 @@ pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     row.NextHop = next_hop.into();
     row.Metric = metric;
 
-    let res = unsafe { CreateIpForwardEntry2(&row) }.to_hresult();
-    if let Err(e) = res.ok() {
+    if let Err(e) = unsafe { CreateIpForwardEntry2(&row) }.to_hresult().ok() {
         if e.code().0 == ERROR_OBJECT_ALREADY_EXISTS.0 as i32 || e.code().0 as u32 == 0x80071392 {
-            warn!(
-                "route to destination {} via {} already exists",
-                dest, via.name
-            );
+            warn!("route to destination {} via {} already exists", dest, via.name);
             return Ok(());
         }
-        error!(
-            "failed to add route to destination {} via {}: {}",
-            dest, via.name, e
-        );
+        error!("failed to add route to destination {} via {}: {}", dest, via.name, e);
         return Err(io::Error::other(e.to_string()));
     }
-
-    info!(
-        "successfully added route to destination {} via {}",
-        dest, via.name
-    );
+    info!("successfully added route to destination {} via {}", dest, via.name);
     Ok(())
 }
 
@@ -95,20 +71,7 @@ pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
 
     row.InterfaceIndex = via.index;
     row.DestinationPrefix = IP_ADDRESS_PREFIX {
-        Prefix: match dest {
-            IpNet::V4(ipv4) => {
-                let mut s = SOCKADDR_INET::default();
-                s.Ipv4.sin_family = AF_INET;
-                s.Ipv4.sin_addr = ipv4.addr().into();
-                s
-            }
-            IpNet::V6(ipv6) => {
-                let mut s = SOCKADDR_INET::default();
-                s.Ipv6.sin6_family = AF_INET6;
-                s.Ipv6.sin6_addr = ipv6.addr().into();
-                s
-            }
-        },
+        Prefix: SocketAddr::new(dest.addr(), 0).into(),
         PrefixLength: dest.prefix_len(),
     };
     let next_hop: SocketAddr = if dest.addr().is_ipv4() {

@@ -97,25 +97,22 @@ impl DnsOutbound {
         loop {
             let query_bytes: Vec<u8> = if is_tcp {
                 let mut len_buf = [0u8; 2];
-                match timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut len_buf)).await {
-                    Ok(Ok(_)) => {
-                        let msg_len = u16::from_be_bytes(len_buf) as usize;
-                        if msg_len == 0 || msg_len > 65535 {
-                            break;
-                        }
-                        let mut msg = vec![0u8; msg_len];
-                        match timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut msg)).await {
-                            Ok(Ok(_)) => msg,
-                            _ => break,
-                        }
-                    }
-                    _ => break,
+                if !matches!(timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut len_buf)).await, Ok(Ok(_))) {
+                    break;
                 }
+                let msg_len = u16::from_be_bytes(len_buf) as usize;
+                if msg_len == 0 {
+                    break;
+                }
+                let mut msg = vec![0u8; msg_len];
+                if !matches!(timeout(DNS_IDLE_TIMEOUT, stream.read_exact(&mut msg)).await, Ok(Ok(_))) {
+                    break;
+                }
+                msg
             } else {
                 match timeout(DNS_IDLE_TIMEOUT, stream.read(&mut buf)).await {
-                    Ok(Ok(0)) | Err(_) => break,
-                    Ok(Ok(n)) => buf[..n].to_vec(),
-                    Ok(Err(_)) => break,
+                    Ok(Ok(n)) if n > 0 => buf[..n].to_vec(),
+                    _ => break,
                 }
             };
 
@@ -125,11 +122,8 @@ impl DnsOutbound {
             #[cfg(debug_assertions)]
             crate::debug_panel::record_stage("DNS 解析 (proxy/dns)", _dt0.elapsed());
             if let Some(resp_bytes) = resp_opt {
-                if is_tcp {
-                    let len_prefix = (resp_bytes.len() as u16).to_be_bytes();
-                    if stream.write_all(&len_prefix).await.is_err() {
-                        break;
-                    }
+                if is_tcp && stream.write_all(&(resp_bytes.len() as u16).to_be_bytes()).await.is_err() {
+                    break;
                 }
                 if stream.write_all(&resp_bytes).await.is_err() {
                     break;
@@ -137,7 +131,6 @@ impl DnsOutbound {
                 let _ = stream.flush().await;
             }
         }
-
         Ok(())
     }
 }

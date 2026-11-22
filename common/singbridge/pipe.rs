@@ -68,20 +68,13 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
                     if bytes.is_empty() {
                         break;
                     }
-                    if let Err(e) = server_write.write_all(&bytes).await {
-                        return Err(Error::Io(e));
-                    }
-                    if let Err(e) = server_write.flush().await {
-                        return Err(Error::Io(e));
-                    }
+                    server_write.write_all(&bytes).await?;
+                    server_write.flush().await?;
                 }
                 Ok(Err(e)) => return Err(e),
                 Err(_) => {
                     reader.interrupt().await;
-                    return Err(Error::Io(std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        "singbridge pipe read timeout",
-                    )));
+                    return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::TimedOut, "singbridge pipe read timeout")));
                 }
             }
         }
@@ -92,17 +85,14 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
     let w_task = async {
         let mut buf = [0u8; 8192];
         loop {
-            let n = match server_read.read(&mut buf).await {
-                Ok(0) => break,
-                Ok(n) => n,
-                Err(e) => return Err(Error::Io(e)),
-            };
-
+            let n = server_read.read(&mut buf).await?;
+            if n == 0 {
+                break;
+            }
             let mut mb = MultiBuffer::new();
             let mut b = Buffer::with_capacity(n);
             let _ = b.write(&buf[..n]);
             mb.push(b);
-
             writer.write_multi_buffer(mb).await?;
         }
         let _ = writer.close().await;
@@ -113,13 +103,9 @@ pub async fn copy_conn(link: Link, server_stream: BoxStream) -> Result<()> {
         r = r_task => r,
         w = w_task => w,
     };
-
-    match result {
-        Ok(_) => Ok(()),
-        Err(e) => match return_error(Some(e)) {
-            None => Ok(()),
-            Some(err) => Err(err),
-        },
+    match result.err().and_then(|e| return_error(Some(e))) {
+        None => Ok(()),
+        Some(err) => Err(err),
     }
 }
 

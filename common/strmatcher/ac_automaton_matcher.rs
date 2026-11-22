@@ -62,65 +62,30 @@ impl AcAutomatonMatcher {
     }
 
     pub fn add(&mut self, domain: &str, t: MatcherType) {
-        let bytes = domain.as_bytes();
-        let mut node = 0;
-
-        for &b in bytes.iter().rev() {
-            let idx = match char_to_index(b) {
-                Some(i) => i,
-                None => return,
-            };
-
-            if self.trie[node][idx].next_node == 0 {
-                self.count += 1;
-                while self.trie.len() < self.count + 1 {
-                    self.trie.push([Edge::default(); VALID_CHAR_COUNT]);
-                    self.fail.push(0);
-                    self.exists.push(MatchType {
-                        m_type: MatcherType::Full,
-                        exist: false,
-                    });
+        let step = |s: &mut Self, node: usize, idx: usize| -> usize {
+            if s.trie[node][idx].next_node == 0 {
+                s.count += 1;
+                while s.trie.len() < s.count + 1 {
+                    s.trie.push([Edge::default(); VALID_CHAR_COUNT]);
+                    s.fail.push(0);
+                    s.exists.push(MatchType { m_type: MatcherType::Full, exist: false });
                 }
-                self.trie[node][idx] = Edge {
-                    edge_type: true,
-                    next_node: self.count,
-                };
+                s.trie[node][idx] = Edge { edge_type: true, next_node: s.count };
             }
-            node = self.trie[node][idx].next_node;
-        }
-
-        self.exists[node] = MatchType {
-            m_type: t,
-            exist: true,
+            s.trie[node][idx].next_node
         };
 
-        if t == MatcherType::Domain {
-            self.exists[node] = MatchType {
-                m_type: MatcherType::Full,
-                exist: true,
-            };
-            let dot_idx = char_to_index(b'.').unwrap();
-            if self.trie[node][dot_idx].next_node == 0 {
-                self.count += 1;
-                while self.trie.len() < self.count + 1 {
-                    self.trie.push([Edge::default(); VALID_CHAR_COUNT]);
-                    self.fail.push(0);
-                    self.exists.push(MatchType {
-                        m_type: MatcherType::Full,
-                        exist: false,
-                    });
-                }
-                self.trie[node][dot_idx] = Edge {
-                    edge_type: true,
-                    next_node: self.count,
-                };
-            }
-            node = self.trie[node][dot_idx].next_node;
-            self.exists[node] = MatchType {
-                m_type: t,
-                exist: true,
-            };
+        let mut node = 0;
+        for &b in domain.as_bytes().iter().rev() {
+            let Some(idx) = char_to_index(b) else { return };
+            node = step(self, node, idx);
         }
+
+        if t == MatcherType::Domain {
+            self.exists[node] = MatchType { m_type: MatcherType::Full, exist: true };
+            node = step(self, node, char_to_index(b'.').unwrap());
+        }
+        self.exists[node] = MatchType { m_type: t, exist: true };
     }
 
     pub fn build(&mut self) {

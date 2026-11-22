@@ -161,70 +161,38 @@ pub mod windows_impl {
     }
 
     fn search_udp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
-        let mut size: u32 = 0;
-        unsafe {
-            let _ = GetExtendedUdpTable(None, &mut size, false, family, UDP_TABLE_OWNER_PID, 0);
-        }
+        let mut size = 0u32;
+        unsafe { let _ = GetExtendedUdpTable(None, &mut size, false, family, UDP_TABLE_OWNER_PID, 0); }
         if size == 0 {
             return None;
         }
-
         let mut buf = vec![0u8; size as usize];
         let ret = unsafe {
-            GetExtendedUdpTable(
-                Some(buf.as_mut_ptr() as *mut c_void),
-                &mut size,
-                false,
-                family,
-                UDP_TABLE_OWNER_PID,
-                0,
-            )
+            GetExtendedUdpTable(Some(buf.as_mut_ptr() as *mut c_void), &mut size, false, family, UDP_TABLE_OWNER_PID, 0)
         };
         if ret != 0 {
             return None;
         }
 
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
-        let (item_size, port_offset, ip_offset, ip_len, pid_offset) = if family == AF_INET {
-            (12, 4, 0, 4, 8)
-        } else {
-            (28, 20, 0, 16, 24)
-        };
+        let (item_size, port_off, ip_len, pid_off) = if family == AF_INET { (12, 4, 4, 8) } else { (28, 20, 16, 24) };
 
-        for i in 0..num_entries {
-            let start = 4 + i * item_size;
-            let end = start + item_size;
-            if end > buf.len() {
-                break;
-            }
-            let row = &buf[start..end];
-
-            let row_port = u16::from_be_bytes([row[port_offset], row[port_offset + 1]]);
-            if row_port != port {
+        for row in buf[4..].chunks_exact(item_size).take(num_entries) {
+            if u16::from_be_bytes([row[port_off], row[port_off + 1]]) != port {
                 continue;
             }
-
-            let row_ip = &row[ip_offset..ip_offset + ip_len];
-            let is_unspecified = row_ip.iter().all(|&b| b == 0);
-            if !is_unspecified {
-                match ip {
-                    IpAddr::V4(v4) => {
-                        if row_ip != v4.octets() {
-                            continue;
-                        }
-                    }
-                    IpAddr::V6(v6) => {
-                        if row_ip != v6.octets() {
-                            continue;
-                        }
-                    }
+            let row_ip = &row[..ip_len];
+            if row_ip.iter().any(|&b| b != 0) {
+                let ip_match = match ip {
+                    IpAddr::V4(v4) => row_ip == v4.octets(),
+                    IpAddr::V6(v6) => row_ip == v6.octets(),
+                };
+                if !ip_match {
+                    continue;
                 }
             }
-
-            let pid = u32::from_ne_bytes(row[pid_offset..pid_offset + 4].try_into().ok()?);
-            return Some(pid);
+            return Some(u32::from_ne_bytes(row[pid_off..pid_off + 4].try_into().ok()?));
         }
-
         None
     }
 

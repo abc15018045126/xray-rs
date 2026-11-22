@@ -254,8 +254,7 @@ impl RealityServer {
         }
         let rec_len = u16::from_be_bytes([hdr[3], hdr[4]]) as usize;
         if hdr[0] != 0x16 || rec_len == 0 || rec_len > 16384 {
-            let mut initial = hdr.to_vec();
-            return self.mirror_to_dest(&mut initial, stream).await;
+            return self.mirror_to_dest(&mut hdr.to_vec(), stream).await;
         }
 
         let mut record = vec![0u8; 5 + rec_len];
@@ -264,44 +263,29 @@ impl RealityServer {
             return Ok(None);
         }
 
-        let auth_sni = parse_tls_client_hello(&record).and_then(|parsed| {
-            if !self.validate_server_name(&parsed.sni) {
-                return None;
-            }
-            self.verify_client_hello(
-                &parsed.client_pub,
-                &parsed.client_random,
-                &parsed.session_id,
-                &parsed.aad_zeroed_handshake,
-                self.max_time_diff_sec,
-            )
-            .ok()
-            .map(|_| parsed.sni)
+        let auth_sni = parse_tls_client_hello(&record).and_then(|p| {
+            self.validate_server_name(&p.sni)
+                .then(|| {
+                    self.verify_client_hello(&p.client_pub, &p.client_random, &p.session_id, &p.aad_zeroed_handshake, self.max_time_diff_sec)
+                        .ok()
+                        .map(|_| p.sni)
+                })
+                .flatten()
         });
 
-        if let Some(sni) = auth_sni {
-            let cert_name = if sni.is_empty() {
-                "localhost".to_string()
-            } else {
-                sni
-            };
-            let ck = rcgen::generate_simple_self_signed(vec![cert_name])
-                .map_err(|e| Error::Protocol(format!("REALITY temp cert generation failed: {}", e)))?;
-            let tls_server = TlsServer::from_pem(
-                ck.cert.pem().as_bytes(),
-                ck.key_pair.serialize_pem().as_bytes(),
-                vec![b"h2".to_vec(), b"http/1.1".to_vec()],
-            )?;
-            let replayed: BoxStream = Box::pin(PrefixedStream {
-                prefix: record,
-                offset: 0,
-                inner: stream,
-            });
-            let tls_stream = tls_server.accept(replayed).await?;
-            Ok(Some(tls_stream))
-        } else {
-            self.mirror_to_dest(&mut record, stream).await
-        }
+        let Some(sni) = auth_sni else {
+            return self.mirror_to_dest(&mut record, stream).await;
+        };
+        let cert_name = if sni.is_empty() { "localhost".to_string() } else { sni };
+        let ck = rcgen::generate_simple_self_signed(vec![cert_name])
+            .map_err(|e| Error::Protocol(format!("REALITY temp cert generation failed: {}", e)))?;
+        let tls_server = TlsServer::from_pem(
+            ck.cert.pem().as_bytes(),
+            ck.key_pair.serialize_pem().as_bytes(),
+            vec![b"h2".to_vec(), b"http/1.1".to_vec()],
+        )?;
+        let replayed: BoxStream = Box::pin(PrefixedStream { prefix: record, offset: 0, inner: stream });
+        Ok(Some(tls_server.accept(replayed).await?))
     }
 
     async fn mirror_to_dest(

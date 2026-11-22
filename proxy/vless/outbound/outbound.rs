@@ -651,19 +651,14 @@ impl AsyncWrite for VlessStream {
             }
         }
 
-        let payload = if self.is_udp && buf.len() > u16::MAX as usize {
-            &buf[..u16::MAX as usize]
-        } else {
-            buf
-        };
-
+        let payload = if self.is_udp && buf.len() > u16::MAX as usize { &buf[..u16::MAX as usize] } else { buf };
         if self.pending_header.is_none() && !self.is_udp {
             return Pin::new(&mut self.inner).poll_write(cx, payload);
         }
 
-        let hdr_len = self.pending_header.as_ref().map_or(0, |h| h.len());
-        let len_prefix = if self.is_udp { 2 } else { 0 };
-        let mut frame = Vec::with_capacity(hdr_len + len_prefix + payload.len());
+        let mut frame = Vec::with_capacity(
+            self.pending_header.as_ref().map_or(0, Vec::len) + if self.is_udp { 2 } else { 0 } + payload.len(),
+        );
         if let Some(ref hdr) = self.pending_header {
             frame.extend_from_slice(hdr);
         }
@@ -675,24 +670,16 @@ impl AsyncWrite for VlessStream {
         match Pin::new(&mut self.inner).poll_write(cx, &frame) {
             Poll::Ready(Ok(0)) => Poll::Ready(Ok(0)),
             Poll::Ready(Ok(written)) => {
-                self.pending_header = None;
-                self.header_flush_timer = None;
-                if written < frame.len() {
-                    self.pending_write.extend_from_slice(&frame[written..]);
-                }
+                (self.pending_header, self.header_flush_timer) = (None, None);
+                self.pending_write.extend_from_slice(&frame[written..]);
                 Poll::Ready(Ok(payload.len()))
             }
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-            Poll::Pending => {
-                if self.pending_header.is_some() {
-                    self.pending_header = None;
-                    self.header_flush_timer = None;
-                    self.pending_write = frame;
-                    Poll::Ready(Ok(payload.len()))
-                } else {
-                    Poll::Pending
-                }
+            Poll::Pending if self.pending_header.is_some() => {
+                (self.pending_header, self.header_flush_timer) = (None, None);
+                self.pending_write = frame;
+                Poll::Ready(Ok(payload.len()))
             }
+            other => other,
         }
     }
 

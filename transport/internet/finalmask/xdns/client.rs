@@ -44,57 +44,31 @@ impl XDnsClient {
     }
 
     pub fn encode_packet(&self, payload: Option<&[u8]>) -> Result<Vec<u8>> {
-        if let Some(p) = payload
-            && p.len() >= MAX_PAYLOAD_LEN
-        {
-            return Err(Error::Protocol(
-                "payload too long for xdns query (>= 224 bytes)".into(),
-            ));
+        if payload.is_some_and(|p| p.len() >= MAX_PAYLOAD_LEN) {
+            return Err(Error::Protocol("payload too long for xdns query (>= 224 bytes)".into()));
         }
 
-        let mut decoded = Vec::with_capacity(32 + payload.map_or(0, |p| p.len()));
+        let mut decoded = Vec::with_capacity(32 + payload.map_or(0, <[u8]>::len));
         decoded.extend_from_slice(&self.client_id);
-
-        let n = match payload {
-            Some(p) if !p.is_empty() => NUM_PADDING,
-            _ => NUM_PADDING_FOR_POLL,
-        };
-
+        let n = if payload.is_some_and(|p| !p.is_empty()) { NUM_PADDING } else { NUM_PADDING_FOR_POLL };
         decoded.push((224 + n) as u8);
-        let mut padding = vec![0u8; n];
-        rand::thread_rng().fill_bytes(&mut padding);
-        decoded.extend_from_slice(&padding);
+        let pad_start = decoded.len();
+        decoded.resize(pad_start + n, 0);
+        rand::thread_rng().fill_bytes(&mut decoded[pad_start..]);
 
-        if let Some(p) = payload
-            && !p.is_empty()
-        {
+        if let Some(p) = payload.filter(|p| !p.is_empty()) {
             decoded.push(p.len() as u8);
             decoded.extend_from_slice(p);
         }
 
         let base32_str = base32_encode(&decoded).to_ascii_lowercase();
-        let bytes = base32_str.as_bytes();
-
-        let mut labels: Vec<Vec<u8>> = Vec::new();
-        let mut offset = 0;
-        while offset < bytes.len() {
-            let chunk_size = std::cmp::min(63, bytes.len() - offset);
-            labels.push(bytes[offset..offset + chunk_size].to_vec());
-            offset += chunk_size;
-        }
-
+        let mut labels: Vec<Vec<u8>> = base32_str.as_bytes().chunks(63).map(<[u8]>::to_vec).collect();
         labels.extend(self.domain.labels.clone());
-        let q_name = Name::new(labels)?;
 
-        let id = rand::random::<u16>();
-        let query = Message {
-            id,
+        Message {
+            id: rand::random(),
             flags: 0x0100,
-            questions: vec![Question {
-                name: q_name,
-                qtype: RR_TYPE_TXT,
-                qclass: CLASS_IN,
-            }],
+            questions: vec![Question { name: Name::new(labels)?, qtype: RR_TYPE_TXT, qclass: CLASS_IN }],
             answers: Vec::new(),
             authority: Vec::new(),
             additional: vec![ResourceRecord {
@@ -104,9 +78,8 @@ impl XDnsClient {
                 ttl: 0,
                 data: Vec::new(),
             }],
-        };
-
-        query.to_wire_format()
+        }
+        .to_wire_format()
     }
 
     pub fn decode_packet(&self, wire: &[u8]) -> Result<Vec<Vec<u8>>> {
