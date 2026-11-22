@@ -80,56 +80,37 @@ impl HealthPingRTTS {
             max: Duration::ZERO,
             min: RTT_FAILED,
         };
-
         let now = Instant::now();
-        let mut sum_nanos = 0u64;
-        let mut cnt = 0usize;
-        let mut valid_rtts = Vec::new();
+        let (mut sum_nanos, mut valid_rtts) = (0u64, Vec::new());
 
         for rtt in &self.rtts {
-            match rtt.time {
-                Some(t)
-                    if now.duration_since(t) <= self.validity && rtt.value != Duration::ZERO =>
-                {
-                    if rtt.value == RTT_FAILED {
-                        stats.fail += 1;
-                    } else {
-                        cnt += 1;
-                        sum_nanos += rtt.value.as_nanos() as u64;
-                        valid_rtts.push(rtt.value);
-                        if stats.max < rtt.value {
-                            stats.max = rtt.value;
-                        }
-                        if stats.min > rtt.value {
-                            stats.min = rtt.value;
-                        }
-                    }
+            if rtt.time.is_some_and(|t| now.duration_since(t) <= self.validity) && rtt.value != Duration::ZERO {
+                if rtt.value == RTT_FAILED {
+                    stats.fail += 1;
+                } else {
+                    sum_nanos += rtt.value.as_nanos() as u64;
+                    valid_rtts.push(rtt.value);
+                    stats.max = stats.max.max(rtt.value);
+                    stats.min = stats.min.min(rtt.value);
                 }
-                _ => continue,
             }
         }
 
+        let cnt = valid_rtts.len();
         stats.all = cnt + stats.fail;
         if cnt == 0 {
             stats.min = Duration::ZERO;
             return stats;
         }
-
-        let avg_nanos = sum_nanos / (cnt as u64);
+        let avg_nanos = sum_nanos / cnt as u64;
         stats.average = Duration::from_nanos(avg_nanos);
-
         let std_nanos = if cnt < 2 {
             avg_nanos / 2
         } else {
-            let mut variance = 0.0;
             let avg_f = avg_nanos as f64;
-            for rtt in valid_rtts {
-                let diff = (rtt.as_nanos() as f64) - avg_f;
-                variance += diff * diff;
-            }
-            (variance / (cnt as f64)).sqrt() as u64
+            let var: f64 = valid_rtts.iter().map(|r| (r.as_nanos() as f64 - avg_f).powi(2)).sum();
+            (var / cnt as f64).sqrt() as u64
         };
-
         stats.deviation = Duration::from_nanos(std_nanos);
         stats
     }

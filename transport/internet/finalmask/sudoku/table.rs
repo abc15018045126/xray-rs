@@ -433,60 +433,35 @@ impl SudokuTable {
     pub fn build(password: &str, layout: Arc<ByteLayout>) -> Result<Self> {
         let patterns = get_base_patterns();
         if patterns.len() < 256 {
-            return Err(Error::Config(format!(
-                "not enough sudoku grids: {}",
-                patterns.len()
-            )));
+            return Err(Error::Config(format!("not enough sudoku grids: {}", patterns.len())));
         }
 
         let mut order: Vec<usize> = (0..patterns.len()).collect();
         let hash = Sha256::digest(password.as_bytes());
-        let seed = i64::from_be_bytes(hash[..8].try_into().unwrap());
-        let mut rng = GoRand::new(seed);
-        rng.shuffle(&mut order);
+        GoRand::new(i64::from_be_bytes(hash[..8].try_into().unwrap())).shuffle(&mut order);
 
         let mut decode = HashMap::with_capacity(1 << 16);
         let mut encode = vec![Vec::new(); 256];
-
         for b in 0..256 {
             let pat_list = &patterns[order[b]];
             if pat_list.is_empty() {
-                return Err(Error::Config(format!(
-                    "grid {} has no valid clue set",
-                    order[b]
-                )));
+                return Err(Error::Config(format!("grid {} has no valid clue set", order[b])));
             }
-
             let mut enc = Vec::with_capacity(pat_list.len());
-            for groups in pat_list {
-                let hints = [
-                    (layout.encode_hint)(groups[0]),
-                    (layout.encode_hint)(groups[1]),
-                    (layout.encode_hint)(groups[2]),
-                    (layout.encode_hint)(groups[3]),
-                ];
-                let sorted_hints = sort4(hints);
-                let key = pack_key(sorted_hints);
-
+            for g in pat_list {
+                let hints = g.map(|x| (layout.encode_hint)(x));
+                let key = pack_key(sort4(hints));
                 if let Some(&old) = decode.get(&key)
                     && old != b as u8
                 {
-                    return Err(Error::Config(format!(
-                        "decode key collision for byte {} and {}",
-                        old, b
-                    )));
+                    return Err(Error::Config(format!("decode key collision for byte {} and {}", old, b)));
                 }
                 decode.insert(key, b as u8);
                 enc.push(hints);
             }
             encode[b] = enc;
         }
-
-        Ok(Self {
-            encode,
-            decode,
-            layout,
-        })
+        Ok(Self { encode, decode, layout })
     }
 }
 

@@ -54,73 +54,28 @@ pub fn sort_ips(
     prioritize_ipv6: bool,
     interleave: impl IntoInterleave,
 ) -> Vec<IpAddr> {
-    if ips.is_empty() {
-        return Vec::new();
-    }
-
-    let mut ip4: Vec<IpAddr> = Vec::new();
-    let mut ip6: Vec<IpAddr> = Vec::new();
-
-    for ip in ips {
-        if ip.is_ipv4() {
-            ip4.push(*ip);
-        } else {
-            ip6.push(*ip);
-        }
-    }
-
+    let (ip4, ip6): (Vec<_>, Vec<_>) = ips.iter().copied().partition(IpAddr::is_ipv4);
     if ip4.is_empty() || ip6.is_empty() {
         return ips.to_vec();
     }
-
-    let interleave = interleave.into_interleave();
-    if interleave == 0 {
-        if prioritize_ipv6 {
-            let mut res = ip6;
-            res.extend(ip4);
-            return res;
-        } else {
-            let mut res = ip4;
-            res.extend(ip6);
-            return res;
-        }
+    let (mut first, second) = if prioritize_ipv6 { (ip6, ip4) } else { (ip4, ip6) };
+    let stride = interleave.into_interleave() as usize;
+    if stride == 0 {
+        first.extend(second);
+        return first;
     }
 
-    let mut new_ips = Vec::with_capacity(ips.len());
-    let mut consume_ip4 = 0;
-    let mut consume_ip6 = 0;
-    let mut consume_turn = 0u32;
-    let mut ip4_turn = !prioritize_ipv6;
-
-    loop {
-        if ip4_turn {
-            new_ips.push(ip4[consume_ip4]);
-            consume_ip4 += 1;
-            if consume_ip4 == ip4.len() {
-                new_ips.extend_from_slice(&ip6[consume_ip6..]);
-                break;
-            }
-            consume_turn += 1;
-            if consume_turn == interleave {
-                ip4_turn = false;
-                consume_turn = 0;
-            }
-        } else {
-            new_ips.push(ip6[consume_ip6]);
-            consume_ip6 += 1;
-            if consume_ip6 == ip6.len() {
-                new_ips.extend_from_slice(&ip4[consume_ip4..]);
-                break;
-            }
-            consume_turn += 1;
-            if consume_turn == interleave {
-                ip4_turn = true;
-                consume_turn = 0;
-            }
-        }
+    let mut out = Vec::with_capacity(ips.len());
+    let (mut a, mut b) = (first.as_slice(), second.as_slice());
+    while !a.is_empty() && !b.is_empty() {
+        let take = stride.min(a.len());
+        out.extend_from_slice(&a[..take]);
+        a = &a[take..];
+        std::mem::swap(&mut a, &mut b);
     }
-
-    new_ips
+    out.extend_from_slice(a);
+    out.extend_from_slice(b);
+    out
 }
 
 pub async fn tcp_race_dial(

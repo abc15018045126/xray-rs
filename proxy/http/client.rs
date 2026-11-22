@@ -49,55 +49,39 @@ impl OutboundHandler for HttpClient {
 
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
         let mut stream = SystemDialer::dial_tcp(&self.server).await?;
-
-        let target_str = session.destination.to_string();
-        let mut req = format!(
-            "CONNECT {} HTTP/1.1\r\nHost: {}\r\nProxy-Connection: Keep-Alive\r\n",
-            target_str, target_str
-        );
-
+        let target = session.destination.to_string();
+        let mut req = format!("CONNECT {} HTTP/1.1\r\nHost: {}\r\nProxy-Connection: Keep-Alive\r\n", target, target);
         if let Some(auth) = &self.auth {
             req.push_str(&format!("Proxy-Authorization: {}\r\n", auth));
         }
         req.push_str("\r\n");
-
-        stream.write_all(req.as_bytes()).await.map_err(Error::Io)?;
-        stream.flush().await.map_err(Error::Io)?;
+        stream.write_all(req.as_bytes()).await?;
+        stream.flush().await?;
 
         let mut buf = vec![0u8; 4096];
-        let mut total = 0;
-        let mut header_len = 0;
-        let mut status_code = 0;
-
+        let (mut total, mut header_len, mut status_code) = (0, 0, 0);
         while total < buf.len() {
-            let n = stream.read(&mut buf[total..]).await.map_err(Error::Io)?;
+            let n = stream.read(&mut buf[total..]).await?;
             if n == 0 {
                 return Err(Error::Closed);
             }
             total += n;
-
             let mut headers = [httparse::EMPTY_HEADER; 32];
             let mut resp = httparse::Response::new(&mut headers);
             if let Ok(httparse::Status::Complete(hlen)) = resp.parse(&buf[..total]) {
-                header_len = hlen;
-                status_code = resp.code.unwrap_or(0);
+                (header_len, status_code) = (hlen, resp.code.unwrap_or(0));
                 break;
             }
         }
-
         if status_code != 200 {
-            return Err(Error::Protocol(format!(
-                "HTTP proxy server responded with status: {}",
-                status_code
-            )));
+            return Err(Error::Protocol(format!("HTTP proxy server responded with status: {}", status_code)));
         }
 
-        let boxed_stream: BoxStream = Box::pin(stream);
+        let boxed: BoxStream = Box::pin(stream);
         if total > header_len {
-            let leftover = buf[header_len..total].to_vec();
-            Ok(Box::pin(PrefixedStream::new(leftover, boxed_stream)))
+            Ok(Box::pin(PrefixedStream::new(buf[header_len..total].to_vec(), boxed)))
         } else {
-            Ok(boxed_stream)
+            Ok(boxed)
         }
     }
 }

@@ -35,52 +35,28 @@ impl OutboundHandler for Client {
     }
 
     async fn connect(&self, _session: &SessionContext) -> Result<BoxStream> {
-        let peer = self
-            .config
-            .peers
-            .first()
-            .ok_or_else(|| Error::Config("No WireGuard peers defined".into()))?;
-
-        let endpoint_addr: SocketAddr = peer.endpoint.parse().map_err(|e| {
-            Error::AddressParse(format!(
-                "Invalid WireGuard peer endpoint {}: {}",
-                peer.endpoint, e
-            ))
-        })?;
+        let peer = self.config.peers.first().ok_or_else(|| Error::Config("No WireGuard peers defined".into()))?;
+        let endpoint: SocketAddr = peer
+            .endpoint
+            .parse()
+            .map_err(|e| Error::AddressParse(format!("Invalid WireGuard peer endpoint {}: {}", peer.endpoint, e)))?;
 
         let socket = Arc::new(UdpSocket::bind("0.0.0.0:0").await?);
-        socket.connect(endpoint_addr).await?;
-
+        socket.connect(endpoint).await?;
         let (client_stream, mut server_stream) = tokio::io::duplex(64 * 1024);
-        let socket_recv = socket.clone();
-        let socket_send = socket;
 
         tokio::spawn(async move {
-            let mut stream_buf = vec![0u8; 64 * 1024];
-            let mut udp_buf = vec![0u8; 64 * 1024];
+            let (mut s_buf, mut u_buf) = (vec![0u8; 64 * 1024], vec![0u8; 64 * 1024]);
             loop {
                 tokio::select! {
-                    res = server_stream.read(&mut stream_buf) => {
-                        match res {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                if socket_send.send(&stream_buf[..n]).await.is_err() {
-                                    break;
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
-                    res = socket_recv.recv(&mut udp_buf) => {
-                        match res {
-                            Ok(n) => {
-                                if server_stream.write_all(&udp_buf[..n]).await.is_err() {
-                                    break;
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
+                    res = server_stream.read(&mut s_buf) => match res {
+                        Ok(n) if n > 0 && socket.send(&s_buf[..n]).await.is_ok() => {}
+                        _ => break,
+                    },
+                    res = socket.recv(&mut u_buf) => match res {
+                        Ok(n) if server_stream.write_all(&u_buf[..n]).await.is_ok() => {}
+                        _ => break,
+                    },
                 }
             }
         });

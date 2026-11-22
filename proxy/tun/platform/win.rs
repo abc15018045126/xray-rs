@@ -24,62 +24,24 @@ pub fn must_bind_socket_on_interface(
 ) -> io::Result<()> {
     let handle = SOCKET(socket.as_raw_socket().try_into().unwrap());
     let is_udp = is_udp_socket(handle)?;
-    let idx = iface.index;
-
-    let errno = match family {
-        socket2::Domain::IPV4 => unsafe {
-            setsockopt(
-                handle,
-                IPPROTO_IP.0,
-                IP_UNICAST_IF,
-                Some(idx.to_be_bytes().as_ref()),
-            )
-        },
-        socket2::Domain::IPV6 => unsafe {
-            setsockopt(
-                handle,
-                IPPROTO_IPV6.0,
-                IPV6_UNICAST_IF,
-                Some(idx.to_ne_bytes().as_ref()),
-            )
-        },
+    let (proto, unicast_opt, multicast_opt, bytes) = match family {
+        socket2::Domain::IPV4 => (IPPROTO_IP.0, IP_UNICAST_IF, IP_MULTICAST_IF, iface.index.to_be_bytes()),
+        socket2::Domain::IPV6 => (IPPROTO_IPV6.0, IPV6_UNICAST_IF, IPV6_MULTICAST_IF, iface.index.to_ne_bytes()),
         _ => return Err(io::Error::other("unsupported socket family")),
     };
-
-    if errno != 0 {
-        let err = unsafe { GetLastError().to_hresult().message() };
-        tracing::warn!("bind socket to interface failed: {}, errno: {}", err, errno);
-        return Err(new_io_error(err));
-    }
-
-    if is_udp {
-        let errno = match family {
-            socket2::Domain::IPV4 => unsafe {
-                setsockopt(
-                    handle,
-                    IPPROTO_IP.0,
-                    IP_MULTICAST_IF,
-                    Some(idx.to_be_bytes().as_ref()),
-                )
-            },
-            socket2::Domain::IPV6 => unsafe {
-                setsockopt(
-                    handle,
-                    IPPROTO_IPV6.0,
-                    IPV6_MULTICAST_IF,
-                    Some(idx.to_ne_bytes().as_ref()),
-                )
-            },
-            _ => return Err(io::Error::other("unsupported socket family")),
-        };
-
+    let apply = |opt: i32| -> io::Result<()> {
+        let errno = unsafe { setsockopt(handle, proto, opt, Some(&bytes)) };
         if errno != 0 {
             let err = unsafe { GetLastError().to_hresult().message() };
             tracing::warn!("bind socket to interface failed: {}, errno: {}", err, errno);
             return Err(new_io_error(err));
         }
+        Ok(())
+    };
+    apply(unicast_opt)?;
+    if is_udp {
+        apply(multicast_opt)?;
     }
-
     Ok(())
 }
 
