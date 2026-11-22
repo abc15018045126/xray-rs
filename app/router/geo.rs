@@ -168,12 +168,14 @@ fn cidr_v6_range(ip: [u8; 16], prefix: u32) -> (u128, u128) {
 /// 2. Executable directory (`current_exe().parent()`)
 /// 3. Current working directory (`.` and `configs/`)
 pub fn find_asset_file(filename: &str) -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var("XRAY_LOCATION_ASSET")
-        && !dir.is_empty()
-    {
-        let p = PathBuf::from(dir).join(filename);
-        if p.is_file() {
-            return Some(p);
+    for env_key in ["XRAY_LOCATION_ASSET", "xray.location.asset"] {
+        if let Ok(dir) = std::env::var(env_key)
+            && !dir.is_empty()
+        {
+            let p = PathBuf::from(dir).join(filename);
+            if p.is_file() {
+                return Some(p);
+            }
         }
     }
     if let Ok(exe) = std::env::current_exe()

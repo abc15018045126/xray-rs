@@ -34,7 +34,7 @@ pub fn protect_android_socket(fd: i32) -> bool {
 }
 
 pub fn apply_tcp_options(s: &TcpStream) -> std::io::Result<()> {
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
     {
         let sock_ref = socket2::SockRef::from(s);
         sock_ref.set_tcp_keepalive(
@@ -44,7 +44,7 @@ pub fn apply_tcp_options(s: &TcpStream) -> std::io::Result<()> {
                 .with_retries(3),
         )?;
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "android"))]
     {
         let sock_ref = socket2::SockRef::from(s);
         sock_ref.set_tcp_keepalive(

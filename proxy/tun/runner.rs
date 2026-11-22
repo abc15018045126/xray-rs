@@ -1,7 +1,7 @@
 // Module: proxy\tun\runner.rs
 // Pure native TUN runner matching official Xray-core gVisor architecture, powered by ipstack
 
-use ipstack::{IpStack, IpStackConfig, IpStackStream};
+use super::ipstack::{IpStack, IpStackConfig, IpStackStream, TcpConfig, TcpOptions};
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -10,7 +10,9 @@ use tracing::{debug, error, info};
 use super::config::TunConfig;
 use super::routes;
 use crate::app::dispatcher::DefaultDispatcher;
-use crate::common::errors::{Error, Result};
+#[cfg(not(target_os = "android"))]
+use crate::common::errors::Error;
+use crate::common::errors::Result;
 use crate::common::net::{Address, Destination, Network};
 use crate::common::protocol::SessionContext;
 
@@ -112,8 +114,8 @@ impl TunRunner {
         // Advertise TCP MSS = MTU - 40 (matching Xray-core tcp_lightweight.go) so Windows
         // doesn't fall back to RFC 879 default 536B MSS and fragment TLS ClientHello.
         let mss = mtu.saturating_sub(40).max(536);
-        let mut tcp_cfg = ipstack::TcpConfig::default();
-        tcp_cfg.options = Some(vec![ipstack::TcpOptions::MaximumSegmentSize(mss)]);
+        let mut tcp_cfg = TcpConfig::default();
+        tcp_cfg.options = Some(vec![TcpOptions::MaximumSegmentSize(mss)]);
         ipstack_cfg.with_tcp_config(tcp_cfg);
 
         let mut ip_stack = IpStack::new(ipstack_cfg, device);

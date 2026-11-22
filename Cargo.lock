@@ -1307,21 +1307,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ipstack"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e889a45c1ce3e97268ad2249951528563ec1d02a120fecbd4db690beac34f7fd"
-dependencies = [
- "ahash",
- "etherparse",
- "log",
- "rand 0.10.4",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
-]
-
-[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3428,23 +3413,28 @@ dependencies = [
 
 [[package]]
 name = "xray-rs"
-version = "3.0.6"
+version = "3.0.8"
 dependencies = [
  "aes-gcm",
+ "ahash",
  "anyhow",
  "async-trait",
  "base64",
  "bytes",
  "chacha20poly1305",
  "clap",
+ "etherparse",
  "futures",
+ "h2",
  "hex",
  "hickory-proto",
  "hickory-resolver",
  "hkdf",
+ "http",
  "httparse",
  "ipnet",
- "ipstack",
+ "libc",
+ "log",
  "md-5",
  "network-interface",
  "pingora-core",

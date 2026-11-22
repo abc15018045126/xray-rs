@@ -12,6 +12,11 @@ use tokio::net::{TcpStream, UdpSocket};
 pub trait NameServer: Send + Sync {
     fn name(&self) -> &str;
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>>;
+    /// Returns true if this nameserver routes its own upstream DNS queries through a proxy outbound
+    /// (used by `DnsClient::lookup_for_dialer` to avoid recursive proxy-server dialing deadlocks).
+    fn routes_via_proxy(&self) -> bool {
+        false
+    }
 }
 
 pub struct UdpNameServer {

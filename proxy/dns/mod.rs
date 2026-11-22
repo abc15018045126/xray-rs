@@ -87,39 +87,32 @@ impl DnsOutbound {
                                 ));
                             }
                         }
+                        tracing::info!(
+                            "DNS-OUT A '{}' -> {} answers",
+                            clean_domain,
+                            resp.answers.len()
+                        );
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        tracing::warn!("DNS-OUT A '{}' failed: {}", clean_domain, e);
                         resp.metadata.response_code = ResponseCode::ServFail;
                     }
                 }
             }
             RecordType::AAAA => {
-                let opt = IPOption {
-                    ipv4_enable: false,
-                    ipv6_enable: true,
-                    fake_enable: true,
-                };
-                match self
-                    .dns_client
-                    .lookup_ip_with_option(clean_domain, opt)
-                    .await
-                {
-                    Ok((ips, ttl)) => {
-                        let ttl = ttl.max(1);
-                        resp.metadata.response_code = ResponseCode::NoError;
-                        for ip in ips {
-                            if let IpAddr::V6(v6) = ip {
-                                resp.answers.push(Record::from_rdata(
-                                    q.name().clone(),
-                                    ttl,
-                                    RData::AAAA(AAAA(v6)),
-                                ));
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        // Empty NoError allows dual-stack clients to immediately use IPv4
-                        resp.metadata.response_code = ResponseCode::NoError;
+                // Fast-path AAAA: check static hosts / cache immediately. Because upstream
+                // UDP/DoH nameservers currently issue A (qtype=1) queries, avoid stalling
+                // dual-stack Android/desktop getaddrinfo() for 5-10s on unanswerable AAAA
+                // roundtrips; returning empty NoError lets clients connect immediately over IPv4.
+                let ips = self.dns_client.lookup_hosts_or_cache_ipv6(clean_domain);
+                resp.metadata.response_code = ResponseCode::NoError;
+                for ip in ips {
+                    if let IpAddr::V6(v6) = ip {
+                        resp.answers.push(Record::from_rdata(
+                            q.name().clone(),
+                            300,
+                            RData::AAAA(AAAA(v6)),
+                        ));
                     }
                 }
             }

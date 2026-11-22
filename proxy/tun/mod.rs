@@ -2,6 +2,7 @@ pub mod config;
 #[path = "config.pb.rs"]
 pub mod config_pb;
 pub mod handler;
+pub mod ipstack;
 pub mod net;
 pub mod platform;
 pub mod routes;

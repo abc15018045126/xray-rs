@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "android"))]
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::net::SocketAddr;
@@ -5,12 +6,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+#[cfg(not(target_os = "android"))]
 use pingora_load_balancing::selection::RoundRobin;
+#[cfg(not(target_os = "android"))]
 use pingora_load_balancing::selection::consistent::KetamaHashing;
+#[cfg(not(target_os = "android"))]
 use pingora_load_balancing::{Backend, Backends, LoadBalancer, discovery};
 use pingora_pool::{ConnectionMeta, ConnectionPool};
 
-use crate::common::errors::{Error, Result};
+#[cfg(not(target_os = "android"))]
+use crate::common::errors::Error;
+use crate::common::errors::Result;
 use crate::common::net::BoxStream;
 
 /// Computes a stable 64-bit pool key from an arbitrary string identifier (e.g. upstream tag or host:port).
@@ -66,7 +72,7 @@ impl PingoraStreamPool {
         permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let meta = ConnectionMeta::new(key, id);
+        let meta = ConnectionMeta::new(key, id as _);
         let (notify_evicted, watch_use) = self.pool.put(&meta, stream);
         let pool = self.pool.clone();
         let timeout = self.idle_timeout;
@@ -79,6 +85,7 @@ impl PingoraStreamPool {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 enum BalancerInner {
     RoundRobin(LoadBalancer<RoundRobin>),
     Ketama(LoadBalancer<KetamaHashing>),
@@ -87,11 +94,13 @@ enum BalancerInner {
 /// Cloudflare `pingora-load-balancing` wrapper supporting both `RoundRobin` and
 /// `pingora-ketama` consistent hashing (so the same target domain sticks to the same
 /// Worker / upstream node without IP hopping, while automatically failing over on errors).
+#[cfg(not(target_os = "android"))]
 pub struct PingoraUpstreamBalancer {
     inner: BalancerInner,
     labels: Vec<String>,
 }
 
+#[cfg(not(target_os = "android"))]
 impl PingoraUpstreamBalancer {
     fn build_backends_from_addrs(addrs: &[SocketAddr]) -> Result<(Backends, Vec<String>)> {
         let mut set = BTreeSet::new();
@@ -187,5 +196,56 @@ impl PingoraUpstreamBalancer {
             }
         }
         Some(0)
+    }
+}
+
+#[cfg(target_os = "android")]
+pub struct PingoraUpstreamBalancer {
+    labels: Vec<String>,
+    use_hash: bool,
+    rr: AtomicUsize,
+}
+
+#[cfg(target_os = "android")]
+impl PingoraUpstreamBalancer {
+    pub fn from_addrs(addrs: &[SocketAddr]) -> Result<Self> {
+        Ok(Self {
+            labels: addrs.iter().map(|a| a.to_string()).collect(),
+            use_hash: false,
+            rr: AtomicUsize::new(0),
+        })
+    }
+
+    pub fn from_labels(labels: Vec<String>) -> Result<Self> {
+        Ok(Self {
+            labels,
+            use_hash: false,
+            rr: AtomicUsize::new(0),
+        })
+    }
+
+    pub fn from_labels_ketama(labels: Vec<String>) -> Result<Self> {
+        Ok(Self {
+            labels,
+            use_hash: true,
+            rr: AtomicUsize::new(0),
+        })
+    }
+
+    pub fn select_index(&self) -> Option<usize> {
+        self.select_index_for_key(b"")
+    }
+
+    pub fn select_index_for_key(&self, key: &[u8]) -> Option<usize> {
+        if self.labels.is_empty() {
+            return None;
+        }
+        if self.use_hash && !key.is_empty() {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            key.hash(&mut hasher);
+            Some((hasher.finish() as usize) % self.labels.len())
+        } else {
+            Some(self.rr.fetch_add(1, Ordering::Relaxed) % self.labels.len())
+        }
     }
 }

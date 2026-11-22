@@ -21,6 +21,14 @@ impl DomainMatcher {
         let s_lower = s.to_lowercase();
         if let Some(rest) = s_lower.strip_prefix("geosite:") {
             DomainMatcher::GeoSite(rest.to_string())
+        } else if let Some(rest) = s_lower.strip_prefix("ext:") {
+            // Official Xray-core `ext:<filename>:<tag>` syntax (e.g. `ext:geosite.dat:cn`)
+            if let Some((_file, tag)) = rest.rsplit_once(':')
+                && !tag.is_empty()
+            {
+                return DomainMatcher::GeoSite(tag.to_string());
+            }
+            DomainMatcher::Plain(s_lower)
         } else if let Some(rest) = s_lower.strip_prefix("full:") {
             DomainMatcher::Exact(rest.to_string())
         } else if let Some(rest) = s_lower.strip_prefix("domain:") {
@@ -74,6 +82,19 @@ impl IpMatcher {
                 return Some(IpMatcher::Private);
             }
             return Some(IpMatcher::GeoIp(rest.to_string()));
+        }
+
+        if let Some(rest) = s_lower.strip_prefix("ext:") {
+            // Official Xray-core `ext:<filename>:<tag>` syntax (e.g. `ext:geoip-only-cn-private.dat:cn`)
+            if let Some((_file, tag)) = rest.rsplit_once(':')
+                && !tag.is_empty()
+            {
+                if tag == "private" {
+                    return Some(IpMatcher::Private);
+                }
+                return Some(IpMatcher::GeoIp(tag.to_string()));
+            }
+            return None;
         }
 
         if s_lower == "private" {

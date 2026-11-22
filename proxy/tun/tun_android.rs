@@ -73,6 +73,7 @@ mod imp {
                 return Err(Error::Io(err));
             }
             let owned = unsafe { OwnedFd::from_raw_fd(dup_fd) };
+            #[allow(deprecated)]
             let async_fd = AsyncFd::new(owned).map_err(Error::Io)?;
             Ok(Self { inner: async_fd })
         }

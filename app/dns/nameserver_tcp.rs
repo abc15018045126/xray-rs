@@ -77,6 +77,16 @@ impl NameServer for TcpNameServer {
         "tcp"
     }
 
+    fn routes_via_proxy(&self) -> bool {
+        let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) else {
+            return false;
+        };
+        let dest = Destination::from_ip_port(self.server_addr.ip(), self.server_addr.port());
+        let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), dest);
+        let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
+        !matches!(picked, "direct" | "freedom" | "dns" | "block" | "blackhole")
+    }
+
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');
         let mut stream: BoxStream = if let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) {

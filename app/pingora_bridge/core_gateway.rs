@@ -8,6 +8,8 @@
 //!   a custom `L4Connect` implementation (`TunAwareL4Connect`) that binds sockets to the Windows
 //!   physical outbound interface (`DEFAULT_OUTBOUND_INTERFACE`) to prevent global TUN loopback.
 
+#[cfg(not(target_os = "android"))]
+mod imp {
 use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
 
@@ -195,3 +197,85 @@ pub fn spawn_pingora_inbound(
 
     Some(handle)
 }
+}
+
+#[cfg(not(target_os = "android"))]
+pub use imp::{PingoraCoreConnector, PingoraInboundApp, spawn_pingora_inbound};
+
+#[cfg(target_os = "android")]
+mod android_imp {
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
+    use tracing::{info, warn};
+
+    use crate::app::dispatcher::DefaultDispatcher;
+    use crate::common::errors::{Error, Result};
+    use crate::common::net::BoxStream;
+    use crate::features::inbound::InboundHandler;
+
+    pub struct PingoraCoreConnector;
+
+    impl PingoraCoreConnector {
+        pub async fn dial_tcp(addr: SocketAddr) -> Result<BoxStream> {
+            let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
+            let tcp = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref())
+                .await
+                .map_err(Error::Io)?;
+            let _ = tcp.set_nodelay(true);
+            Ok(Box::pin(tcp))
+        }
+    }
+
+    pub fn spawn_pingora_inbound(
+        addr: SocketAddr,
+        handler: Arc<dyn InboundHandler>,
+        dispatcher: Arc<DefaultDispatcher>,
+    ) -> Option<JoinHandle<()>> {
+        let std_listener = match std::net::TcpListener::bind(addr) {
+            Ok(l) => l,
+            Err(e) => {
+                warn!(
+                    "Inbound [{}] could not bind to {} ({}). Continuing...",
+                    handler.tag(),
+                    addr,
+                    e
+                );
+                return None;
+            }
+        };
+        let _ = std_listener.set_nonblocking(true);
+        let listener = TcpListener::from_std(std_listener).ok()?;
+        let tag = handler.tag().to_string();
+        info!("Inbound [{}] listening on {} (Android Tokio)", tag, addr);
+
+        Some(tokio::spawn(async move {
+            loop {
+                let (stream, remote_addr) = match listener.accept().await {
+                    Ok(v) => v,
+                    Err(_) => break,
+                };
+                let _ = stream.set_nodelay(true);
+                let h = handler.clone();
+                let d = dispatcher.clone();
+                tokio::spawn(async move {
+                    match h.handle_connection(Box::pin(stream), remote_addr).await {
+                        Ok(res) => {
+                            if let Err(e) = d.dispatch(res.stream, res.session).await {
+                                warn!("Dispatch error: {}", e);
+                            }
+                        }
+                        Err(Error::Closed) => {}
+                        Err(e) => {
+                            warn!("[{}] Handshake failed from {}: {}", h.tag(), remote_addr, e);
+                        }
+                    }
+                });
+            }
+        }))
+    }
+}
+
+#[cfg(target_os = "android")]
+pub use android_imp::{PingoraCoreConnector, spawn_pingora_inbound};

@@ -3,7 +3,9 @@ pub mod inbound;
 pub mod outbound;
 pub mod pool;
 
-pub use core_gateway::{PingoraCoreConnector, PingoraInboundApp, spawn_pingora_inbound};
+#[cfg(not(target_os = "android"))]
+pub use core_gateway::PingoraInboundApp;
+pub use core_gateway::{PingoraCoreConnector, spawn_pingora_inbound};
 pub use inbound::PingoraHttpInbound;
 pub use outbound::PingoraPooledOutbound;
 pub use pool::{PingoraStreamPool, PingoraUpstreamBalancer, pool_key};

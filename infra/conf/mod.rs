@@ -306,11 +306,64 @@ pub struct MultiServerSettings {
     #[serde(default)]
     pub port: Option<u16>,
     #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub method: Option<String>,
+    #[serde(default)]
+    pub flow: Option<String>,
+    #[serde(default)]
+    pub level: Option<u32>,
+    #[serde(default)]
+    pub testpre: Option<u32>,
+    #[serde(default, rename = "testpreIdle")]
+    pub testpre_idle: Option<u32>,
+    #[serde(default)]
     pub network: Option<String>,
     #[serde(default)]
     pub decryption: Option<String>,
     #[serde(default)]
     pub fallbacks: Option<Vec<crate::proxy::vless::inbound::Fallback>>,
+}
+
+impl MultiServerSettings {
+    /// Normalizes Xray-core 26.x flat outbound settings (`address`/`port`/`id`/`password`
+    /// directly under `settings`) into `vnext`/`servers` for backward compatibility.
+    fn normalize_flat_outbound(&mut self) {
+        if let Some(ref addr) = self.address
+            && !addr.is_empty()
+        {
+            if self.vnext.is_empty()
+                && let Some(ref id) = self.id
+                && !id.is_empty()
+            {
+                self.vnext.push(ServerTargetConfig {
+                    address: Some(addr.clone()),
+                    port: self.port,
+                    users: vec![UserConfig {
+                        id: id.clone(),
+                        password: self.password.clone(),
+                        level: self.level,
+                        flow: self.flow.clone(),
+                        testpre: self.testpre,
+                        testpre_idle: self.testpre_idle,
+                    }],
+                    password: self.password.clone(),
+                    method: self.method.clone(),
+                });
+            }
+            if self.servers.is_empty() {
+                self.servers.push(ServerTargetConfig {
+                    address: Some(addr.clone()),
+                    port: self.port,
+                    users: Vec::new(),
+                    password: self.password.clone(),
+                    method: self.method.clone(),
+                });
+            }
+        }
+    }
 }
 
 fn parse_fragment_config(
@@ -425,10 +478,11 @@ impl Config {
                     Arc::new(p::blackhole::Handler::with_response(&tag, resp_type))
                 }
                 "vless" => {
-                    let settings: MultiServerSettings =
+                    let mut settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid VLESS outbound settings: {}", e)),
                         )?;
+                    settings.normalize_flat_outbound();
                     if settings.vnext.is_empty() {
                         return Err(Error::Config("VLESS vnext is empty".into()));
                     }
@@ -628,10 +682,11 @@ impl Config {
                     wrap_pingora_multi_outbound(&tag, vless_handlers, lb_labels)?
                 }
                 "trojan" => {
-                    let settings: MultiServerSettings =
+                    let mut settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid Trojan outbound settings: {}", e)),
                         )?;
+                    settings.normalize_flat_outbound();
                     if settings.servers.is_empty() {
                         return Err(Error::Config("Trojan servers list is empty".into()));
                     }
@@ -689,12 +744,13 @@ impl Config {
                     wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "shadowsocks" => {
-                    let settings: MultiServerSettings = serde_json::from_value(
+                    let mut settings: MultiServerSettings = serde_json::from_value(
                         out_cfg.settings.unwrap_or_default(),
                     )
                     .map_err(|e| {
                         Error::Config(format!("Invalid Shadowsocks outbound settings: {}", e))
                     })?;
+                    settings.normalize_flat_outbound();
                     if settings.servers.is_empty() {
                         return Err(Error::Config("Shadowsocks servers list is empty".into()));
                     }
@@ -726,10 +782,11 @@ impl Config {
                     wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "vmess" => {
-                    let settings: MultiServerSettings =
+                    let mut settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid VMess outbound settings: {}", e)),
                         )?;
+                    settings.normalize_flat_outbound();
                     if settings.vnext.is_empty() {
                         return Err(Error::Config("VMess vnext is empty".into()));
                     }
@@ -792,10 +849,11 @@ impl Config {
                     wrap_pingora_multi_outbound(&tag, handlers, labels)?
                 }
                 "socks" => {
-                    let settings: MultiServerSettings =
+                    let mut settings: MultiServerSettings =
                         serde_json::from_value(out_cfg.settings.unwrap_or_default()).map_err(
                             |e| Error::Config(format!("Invalid SOCKS outbound settings: {}", e)),
                         )?;
+                    settings.normalize_flat_outbound();
                     if settings.servers.is_empty() {
                         return Err(Error::Config("SOCKS servers list is empty".into()));
                     }
@@ -1259,12 +1317,26 @@ impl Config {
                         rule.domain_matchers.push(DomainMatcher::parse(&d));
                     }
                 }
+                let mut unparseable_ip_rule = false;
                 if let Some(ips) = r_cfg.ip {
+                    let had_ips = !ips.is_empty();
                     for ip_str in ips {
                         if let Some(ip_matcher) = IpMatcher::parse(&ip_str) {
                             rule.ip_matchers.push(ip_matcher);
+                        } else {
+                            tracing::warn!("Ignoring unrecognized routing IP matcher: '{}'", ip_str);
                         }
                     }
+                    if had_ips && rule.ip_matchers.is_empty() {
+                        unparseable_ip_rule = true;
+                    }
+                }
+                if unparseable_ip_rule {
+                    tracing::warn!(
+                        "Skipping routing rule for '{}' because none of its IP matchers could be parsed",
+                        rule.tag
+                    );
+                    continue;
                 }
                 if let Some(port_val) = r_cfg.port {
                     let ports_str = match port_val {
@@ -1307,6 +1379,7 @@ impl Config {
 
         let router = Router::new(rules, default_outbound_tag.clone());
         dns_client.attach_routing(router.clone(), outbounds.clone());
+        crate::transport::internet::tcp::dialer::init_system_dialer_dns(dns_client.clone());
 
         Ok(BuiltConfig {
             inbounds,

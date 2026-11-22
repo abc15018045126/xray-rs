@@ -304,7 +304,13 @@ impl DnsClient {
     }
 
     async fn query_entry(&self, entry: &ServerEntry, clean: &str, option: &IPOption) -> Option<Vec<IpAddr>> {
-        let ips = entry.ns.query_ip(clean).await.ok()?;
+        let ips = match entry.ns.query_ip(clean).await {
+            Ok(ips) => ips,
+            Err(e) => {
+                tracing::warn!("DNS nameserver '{}' failed for '{}': {}", entry.ns.name(), clean, e);
+                return None;
+            }
+        };
         if ips.is_empty() {
             return None;
         }
@@ -314,6 +320,12 @@ impl DnsClient {
             filtered.retain(|ip| entry.expect_ip_matchers.iter().any(|m| m.matches(ip)));
         }
         if filtered.is_empty() {
+            tracing::debug!(
+                "DNS nameserver '{}' returned {:?} for '{}', all filtered out by strategy/expectIPs",
+                entry.ns.name(),
+                ips,
+                clean
+            );
             return None;
         }
         if !self.disable_cache && !entry.is_fakedns {
@@ -323,10 +335,91 @@ impl DnsClient {
         Some(filtered)
     }
 
+    pub fn lookup_hosts_or_cache_ipv6(&self, domain: &str) -> Vec<IpAddr> {
+        let clean = domain.trim_end_matches('.');
+        let opt = IPOption {
+            ipv4_enable: false,
+            ipv6_enable: true,
+            fake_enable: false,
+        };
+        if let Some(ips) = self.hosts.lookup(clean) {
+            let filtered = self.filter_ips(&ips, &opt);
+            if !filtered.is_empty() {
+                return filtered;
+            }
+        }
+        if !self.disable_cache
+            && let Some(ips) = self.cache.get(clean)
+        {
+            let filtered = self.filter_ips(&ips, &opt);
+            if !filtered.is_empty() {
+                return filtered;
+            }
+        }
+        Vec::new()
+    }
+
     pub async fn lookup_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         self.lookup_ip_with_option(domain, IPOption::default())
             .await
             .map(|(ips, _)| ips)
+    }
+
+    /// Outbound dialer DNS resolution (aligned with `Xray-core/transport/internet/dialer.go` `LookupForIP`):
+    /// checks `dns.hosts` -> cache -> direct/local `dns.servers` (skipping proxy-routed nameservers
+    /// so dialing a domain-based proxy server can never recursively deadlock).
+    pub async fn lookup_for_dialer(&self, domain: &str) -> Result<Vec<IpAddr>> {
+        let clean = domain.trim_end_matches('.');
+        let option = IPOption::default();
+
+        // 1. Static hosts (0ms, e.g. v2rayNG pre-resolved node IPs)
+        if let Some(ips) = self.hosts.lookup(clean) {
+            let filtered = self.filter_ips(&ips, &option);
+            if !filtered.is_empty() {
+                return Ok(filtered);
+            }
+        }
+
+        // 2. Cache
+        if !self.disable_cache
+            && let Some(ips) = self.cache.get(clean)
+        {
+            let filtered = self.filter_ips(&ips, &option);
+            if !filtered.is_empty() {
+                return Ok(filtered);
+            }
+        }
+
+        // 3. Domain-matched direct/local nameservers
+        let mut tried = vec![false; self.entries.len()];
+        for (idx, entry) in self.entries.iter().enumerate() {
+            if entry.is_fakedns || entry.ns.routes_via_proxy() {
+                continue;
+            }
+            if !entry.domain_matchers.is_empty()
+                && entry.domain_matchers.iter().any(|m| m.matches(clean))
+            {
+                tried[idx] = true;
+                if let Some(ips) = self.query_entry(entry, clean, &option).await {
+                    return Ok(ips);
+                }
+            }
+        }
+
+        // 4. Fallback to any remaining direct/local nameserver (e.g. domestic 223.5.5.5 / +local)
+        for (idx, entry) in self.entries.iter().enumerate() {
+            if tried[idx] || entry.is_fakedns || entry.ns.routes_via_proxy() {
+                continue;
+            }
+            if let Some(ips) = self.query_entry(entry, clean, &option).await {
+                return Ok(ips);
+            }
+        }
+
+        Err(Error::NotFound(format!(
+            "No direct/local IP found for dialer domain: {}",
+            domain
+        )))
     }
 
     pub async fn lookup_ip_with_option(
@@ -390,7 +483,8 @@ impl DnsClient {
                 }
             }
 
-            // 5. System local resolution fallback
+            // 5. System local resolution fallback (disabled on Android VPN TUN to avoid DNS loop)
+            #[cfg(not(target_os = "android"))]
             if !local_tried
                 && let Ok(ips) = LocalNameServer::new().query_ip(clean).await
                 && !ips.is_empty()
@@ -404,6 +498,8 @@ impl DnsClient {
                     return Ok((filtered, 300));
                 }
             }
+            #[cfg(target_os = "android")]
+            let _ = local_tried;
         }
 
         Err(Error::NotFound(format!(

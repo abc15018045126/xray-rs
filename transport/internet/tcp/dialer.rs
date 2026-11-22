@@ -2,10 +2,22 @@
 // 1:1 Rust implementation corresponding to Go transport\internet\tcp\dialer.go
 
 use std::net::SocketAddr;
+use std::sync::{Arc, RwLock};
 
+use crate::app::dns::DnsClient;
 use crate::app::pingora_bridge::PingoraCoreConnector;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{BoxStream, Destination};
+
+static SYSTEM_DNS_CLIENT: RwLock<Option<Arc<DnsClient>>> = RwLock::new(None);
+
+/// Registers the active `DnsClient` for system dialing, matching `Xray-core/transport/internet/dialer.go`
+/// `InitSystemDialer(dc, om)`.
+pub fn init_system_dialer_dns(dc: Arc<DnsClient>) {
+    if let Ok(mut guard) = SYSTEM_DNS_CLIENT.write() {
+        *guard = Some(dc);
+    }
+}
 
 pub struct TcpDialer;
 
@@ -34,11 +46,29 @@ impl TcpDialer {
                 let addr_str = format!("{}:{}", domain, dest.port);
                 #[cfg(debug_assertions)]
                 let _dt0 = std::time::Instant::now();
-                let addrs = tokio::net::lookup_host(&addr_str)
-                    .await
-                    .map_err(Error::Io)?;
+
+                // 1:1 with `Xray-core/transport/internet/dialer.go` (`LookupForIP`):
+                // try built-in `DnsClient` (`dns.hosts` + direct/local DNS) first, then fall back
+                // to system `lookup_host` if unresolved.
+                let mut addrs: Vec<SocketAddr> = Vec::new();
+                let dns_opt = SYSTEM_DNS_CLIENT.read().ok().and_then(|g| g.clone());
+                if let Some(dc) = dns_opt
+                    && let Ok(ips) = dc.lookup_for_dialer(domain).await
+                {
+                    for ip in ips {
+                        addrs.push(SocketAddr::new(ip, dest.port));
+                    }
+                }
+                if addrs.is_empty() {
+                    addrs.extend(
+                        tokio::net::lookup_host(&addr_str)
+                            .await
+                            .map_err(Error::Io)?,
+                    );
+                }
+
                 #[cfg(debug_assertions)]
-                crate::debug_panel::record_stage("TCP 域名解析 (lookup_host)", _dt0.elapsed());
+                crate::debug_panel::record_stage("TCP 域名解析 (DnsClient/lookup_host)", _dt0.elapsed());
                 let mut last_err = None;
                 for addr in addrs {
                     #[cfg(debug_assertions)]

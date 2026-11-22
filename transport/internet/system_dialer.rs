@@ -139,7 +139,7 @@ impl SystemDialerTrait for DefaultSystemDialer {
         }
 
         if dest.network == Network::Udp {
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "android"))]
             {
                 let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
                 let socket = crate::proxy::tun::socket_helpers::new_udp_socket(
@@ -152,7 +152,7 @@ impl SystemDialerTrait for DefaultSystemDialer {
                 let wrapper = PacketConnWrapper::new(socket, target_addr);
                 return Ok(Box::pin(wrapper));
             }
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
             {
                 let bind_addr: SocketAddr = if target_addr.is_ipv4() {
                     "0.0.0.0:0".parse().unwrap()
@@ -187,14 +187,14 @@ impl SystemDialer {
             .await
             .map_err(Error::Io)?;
 
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "android"))]
         let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
 
         let mut last_err = None;
         for addr in addrs {
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "android"))]
             let res = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await;
-            #[cfg(not(target_os = "windows"))]
+            #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
             let res = TcpStream::connect(addr).await;
 
             match res {
@@ -217,7 +217,7 @@ impl SystemDialer {
     }
 
     pub async fn dial_addr(addr: SocketAddr) -> Result<TcpStream> {
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "android"))]
         {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
             let stream =
@@ -225,7 +225,7 @@ impl SystemDialer {
             let _ = stream.set_nodelay(true);
             Ok(stream)
         }
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
         {
             let stream = TcpStream::connect(addr).await?;
             let _ = stream.set_nodelay(true);
