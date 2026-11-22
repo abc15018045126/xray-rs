@@ -121,20 +121,11 @@ impl AsyncWrite for DelayDialConn {
         }
     }
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        match &mut self.state {
-            DelayDialState::Connected(stream) => Pin::new(stream).poll_shutdown(cx),
-            DelayDialState::Dialing { handle, .. } => {
-                handle.abort();
-                self.state = DelayDialState::Closed;
-                self.wake_all();
-                Poll::Ready(Ok(()))
-            }
-            _ => {
-                self.state = DelayDialState::Closed;
-                self.wake_all();
-                Poll::Ready(Ok(()))
-            }
-        }
+        if let DelayDialState::Connected(stream) = &mut self.state { return Pin::new(stream).poll_shutdown(cx); }
+        if let DelayDialState::Dialing { handle, .. } = &self.state { handle.abort(); }
+        self.state = DelayDialState::Closed;
+        self.wake_all();
+        Poll::Ready(Ok(()))
     }
 }
 

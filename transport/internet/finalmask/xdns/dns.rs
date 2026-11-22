@@ -277,22 +277,13 @@ pub fn decode_rdata_txt(p: &[u8]) -> Result<Vec<u8>> {
 
 pub fn base32_encode(data: &[u8]) -> String {
     const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let mut out = String::new();
-    let mut buffer = 0u64;
-    let mut bits_left = 0;
+    let (mut out, mut buf, mut bits) = (String::new(), 0u64, 0);
     for &b in data {
-        buffer = (buffer << 8) | (b as u64);
-        bits_left += 8;
-        while bits_left >= 5 {
-            bits_left -= 5;
-            let index = ((buffer >> bits_left) & 0x1f) as usize;
-            out.push(ALPHABET[index] as char);
-        }
+        buf = (buf << 8) | b as u64;
+        bits += 8;
+        while bits >= 5 { bits -= 5; out.push(ALPHABET[((buf >> bits) & 0x1f) as usize] as char); }
     }
-    if bits_left > 0 {
-        let index = ((buffer << (5 - bits_left)) & 0x1f) as usize;
-        out.push(ALPHABET[index] as char);
-    }
+    if bits > 0 { out.push(ALPHABET[((buf << (5 - bits)) & 0x1f) as usize] as char); }
     out
 }
 

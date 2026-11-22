@@ -27,25 +27,11 @@ pub struct StreamInboundHandler {
 }
 
 impl StreamInboundHandler {
-    pub fn new(
-        inner: Arc<dyn InboundHandler>,
-        tls_server: Option<Arc<TlsServer>>,
-        is_ws: bool,
-        ws_path: Option<String>,
-        ws_host: Option<String>,
-    ) -> Self {
+    pub fn new(inner: Arc<dyn InboundHandler>, tls_server: Option<Arc<TlsServer>>, is_ws: bool, ws_path: Option<String>, ws_host: Option<String>) -> Self {
         Self {
-            inner,
-            tls_server,
-            reality_server: None,
-            is_ws,
-            ws_path,
-            ws_host,
-            httpupgrade: None,
-            splithttp_server: None,
-            sniffing_request: None,
-            uplink_counter: Arc::new(Counter::new()),
-            downlink_counter: Arc::new(Counter::new()),
+            inner, tls_server, reality_server: None, is_ws, ws_path, ws_host,
+            httpupgrade: None, splithttp_server: None, sniffing_request: None,
+            uplink_counter: Arc::new(Counter::new()), downlink_counter: Arc::new(Counter::new()),
         }
     }
     pub fn with_reality(mut self, server: Arc<RealityServer>) -> Self {

@@ -38,19 +38,11 @@ impl PolicyTimeout {
 
 impl Policy {
     pub fn override_with(&mut self, another: &Policy) {
-        if let Some(another_timeout) = &another.timeout {
-            if let Some(timeout) = &mut self.timeout {
-                timeout.override_with(another_timeout);
-            } else {
-                self.timeout = Some(another_timeout.clone());
-            }
+        if let Some(at) = &another.timeout {
+            match &mut self.timeout { Some(t) => t.override_with(at), None => self.timeout = Some(at.clone()) }
         }
-        if let Some(another_stats) = &another.stats { self.stats = Some(another_stats.clone()); }
-        if let Some(another_buffer) = &another.buffer {
-            self.buffer = Some(PolicyBuffer {
-                connection: another_buffer.connection,
-            });
-        }
+        if let Some(s) = &another.stats { self.stats = Some(s.clone()); }
+        if let Some(b) = &another.buffer { self.buffer = Some(PolicyBuffer { connection: b.connection }); }
     }
     pub fn to_core_policy(&self) -> CoreSessionPolicy {
         let mut cp = session_default();

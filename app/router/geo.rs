@@ -333,24 +333,10 @@ impl<'a> ProtoReader<'a> {
     }
     fn skip_field(&mut self, wire_type: u8) -> Option<()> {
         match wire_type {
-            0 => {
-                self.read_varint()?;
-                Some(())
-            }
-            1 => {
-                if self.pos + 8 > self.buf.len() { return None; }
-                self.pos += 8;
-                Some(())
-            }
-            2 => {
-                self.read_bytes()?;
-                Some(())
-            }
-            5 => {
-                if self.pos + 4 > self.buf.len() { return None; }
-                self.pos += 4;
-                Some(())
-            }
+            0 => self.read_varint().map(|_| ()),
+            1 => (self.pos + 8 <= self.buf.len()).then(|| self.pos += 8),
+            2 => self.read_bytes().map(|_| ()),
+            5 => (self.pos + 4 <= self.buf.len()).then(|| self.pos += 4),
             _ => None,
         }
     }
@@ -416,23 +402,14 @@ fn parse_geoip_entry_if_match(entry: &[u8], target_code: &str) -> Option<GeoIpIn
     Some(idx)
 }
 
-fn load_geosite_code_from_dat(
-    path: &Path,
-    target_code: &str,
-    attr_filter: Option<&str>,
-) -> Result<Option<GeoSiteIndex>> {
+fn load_geosite_code_from_dat(path: &Path, target_code: &str, attr_filter: Option<&str>) -> Result<Option<GeoSiteIndex>> {
     let data = std::fs::read(path)?;
     let mut r = ProtoReader::new(&data);
-    while !r.is_eof() {
-        let Some((field, wt)) = r.read_tag() else { break; };
+    while let Some((field, wt)) = (!r.is_eof()).then(|| r.read_tag()).flatten() {
         if field == 1 && wt == 2 {
-            let Some(entry_bytes) = r.read_bytes() else { break; };
-            if let Some(idx) = parse_geosite_entry_if_match(entry_bytes, target_code, attr_filter) {
-                return Ok(Some(idx));
-            }
-        } else if r.skip_field(wt).is_none() {
-            break;
-        }
+            let Some(eb) = r.read_bytes() else { break; };
+            if let Some(idx) = parse_geosite_entry_if_match(eb, target_code, attr_filter) { return Ok(Some(idx)); }
+        } else if r.skip_field(wt).is_none() { break; }
     }
     Ok(None)
 }

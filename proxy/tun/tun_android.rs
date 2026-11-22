@@ -5,12 +5,7 @@ pub const TUN_FD_ENV_ALT_KEY: &str = "XRAY_TUN_FD";
 
 pub fn read_android_tun_fd_from_env() -> Result<i32> {
     let raw = std::env::var(TUN_FD_ENV_KEY).or_else(|_| std::env::var(TUN_FD_ENV_ALT_KEY))
-        .map_err(|_| {
-            Error::Config(format!(
-                "Android TUN fd not set (expected env '{}' or '{}')",
-                TUN_FD_ENV_KEY, TUN_FD_ENV_ALT_KEY
-            ))
-        })?;
+        .map_err(|_| Error::Config(format!("Android TUN fd not set (expected env '{}' or '{}')", TUN_FD_ENV_KEY, TUN_FD_ENV_ALT_KEY)))?;
     let fd: i32 = raw.trim().parse().map_err(|e| Error::Config(format!("Invalid Android TUN fd '{}': {}", raw, e)))?;
     if fd <= 0 { return Err(Error::Config(format!("Android TUN fd must be positive, got {}", fd))); }
     Ok(fd)

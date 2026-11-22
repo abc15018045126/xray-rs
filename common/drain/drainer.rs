@@ -25,16 +25,15 @@ impl BehaviorSeedLimitedDrainer {
         }
     }
     pub async fn drain<R: AsyncRead + Unpin>(&self, reader: &mut R) -> Result<()> {
-        if self.drain_size > 0 {
-            let mut remaining = self.drain_size;
-            let mut buf = vec![0u8; remaining.min(8192)];
-            while remaining > 0 {
-                let to_read = remaining.min(buf.len());
-                match reader.read_exact(&mut buf[..to_read]).await {
-                    Ok(_) => remaining -= to_read,
-                    Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-                    Err(e) => return Err(Error::Io(e)),
-                }
+        let mut remaining = self.drain_size;
+        if remaining == 0 { return Ok(()); }
+        let mut buf = vec![0u8; remaining.min(8192)];
+        while remaining > 0 {
+            let n = remaining.min(buf.len());
+            match reader.read_exact(&mut buf[..n]).await {
+                Ok(_) => remaining -= n,
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(e) => return Err(Error::Io(e)),
             }
         }
         Ok(())

@@ -22,16 +22,10 @@ impl DnsClient for LocalDnsClient {
         Ok(addrs.map(|a| a.ip()).collect())
     }
     async fn lookup_ip_with_option(&self, domain: &str, option: IPOption) -> Result<(Vec<IpAddr>, u32)> {
-        let addrs = tokio::net::lookup_host(format!("{}:0", domain)).await?;
-        let mut ips = Vec::new();
-        for addr in addrs {
-            let ip = addr.ip();
-            match ip {
-                IpAddr::V4(_) if option.ipv4_enable => ips.push(ip),
-                IpAddr::V6(_) if option.ipv6_enable => ips.push(ip),
-                _ => {}
-            }
-        }
+        let ips: Vec<IpAddr> = tokio::net::lookup_host(format!("{}:0", domain)).await?
+            .map(|a| a.ip())
+            .filter(|ip| (ip.is_ipv4() && option.ipv4_enable) || (ip.is_ipv6() && option.ipv6_enable))
+            .collect();
         if ips.is_empty() { return Err(Error::NotFound("Empty DNS response".into())); }
         Ok((ips, DEFAULT_TTL))
     }

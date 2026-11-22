@@ -21,23 +21,10 @@ pub fn gen_curve25519(input_key: Option<&[u8]>) -> Result<([u8; 32], [u8; 32], [
 }
 
 pub fn cmd_curve25519() -> Command {
-    Command::new("curve25519", "xray curve25519 [-i key] [-std]", "Generate Curve25519 keypair and hash")
-    .with_run(|args| {
+    Command::new("curve25519", "xray curve25519 [-i key] [-std]", "Generate Curve25519 keypair and hash").with_run(|args| {
         let (priv_k, pub_k, hash) = gen_curve25519(None)?;
-        let std_enc = args.contains(&"-std");
-        let encode = |b: &[u8]| {
-            if std_enc {
-                STANDARD.encode(b)
-            } else {
-                URL_SAFE_NO_PAD.encode(b)
-            }
-        };
-        Ok(format!(
-            "PrivateKey: {}\nPassword (PublicKey): {}\nHash32: {}",
-            encode(&priv_k),
-            encode(&pub_k),
-            encode(&hash)
-        ))
+        let enc = |b: &[u8]| if args.contains(&"-std") { STANDARD.encode(b) } else { URL_SAFE_NO_PAD.encode(b) };
+        Ok(format!("PrivateKey: {}\nPassword (PublicKey): {}\nHash32: {}", enc(&priv_k), enc(&pub_k), enc(&hash)))
     })
 }
 

@@ -59,21 +59,11 @@ pub struct SessionContext {
 impl SessionContext {
     pub fn new(inbound_tag: impl Into<String>, destination: Destination) -> Self {
         Self {
-            inbound_tag: inbound_tag.into(),
-            original_destination: Some(destination.clone()),
-            destination,
-            source: None,
-            outbound_tag: None,
-            user: None,
-            sniffing_request: None,
-            route_target: None,
-            forced_outbound_tag: None,
-            sniffed_protocol: None,
-            sniffed_domain: None,
-            #[cfg(debug_assertions)]
-            debug_trace_id: None,
-            #[cfg(debug_assertions)]
-            debug_trace_origin: None,
+            inbound_tag: inbound_tag.into(), original_destination: Some(destination.clone()), destination,
+            source: None, outbound_tag: None, user: None, sniffing_request: None,
+            route_target: None, forced_outbound_tag: None, sniffed_protocol: None, sniffed_domain: None,
+            #[cfg(debug_assertions)] debug_trace_id: None,
+            #[cfg(debug_assertions)] debug_trace_origin: None,
         }
     }
     pub fn with_sniffing(mut self, req: crate::common::session::SniffingRequest) -> Self {

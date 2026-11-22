@@ -23,18 +23,13 @@ where
 }
 
 pub async fn listen_tcp(address: &Address, port: u16) -> Result<TcpListener> {
-    let addr = match address {
-        Address::Ipv4(ip) => SocketAddr::new(std::net::IpAddr::V4(*ip), port),
-        Address::Ipv6(ip) => SocketAddr::new(std::net::IpAddr::V6(*ip), port),
-        Address::Domain(domain) => {
-            if domain == "localhost" {
-                SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), port)
-            } else {
-                return Err(Error::Protocol(format!("Domain address not allowed for listening: {}", domain)));
-            }
-        }
+    let ip = match address {
+        Address::Ipv4(ip) => std::net::IpAddr::V4(*ip),
+        Address::Ipv6(ip) => std::net::IpAddr::V6(*ip),
+        Address::Domain(d) if d == "localhost" => std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        Address::Domain(d) => return Err(Error::Protocol(format!("Domain address not allowed for listening: {}", d))),
     };
-    TcpListener::bind(addr).await.map_err(Into::into)
+    TcpListener::bind(SocketAddr::new(ip, port)).await.map_err(Into::into)
 }
 
 pub async fn listen_system(addr: SocketAddr) -> Result<TcpListener> {

@@ -137,18 +137,14 @@ impl SystemDialer {
     }
     pub async fn dial_addr(addr: SocketAddr) -> Result<TcpStream> {
         #[cfg(any(target_os = "windows", target_os = "android"))]
-        {
+        let stream = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let stream = crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await?;
-            let _ = stream.set_nodelay(true);
-            Ok(stream)
-        }
+            crate::proxy::tun::socket_helpers::new_tcp_stream(addr, iface.as_ref()).await?
+        };
         #[cfg(all(not(target_os = "windows"), not(target_os = "android")))]
-        {
-            let stream = TcpStream::connect(addr).await?;
-            let _ = stream.set_nodelay(true);
-            Ok(stream)
-        }
+        let stream = TcpStream::connect(addr).await?;
+        let _ = stream.set_nodelay(true);
+        Ok(stream)
     }
     pub async fn dial(src: Option<&Address>, dest: &Destination, sockopt: Option<&SocketOptions>) -> Result<BoxStream> {
         let dialer = DefaultSystemDialer::new();

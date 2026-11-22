@@ -159,23 +159,14 @@ impl KcpConnection {
         Ok(())
     }
     pub async fn flush(&self) -> Result<()> {
-        let current = now_millis();
-        let rto = {
-            let rtt = self.rtt_info.lock().await;
-            rtt.rto
-        };
-        let mut to_send = Vec::new();
-        {
-            let mut s_wnd = self.send_window.lock().await;
-            s_wnd.flush(current, rto, 128 * 1024, &mut to_send);
-        }
+        let (current, rto, mut to_send) = (now_millis(), self.rtt_info.lock().await.rto, Vec::new());
+        self.send_window.lock().await.flush(current, rto, 128 * 1024, &mut to_send);
         for seg in to_send {
             let mut buf = vec![0u8; seg.byte_size()];
             let len = seg.serialize(&mut buf)?;
             self.send_packet(&buf[..len]).await?;
         }
-        self.flush_acks().await?;
-        Ok(())
+        self.flush_acks().await
     }
     pub async fn recv(&self, buf: &mut [u8]) -> Result<usize> {
         let mut stream = self.received_stream_buf.lock().await;

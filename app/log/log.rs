@@ -35,19 +35,11 @@ impl MaskedMsgWrapper {
     pub fn new(mask4: u8, mask6: u8) -> Self { Self { mask4, mask6 } }
     pub fn mask_ipv4_string(&self, s: &str) -> String {
         if self.mask4 == 32 { return s.to_string(); }
-        if self.mask4 == 0 { return "[Masked IPv4]".to_string(); }
+        if self.mask4 == 0 { return "[Masked IPv4]".into(); }
         let parts: Vec<&str> = s.split('.').collect();
         if parts.len() != 4 { return s.to_string(); }
-        let keep_parts = (self.mask4 / 8) as usize;
-        let mut out = Vec::new();
-        for (i, p) in parts.iter().enumerate() {
-            if i < keep_parts {
-                out.push(*p);
-            } else {
-                out.push("*");
-            }
-        }
-        out.join(".")
+        let keep = (self.mask4 / 8) as usize;
+        parts.iter().enumerate().map(|(i, p)| if i < keep { *p } else { "*" }).collect::<Vec<_>>().join(".")
     }
 }
 

@@ -12,16 +12,11 @@ impl TlsSniffHeader {
 
 pub fn sniff_tls(b: &[u8]) -> Result<TlsSniffHeader> {
     if b.len() < 5 { return Err(Error::Protocol("TLS payload too short".into())); }
-    if b[0] != 0x16
-    /* TLS Handshake */
-    { return Err(Error::Protocol("not TLS handshake".into())); }
-    let major = b[1];
-    if major != 3 { return Err(Error::Protocol("not valid TLS version".into())); }
-    let header_len = u16::from_be_bytes([b[3], b[4]]) as usize;
-    if 5 + header_len > b.len() { return Err(Error::Protocol("incomplete TLS record".into())); }
-    let data = &b[5..5 + header_len];
-    let domain = read_client_hello(data)?;
-    Ok(TlsSniffHeader { domain })
+    if b[0] != 0x16 { return Err(Error::Protocol("not TLS handshake".into())); }
+    if b[1] != 3 { return Err(Error::Protocol("not valid TLS version".into())); }
+    let len = u16::from_be_bytes([b[3], b[4]]) as usize;
+    if 5 + len > b.len() { return Err(Error::Protocol("incomplete TLS record".into())); }
+    Ok(TlsSniffHeader { domain: read_client_hello(&b[5..5 + len])? })
 }
 
 pub fn read_client_hello(mut data: &[u8]) -> Result<String> {

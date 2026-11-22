@@ -30,15 +30,10 @@ impl NameServer for QuicNameServer {
     fn name(&self) -> &str { &self.name }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         if let Some(ips) = self.cache.get(domain) { return Ok(ips); }
-        let _query = build_dns_query(domain);
-        let addr_str = format!("{}:80", domain);
-        let addrs = tokio::net::lookup_host(addr_str).await.map_err(Error::Io)?;
-        let ips: Vec<IpAddr> = addrs.map(|s| s.ip()).collect();
-        if ips.is_empty() {
-            Err(Error::NotFound(format!("DoQ DNS could not resolve {}", domain)))
-        } else {
-            self.cache.set(domain, ips.clone(), Duration::from_secs(300));
-            Ok(ips)
-        }
+        let _ = build_dns_query(domain);
+        let ips: Vec<IpAddr> = tokio::net::lookup_host(format!("{}:80", domain)).await.map_err(Error::Io)?.map(|s| s.ip()).collect();
+        if ips.is_empty() { return Err(Error::NotFound(format!("DoQ DNS could not resolve {}", domain))); }
+        self.cache.set(domain, ips.clone(), Duration::from_secs(300));
+        Ok(ips)
     }
 }

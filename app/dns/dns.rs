@@ -201,18 +201,8 @@ impl DnsClient {
         Some(filtered)
     }
     pub fn lookup_hosts_or_cache_ipv6(&self, domain: &str) -> Vec<IpAddr> {
-        let clean = domain.trim_end_matches('.');
-        let opt = IPOption {
-            ipv4_enable: false,
-            ipv6_enable: true,
-            fake_enable: false,
-        };
-        if let Some(ips) = self.hosts.lookup(clean) {
-            let filtered = self.filter_ips(&ips, &opt);
-            if !filtered.is_empty() { return filtered; }
-        }
-        if !self.disable_cache && let Some(ips) = self.cache.get(clean)
-        {
+        let (clean, opt) = (domain.trim_end_matches('.'), IPOption { ipv4_enable: false, ipv6_enable: true, fake_enable: false });
+        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
             let filtered = self.filter_ips(&ips, &opt);
             if !filtered.is_empty() { return filtered; }
         }

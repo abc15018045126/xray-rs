@@ -111,24 +111,11 @@ impl ByteLayout {
 }
 
 pub fn ascii_layout() -> ByteLayout {
-    let padding: Vec<u8> = (0..32).map(|i| 0x20 + i).collect();
-    let encode_group: EncodeGroupFn = Arc::new(|group: u8| {
-        let b = 0x40 | (group & 0x3f);
-        if b == 0x7f { b'\n' } else { b }
-    });
-    let decode_group: DecodeGroupFn = Arc::new(|b: u8| {
-        if b == b'\n' { return Some(0x3f); }
-        if (b & 0x40) == 0 { return None; }
-        Some(b & 0x3f)
-    });
+    let encode_group: EncodeGroupFn = Arc::new(|g| { let b = 0x40 | (g & 0x3f); if b == 0x7f { b'\n' } else { b } });
+    let decode_group: DecodeGroupFn = Arc::new(|b| if b == b'\n' { Some(0x3f) } else { ((b & 0x40) != 0).then_some(b & 0x3f) });
     ByteLayout {
-        hint_mask: 0x40,
-        hint_value: 0x40,
-        pad_marker: 0x3f,
-        padding_pool: padding,
-        encode_hint: encode_group.clone(),
-        encode_group,
-        decode_group,
+        hint_mask: 0x40, hint_value: 0x40, pad_marker: 0x3f, padding_pool: (0x20..0x40).collect(),
+        encode_hint: encode_group.clone(), encode_group, decode_group,
     }
 }
 

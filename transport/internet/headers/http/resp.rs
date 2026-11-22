@@ -11,28 +11,4 @@ fn make_resp(code: &str, reason: &str) -> ResponseConfig {
 
 pub fn resp400() -> ResponseConfig { make_resp("400", "Bad Request") }
 
-pub fn resp404() -> ResponseConfig {
-    ResponseConfig {
-        version: Some(Version {
-            value: "1.1".into(),
-        }),
-        status: Some(Status {
-            code: "404".into(),
-            reason: "Not Found".into(),
-        }),
-        header: vec![
-            Header {
-                name: "Connection".into(),
-                value: vec!["close".into()],
-            },
-            Header {
-                name: "Cache-Control".into(),
-                value: vec!["private".into()],
-            },
-            Header {
-                name: "Content-Length".into(),
-                value: vec!["0".into()],
-            },
-        ],
-    }
-}
+pub fn resp404() -> ResponseConfig { make_resp("404", "Not Found") }

@@ -40,14 +40,9 @@ impl SessionHeader {
         writer.write_u64(self.timestamp).await?;
         writer.write_u64(self.session_id).await?;
         if self.header_type == HEADER_TYPE_CLIENT {
-            if let Some(dest) = &self.destination {
-                let dest_str = dest.to_string();
-                let bytes = dest_str.as_bytes();
-                writer.write_u16(bytes.len() as u16).await?;
-                writer.write_all(bytes).await?;
-            } else {
-                writer.write_u16(0).await?;
-            }
+            let s = self.destination.as_ref().map(ToString::to_string).unwrap_or_default();
+            writer.write_u16(s.len() as u16).await?;
+            if !s.is_empty() { writer.write_all(s.as_bytes()).await?; }
         }
         Ok(())
     }

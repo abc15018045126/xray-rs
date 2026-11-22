@@ -9,19 +9,13 @@ pub struct BlackholeHandler {
 impl BlackholeHandler {
     pub fn new(config: BlackholeConfig) -> Self { Self { config } }
     pub async fn handle<W: AsyncWrite + Unpin>(&self, mut writer: W) -> Result<()> {
-        match self.config.response {
-            ResponseType::None => Ok(()),
-            ResponseType::Http403 => {
-                writer.write_all(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n").await?;
-                writer.flush().await?;
-                Ok(())
-            }
-            ResponseType::Http500 => {
-                writer.write_all(b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n").await?;
-                writer.flush().await?;
-                Ok(())
-            }
-        }
+        let msg: Option<&[u8]> = match self.config.response {
+            ResponseType::None => None,
+            ResponseType::Http403 => Some(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"),
+            ResponseType::Http500 => Some(b"HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n"),
+        };
+        if let Some(b) = msg { writer.write_all(b).await?; writer.flush().await?; }
+        Ok(())
     }
 }
 

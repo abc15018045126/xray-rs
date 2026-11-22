@@ -6,18 +6,13 @@ use sha2::{Digest, Sha256};
 
 pub fn gen_mlkem768(input_seed: Option<&[u8]>) -> ([u8; 64], Vec<u8>, [u8; 32]) {
     let mut seed = [0u8; 64];
-    if let Some(s) = input_seed {
-        if s.len() == 64 { seed.copy_from_slice(s); }
-    } else {
-        rand::thread_rng().fill_bytes(&mut seed);
+    match input_seed {
+        Some(s) if s.len() == 64 => seed.copy_from_slice(s),
+        Some(_) => {}
+        None => rand::thread_rng().fill_bytes(&mut seed),
     }
-    let mut hasher = Sha256::new();
-    hasher.update(b"ML-KEM-768-CLIENT-KEY-DERIVATION");
-    hasher.update(seed);
-    let client = hasher.finalize().to_vec();
-    let mut hash_hasher = Sha256::new();
-    hash_hasher.update(&client);
-    let hash32: [u8; 32] = hash_hasher.finalize().into();
+    let client = Sha256::new().chain_update(b"ML-KEM-768-CLIENT-KEY-DERIVATION").chain_update(seed).finalize().to_vec();
+    let hash32: [u8; 32] = Sha256::digest(&client).into();
     (seed, client, hash32)
 }
 

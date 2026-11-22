@@ -66,14 +66,9 @@ impl NameServer for UdpNameServer {
     fn name(&self) -> &str { "udp" }
     fn routes_via_proxy(&self) -> bool {
         let Some(ctx) = self.routing.as_ref().and_then(|c| c.get()) else { return false; };
-        let addr = match self.server_addr.ip() {
-            IpAddr::V4(v4) => Address::Ipv4(v4),
-            IpAddr::V6(v6) => Address::Ipv6(v6),
-        };
-        let dest = Destination::udp(addr, self.server_addr.port());
+        let dest = Destination::udp(Address::ip(self.server_addr.ip()), self.server_addr.port());
         let session = SessionContext::new(self.tag.as_deref().unwrap_or("dns"), dest);
-        let picked = ctx.router.pick_outbound(&session).unwrap_or("direct");
-        !matches!(picked, "direct" | "freedom" | "dns" | "block" | "blackhole")
+        !matches!(ctx.router.pick_outbound(&session).unwrap_or("direct"), "direct" | "freedom" | "dns" | "block" | "blackhole")
     }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let clean = domain.trim_end_matches('.');

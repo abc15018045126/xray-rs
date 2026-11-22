@@ -23,16 +23,11 @@ impl UpgradedStream {
 }
 
 impl AsyncRead for UpgradedStream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>, buf: &mut tokio::io::ReadBuf<'_>) -> std::task::Poll<std::io::Result<()>> {
         if self.prefix_pos < self.prefix.len() {
-            let available = self.prefix.len() - self.prefix_pos;
-            let to_read = available.min(buf.remaining());
-            buf.put_slice(&self.prefix[self.prefix_pos..self.prefix_pos + to_read]);
-            self.prefix_pos += to_read;
+            let n = (self.prefix.len() - self.prefix_pos).min(buf.remaining());
+            buf.put_slice(&self.prefix[self.prefix_pos..self.prefix_pos + n]);
+            self.prefix_pos += n;
             return std::task::Poll::Ready(Ok(()));
         }
         Pin::new(&mut self.inner).poll_read(cx, buf)

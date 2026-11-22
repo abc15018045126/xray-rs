@@ -46,18 +46,9 @@ impl MphMatcherGroup {
     }
     pub fn add_pattern(&mut self, pattern: &str, t: MatcherType) -> Result<u32> {
         match t {
-            MatcherType::Substr => {
-                let ac = self.ac.get_or_insert_with(AcAutomatonMatcher::new);
-                ac.add(pattern, t);
-            }
-            MatcherType::Full | MatcherType::Domain => {
-                let pattern_lower = pattern.to_lowercase();
-                self.add_full_or_domain_pattern(&pattern_lower, t);
-            }
-            MatcherType::Regex => {
-                let r = RegexMatcher::new(pattern)?;
-                self.other_matchers.push((r, self.count));
-            }
+            MatcherType::Substr => self.ac.get_or_insert_with(AcAutomatonMatcher::new).add(pattern, t),
+            MatcherType::Full | MatcherType::Domain => self.add_full_or_domain_pattern(&pattern.to_lowercase(), t),
+            MatcherType::Regex => self.other_matchers.push((RegexMatcher::new(pattern)?, self.count)),
         }
         Ok(self.count)
     }
