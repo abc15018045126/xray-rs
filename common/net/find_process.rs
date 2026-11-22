@@ -41,20 +41,9 @@ impl ProcessFinder {
 }
 
 #[cfg(target_os = "windows")]
-#[allow(unsafe_code)]
 pub mod windows_impl {
     use super::ProcessInfo;
-    use std::ffi::c_void;
     use std::net::{IpAddr, SocketAddr};
-    use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, GetExtendedUdpTable, TCP_TABLE_OWNER_PID_CONNECTIONS,
-        UDP_TABLE_OWNER_PID,
-    };
-    use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
-        QueryFullProcessImageNameW,
-    };
     const AF_INET: u32 = 2;
     const AF_INET6: u32 = 23;
     pub fn find_process(is_tcp: bool, src: SocketAddr) -> Option<ProcessInfo> {
@@ -72,21 +61,7 @@ pub mod windows_impl {
         Some(get_process_info_from_pid(pid))
     }
     fn search_tcp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
-        let mut size: u32 = 0;
-        unsafe { let _ = GetExtendedTcpTable(None, &mut size, false, family, TCP_TABLE_OWNER_PID_CONNECTIONS, 0); }
-        if size == 0 { return None; }
-        let mut buf = vec![0u8; size as usize];
-        let ret = unsafe {
-            GetExtendedTcpTable(
-                Some(buf.as_mut_ptr() as *mut c_void),
-                &mut size,
-                false,
-                family,
-                TCP_TABLE_OWNER_PID_CONNECTIONS,
-                0,
-            )
-        };
-        if ret != 0 { return None; }
+        let buf = xray_rs_window::get_extended_tcp_table(family)?;
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
         let (item_size, port_offset, ip_offset, ip_len, pid_offset, state_offset) =
             if family == AF_INET {
@@ -117,14 +92,7 @@ pub mod windows_impl {
         None
     }
     fn search_udp(family: u32, ip: IpAddr, port: u16) -> Option<u32> {
-        let mut size = 0u32;
-        unsafe { let _ = GetExtendedUdpTable(None, &mut size, false, family, UDP_TABLE_OWNER_PID, 0); }
-        if size == 0 { return None; }
-        let mut buf = vec![0u8; size as usize];
-        let ret = unsafe {
-            GetExtendedUdpTable(Some(buf.as_mut_ptr() as *mut c_void), &mut size, false, family, UDP_TABLE_OWNER_PID, 0)
-        };
-        if ret != 0 { return None; }
+        let buf = xray_rs_window::get_extended_udp_table(family)?;
         let num_entries = u32::from_ne_bytes(buf[0..4].try_into().ok()?) as usize;
         let (item_size, port_off, ip_len, pid_off) = if family == AF_INET { (12, 4, 4, 8) } else { (28, 20, 16, 24) };
         for row in buf[4..].chunks_exact(item_size).take(num_entries) {
@@ -156,14 +124,8 @@ pub mod windows_impl {
             }
             _ => {}
         }
-        unsafe {
-            if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-                let mut buf = [0u16; 1024];
-                let mut len = buf.len() as u32;
-                let res = QueryFullProcessImageNameW(handle, PROCESS_NAME_FORMAT(0), windows::core::PWSTR(buf.as_mut_ptr()), &mut len);
-                let _ = CloseHandle(handle);
-                if res.is_ok() && len > 0 { return from_path(String::from_utf16_lossy(&buf[..len as usize])); }
-            }
+        if let Some(raw) = xray_rs_window::query_process_image_path(pid) {
+            return from_path(raw);
         }
         ProcessInfo { pid, name: format!("pid-{}", pid), path: String::new() }
     }

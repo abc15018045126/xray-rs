@@ -1,87 +1,46 @@
-#![allow(unsafe_code)]
 use ipnet::IpNet;
 use std::{io, net::SocketAddr};
 use tracing::{debug, error, info, warn};
-use windows::Win32::{
-    Foundation::ERROR_OBJECT_ALREADY_EXISTS,
-    NetworkManagement::IpHelper::{
-        CreateIpForwardEntry2, CreateUnicastIpAddressEntry, DeleteIpForwardEntry2,
-        IP_ADDRESS_PREFIX, InitializeIpForwardEntry, MIB_IPFORWARD_ROW2,
-        MIB_UNICASTIPADDRESS_ROW,
-    },
-    Networking::WinSock::{IpPrefixOriginManual, IpSuffixOriginManual},
-};
 
 use super::super::config::TunConfig;
 use super::super::net::OutboundInterface;
 
 pub fn add_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     warn!("adding route to destination {} via {}", dest, via.name);
-    let mut row = MIB_IPFORWARD_ROW2::default();
-    unsafe { InitializeIpForwardEntry(&mut row); }
-    row.InterfaceIndex = via.index;
-    row.DestinationPrefix = IP_ADDRESS_PREFIX {
-        Prefix: SocketAddr::new(dest.addr(), 0).into(),
-        PrefixLength: dest.prefix_len(),
-    };
-    let metric = 0;
     let next_hop: SocketAddr = if dest.addr().is_ipv4() {
         (via.addr_v4.ok_or_else(|| io::Error::other("tun interface has no ipv4 address"))?, 0).into()
     } else {
         (via.addr_v6.ok_or_else(|| io::Error::other("tun interface has no ipv6 address"))?, 0).into()
     };
-    row.NextHop = next_hop.into();
-    row.Metric = metric;
-    if let Err(e) = unsafe { CreateIpForwardEntry2(&row) }.to_hresult().ok() {
-        if e.code().0 == ERROR_OBJECT_ALREADY_EXISTS.0 as i32 || e.code().0 as u32 == 0x80071392 {
-            warn!("route to destination {} via {} already exists", dest, via.name);
-            return Ok(());
+    match xray_rs_window::add_ip_forward_entry(via.index, dest, next_hop, 0) {
+        Ok(true) => info!("successfully added route to destination {} via {}", dest, via.name),
+        Ok(false) => warn!("route to destination {} via {} already exists", dest, via.name),
+        Err(e) => {
+            error!("failed to add route to destination {} via {}: {}", dest, via.name, e);
+            return Err(e);
         }
-        error!("failed to add route to destination {} via {}: {}", dest, via.name, e);
-        return Err(io::Error::other(e.to_string()));
     }
-    info!("successfully added route to destination {} via {}", dest, via.name);
     Ok(())
 }
 
 pub fn delete_route(via: &OutboundInterface, dest: &IpNet) -> io::Result<()> {
     warn!("deleting route to destination {} via {}", dest, via.name);
-    let mut row = MIB_IPFORWARD_ROW2::default();
-    unsafe { InitializeIpForwardEntry(&mut row); }
-    row.InterfaceIndex = via.index;
-    row.DestinationPrefix = IP_ADDRESS_PREFIX {
-        Prefix: SocketAddr::new(dest.addr(), 0).into(),
-        PrefixLength: dest.prefix_len(),
-    };
     let next_hop: SocketAddr = if dest.addr().is_ipv4() {
-        if let Some(v4) = via.addr_v4 {
-            (v4, 0).into()
-        } else {
-            return Ok(());
-        }
+        let Some(v4) = via.addr_v4 else { return Ok(()); };
+        (v4, 0).into()
     } else {
-        if let Some(v6) = via.addr_v6 {
-            (v6, 0).into()
-        } else {
-            return Ok(());
-        }
+        let Some(v6) = via.addr_v6 else { return Ok(()); };
+        (v6, 0).into()
     };
-    row.NextHop = next_hop.into();
-    let res = unsafe { DeleteIpForwardEntry2(&row) }.to_hresult();
-    if let Err(e) = res.ok() { debug!("delete route to destination {} via {}: {}", dest, via.name, e); }
+    if let Err(e) = xray_rs_window::delete_ip_forward_entry(via.index, dest, next_hop) {
+        debug!("delete route to destination {} via {}: {}", dest, via.name, e);
+    }
     Ok(())
 }
 
 #[allow(dead_code)]
 pub fn add_address(iface: &OutboundInterface, addr_net: IpNet) -> io::Result<()> {
-    let row = MIB_UNICASTIPADDRESS_ROW {
-        InterfaceIndex: iface.index, Address: SocketAddr::new(addr_net.addr(), 0).into(), OnLinkPrefixLength: addr_net.prefix_len(),
-        PrefixOrigin: IpPrefixOriginManual, SuffixOrigin: IpSuffixOriginManual,
-        ValidLifetime: 0xffffffff, PreferredLifetime: 0xffffffff, SkipAsSource: false, ..Default::default()
-    };
-    let res = unsafe { CreateUnicastIpAddressEntry(&row) }.to_hresult();
-    if res.is_ok() || res == ERROR_OBJECT_ALREADY_EXISTS.to_hresult() { Ok(()) }
-    else { Err(io::Error::other(format!("failed to add address to tun interface: {}", res.message()))) }
+    xray_rs_window::add_unicast_ip_address(iface.index, addr_net)
 }
 
 pub fn maybe_routes_clean_up(cfg: &TunConfig, tun_name: &str) -> io::Result<()> {

@@ -82,10 +82,8 @@ pingora-load-balancing = { version = "0.9.1", features = ["rustls"] }
 [target.'cfg(all(not(windows), not(target_os = "android")))'.dependencies]
 tun = { version = "0.8.14", features = ["async"] }
 
-[target.'cfg(target_os = "android")'.dependencies]
-libc = "0.2"
-
 [target.'cfg(windows)'.dependencies]
+xray-rs-window = { path = "1/xray-rs-window", version = "0.1.0" }
 wintun = { package = "wintun-rs", version = "0.0.6" }
 windows = { version = "0.62", features = [
     "Win32_Networking_WinSock",
@@ -99,7 +97,7 @@ windows = { version = "0.62", features = [
 ] }
 
 [lints.rust]
-unsafe_code = "deny"
+unsafe_code = "forbid"
 warnings = "deny"
 future_incompatible = { level = "deny", priority = -1 }
 rust_2018_idioms = { level = "deny", priority = -1 }

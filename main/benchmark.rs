@@ -21,26 +21,7 @@ const THROUGHPUT_BYTES: usize = 50 * 1024 * 1024;
 
 #[cfg(target_os = "windows")]
 fn get_process_memory_mb(pid: u32) -> f64 {
-    use windows::Win32::{
-        Foundation::CloseHandle,
-        System::{
-            ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS},
-            Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
-        },
-    };
-    #[allow(unsafe_code)]
-    unsafe {
-        let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid) else {
-            return 0.0;
-        };
-        let mut counters = PROCESS_MEMORY_COUNTERS {
-            cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
-            ..Default::default()
-        };
-        let ok = GetProcessMemoryInfo(handle, &mut counters, counters.cb).is_ok();
-        let _ = CloseHandle(handle);
-        if ok { counters.WorkingSetSize as f64 / (1024.0 * 1024.0) } else { 0.0 }
-    }
+    xray_rs_window::get_process_memory_mb(pid)
 }
 
 #[cfg(not(target_os = "windows"))]

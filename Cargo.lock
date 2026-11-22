@@ -3433,7 +3433,6 @@ dependencies = [
  "http",
  "httparse",
  "ipnet",
- "libc",
  "log",
  "md-5",
  "network-interface",
@@ -3465,6 +3464,15 @@ dependencies = [
  "windows",
  "wintun-rs",
  "x25519-dalek",
+ "xray-rs-window",
+]
+
+[[package]]
+name = "xray-rs-window"
+version = "0.1.0"
+dependencies = [
+ "ipnet",
+ "windows",
 ]
 
 [[package]]
