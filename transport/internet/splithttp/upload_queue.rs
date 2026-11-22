@@ -84,32 +84,21 @@ impl UploadQueue {
     pub async fn read(&self, buf: &mut [u8]) -> Result<usize> {
         let mut inner = self.inner.lock().await;
         let mut written = 0;
-
         while written < buf.len() {
-            if let Some(top) = inner.heap.peek() {
-                if top.seq == inner.next_seq {
-                    let mut packet = inner.heap.pop().unwrap();
-                    let take = (buf.len() - written).min(packet.payload.len());
-                    buf[written..written + take].copy_from_slice(&packet.payload[..take]);
-                    written += take;
-
-                    if take < packet.payload.len() {
-                        packet.payload.drain(..take);
-                        inner.heap.push(packet);
-                        break;
-                    } else {
-                        inner.next_seq += 1;
-                    }
-                } else if top.seq < inner.next_seq {
-                    inner.heap.pop();
-                } else {
-                    break;
-                }
-            } else {
+            let Some(seq) = inner.heap.peek().map(|p| p.seq) else { break; };
+            if seq < inner.next_seq { inner.heap.pop(); continue; }
+            if seq != inner.next_seq { break; }
+            let mut packet = inner.heap.pop().unwrap();
+            let take = (buf.len() - written).min(packet.payload.len());
+            buf[written..written + take].copy_from_slice(&packet.payload[..take]);
+            written += take;
+            if take < packet.payload.len() {
+                packet.payload.drain(..take);
+                inner.heap.push(packet);
                 break;
             }
+            inner.next_seq += 1;
         }
-
         Ok(written)
     }
 

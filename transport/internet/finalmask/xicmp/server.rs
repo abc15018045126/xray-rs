@@ -53,41 +53,20 @@ impl XIcmpServer {
         }))
     }
 
-    pub fn encode_reply(
-        &self,
-        req: &XIcmpServerRequest,
-        payload: Option<&[u8]>,
-    ) -> Result<Vec<u8>> {
-        let typ = if self.is_ipv6 {
-            ICMP_TYPE_ECHO_REPLY_V6
-        } else {
-            ICMP_TYPE_ECHO_REPLY_V4
-        };
-
-        let mut data = Vec::new();
-        if req.need_seq_byte {
-            let mut b2 = rand::random::<u8>();
-            while b2 == req.seq_byte {
-                b2 = rand::random::<u8>();
-            }
-            data.push(b2);
-        }
-
-        if let Some(p) = payload {
-            data.extend_from_slice(p);
-        }
-
-        let mut pkt = Vec::with_capacity(8 + data.len());
-        pkt.push(typ);
-        pkt.push(0);
-        pkt.extend_from_slice(&[0, 0]);
+    pub fn encode_reply(&self, req: &XIcmpServerRequest, payload: Option<&[u8]>) -> Result<Vec<u8>> {
+        let typ = if self.is_ipv6 { ICMP_TYPE_ECHO_REPLY_V6 } else { ICMP_TYPE_ECHO_REPLY_V4 };
+        let mut pkt = Vec::with_capacity(9 + payload.map_or(0, <[u8]>::len));
+        pkt.extend_from_slice(&[typ, 0, 0, 0]);
         pkt.extend_from_slice(&req.id.to_be_bytes());
         pkt.extend_from_slice(&req.seq.to_be_bytes());
-        pkt.extend_from_slice(&data);
-
+        if req.need_seq_byte {
+            let mut b2 = rand::random::<u8>();
+            while b2 == req.seq_byte { b2 = rand::random::<u8>(); }
+            pkt.push(b2);
+        }
+        if let Some(p) = payload { pkt.extend_from_slice(p); }
         let csum = calculate_checksum(&pkt);
         pkt[2..4].copy_from_slice(&csum.to_be_bytes());
-
         Ok(pkt)
     }
 }

@@ -54,32 +54,14 @@ impl NameServer for UdpNameServer {
         #[cfg(target_os = "windows")]
         let socket = {
             let iface = crate::proxy::tun::DEFAULT_OUTBOUND_INTERFACE.read().await;
-            let sock = crate::proxy::tun::socket_helpers::new_udp_socket(
-                None,
-                iface.as_ref(),
-                Some(self.server_addr),
-            )
-            .await
-            .map_err(Error::Io)?;
-            sock.connect(self.server_addr).await?;
-            sock
+            crate::proxy::tun::socket_helpers::new_udp_socket(None, iface.as_ref(), Some(self.server_addr)).await.map_err(Error::Io)?
         };
         #[cfg(not(target_os = "windows"))]
-        let socket = {
-            let s = UdpSocket::bind("0.0.0.0:0").await?;
-            s.connect(self.server_addr).await?;
-            s
-        };
-
-        let query = build_dns_query(domain);
-        socket.send(&query).await?;
-
+        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        socket.connect(self.server_addr).await?;
+        socket.send(&build_dns_query(domain)).await?;
         let mut resp = [0u8; 1024];
-        let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut resp))
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(Error::Io)?;
-
+        let n = pingora_timeout::timeout(self.timeout, socket.recv(&mut resp)).await.map_err(|_| Error::Timeout)?.map_err(Error::Io)?;
         parse_dns_response(&resp[..n], domain)
     }
 }
@@ -110,29 +92,14 @@ impl NameServer for TcpNameServer {
         let mut stream = pingora_timeout::timeout(
             self.timeout,
             crate::app::pingora_bridge::PingoraCoreConnector::dial_tcp(self.server_addr),
-        )
-        .await
-        .map_err(|_| Error::Timeout)??;
-
+        ).await.map_err(|_| Error::Timeout)??;
         let query = build_dns_query(domain);
-        let len_prefix = (query.len() as u16).to_be_bytes();
-
-        stream.write_all(&len_prefix).await?;
+        stream.write_all(&(query.len() as u16).to_be_bytes()).await?;
         stream.write_all(&query).await?;
-
-        let mut resp_len_buf = [0u8; 2];
-        pingora_timeout::timeout(self.timeout, stream.read_exact(&mut resp_len_buf))
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(Error::Io)?;
-        let resp_len = u16::from_be_bytes(resp_len_buf) as usize;
-
-        let mut resp = vec![0u8; resp_len];
-        pingora_timeout::timeout(self.timeout, stream.read_exact(&mut resp))
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(Error::Io)?;
-
+        let mut len_buf = [0u8; 2];
+        pingora_timeout::timeout(self.timeout, stream.read_exact(&mut len_buf)).await.map_err(|_| Error::Timeout)?.map_err(Error::Io)?;
+        let mut resp = vec![0u8; u16::from_be_bytes(len_buf) as usize];
+        pingora_timeout::timeout(self.timeout, stream.read_exact(&mut resp)).await.map_err(|_| Error::Timeout)?.map_err(Error::Io)?;
         parse_dns_response(&resp, domain)
     }
 }

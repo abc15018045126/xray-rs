@@ -50,36 +50,23 @@ impl Fragmenter {
         buf.len() > 5 && buf[0] == 0x16 && buf[1] == 0x03 && buf[5] == 0x01
     }
 
-    pub async fn write_fragmented<W: AsyncWrite + Unpin>(
-        &self,
-        writer: &mut W,
-        data: &[u8],
-    ) -> Result<()> {
+    pub async fn write_fragmented<W: AsyncWrite + Unpin>(&self, writer: &mut W, data: &[u8]) -> Result<()> {
         if self.config.packets == "tlshello" && !Self::is_tls_client_hello(data) {
             writer.write_all(data).await?;
             return Ok(());
         }
-
-        let mut offset = 0;
-        let mut rng = rand::thread_rng();
         use rand::Rng;
-
+        let (mut offset, mut rng) = (0, rand::thread_rng());
         while offset < data.len() {
-            let chunk_size = rng
-                .gen_range(self.config.min_len..=self.config.max_len)
-                .min(data.len() - offset);
+            let chunk_size = rng.gen_range(self.config.min_len..=self.config.max_len).min(data.len() - offset);
             writer.write_all(&data[offset..offset + chunk_size]).await?;
             writer.flush().await?;
             offset += chunk_size;
-
             if offset < data.len() {
-                let delay_ms = rng.gen_range(
-                    self.config.min_delay.as_millis()..=self.config.max_delay.as_millis(),
-                );
-                tokio::time::sleep(Duration::from_millis(delay_ms as u64)).await;
+                let ms = rng.gen_range(self.config.min_delay.as_millis()..=self.config.max_delay.as_millis());
+                tokio::time::sleep(Duration::from_millis(ms as u64)).await;
             }
         }
-
         Ok(())
     }
 }

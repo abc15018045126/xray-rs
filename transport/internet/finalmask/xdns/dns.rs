@@ -226,37 +226,19 @@ impl Message {
     }
 
     fn read_rr(bytes: &[u8], offset: usize) -> Result<(RR, usize)> {
-        let (name, mut off) = Self::read_name(bytes, offset)?;
-        if off + 10 > bytes.len() {
-            return Err(Error::Protocol("Truncated RR header".into()));
-        }
-        let rrtype = u16::from_be_bytes([bytes[off], bytes[off + 1]]);
-        let class = u16::from_be_bytes([bytes[off + 2], bytes[off + 3]]);
-        let ttl = u32::from_be_bytes([
-            bytes[off + 4],
-            bytes[off + 5],
-            bytes[off + 6],
-            bytes[off + 7],
-        ]);
-        let rdlength = u16::from_be_bytes([bytes[off + 8], bytes[off + 9]]) as usize;
-        off += 10;
-
-        if off + rdlength > bytes.len() {
-            return Err(Error::Protocol("Truncated RDATA".into()));
-        }
-        let data = bytes[off..off + rdlength].to_vec();
-        off += rdlength;
-
-        Ok((
-            ResourceRecord {
-                name,
-                rrtype,
-                class,
-                ttl,
-                data,
-            },
-            off,
-        ))
+        let (name, off) = Self::read_name(bytes, offset)?;
+        if off + 10 > bytes.len() { return Err(Error::Protocol("Truncated RR header".into())); }
+        let h = &bytes[off..off + 10];
+        let rdlength = u16::from_be_bytes([h[8], h[9]]) as usize;
+        let data_start = off + 10;
+        if data_start + rdlength > bytes.len() { return Err(Error::Protocol("Truncated RDATA".into())); }
+        Ok((ResourceRecord {
+            name,
+            rrtype: u16::from_be_bytes([h[0], h[1]]),
+            class: u16::from_be_bytes([h[2], h[3]]),
+            ttl: u32::from_be_bytes([h[4], h[5], h[6], h[7]]),
+            data: bytes[data_start..data_start + rdlength].to_vec(),
+        }, data_start + rdlength))
     }
 }
 

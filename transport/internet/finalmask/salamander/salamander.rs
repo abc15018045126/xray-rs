@@ -75,19 +75,9 @@ fn blake2b_compress(h: &mut [u64; 8], block: &[u8; 128], t: u128, last: bool) {
 
 pub fn blake2b_256(key: &[u8], data: &[u8]) -> [u8; 32] {
     let mut h = IV;
-    let k_len = key.len();
-    h[0] ^= 0x01010000 ^ ((k_len as u64) << 8) ^ 32u64;
-
-    let mut buf = [0u8; 128];
-    let mut buf_len = 0;
-    let mut total_bytes: u128 = 0;
-
-    if k_len > 0 {
-        buf[..k_len].copy_from_slice(key);
-        buf_len = 128;
-    }
-
-    let mut offset = 0;
+    h[0] ^= 0x01010000 ^ ((key.len() as u64) << 8) ^ 32u64;
+    let (mut buf, mut buf_len, mut total_bytes, mut offset) = ([0u8; 128], 0, 0u128, 0);
+    if !key.is_empty() { buf[..key.len()].copy_from_slice(key); buf_len = 128; }
     while offset < data.len() {
         if buf_len == 128 {
             total_bytes += 128;
@@ -100,14 +90,9 @@ pub fn blake2b_256(key: &[u8], data: &[u8]) -> [u8; 32] {
         buf_len += take;
         offset += take;
     }
-
-    total_bytes += buf_len as u128;
-    blake2b_compress(&mut h, &buf, total_bytes, true);
-
+    blake2b_compress(&mut h, &buf, total_bytes + buf_len as u128, true);
     let mut out = [0u8; 32];
-    for i in 0..4 {
-        out[i * 8..(i + 1) * 8].copy_from_slice(&h[i].to_le_bytes());
-    }
+    for i in 0..4 { out[i * 8..(i + 1) * 8].copy_from_slice(&h[i].to_le_bytes()); }
     out
 }
 

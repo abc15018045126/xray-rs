@@ -141,36 +141,20 @@ impl XDnsServer {
         Ok((XDnsServerQuery { client_id, packets, rcode }, resp))
     }
 
-    pub fn encode_response(
-        &self,
-        resp: &mut Message,
-        outgoing_packets: &[&[u8]],
-    ) -> Result<Vec<u8>> {
+    pub fn encode_response(&self, resp: &mut Message, outgoing_packets: &[&[u8]]) -> Result<Vec<u8>> {
         if resp.rcode() == RCODE_NO_ERROR && resp.questions.len() == 1 {
             let mut payload = Vec::new();
-            for pkt in outgoing_packets {
-                if pkt.len() > 65535 {
-                    continue;
-                }
+            for pkt in outgoing_packets.iter().filter(|p| p.len() <= 65535) {
                 payload.extend_from_slice(&(pkt.len() as u16).to_be_bytes());
                 payload.extend_from_slice(pkt);
             }
-
+            let q = &resp.questions[0];
             resp.answers = vec![ResourceRecord {
-                name: resp.questions[0].name.clone(),
-                rrtype: resp.questions[0].qtype,
-                class: resp.questions[0].qclass,
-                ttl: RESPONSE_TTL,
-                data: encode_rdata_txt(&payload),
+                name: q.name.clone(), rrtype: q.qtype, class: q.qclass, ttl: RESPONSE_TTL, data: encode_rdata_txt(&payload),
             }];
         }
-
         let mut wire = resp.to_wire_format()?;
-        if wire.len() > MAX_UDP_PAYLOAD {
-            wire.truncate(MAX_UDP_PAYLOAD);
-            wire[2] |= 0x02;
-        }
-
+        if wire.len() > MAX_UDP_PAYLOAD { wire.truncate(MAX_UDP_PAYLOAD); wire[2] |= 0x02; }
         Ok(wire)
     }
 

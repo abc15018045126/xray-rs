@@ -68,39 +68,20 @@ impl SendingWindow {
         None
     }
 
-    pub fn flush(
-        &mut self,
-        current: u32,
-        rto: u32,
-        max_in_flight_size: u32,
-        to_send: &mut Vec<DataSegment>,
-    ) {
-        if self.is_empty() {
-            return;
-        }
-
+    pub fn flush(&mut self, current: u32, rto: u32, max_in_flight_size: u32, to_send: &mut Vec<DataSegment>) {
         let mut sent_size = 0u32;
         for seg in &mut self.cache {
-            let mut need_send = false;
             if seg.transmit == 0 {
-                need_send = true;
                 seg.transmit = 1;
                 seg.timeout = current + rto;
                 seg.timestamp = current;
             } else if current >= seg.timeout {
-                need_send = true;
                 seg.transmit += 1;
-                let step = rto.max(30);
-                seg.timeout = current + step * (1 << (seg.transmit - 1).min(4));
-            }
-
-            if need_send {
-                to_send.push(seg.clone());
-                sent_size += seg.payload.len() as u32;
-                if max_in_flight_size > 0 && sent_size >= max_in_flight_size {
-                    break;
-                }
-            }
+                seg.timeout = current + rto.max(30) * (1 << (seg.transmit - 1).min(4));
+            } else { continue; }
+            to_send.push(seg.clone());
+            sent_size += seg.payload.len() as u32;
+            if max_in_flight_size > 0 && sent_size >= max_in_flight_size { break; }
         }
     }
 }

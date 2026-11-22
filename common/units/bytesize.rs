@@ -26,30 +26,21 @@ impl ByteSize {
 
     pub fn parse(&mut self, s: &str) -> Result<()> {
         let s = s.trim().to_uppercase();
-        let i = s
-            .find(|c: char| c.is_alphabetic())
-            .ok_or_else(|| Error::Protocol("invalid or unsupported unit".into()))?;
-        let (bytes_str, multiple) = s.split_at(i);
-        let bytes: f64 = bytes_str
-            .trim()
-            .parse()
-            .map_err(|_| Error::Protocol("invalid size".into()))?;
-        if bytes <= 0.0 {
-            return Err(Error::Protocol("invalid size".into()));
-        }
-
-        let val = match multiple {
-            "B" => bytes,
-            "K" | "KB" | "KIB" => bytes * (KB as f64),
-            "M" | "MB" | "MIB" => bytes * (MB as f64),
-            "G" | "GB" | "GIB" => bytes * (GB as f64),
-            "T" | "TB" | "TIB" => bytes * (TB as f64),
-            "P" | "PB" | "PIB" => bytes * (PB as f64),
-            "E" | "EB" | "EIB" => bytes * (EB as f64),
+        let i = s.find(char::is_alphabetic).ok_or_else(|| Error::Protocol("invalid or unsupported unit".into()))?;
+        let (bytes_str, unit) = s.split_at(i);
+        let bytes: f64 = bytes_str.trim().parse().map_err(|_| Error::Protocol("invalid size".into()))?;
+        if bytes <= 0.0 { return Err(Error::Protocol("invalid size".into())); }
+        let mult = match unit {
+            "B" => 1.0,
+            "K" | "KB" | "KIB" => KB as f64,
+            "M" | "MB" | "MIB" => MB as f64,
+            "G" | "GB" | "GIB" => GB as f64,
+            "T" | "TB" | "TIB" => TB as f64,
+            "P" | "PB" | "PIB" => PB as f64,
+            "E" | "EB" | "EIB" => EB as f64,
             _ => return Err(Error::Protocol("invalid or unsupported unit".into())),
         };
-
-        self.0 = val as u64;
+        self.0 = (bytes * mult) as u64;
         Ok(())
     }
 

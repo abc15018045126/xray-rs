@@ -37,31 +37,18 @@ impl Observer {
     }
 
     pub fn create_result(&self) -> Vec<OutboundStatus> {
-        let all_stats = self.hp.all_stats();
-        let mut results = Vec::new();
-
-        for (name, stats) in all_stats {
-            let alive = stats.all != stats.fail && stats.all > 0;
-            let status = OutboundStatus {
-                alive,
-                delay: stats.average.as_millis() as i64,
-                last_error_reason: String::new(),
-                outbound_tag: name,
-                last_seen_time: 0,
-                last_try_time: 0,
-                health_ping: Some(HealthPingMeasurementResult {
-                    all: stats.all as i64,
-                    fail: stats.fail as i64,
-                    deviation: stats.deviation.as_nanos() as i64,
-                    average: stats.average.as_nanos() as i64,
-                    max: stats.max.as_nanos() as i64,
-                    min: stats.min.as_nanos() as i64,
-                }),
-            };
-            results.push(status);
-        }
-
-        results
+        self.hp.all_stats().into_iter().map(|(outbound_tag, s)| OutboundStatus {
+            alive: s.all != s.fail && s.all > 0,
+            delay: s.average.as_millis() as i64,
+            last_error_reason: String::new(),
+            outbound_tag,
+            last_seen_time: 0,
+            last_try_time: 0,
+            health_ping: Some(HealthPingMeasurementResult {
+                all: s.all as i64, fail: s.fail as i64, deviation: s.deviation.as_nanos() as i64,
+                average: s.average.as_nanos() as i64, max: s.max.as_nanos() as i64, min: s.min.as_nanos() as i64,
+            }),
+        }).collect()
     }
 }
 

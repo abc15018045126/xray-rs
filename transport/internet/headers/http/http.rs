@@ -152,32 +152,17 @@ impl<S: AsyncRead + Unpin> AsyncRead for HttpStream<S> {
 }
 
 impl<S: AsyncWrite + Unpin> AsyncWrite for HttpStream<S> {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
         if !self.written_header {
             if let Some(header) = self.header_to_write.take() {
                 match Pin::new(&mut self.inner).poll_write(cx, &header) {
-                    Poll::Ready(Ok(n)) => {
-                        if n < header.len() {
-                            self.header_to_write = Some(header[n..].to_vec());
-                            return Poll::Pending;
-                        }
-                        self.written_header = true;
-                    }
+                    Poll::Ready(Ok(n)) if n < header.len() => { self.header_to_write = Some(header[n..].to_vec()); return Poll::Pending; }
+                    Poll::Ready(Ok(_)) => self.written_header = true,
                     Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                    Poll::Pending => {
-                        self.header_to_write = Some(header);
-                        return Poll::Pending;
-                    }
+                    Poll::Pending => { self.header_to_write = Some(header); return Poll::Pending; }
                 }
-            } else {
-                self.written_header = true;
-            }
+            } else { self.written_header = true; }
         }
-
         Pin::new(&mut self.inner).poll_write(cx, buf)
     }
 
@@ -283,28 +268,15 @@ impl HttpHeaderObfuscator {
         Ok(())
     }
 
-    pub async fn server_read_request<R: AsyncRead + Unpin>(
-        reader: &mut R,
-    ) -> Result<(String, Vec<u8>)> {
-        let mut buf = Vec::new();
-        let mut chunk = [0u8; 1];
+    pub async fn server_read_request<R: AsyncRead + Unpin>(reader: &mut R) -> Result<(String, Vec<u8>)> {
+        let (mut buf, mut chunk) = (Vec::new(), [0u8; 1]);
         while buf.len() < MAX_HEADER_LENGTH {
-            let n = reader.read(&mut chunk).await.map_err(Error::Io)?;
-            if n == 0 {
-                return Err(Error::Closed);
-            }
+            if reader.read(&mut chunk).await.map_err(Error::Io)? == 0 { return Err(Error::Closed); }
             buf.push(chunk[0]);
             if buf.ends_with(b"\r\n\r\n") {
-                let header = String::from_utf8(buf)
-                    .map_err(|_| Error::Protocol("invalid utf8 header".into()))?;
-                let mut trailing = Vec::new();
-                let mut rest = [0u8; 1024];
-                while let Ok(n) = reader.read(&mut rest).await {
-                    if n == 0 {
-                        break;
-                    }
-                    trailing.extend_from_slice(&rest[..n]);
-                }
+                let header = String::from_utf8(buf).map_err(|_| Error::Protocol("invalid utf8 header".into()))?;
+                let (mut trailing, mut rest) = (Vec::new(), [0u8; 1024]);
+                while let Ok(n) = reader.read(&mut rest).await && n > 0 { trailing.extend_from_slice(&rest[..n]); }
                 return Ok((header, trailing));
             }
         }

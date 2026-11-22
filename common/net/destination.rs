@@ -136,29 +136,14 @@ impl FromStr for Destination {
 
     fn from_str(s: &str) -> Result<Self> {
         let s = s.trim();
-        if let Some(rest) = s.strip_prefix('[')
-            && let Some((ip_part, port_part)) = rest.split_once("]:")
-        {
-            let ip = Ipv6Addr::from_str(ip_part)
-                .map_err(|e| Error::AddressParse(format!("Invalid IPv6 in {}: {}", s, e)))?;
-            let port = port_part
-                .parse::<u16>()
-                .map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)))?;
-            return Ok(Destination::new(Address::Ipv6(ip), port));
+        let parse_port = |p: &str| p.parse::<u16>().map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)));
+        if let Some((ip_part, port_part)) = s.strip_prefix('[').and_then(|r| r.split_once("]:")) {
+            let ip = Ipv6Addr::from_str(ip_part).map_err(|e| Error::AddressParse(format!("Invalid IPv6 in {}: {}", s, e)))?;
+            return Ok(Destination::new(Address::Ipv6(ip), parse_port(port_part)?));
         }
-
-        if let Some((host_part, port_part)) = s.rsplit_once(':') {
-            let port = port_part
-                .parse::<u16>()
-                .map_err(|e| Error::AddressParse(format!("Invalid port in {}: {}", s, e)))?;
-            let address = Address::from_str(host_part)?;
-            return Ok(Destination::new(address, port));
-        }
-
-        Err(Error::AddressParse(format!(
-            "Missing port in destination address: {}",
-            s
-        )))
+        let (host, port) = s.rsplit_once(':').ok_or_else(|| Error::AddressParse(format!("Missing port in destination address: {}", s)))?;
+        let port = parse_port(port)?;
+        Ok(Destination::new(Address::from_str(host)?, port))
     }
 }
 

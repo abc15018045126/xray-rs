@@ -217,36 +217,19 @@ impl AckSegment {
     }
 
     pub fn parse(conv: u16, option: u8, buf: &[u8]) -> Option<(Self, &[u8])> {
-        if buf.len() < 13 {
-            return None;
-        }
-        let receiving_window = u32::from_be_bytes(buf[0..4].try_into().unwrap());
-        let receiving_next = u32::from_be_bytes(buf[4..8].try_into().unwrap());
-        let timestamp = u32::from_be_bytes(buf[8..12].try_into().unwrap());
+        if buf.len() < 13 { return None; }
         let count = buf[12] as usize;
-        let mut rest = &buf[13..];
-        if rest.len() < count * 4 {
-            return None;
-        }
-        let mut number_list = Vec::with_capacity(count);
-        for _ in 0..count {
-            let num = u32::from_be_bytes(rest[0..4].try_into().unwrap());
-            number_list.push(num);
-            rest = &rest[4..];
-        }
-
-        Some((
-            Self {
-                conv,
-                option,
-                receiving_window,
-                receiving_next,
-                timestamp,
-                number_list,
-                limit: ACK_NUMBER_LIMIT,
-            },
-            rest,
-        ))
+        let rest = buf.get(13..)?;
+        if rest.len() < count * 4 { return None; }
+        let u32_be = |s: &[u8]| u32::from_be_bytes(s.try_into().unwrap());
+        let number_list = rest[..count * 4].chunks_exact(4).map(u32_be).collect();
+        Some((Self {
+            conv, option,
+            receiving_window: u32_be(&buf[0..4]),
+            receiving_next: u32_be(&buf[4..8]),
+            timestamp: u32_be(&buf[8..12]),
+            number_list, limit: ACK_NUMBER_LIMIT,
+        }, &rest[count * 4..]))
     }
 }
 

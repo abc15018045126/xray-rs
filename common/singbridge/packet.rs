@@ -33,34 +33,18 @@ impl PacketConnWrapper {
     }
 
     pub async fn read_packet(&mut self) -> Result<(Buffer, Socksaddr)> {
-        if !self.cached.is_empty() {
-            let buf = self.cached.remove(0);
-            let socksaddr = to_socksaddr(&self.default_dest);
-            return Ok((buf, socksaddr));
-        }
-
-        match self
-            .reader
-            .read_multi_buffer_timeout(PACKET_READ_TIMEOUT)
-            .await
-        {
+        if !self.cached.is_empty() { return Ok((self.cached.remove(0), to_socksaddr(&self.default_dest))); }
+        match self.reader.read_multi_buffer_timeout(PACKET_READ_TIMEOUT).await {
             Ok(mb) => {
                 let mut buffers = mb.into_buffers();
                 if buffers.is_empty() {
-                    return Err(Error::Io(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "empty packet multibuffer",
-                    )));
+                    return Err(Error::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "empty packet multibuffer")));
                 }
                 let first = buffers.remove(0);
                 self.cached = buffers;
-                let socksaddr = to_socksaddr(&self.default_dest);
-                Ok((first, socksaddr))
+                Ok((first, to_socksaddr(&self.default_dest)))
             }
-            Err(e) => {
-                self.reader.interrupt().await;
-                Err(e)
-            }
+            Err(e) => { self.reader.interrupt().await; Err(e) }
         }
     }
 

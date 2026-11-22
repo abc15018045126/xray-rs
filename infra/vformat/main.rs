@@ -3,31 +3,17 @@ use std::path::{Path, PathBuf};
 
 pub fn find_files_to_format(root: &Path, ext: &str) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    if !root.exists() {
-        return files;
-    }
-
+    if !root.exists() { return files; }
     fn walk_dir(dir: &Path, ext: &str, files: &mut Vec<PathBuf>) {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if dir_name == "target" || dir_name == ".git" {
-                        continue;
-                    }
-                    walk_dir(&path, ext, files);
-                } else if path.is_file() {
-                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if name.ends_with(ext) && !name.ends_with(".pb.rs") && !name.ends_with(".pb.go")
-                    {
-                        files.push(path);
-                    }
-                }
+        let Ok(entries) = std::fs::read_dir(dir) else { return; };
+        for path in entries.flatten().map(|e| e.path()) {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if path.is_dir() && name != "target" && name != ".git" { walk_dir(&path, ext, files); }
+            else if path.is_file() && name.ends_with(ext) && !name.ends_with(".pb.rs") && !name.ends_with(".pb.go") {
+                files.push(path);
             }
         }
     }
-
     walk_dir(root, ext, &mut files);
     files
 }

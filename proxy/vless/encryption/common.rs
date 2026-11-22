@@ -117,36 +117,18 @@ impl VlessAead {
 }
 
 pub fn parse_padding(padding: &str) -> Result<(Vec<[i32; 3]>, Vec<[i32; 3]>)> {
-    if padding.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    let mut padding_lens = Vec::new();
-    let mut padding_gaps = Vec::new();
-
-    let parts: Vec<&str> = padding.split('.').collect();
-    for (i, s) in parts.iter().enumerate() {
+    let (mut lens, mut gaps) = (Vec::new(), Vec::new());
+    if padding.is_empty() { return Ok((lens, gaps)); }
+    for (i, s) in padding.split('.').enumerate() {
         let x: Vec<&str> = s.split('-').collect();
-        if x.len() < 3 || x[0].is_empty() || x[1].is_empty() || x[2].is_empty() {
+        if x.len() < 3 || x[..3].iter().any(|p| p.is_empty()) {
             return Err(Error::Config(format!("Invalid padding parameter: {}", s)));
         }
-        let y0: i32 = x[0]
-            .parse()
-            .map_err(|_| Error::Config("Invalid number".into()))?;
-        let y1: i32 = x[1]
-            .parse()
-            .map_err(|_| Error::Config("Invalid number".into()))?;
-        let y2: i32 = x[2]
-            .parse()
-            .map_err(|_| Error::Config("Invalid number".into()))?;
-
-        if i % 2 == 0 {
-            padding_lens.push([y0, y1, y2]);
-        } else {
-            padding_gaps.push([y0, y1, y2]);
-        }
+        let mut y = [0i32; 3];
+        for j in 0..3 { y[j] = x[j].parse().map_err(|_| Error::Config("Invalid number".into()))?; }
+        if i % 2 == 0 { lens.push(y); } else { gaps.push(y); }
     }
-
-    Ok((padding_lens, padding_gaps))
+    Ok((lens, gaps))
 }
 
 pub fn create_padding(padding_lens: &[[i32; 3]], padding_gaps: &[[i32; 3]]) -> (usize, Vec<usize>, Vec<Duration>) {

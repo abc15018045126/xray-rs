@@ -69,42 +69,21 @@ impl ActivityTimer {
     }
 
     pub fn set_timeout(self: &Arc<Self>, timeout: Duration) {
-        if self.consumed.load(Ordering::Relaxed) {
-            return;
-        }
-
-        if timeout.is_zero() {
-            self.finish();
-            return;
-        }
-
+        if self.consumed.load(Ordering::Relaxed) { return; }
+        if timeout.is_zero() { self.finish(); return; }
         *self.timeout.lock().unwrap() = timeout;
-
         let mut handle_guard = self.task_handle.lock().unwrap();
-        if let Some(handle) = handle_guard.take() {
-            handle.abort();
-        }
-
+        if let Some(h) = handle_guard.take() { h.abort(); }
         self.update();
         let this = Arc::downgrade(self);
-        let new_handle = tokio::spawn(async move {
+        *handle_guard = Some(tokio::spawn(async move {
             loop {
                 tokio::time::sleep(timeout).await;
-                if let Some(timer) = this.upgrade() {
-                    if timer.consumed.load(Ordering::Relaxed) {
-                        break;
-                    }
-                    if timer.is_timeout() {
-                        timer.finish();
-                        break;
-                    }
-                } else {
-                    break;
-                }
+                let Some(timer) = this.upgrade() else { break; };
+                if timer.consumed.load(Ordering::Relaxed) { break; }
+                if timer.is_timeout() { timer.finish(); break; }
             }
-        });
-
-        *handle_guard = Some(new_handle);
+        }));
     }
 }
 

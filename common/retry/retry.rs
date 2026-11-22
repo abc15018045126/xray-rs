@@ -115,35 +115,21 @@ impl RetryStrategy {
         }
     }
 
-    pub async fn run<F, Fut, T>(&self, mut operation: F) -> Result<T>
-    where
-        F: FnMut() -> Fut,
-        Fut: Future<Output = Result<T>>,
-    {
+    pub async fn run<F: FnMut() -> Fut, Fut: Future<Output = Result<T>>, T>(&self, mut operation: F) -> Result<T> {
         let (attempts, is_exp, base) = match self {
             Self::Timed { attempts, delay } => (*attempts, false, *delay),
-            Self::ExponentialBackoff {
-                attempts,
-                base_delay,
-            } => (*attempts, true, *base_delay),
+            Self::ExponentialBackoff { attempts, base_delay } => (*attempts, true, *base_delay),
         };
-
         let mut last_err = Error::Other("No attempts made".into());
         for attempt in 0..attempts {
             match operation().await {
                 Ok(val) => return Ok(val),
                 Err(e) => {
                     last_err = e;
-                    if attempt + 1 < attempts {
-                        let delay = if is_exp { base * (1 << attempt) } else { base };
-                        sleep(delay).await;
-                    }
+                    if attempt + 1 < attempts { sleep(if is_exp { base * (1 << attempt) } else { base }).await; }
                 }
             }
         }
-        Err(Error::Other(format!(
-            "All {} retry attempts failed: {}",
-            attempts, last_err
-        )))
+        Err(Error::Other(format!("All {} retry attempts failed: {}", attempts, last_err)))
     }
 }
