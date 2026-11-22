@@ -189,8 +189,7 @@ impl RealityServer {
         if let Ok(mut target) = tokio::net::TcpStream::connect(dest.as_str()).await {
             let _ = target.set_nodelay(true);
             if target.write_all(initial_bytes).await.is_ok() {
-                let _ = target.flush().await;
-                let _ = tokio::io::copy_bidirectional(&mut client, &mut target).await;
+                let _ = (target.flush().await, tokio::io::copy_bidirectional(&mut client, &mut target).await);
             }
         }
         Ok(None)

@@ -164,7 +164,7 @@ impl AsyncWrite for FragmentConn {
         let this = self.get_mut();
         while this.pending_offset < this.pending.len() {
             match Pin::new(&mut this.stream).poll_write(cx, &this.pending[this.pending_offset..]) {
-                Poll::Ready(Ok(n)) => { this.pending_offset += n; }
+                Poll::Ready(Ok(n)) => this.pending_offset += n,
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
             }

@@ -29,14 +29,14 @@ impl Default for HealthPingSettings {
 
 impl From<&HealthPingConfig> for HealthPingSettings {
     fn from(cfg: &HealthPingConfig) -> Self {
-        let mut settings = Self::default();
-        if !cfg.destination.is_empty() { settings.destination = cfg.destination.clone(); }
-        if !cfg.connectivity.is_empty() { settings.connectivity = cfg.connectivity.clone(); }
-        if cfg.interval > 0 { settings.interval = Duration::from_nanos(cfg.interval as u64); }
-        if cfg.sampling_count > 0 { settings.sampling_count = cfg.sampling_count as usize; }
-        if cfg.timeout > 0 { settings.timeout = Duration::from_nanos(cfg.timeout as u64); }
-        if !cfg.http_method.is_empty() { settings.http_method = cfg.http_method.clone(); }
-        settings
+        let mut s = Self::default();
+        if !cfg.destination.is_empty() { s.destination = cfg.destination.clone(); }
+        if !cfg.connectivity.is_empty() { s.connectivity = cfg.connectivity.clone(); }
+        if cfg.interval > 0 { s.interval = Duration::from_nanos(cfg.interval as u64); }
+        if cfg.sampling_count > 0 { s.sampling_count = cfg.sampling_count as usize; }
+        if cfg.timeout > 0 { s.timeout = Duration::from_nanos(cfg.timeout as u64); }
+        if !cfg.http_method.is_empty() { s.http_method = cfg.http_method.clone(); }
+        s
     }
 }
 

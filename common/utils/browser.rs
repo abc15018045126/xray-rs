@@ -160,15 +160,14 @@ pub fn apply_masqueraded_headers(headers: &mut HashMap<String, String>, browser:
 }
 
 pub fn try_default_headers_with(headers: &mut HashMap<String, String>, variant: &str) {
-    let ua = headers.get("User-Agent").cloned();
-    match ua.as_deref() {
-        None | Some("") => apply_masqueraded_headers(headers, "chrome", variant),
-        Some("chrome") => apply_masqueraded_headers(headers, "chrome", variant),
-        Some("firefox") => apply_masqueraded_headers(headers, "firefox", variant),
-        Some("edge") => apply_masqueraded_headers(headers, "edge", variant),
-        Some("golang") => apply_masqueraded_headers(headers, "golang", variant),
-        _ => {}
-    }
+    let b = match headers.get("User-Agent").map(String::as_str) {
+        None | Some("" | "chrome") => "chrome",
+        Some("firefox") => "firefox",
+        Some("edge") => "edge",
+        Some("golang") => "golang",
+        _ => return,
+    };
+    apply_masqueraded_headers(headers, b, variant);
 }
 
 #[cfg(test)]

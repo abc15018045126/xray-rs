@@ -37,18 +37,11 @@ impl ChaChaCore {
     pub fn block(&mut self, output: &mut [u8; 64]) {
         let mut x = self.state;
         for _ in 0..10 {
-            qr(&mut x, 0, 4, 8, 12);
-            qr(&mut x, 1, 5, 9, 13);
-            qr(&mut x, 2, 6, 10, 14);
-            qr(&mut x, 3, 7, 11, 15);
-            qr(&mut x, 0, 5, 10, 15);
-            qr(&mut x, 1, 6, 11, 12);
-            qr(&mut x, 2, 7, 8, 13);
-            qr(&mut x, 3, 4, 9, 14);
+            qr(&mut x, 0, 4, 8, 12); qr(&mut x, 1, 5, 9, 13); qr(&mut x, 2, 6, 10, 14); qr(&mut x, 3, 7, 11, 15);
+            qr(&mut x, 0, 5, 10, 15); qr(&mut x, 1, 6, 11, 12); qr(&mut x, 2, 7, 8, 13); qr(&mut x, 3, 4, 9, 14);
         }
         for i in 0..16 {
-            let val = x[i].wrapping_add(self.state[i]);
-            output[i * 4..(i + 1) * 4].copy_from_slice(&val.to_le_bytes());
+            output[i * 4..(i + 1) * 4].copy_from_slice(&x[i].wrapping_add(self.state[i]).to_le_bytes());
         }
         self.state[12] = self.state[12].wrapping_add(1);
     }

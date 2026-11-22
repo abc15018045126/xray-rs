@@ -197,15 +197,15 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for CommonConn<S> {
         }
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        let this = self.get_mut();
-        while !this.write_buf.is_empty() {
-            match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
-                Poll::Ready(Ok(n)) => { this.write_buf.drain(..n); }
+        let s = self.get_mut();
+        while !s.write_buf.is_empty() {
+            match Pin::new(&mut s.inner).poll_write(cx, &s.write_buf) {
+                Poll::Ready(Ok(n)) => { s.write_buf.drain(..n); }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
             }
         }
-        Pin::new(&mut this.inner).poll_flush(cx)
+        Pin::new(&mut s.inner).poll_flush(cx)
     }
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)

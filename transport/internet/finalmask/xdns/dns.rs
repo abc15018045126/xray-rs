@@ -219,8 +219,7 @@ impl MessageBuilder {
     }
     pub fn write_rr(&mut self, rr: &RR) -> Result<()> {
         self.write_name(&rr.name);
-        self.buf.extend_from_slice(&rr.rrtype.to_be_bytes());
-        self.buf.extend_from_slice(&rr.class.to_be_bytes());
+        for v in [rr.rrtype, rr.class] { self.buf.extend_from_slice(&v.to_be_bytes()); }
         self.buf.extend_from_slice(&rr.ttl.to_be_bytes());
         if rr.data.len() > 65535 { return Err(Error::Protocol("integer overflow".into())); }
         self.buf.extend_from_slice(&(rr.data.len() as u16).to_be_bytes());

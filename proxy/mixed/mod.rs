@@ -58,11 +58,10 @@ impl PrefixedStream {
 impl AsyncRead for PrefixedStream {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         if self.prefix_pos < self.prefix.len() {
-            let to_write = std::cmp::min(self.prefix.len() - self.prefix_pos, buf.remaining());
-            buf.put_slice(&self.prefix[self.prefix_pos..self.prefix_pos + to_write]);
-            self.prefix_pos += to_write;
-            if buf.remaining() == 0 { return Poll::Ready(Ok(())); }
-            let _ = Pin::new(&mut self.inner).poll_read(cx, buf);
+            let n = (self.prefix.len() - self.prefix_pos).min(buf.remaining());
+            buf.put_slice(&self.prefix[self.prefix_pos..self.prefix_pos + n]);
+            self.prefix_pos += n;
+            if buf.remaining() > 0 { let _ = Pin::new(&mut self.inner).poll_read(cx, buf); }
             return Poll::Ready(Ok(()));
         }
         Pin::new(&mut self.inner).poll_read(cx, buf)

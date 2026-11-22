@@ -125,14 +125,13 @@ pub fn encode_ech_keys(keys: &[EchServerKey]) -> Vec<u8> {
 }
 
 pub fn parse_svcb_ech_param(svcb_params: &[u8]) -> Option<Vec<u8>> {
-    let mut offset = 0;
-    while offset + 4 <= svcb_params.len() {
-        let key = u16::from_be_bytes([svcb_params[offset], svcb_params[offset + 1]]);
-        let len = u16::from_be_bytes([svcb_params[offset + 2], svcb_params[offset + 3]]) as usize;
-        offset += 4;
-        if offset + len > svcb_params.len() { return None; }
-        if key == SVCB_PARAM_ECH { return Some(svcb_params[offset..offset + len].to_vec()); }
-        offset += len;
+    let mut i = 0;
+    while i + 4 <= svcb_params.len() {
+        let (key, len) = (u16::from_be_bytes([svcb_params[i], svcb_params[i + 1]]), u16::from_be_bytes([svcb_params[i + 2], svcb_params[i + 3]]) as usize);
+        i += 4;
+        if i + len > svcb_params.len() { return None; }
+        if key == SVCB_PARAM_ECH { return Some(svcb_params[i..i + len].to_vec()); }
+        i += len;
     }
     None
 }

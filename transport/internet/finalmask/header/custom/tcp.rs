@@ -9,13 +9,11 @@ pub const TCP_CUSTOM_MAGIC: &[u8] = b"CUSTOM-TCP";
 
 pub async fn read_sequence<R: AsyncRead + Unpin>(reader: &mut R, sequence: &TCPSequence) -> Result<()> {
     for item in &sequence.sequence {
-        let length = (item.rand as usize).max(item.packet.len());
-        if length == 0 { continue; }
-        let mut buf = vec![0u8; length];
+        let len = (item.rand as usize).max(item.packet.len());
+        if len == 0 { continue; }
+        let mut buf = vec![0u8; len];
         reader.read_exact(&mut buf).await.map_err(Error::Io)?;
-        if !item.packet.is_empty() && buf != item.packet {
-            return Err(Error::Protocol("TCP sequence mismatch".into()));
-        }
+        if !item.packet.is_empty() && buf != item.packet { return Err(Error::Protocol("TCP sequence mismatch".into())); }
     }
     Ok(())
 }

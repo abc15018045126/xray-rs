@@ -64,8 +64,7 @@ impl DispatcherBuilder {
         self
     }
     pub fn build(self) -> Option<DefaultDispatcher> {
-        let router = self.router?;
-        let mut d = DefaultDispatcher::new(self.outbounds, router);
+        let mut d = DefaultDispatcher::new(self.outbounds, self.router?);
         if let Some(tag) = self.default_outbound_tag { d = d.with_default_outbound(tag); }
         if let Some(om) = self.outbound_manager { d = d.with_outbound_manager(om); }
         if let Some(p) = self.policy { d = d.with_policy(p); }

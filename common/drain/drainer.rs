@@ -10,12 +10,9 @@ pub struct BehaviorSeedLimitedDrainer {
 
 impl BehaviorSeedLimitedDrainer {
     pub fn new(behavior_seed: i64, drain_foundation: usize, max_base_drain_size: usize, max_rand_drain: usize) -> Self {
-        let mut behavior_rand = DeterministicDice::new(behavior_seed);
-        let base_drain_size = behavior_rand.roll(max_base_drain_size);
-        let rand_drain_max = behavior_rand.roll(max_rand_drain) + 1;
-        let rand_drain_rolled = roll(rand_drain_max);
-        let drain_size = drain_foundation + base_drain_size + rand_drain_rolled;
-        Self { drain_size }
+        let mut rng = DeterministicDice::new(behavior_seed);
+        let (base, rmax) = (rng.roll(max_base_drain_size), rng.roll(max_rand_drain) + 1);
+        Self { drain_size: drain_foundation + base + roll(rmax) }
     }
     pub fn acknowledge_receive(&mut self, size: usize) {
         if size >= self.drain_size {

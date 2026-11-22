@@ -6,8 +6,7 @@ pub fn build_mph_cache_from_config(config_path: &Path, output_path: &Path) -> Re
     if !config_path.exists() { return Err(Error::NotFound(format!("Config file not found: {:?}", config_path))); }
     let data = std::fs::read_to_string(config_path)?;
     let count = data.matches(".com").count() + data.matches(".net").count() + data.matches(".org").count();
-    let cache_content = format!("MPH_CACHE_V1: {} domains indexed\n", count);
-    std::fs::write(output_path, cache_content)?;
+    std::fs::write(output_path, format!("MPH_CACHE_V1: {} domains indexed\n", count))?;
     Ok(count)
 }
 

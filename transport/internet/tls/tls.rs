@@ -39,17 +39,11 @@ impl ServerCertVerifier for NoCertificateVerification {
         Ok(HandshakeSignatureValid::assertion())
     }
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+        use SignatureScheme::*;
         vec![
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA512,
-            SignatureScheme::ECDSA_NISTP256_SHA256,
-            SignatureScheme::ECDSA_NISTP384_SHA384,
-            SignatureScheme::ECDSA_NISTP521_SHA512,
-            SignatureScheme::RSA_PSS_SHA256,
-            SignatureScheme::RSA_PSS_SHA384,
-            SignatureScheme::RSA_PSS_SHA512,
-            SignatureScheme::ED25519,
+            RSA_PKCS1_SHA256, RSA_PKCS1_SHA384, RSA_PKCS1_SHA512,
+            ECDSA_NISTP256_SHA256, ECDSA_NISTP384_SHA384, ECDSA_NISTP521_SHA512,
+            RSA_PSS_SHA256, RSA_PSS_SHA384, RSA_PSS_SHA512, ED25519,
         ]
     }
 }
@@ -171,8 +165,7 @@ impl TlsServer {
     }
     pub fn from_pem(cert_pem: &[u8], key_pem: &[u8], alpn: Vec<Vec<u8>>) -> Result<Self> {
         use rustls_pki_types::pem::PemObject;
-        let certs: Vec<CertificateDer<'static>> = CertificateDer::pem_slice_iter(cert_pem)
-            .collect::<std::result::Result<Vec<_>, _>>()
+        let certs = CertificateDer::pem_slice_iter(cert_pem).collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|e| Error::Config(format!("Failed to parse TLS certificate PEM: {}", e)))?;
         if certs.is_empty() { return Err(Error::Config("No valid certificates found in TLS certificate PEM".into())); }
         let key = rustls_pki_types::PrivateKeyDer::from_pem_slice(key_pem)

@@ -45,15 +45,12 @@ impl PingoraStreamPool {
         self.put_inner(key, stream, Some(permit));
     }
     fn put_inner(&self, key: u64, stream: BoxStream, permit: Option<tokio::sync::OwnedSemaphorePermit>) {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let meta = ConnectionMeta::new(key, id as _);
+        let meta = ConnectionMeta::new(key, self.next_id.fetch_add(1, Ordering::Relaxed) as _);
         let (notify_evicted, watch_use) = self.pool.put(&meta, stream);
-        let pool = self.pool.clone();
-        let timeout = self.idle_timeout;
+        let (pool, timeout) = (self.pool.clone(), self.idle_timeout);
         tokio::spawn(async move {
-            let _permit = permit;
-            let (_close_tx, close_rx) = tokio::sync::watch::channel(false);
-            pool.idle_timeout(&meta, Some(timeout), notify_evicted, close_rx, watch_use).await;
+            let (_permit, (_tx, rx)) = (permit, tokio::sync::watch::channel(false));
+            pool.idle_timeout(&meta, Some(timeout), notify_evicted, rx, watch_use).await;
         });
     }
 }
