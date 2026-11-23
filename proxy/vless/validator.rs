@@ -52,8 +52,8 @@ impl Validator for MemoryValidator {
     }
     fn del(&self, email: &str) -> Result<()> {
         if email.is_empty() { return Err(Error::Config("Email cannot be empty".into())); }
-        let mut emails = self.emails.write().map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
         let mut users = self.users.write().map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
+        let mut emails = self.emails.write().map_err(|e| Error::Other(format!("Lock poisoned: {}", e)))?;
         let id = emails.remove(&email.to_lowercase()).ok_or_else(|| Error::NotFound(format!("User '{}' not found", email)))?;
         users.remove(&id);
         Ok(())

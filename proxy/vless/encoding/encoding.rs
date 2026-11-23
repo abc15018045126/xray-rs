@@ -83,11 +83,13 @@ impl RequestHeader {
         buf.push(addons.len() as u8);
         buf.extend_from_slice(&addons);
         buf.push(self.command.to_u8());
-        buf.extend_from_slice(&self.destination.port.to_be_bytes());
-        match &self.destination.address {
-            Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
-            Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
-            Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
+        if !matches!(self.command, RequestCommand::Mux | RequestCommand::Rvs) {
+            buf.extend_from_slice(&self.destination.port.to_be_bytes());
+            match &self.destination.address {
+                Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
+                Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+                Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
+            }
         }
         buf
     }
@@ -109,34 +111,39 @@ impl RequestHeader {
         } else {
             Addons::default()
         };
-        let mut meta = [0u8; 4];
-        reader.read_exact(&mut meta).await?;
-        let command = RequestCommand::from_u8(meta[0])
-            .ok_or_else(|| Error::Protocol(format!("Invalid VLESS command: {}", meta[0])))?;
-        let port = u16::from_be_bytes([meta[1], meta[2]]);
-        let address = match meta[3] {
-            1 => {
-                let mut ip = [0u8; 4];
-                reader.read_exact(&mut ip).await?;
-                Address::Ipv4(std::net::Ipv4Addr::from(ip))
-            }
-            2 => {
-                let len = reader.read_u8().await? as usize;
-                let mut dom = vec![0u8; len];
-                reader.read_exact(&mut dom).await?;
-                Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in VLESS header: {}", e)))?)
-            }
-            3 => {
-                let mut ip = [0u8; 16];
-                reader.read_exact(&mut ip).await?;
-                Address::Ipv6(std::net::Ipv6Addr::from(ip))
-            }
-            other => return Err(Error::Protocol(format!("Invalid VLESS address type: {}", other))),
-        };
-        let destination = if command == RequestCommand::Udp {
-            Destination::udp(address, port)
+        let cmd_byte = reader.read_u8().await?;
+        let command = RequestCommand::from_u8(cmd_byte)
+            .ok_or_else(|| Error::Protocol(format!("Invalid VLESS command: {}", cmd_byte)))?;
+        let destination = if matches!(command, RequestCommand::Mux | RequestCommand::Rvs) {
+            Destination::tcp(Address::Domain("v1.mux.cool".into()), 666)
         } else {
-            Destination::tcp(address, port)
+            let mut meta = [0u8; 3];
+            reader.read_exact(&mut meta).await?;
+            let port = u16::from_be_bytes([meta[0], meta[1]]);
+            let address = match meta[2] {
+                1 => {
+                    let mut ip = [0u8; 4];
+                    reader.read_exact(&mut ip).await?;
+                    Address::Ipv4(std::net::Ipv4Addr::from(ip))
+                }
+                2 => {
+                    let len = reader.read_u8().await? as usize;
+                    let mut dom = vec![0u8; len];
+                    reader.read_exact(&mut dom).await?;
+                    Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain in VLESS header: {}", e)))?)
+                }
+                3 => {
+                    let mut ip = [0u8; 16];
+                    reader.read_exact(&mut ip).await?;
+                    Address::Ipv6(std::net::Ipv6Addr::from(ip))
+                }
+                other => return Err(Error::Protocol(format!("Invalid VLESS address type: {}", other))),
+            };
+            if command == RequestCommand::Udp {
+                Destination::udp(address, port)
+            } else {
+                Destination::tcp(address, port)
+            }
         };
         Ok(Self { user_id, command, destination, addons })
     }

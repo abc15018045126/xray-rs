@@ -12,6 +12,9 @@ use tokio::net::{TcpStream, UdpSocket};
 pub trait NameServer: Send + Sync {
     fn name(&self) -> &str;
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>>;
+    async fn query_ip_with_opt(&self, domain: &str, _ipv4: bool, _ipv6: bool) -> Result<(Vec<IpAddr>, u32)> {
+        self.query_ip(domain).await.map(|ips| (ips, 300))
+    }
     fn is_disable_cache(&self) -> bool { false }
     fn routes_via_proxy(&self) -> bool { false }
 }
@@ -148,8 +151,9 @@ pub fn build_dns_query(domain: &str) -> Vec<u8> { build_dns_query_typed(domain, 
 pub fn build_dns_query_typed(domain: &str, qtype: u16) -> Vec<u8> { build_dns_query_with_ecs(domain, qtype, None) }
 
 pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAddr>) -> Vec<u8> {
+    let txid: [u8; 2] = rand::random();
     let mut query = vec![
-        0xAB, 0xCD, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, u8::from(client_ip.is_some()),
+        txid[0], txid[1], 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, u8::from(client_ip.is_some()),
     ];
     for part in domain.trim_end_matches('.').split('.').filter(|p| !p.is_empty()) {
         query.push(part.len() as u8);
@@ -169,8 +173,8 @@ pub fn build_dns_query_with_ecs(domain: &str, qtype: u16, client_ip: Option<IpAd
             IpAddr::V6(v6) => {
                 let o = v6.octets();
                 query.extend_from_slice(&[
-                    0, 0, 0x29, 0x10, 0, 0, 0, 0, 0, 0, 0x0F, 0, 8, 0, 0x0B, 0, 2, 56, 0,
-                    o[0], o[1], o[2], o[3], o[4], o[5], o[6],
+                    0, 0, 0x29, 0x10, 0, 0, 0, 0, 0, 0, 0x14, 0, 8, 0, 0x10, 0, 2, 96, 0,
+                    o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7], o[8], o[9], o[10], o[11],
                 ]);
             }
         }

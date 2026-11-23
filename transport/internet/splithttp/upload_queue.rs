@@ -93,6 +93,8 @@ impl UploadQueue {
         let mut buf = vec![0u8; 65535];
         loop {
             let notified = self.notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
             let n = self.read(&mut buf).await.ok()?;
             if n > 0 {
                 buf.truncate(n);

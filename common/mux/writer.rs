@@ -54,13 +54,15 @@ impl<W: AsyncWrite + Unpin> Writer<W> {
         Ok(())
     }
     pub async fn write_data(&mut self, data: &[u8]) -> Result<()> {
-        let mut meta = self.get_next_frame_meta();
-        meta.option |= OPTION_DATA;
-        let mut buf = Vec::new();
-        meta.write_to(&mut buf)?;
-        buf.extend_from_slice(&(data.len() as u16).to_be_bytes());
-        buf.extend_from_slice(data);
-        self.writer.write_all(&buf).await?;
+        for chunk in data.chunks(8192) {
+            let mut meta = self.get_next_frame_meta();
+            meta.option |= OPTION_DATA;
+            let mut buf = Vec::with_capacity(32 + chunk.len());
+            meta.write_to(&mut buf)?;
+            buf.extend_from_slice(&(chunk.len() as u16).to_be_bytes());
+            buf.extend_from_slice(chunk);
+            self.writer.write_all(&buf).await?;
+        }
         self.writer.flush().await?;
         Ok(())
     }

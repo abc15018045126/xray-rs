@@ -26,9 +26,10 @@ pub(crate) fn bridge_ws_stream(ws_stream: TungsteniteStream<BoxStream>, heartbea
     let (mut ws_sink, mut ws_stream) = ws_stream.split();
     let (mut r_client, w_server) = tokio::io::duplex(64 * 1024);
     let (r_server, mut w_client) = tokio::io::duplex(64 * 1024);
+    let (pong_tx, mut pong_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(4);
     tokio::spawn(async move {
         use tokio::io::AsyncReadExt;
-        let mut buf = [0u8; 4096];
+        let mut buf = vec![0u8; 16 * 1024];
         let mut heartbeat = if heartbeat_period > 0 {
             let mut iv = tokio::time::interval(Duration::from_secs(heartbeat_period as u64));
             iv.tick().await;
@@ -48,6 +49,9 @@ pub(crate) fn bridge_ws_stream(ws_stream: TungsteniteStream<BoxStream>, heartbea
                     Ok(n) => if ws_sink.send(Message::Binary(buf[..n].to_vec())).await.is_err() { break; },
                     Err(_) => break,
                 },
+                Some(payload) = pong_rx.recv() => {
+                    if ws_sink.send(Message::Pong(payload)).await.is_err() { break; }
+                },
                 _ = async {
                     match heartbeat.as_mut() {
                         Some(iv) => iv.tick().await,
@@ -59,11 +63,17 @@ pub(crate) fn bridge_ws_stream(ws_stream: TungsteniteStream<BoxStream>, heartbea
     });
     tokio::spawn(async move {
         use tokio::io::AsyncWriteExt;
-        while let Some(Ok(msg)) = ws_stream.next().await {
-            match msg {
-                Message::Binary(bin) if w_client.write_all(&bin).await.is_err() => break,
-                Message::Close(_) => break,
-                _ => {}
+        while let Some(item) = ws_stream.next().await {
+            match item {
+                Ok(Message::Binary(bin)) => {
+                    if w_client.write_all(&bin).await.is_err() { break; }
+                }
+                Ok(Message::Ping(payload)) => {
+                    let _ = pong_tx.try_send(payload);
+                }
+                Ok(Message::Close(_)) => break,
+                Ok(_) => {}
+                Err(_) => break,
             }
         }
     });

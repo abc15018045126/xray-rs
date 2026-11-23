@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 use crate::app::dispatcher::sniffer::{SniffResult, Sniffer};
 use crate::app::dns::fakedns::FakeDnsHolder;
 use crate::common::errors::{Error, Result};
-use crate::common::net::{Address, BoxStream, Destination, Network};
+use crate::common::net::{Address, BoxStream, Destination};
 use crate::common::protocol::SessionContext;
 use crate::common::session::SniffingRequest;
 use crate::features::feature::{Feature, TYPE_DISPATCHER};
@@ -91,8 +91,9 @@ impl DefaultDispatcher {
         session.sniffed_domain = Some(res.domain.clone());
         if self.should_override(res, req, &session.destination) {
             if log_hit { info!("Sniffed domain: {} (protocol: {})", res.domain, res.protocol); }
+            let is_fake_ip = session.destination.address.as_ip().is_some_and(|ip| self.sniffer.is_in_fake_ip_pool(&ip));
             let dst = Destination::new(Address::Domain(res.domain.clone()), session.destination.port);
-            if req.route_only {
+            if req.route_only && res.protocol != "fakedns" && res.protocol != "fakedns+others" && !is_fake_ip {
                 session.route_target = Some(dst);
             } else {
                 session.destination = dst;
@@ -119,12 +120,26 @@ impl DefaultDispatcher {
         let _sniff_t0 = std::time::Instant::now();
         if let Some(sniff_req) = session.sniffing_request.clone() && sniff_req.enabled
         {
-            let mut buf = [0u8; 2048];
-            if let Ok(Ok(n)) = timeout(Duration::from_millis(200), inbound_stream.read(&mut buf)).await && n > 0
-            {
-                initial_payload.extend_from_slice(&buf[..n]);
-                if let Ok(res) = self.sniffer.sniff(&initial_payload, Network::Tcp) {
-                    self.apply_sniff(&mut session, &res, &sniff_req, true);
+            if !sniff_req.metadata_only {
+                let mut buf = vec![0u8; 4096];
+                let deadline = tokio::time::Instant::now() + Duration::from_millis(200);
+                for _ in 0..4 {
+                    let rem = deadline.saturating_duration_since(tokio::time::Instant::now());
+                    if rem.is_zero() || initial_payload.len() >= 32767 { break; }
+                    let cap = buf.len().min(32767 - initial_payload.len());
+                    match timeout(rem, inbound_stream.read(&mut buf[..cap])).await {
+                        Ok(Ok(n)) if n > 0 => {
+                            initial_payload.extend_from_slice(&buf[..n]);
+                            if let Ok(res) = self.sniffer.sniff(&initial_payload, session.destination.network) {
+                                self.apply_sniff(&mut session, &res, &sniff_req, true);
+                                break;
+                            }
+                            if !Sniffer::is_incomplete_tls_client_hello(&initial_payload) {
+                                break;
+                            }
+                        }
+                        _ => break,
+                    }
                 }
             }
             if session.sniffed_domain.is_none()
@@ -313,18 +328,20 @@ impl DefaultDispatcher {
                 };
                 dbg_trace_step(debug_trace_id, step, debug_trace_origin, _send0, format!("{} B", initial_payload.len()));
             }
+            drop(initial_payload);
         }
         let level = session.user.as_ref().map(|u| u.level).unwrap_or(0);
-        let conn_idle = self
+        let timeouts = self
             .policy
             .as_ref()
-            .map(|m| m.for_level(level).timeouts.connection_idle)
-            .unwrap_or_else(|| crate::features::policy::session_default().timeouts.connection_idle);
+            .map(|m| m.for_level(level).timeouts)
+            .unwrap_or_else(|| crate::features::policy::session_default().timeouts);
         let (uplink_counter, downlink_counter, online_map, user_ip) = match (&session.user, &self.policy, &self.stats) {
             (Some(user), Some(policy_mgr), Some(stats_mgr)) if !user.email.is_empty() => {
                 let p = policy_mgr.for_level(user.level);
                 let up = p.stats.user_uplink.then(|| stats_mgr.register_counter(&format!("user>>>{}>>>traffic>>>uplink", user.email)));
                 let down = p.stats.user_downlink.then(|| stats_mgr.register_counter(&format!("user>>>{}>>>traffic>>>downlink", user.email)));
+                if initial_len > 0 && let Some(c) = &up { c.add(initial_len as i64); }
                 let (om, ip_str) = if p.stats.user_online {
                     let om = stats_mgr.register_online_map(&format!("user>>>{}>>>online", user.email));
                     let ip = session.source.map(|s| s.ip().to_string()).unwrap_or_else(|| "127.0.0.1".into());
@@ -359,14 +376,31 @@ impl DefaultDispatcher {
             (None, None)
         };
         #[cfg(debug_assertions)]
-        let result = copy_bidirectional_with_timeout(&mut inbound_stream, &mut outbound_stream, conn_idle, out_up_counter, out_down_counter, debug_tap).await;
+        let result = copy_bidirectional_with_timeout(
+            &mut inbound_stream,
+            &mut outbound_stream,
+            timeouts,
+            out_up_counter,
+            out_down_counter,
+            uplink_counter,
+            downlink_counter,
+            debug_tap,
+        )
+        .await;
         #[cfg(not(debug_assertions))]
-        let result = copy_bidirectional_with_timeout(&mut inbound_stream, &mut outbound_stream, conn_idle, out_up_counter, out_down_counter).await;
+        let result = copy_bidirectional_with_timeout(
+            &mut inbound_stream,
+            &mut outbound_stream,
+            timeouts,
+            out_up_counter,
+            out_down_counter,
+            uplink_counter,
+            downlink_counter,
+        )
+        .await;
         match result {
             Ok((from_client, from_server)) => {
                 let total_uplink = from_client as i64 + initial_len as i64;
-                if let Some(c) = &uplink_counter { c.add(total_uplink); }
-                if let Some(c) = &downlink_counter { c.add(from_server as i64); }
                 #[cfg(debug_assertions)]
                 crate::debug_panel::metrics().record_connect_end(
                     &debug_host,
@@ -462,6 +496,7 @@ async fn copy_one_dir<R, W>(
     writer: W,
     activity_tx: tokio::sync::mpsc::Sender<()>,
     counter: Option<Arc<crate::features::stats::Counter>>,
+    user_counter: Option<Arc<crate::features::stats::Counter>>,
     #[cfg(debug_assertions)] tap: Option<(DebugTapMeta, crate::debug_panel::Direction)>,
 ) -> std::io::Result<u64>
 where
@@ -471,6 +506,7 @@ where
     #[cfg(debug_assertions)]
     let mut ttfb_recorded = false;
     crate::common::buf::copy::copy_one_way(reader, writer, activity_tx, counter, move |_chunk| {
+        if let Some(c) = &user_counter { c.add(_chunk.len() as i64); }
         #[cfg(debug_assertions)]
         if let Some((ref meta, dir)) = tap {
             if !ttfb_recorded && dir == crate::debug_panel::Direction::ServerToClient {
@@ -509,60 +545,79 @@ where
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn copy_bidirectional_with_timeout<A, B>(
     a: &mut A,
     b: &mut B,
-    idle_timeout: Duration,
+    timeouts: crate::features::policy::Timeout,
     up_counter: Option<Arc<crate::features::stats::Counter>>,
     down_counter: Option<Arc<crate::features::stats::Counter>>,
+    user_up_counter: Option<Arc<crate::features::stats::Counter>>,
+    user_down_counter: Option<Arc<crate::features::stats::Counter>>,
     #[cfg(debug_assertions)] tap: Option<DebugTapMeta>,
 ) -> std::io::Result<(u64, u64)>
 where
     A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + ?Sized,
     B: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + ?Sized,
 {
-    let timeout_duration = if idle_timeout.is_zero() { Duration::from_secs(300) } else { idle_timeout };
+    let idle_dur = if timeouts.connection_idle.is_zero() { Duration::from_secs(300) } else { timeouts.connection_idle };
     let (mut a_read, mut a_write) = tokio::io::split(a);
     let (mut b_read, mut b_write) = tokio::io::split(b);
     let (activity_tx, mut activity_rx) = tokio::sync::mpsc::channel::<()>(1);
     let activity_tx_b = activity_tx.clone();
+    let (shrink_tx, mut shrink_rx) = tokio::sync::mpsc::channel::<Duration>(2);
+    let shrink_tx_b = shrink_tx.clone();
     let timer_task = async {
-        let sleep = tokio::time::sleep(timeout_duration);
+        let mut current_timeout = idle_dur;
+        let sleep = tokio::time::sleep(current_timeout);
         tokio::pin!(sleep);
         loop {
             tokio::select! {
                 _ = &mut sleep => break,
                 msg = activity_rx.recv() => match msg {
-                    Some(()) => sleep.as_mut().reset(tokio::time::Instant::now() + timeout_duration),
-                    None => break,
+                    Some(()) => sleep.as_mut().reset(tokio::time::Instant::now() + current_timeout),
+                    None => std::future::pending::<()>().await,
+                },
+                Some(new_dur) = shrink_rx.recv() => {
+                    if !new_dur.is_zero() && new_dur < current_timeout {
+                        current_timeout = new_dur;
+                        sleep.as_mut().reset(tokio::time::Instant::now() + current_timeout);
+                    }
                 }
             }
         }
     };
     tokio::select! {
-        (res_a, res_b) = async {
+        res = async {
             #[cfg(debug_assertions)]
             let (tap_a, tap_b) = tap.map_or((None, None), |m| (
                 Some((m.clone(), crate::debug_panel::Direction::ClientToServer)),
                 Some((m, crate::debug_panel::Direction::ServerToClient)),
             ));
-            #[cfg(debug_assertions)]
-            let (fut_a, fut_b) = (
-                copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter, tap_a),
-                copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter, tap_b),
-            );
-            #[cfg(not(debug_assertions))]
-            let (fut_a, fut_b) = (
-                copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter),
-                copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter),
-            );
-            tokio::join!(fut_a, fut_b)
-        } => match (res_a, res_b) {
-            (Ok(c), Ok(s)) => Ok((c, s)),
-            (Err(e), _) | (_, Err(e)) => Err(e),
-        },
+            let fut_a = async {
+                #[cfg(debug_assertions)]
+                let r = copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter, user_up_counter, tap_a).await;
+                #[cfg(not(debug_assertions))]
+                let r = copy_one_dir(&mut a_read, &mut b_write, activity_tx, up_counter, user_up_counter).await;
+                if r.is_ok() && !timeouts.downlink_only.is_zero() {
+                    let _ = shrink_tx.try_send(timeouts.downlink_only);
+                }
+                r
+            };
+            let fut_b = async {
+                #[cfg(debug_assertions)]
+                let r = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter, user_down_counter, tap_b).await;
+                #[cfg(not(debug_assertions))]
+                let r = copy_one_dir(&mut b_read, &mut a_write, activity_tx_b, down_counter, user_down_counter).await;
+                if r.is_ok() && !timeouts.uplink_only.is_zero() {
+                    let _ = shrink_tx_b.try_send(timeouts.uplink_only);
+                }
+                r
+            };
+            tokio::try_join!(fut_a, fut_b)
+        } => res,
         _ = timer_task => {
-            debug!("Session idle for {:?}, terminating connection", timeout_duration);
+            debug!("Session idle for {:?}, terminating connection", idle_dur);
             Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "session idle timeout"))
         }
     }

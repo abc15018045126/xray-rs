@@ -38,7 +38,6 @@ struct ServerEntry {
     skip_fallback: bool,
     query_strategy: Option<QueryStrategy>,
     is_fakedns: bool,
-    is_local: bool,
 }
 
 pub struct DnsClient {
@@ -63,7 +62,7 @@ impl DnsClient {
     pub fn new() -> Self {
         Self {
             hosts: Arc::new(StaticHosts::new()),
-            cache: Arc::new(CacheController::new("default".into(), false, true, Duration::from_secs(3600))),
+            cache: Arc::new(CacheController::new("default".into(), false, false, Duration::from_secs(0))),
             servers: Vec::new(), entries: Vec::new(), nameservers: Vec::new(), query_strategy: QueryStrategy::UseIP,
             disable_cache: false, disable_fallback: false, disable_fallback_if_match: false,
             fakedns_holder: None, routing_ctx: Arc::new(OnceLock::new()),
@@ -87,7 +86,17 @@ impl DnsClient {
     pub fn set_disable_fallback_if_match(&mut self, disable: bool) { self.disable_fallback_if_match = disable; }
     pub fn set_fakedns_holder(&mut self, holder: Arc<FakeDnsHolder>) { self.fakedns_holder = Some(holder); }
     pub fn query_strategy(&self) -> QueryStrategy { self.query_strategy }
-    pub fn add_host(&self, domain: &str, ips: Vec<IpAddr>) { self.hosts.add_exact(domain, ips); }
+    pub fn add_host(&self, domain: &str, ips: Vec<IpAddr>) {
+        if let Some(d) = domain.strip_prefix("domain:") {
+            self.hosts.add_domain_suffix(d, ips);
+        } else if let Some(d) = domain.strip_prefix("full:") {
+            self.hosts.add_exact(d, ips);
+        } else if let Some(k) = domain.strip_prefix("keyword:") {
+            self.hosts.add_keyword(k, ips);
+        } else {
+            self.hosts.add_exact(domain, ips);
+        }
+    }
     pub fn add_nameserver(&mut self, ns: Arc<dyn NameServer>) {
         self.entries.push(ServerEntry {
             ns: ns.clone(),
@@ -96,13 +105,12 @@ impl DnsClient {
             skip_fallback: false,
             query_strategy: None,
             is_fakedns: false,
-            is_local: false,
         });
         self.nameservers.push(ns);
     }
     pub fn add_server(&mut self, server: DnsServerConfig) {
         let addr = server.address.trim();
-        let (mut is_fakedns, mut is_local) = (false, false);
+        let mut is_fakedns = false;
         let parse_sa = |s: &str| {
             s.parse::<SocketAddr>().ok().or_else(|| s.parse::<IpAddr>().ok().map(|ip| SocketAddr::new(ip, 53)))
         };
@@ -122,7 +130,6 @@ impl DnsClient {
                 server.client_ip,
             )))
         } else if addr.eq_ignore_ascii_case("local") || addr.eq_ignore_ascii_case("localhost") {
-            is_local = true;
             Some(Arc::new(LocalNameServer::new()))
         } else if let Some(s) = addr.strip_prefix("tcp+local://") {
             parse_sa(s).map(|sa| Arc::new(TcpNameServer::new_local_with_ecs(sa, server.client_ip)) as _)
@@ -155,30 +162,39 @@ impl DnsClient {
                 skip_fallback: server.skip_fallback,
                 query_strategy: server.query_strategy,
                 is_fakedns,
-                is_local,
             });
             self.nameservers.push(ns);
         }
         self.servers.push(server);
     }
-    fn filter_ips_with_strategy(strategy: QueryStrategy, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
-        let (v4, v6) = match strategy {
-            QueryStrategy::UseIPv4 => (true, false),
-            QueryStrategy::UseIPv6 => (false, true),
+    fn resolve_ip_flags(strategy: QueryStrategy, option: &IPOption) -> (bool, bool) {
+        match strategy {
+            QueryStrategy::UseIPv4 => (option.ipv4_enable, false),
+            QueryStrategy::UseIPv6 => (false, option.ipv6_enable),
             QueryStrategy::UseIP => (option.ipv4_enable, option.ipv6_enable),
-        };
+        }
+    }
+    fn cache_key(clean: &str, v4: bool, v6: bool) -> String {
+        format!("{}|{}{}", clean, u8::from(v4), u8::from(v6))
+    }
+    fn filter_ips_with_strategy(strategy: QueryStrategy, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
+        let (v4, v6) = Self::resolve_ip_flags(strategy, option);
         ips.iter().copied().filter(|ip| if ip.is_ipv4() { v4 } else { v6 }).collect()
     }
     fn filter_ips(&self, ips: &[IpAddr], option: &IPOption) -> Vec<IpAddr> {
         Self::filter_ips_with_strategy(self.query_strategy, ips, option)
     }
-    async fn query_entry(&self, entry: &ServerEntry, clean: &str, option: &IPOption) -> Option<Vec<IpAddr>> {
-        let ips = match entry.ns.query_ip(clean).await {
-            Ok(ips) if !ips.is_empty() => ips,
+    async fn query_entry(&self, entry: &ServerEntry, clean: &str, option: &IPOption) -> Option<(Vec<IpAddr>, u32)> {
+        if entry.is_fakedns && !option.fake_enable { return None; }
+        let strategy = entry.query_strategy.unwrap_or(self.query_strategy);
+        let (v4, v6) = Self::resolve_ip_flags(strategy, option);
+        if !v4 && !v6 { return None; }
+        let (ips, ttl) = match entry.ns.query_ip_with_opt(clean, v4, v6).await {
+            Ok((ips, ttl)) if !ips.is_empty() => (ips, ttl),
             Ok(_) => return None,
             Err(e) => { tracing::warn!("DNS nameserver '{}' failed for '{}': {}", entry.ns.name(), clean, e); return None; }
         };
-        let mut filtered = Self::filter_ips_with_strategy(entry.query_strategy.unwrap_or(self.query_strategy), &ips, option);
+        let mut filtered = Self::filter_ips_with_strategy(strategy, &ips, option);
         if !entry.expect_ip_matchers.is_empty() {
             filtered.retain(|ip| entry.expect_ip_matchers.iter().any(|m| m.matches(ip)));
         }
@@ -186,12 +202,24 @@ impl DnsClient {
             tracing::debug!("DNS nameserver '{}' returned {:?} for '{}', all filtered out by strategy/expectIPs", entry.ns.name(), ips, clean);
             return None;
         }
-        if !self.disable_cache && !entry.is_fakedns { self.cache.set(clean, filtered.clone(), Duration::from_secs(300)); }
-        Some(filtered)
+        let ttl = if entry.is_fakedns { 1 } else { ttl.max(1) };
+        if !self.disable_cache && !entry.is_fakedns && !entry.ns.is_disable_cache() {
+            let key = Self::cache_key(clean, v4, v6);
+            self.cache.set(&key, filtered.clone(), Duration::from_secs(ttl as u64));
+        }
+        Some((filtered, ttl))
+    }
+    fn get_cached(&self, clean: &str, option: &IPOption) -> Option<Vec<IpAddr>> {
+        if self.disable_cache { return None; }
+        let (v4, v6) = Self::resolve_ip_flags(self.query_strategy, option);
+        if !v4 && !v6 { return None; }
+        self.cache
+            .get(&Self::cache_key(clean, v4, v6))
+            .or_else(|| self.cache.get(&Self::cache_key(clean, true, true)))
     }
     pub fn lookup_cached_or_hosts(&self, domain: &str) -> Vec<IpAddr> {
         let (clean, opt) = (domain.trim_end_matches('.'), IPOption::default());
-        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+        for ips in [self.hosts.lookup(clean), self.get_cached(clean, &opt)].into_iter().flatten() {
             let filtered = self.filter_ips(&ips, &opt);
             if !filtered.is_empty() { return filtered; }
         }
@@ -199,7 +227,7 @@ impl DnsClient {
     }
     pub fn lookup_hosts_or_cache_ipv6(&self, domain: &str) -> Vec<IpAddr> {
         let (clean, opt) = (domain.trim_end_matches('.'), IPOption { ipv4_enable: false, ipv6_enable: true, fake_enable: false });
-        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+        for ips in [self.hosts.lookup(clean), self.get_cached(clean, &opt)].into_iter().flatten() {
             let filtered = self.filter_ips(&ips, &opt);
             if !filtered.is_empty() { return filtered; }
         }
@@ -210,7 +238,7 @@ impl DnsClient {
     }
     pub async fn lookup_for_dialer(&self, domain: &str) -> Result<Vec<IpAddr>> {
         let (clean, option) = (domain.trim_end_matches('.'), IPOption::default());
-        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+        for ips in [self.hosts.lookup(clean), self.get_cached(clean, &option)].into_iter().flatten() {
             let filtered = self.filter_ips(&ips, &option);
             if !filtered.is_empty() { return Ok(filtered); }
         }
@@ -220,50 +248,57 @@ impl DnsClient {
                 && !entry.ns.routes_via_proxy() && entry.domain_matchers.iter().any(|m| m.matches(clean))
             {
                 tried[idx] = true;
-                if let Some(ips) = self.query_entry(entry, clean, &option).await { return Ok(ips); }
+                if let Some((ips, _)) = self.query_entry(entry, clean, &option).await { return Ok(ips); }
             }
         }
         for (idx, entry) in self.entries.iter().enumerate() {
             if !tried[idx]
                 && !entry.is_fakedns
-                && !entry.ns.routes_via_proxy() && let Some(ips) = self.query_entry(entry, clean, &option).await
+                && !entry.ns.routes_via_proxy() && let Some((ips, _)) = self.query_entry(entry, clean, &option).await
             { return Ok(ips); }
         }
         Err(Error::NotFound(format!("No direct/local IP found for dialer domain: {}", domain)))
     }
     pub async fn lookup_ip_with_option(&self, domain: &str, option: IPOption) -> Result<(Vec<IpAddr>, u32)> {
         let clean = domain.trim_end_matches('.');
-        for ips in [self.hosts.lookup(clean), (!self.disable_cache).then(|| self.cache.get(clean)).flatten()].into_iter().flatten() {
+        if let Some(ips) = self.hosts.lookup(clean) {
             let filtered = self.filter_ips(&ips, &option);
-            if !filtered.is_empty() { return Ok((filtered, 300)); }
+            return if !filtered.is_empty() {
+                Ok((filtered, 10))
+            } else {
+                Err(Error::NotFound(format!("Static host '{}' has no IP matching strategy", domain)))
+            };
+        }
+        if let Some(ips) = self.get_cached(clean, &option) {
+            let filtered = self.filter_ips(&ips, &option);
+            if !filtered.is_empty() { return Ok((filtered, 60)); }
         }
         let mut tried = vec![false; self.entries.len()];
-        let (mut any_domain_matched, mut local_tried) = (false, false);
+        let mut any_domain_matched = false;
         for (idx, entry) in self.entries.iter().enumerate() {
             if entry.domain_matchers.iter().any(|m| m.matches(clean)) {
                 any_domain_matched = true;
                 tried[idx] = true;
-                local_tried |= entry.is_local;
-                if let Some(ips) = self.query_entry(entry, clean, &option).await { return Ok((ips, 300)); }
+                if let Some(res) = self.query_entry(entry, clean, &option).await { return Ok(res); }
             }
         }
         if !self.disable_fallback && !(self.disable_fallback_if_match && any_domain_matched) {
             for (idx, entry) in self.entries.iter().enumerate() {
                 if tried[idx] || entry.skip_fallback { continue; }
-                local_tried |= entry.is_local;
-                if let Some(ips) = self.query_entry(entry, clean, &option).await { return Ok((ips, 300)); }
+                if let Some(res) = self.query_entry(entry, clean, &option).await { return Ok(res); }
             }
             #[cfg(not(target_os = "android"))]
-            if !local_tried && let Ok(ips) = LocalNameServer::new().query_ip(clean).await
+            if self.entries.is_empty() && let Ok(ips) = LocalNameServer::new().query_ip(clean).await
             {
                 let filtered = self.filter_ips(&ips, &option);
                 if !filtered.is_empty() {
-                    if !self.disable_cache { self.cache.set(clean, filtered.clone(), Duration::from_secs(300)); }
+                    if !self.disable_cache {
+                        let (v4, v6) = Self::resolve_ip_flags(self.query_strategy, &option);
+                        self.cache.set(&Self::cache_key(clean, v4, v6), filtered.clone(), Duration::from_secs(300));
+                    }
                     return Ok((filtered, 300));
                 }
             }
-            #[cfg(target_os = "android")]
-            let _ = local_tried;
         }
         Err(Error::NotFound(format!("No IP found for domain: {}", domain)))
     }

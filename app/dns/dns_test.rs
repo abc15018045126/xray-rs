@@ -25,7 +25,9 @@ mod tests {
             ..Default::default()
         });
 
-        let ips = client.lookup_ip("www.google.com").await.unwrap();
+        use crate::features::dns::IPOption;
+        let fake_opt = IPOption { ipv4_enable: true, ipv6_enable: true, fake_enable: true };
+        let (ips, _) = client.lookup_ip_with_option("www.google.com", fake_opt).await.unwrap();
         assert_eq!(ips.len(), 1);
         match ips[0] {
             IpAddr::V4(v4) => {
@@ -53,7 +55,9 @@ mod tests {
             ..Default::default()
         });
 
-        let ips = client.lookup_ip("sub.example.org").await.unwrap();
+        use crate::features::dns::IPOption;
+        let fake_opt = IPOption { ipv4_enable: true, ipv6_enable: true, fake_enable: true };
+        let (ips, _) = client.lookup_ip_with_option("sub.example.org", fake_opt).await.unwrap();
         assert_eq!(ips.len(), 1);
     }
 

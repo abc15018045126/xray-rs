@@ -200,12 +200,9 @@ impl Rule {
         let os = current_goos();
         self.local_os.is_empty() || self.local_os.iter().any(|n| n.eq_ignore_ascii_case(os))
     }
-    pub fn matches_process(&self, src: Option<std::net::SocketAddr>, is_tcp: bool) -> bool {
+    pub fn matches_process_info(&self, info: Option<&crate::common::net::find_process::ProcessInfo>) -> bool {
         if self.process.is_empty() { return true; }
-        let Some(src) = src else { return false };
-        let Ok(Some(info)) = crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp) else {
-            return false;
-        };
+        let Some(info) = info else { return false };
         let cur_pid = std::process::id();
         self.process.iter().any(|p| {
             let p = p.replace('\\', "/");
@@ -222,14 +219,28 @@ impl Rule {
             }
         })
     }
+    pub fn matches_process(&self, src: Option<std::net::SocketAddr>, is_tcp: bool) -> bool {
+        if self.process.is_empty() { return true; }
+        let Some(src) = src else { return false };
+        let Ok(info) = crate::common::net::ProcessFinder::find_process_by_socket(src, is_tcp) else {
+            return false;
+        };
+        self.matches_process_info(info.as_ref())
+    }
     pub fn matches(&self, session: &SessionContext) -> bool {
         self.matches_with_ips(session, &[])
     }
     pub fn matches_with_ips(&self, session: &SessionContext, resolved_ips: &[IpAddr]) -> bool {
+        let mut proc_cache = None;
+        self.matches_with_cache(session, resolved_ips, &mut proc_cache)
+    }
+    pub fn matches_with_cache(
+        &self,
+        session: &SessionContext,
+        resolved_ips: &[IpAddr],
+        proc_cache: &mut Option<Option<crate::common::net::find_process::ProcessInfo>>,
+    ) -> bool {
         if !self.matches_local_os() { return false; }
-        if !self.process.is_empty()
-            && !self.matches_process(session.source, session.destination.network == Network::Tcp)
-        { return false; }
         if !self.inbound_tags.is_empty() && !self.inbound_tags.iter().any(|tag| tag == &session.inbound_tag)
         { return false; }
         if self.network.is_some_and(|net| net != session.destination.network) { return false; }
@@ -281,6 +292,18 @@ impl Rule {
                 ip_matched = resolved_ips.iter().any(|ip| self.matches_destination_ip(ip));
             }
             if !ip_matched { return false; }
+        }
+        if !self.process.is_empty() {
+            let info = proc_cache.get_or_insert_with(|| {
+                let src = session.source?;
+                crate::common::net::ProcessFinder::find_process_by_socket(
+                    src,
+                    session.destination.network == Network::Tcp,
+                )
+                .ok()
+                .flatten()
+            });
+            if !self.matches_process_info(info.as_ref()) { return false; }
         }
         true
     }

@@ -96,22 +96,34 @@ impl DialerClient for DefaultDialerClient {
         req.push_str("\r\n");
         stream.write_all(req.as_bytes()).await?;
         stream.flush().await?;
-        let mut buf = [0u8; 1024];
+        let mut buf = vec![0u8; 16384];
         let mut n_read = 0;
         loop {
             let n = stream.read(&mut buf[n_read..]).await?;
             if n == 0 { return Err(Error::Closed); }
             n_read += n;
             if let Some(pos) = buf[..n_read].windows(4).position(|w| w == b"\r\n\r\n") {
-                let status_line = String::from_utf8_lossy(&buf[..pos]).lines().next().unwrap_or("").to_string();
-                if !status_line.contains("200") {
+                let header_text = String::from_utf8_lossy(&buf[..pos]);
+                let status_line = header_text.lines().next().unwrap_or("").to_string();
+                if !status_line.contains(" 200") {
                     return Err(Error::Protocol(format!("unexpected HTTP status: {}", status_line)));
                 }
+                let is_chunked = header_text.lines().skip(1).any(|l| {
+                    l.split_once(':').is_some_and(|(k, v)| {
+                        k.trim().eq_ignore_ascii_case("transfer-encoding")
+                            && v.to_ascii_lowercase().contains("chunked")
+                    })
+                });
                 let rem = buf[pos + 4..n_read].to_vec();
-                let reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if rem.is_empty() {
+                let raw_reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if rem.is_empty() {
                     Box::pin(stream)
                 } else {
                     Box::pin(tokio::io::AsyncReadExt::chain(std::io::Cursor::new(rem), stream))
+                };
+                let reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if is_chunked {
+                    Box::pin(decode_chunked_stream(raw_reader))
+                } else {
+                    raw_reader
                 };
                 return Ok((reader, local_addr, remote_addr));
             }
@@ -129,7 +141,8 @@ impl DialerClient for DefaultDialerClient {
                 target_path = SplitHttpConfig::append_to_path(&target_path, seq_str);
             }
         }
-        let host = if cfg.host.is_empty() { "localhost" } else { &cfg.host };
+        let host_fallback = self.dest.address.to_string();
+        let host = if cfg.host.is_empty() { host_fallback.as_str() } else { cfg.host.as_str() };
         let mut req = format!(
             "{} {} HTTP/1.1\r\nHost: {}\r\nContent-Length: {}\r\n",
             cfg.get_normalized_uplink_http_method(), target_path, host, payload.len()
@@ -146,9 +159,14 @@ impl DialerClient for DefaultDialerClient {
         if !payload.is_empty() { stream.write_all(&payload).await?; }
         stream.flush().await?;
         let mut buf = [0u8; 512];
-        let n = stream.read(&mut buf).await?;
-        if n == 0 { return Err(Error::Closed); }
-        let resp = String::from_utf8_lossy(&buf[..n]);
+        let mut n_read = 0;
+        loop {
+            let n = stream.read(&mut buf[n_read..]).await?;
+            if n == 0 { return Err(Error::Closed); }
+            n_read += n;
+            if buf[..n_read].windows(2).any(|w| w == b"\r\n") || n_read >= buf.len() { break; }
+        }
+        let resp = String::from_utf8_lossy(&buf[..n_read]);
         if !resp.starts_with("HTTP/1.1 200") && !resp.starts_with("HTTP/1.0 200") {
             return Err(Error::Protocol(format!(
                 "post packet failed with response: {}",
@@ -157,6 +175,39 @@ impl DialerClient for DefaultDialerClient {
         }
         Ok(())
     }
+}
+
+fn decode_chunked_stream(mut raw: Pin<Box<dyn AsyncRead + Send + Sync>>) -> tokio::io::DuplexStream {
+    let (mut tx, rx) = tokio::io::duplex(64 * 1024);
+    tokio::spawn(async move {
+        let mut line = Vec::with_capacity(64);
+        let mut byte = [0u8; 1];
+        let mut buf = vec![0u8; 8192];
+        loop {
+            line.clear();
+            loop {
+                if raw.read(&mut byte).await.unwrap_or(0) == 0 { return; }
+                line.push(byte[0]);
+                if line.ends_with(b"\r\n") || line.len() > 64 { break; }
+            }
+            let size_str = std::str::from_utf8(&line).unwrap_or("").trim().split(';').next().unwrap_or("");
+            let Ok(mut chunk_rem) = usize::from_str_radix(size_str, 16) else { return; };
+            if chunk_rem == 0 { return; }
+            while chunk_rem > 0 {
+                let to_read = chunk_rem.min(buf.len());
+                match raw.read(&mut buf[..to_read]).await {
+                    Ok(0) | Err(_) => return,
+                    Ok(n) => {
+                        if tx.write_all(&buf[..n]).await.is_err() { return; }
+                        chunk_rem -= n;
+                    }
+                }
+            }
+            let mut crlf = [0u8; 2];
+            if raw.read_exact(&mut crlf).await.is_err() { return; }
+        }
+    });
+    rx
 }
 
 pub struct SplitHttpClient {

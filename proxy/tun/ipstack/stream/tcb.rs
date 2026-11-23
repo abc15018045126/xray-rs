@@ -2,8 +2,8 @@ use super::seqnum::SeqNum;
 use etherparse::TcpHeader;
 use std::{collections::BTreeMap, time::Duration};
 
-pub(super) const MAX_UNACK: u32 = 1024 * 16;
-pub(super) const READ_BUFFER_SIZE: usize = 1024 * 16;
+pub(super) const MAX_UNACK: u32 = u16::MAX as u32;
+pub(super) const READ_BUFFER_SIZE: usize = u16::MAX as usize;
 pub(super) const MAX_COUNT_FOR_DUP_ACK: usize = 3;
 
 pub(super) const RTO: std::time::Duration = std::time::Duration::from_secs(1);
@@ -47,6 +47,8 @@ pub(crate) struct Tcb {
     duplicate_ack_count_helper: SeqNum,
     max_unacked_bytes: u32,
     read_buffer_size: usize,
+    queued_read_bytes: usize,
+    last_advertised_window: u16,
     max_count_for_dup_ack: usize,
     rto: std::time::Duration,
     max_retransmit_count: usize,
@@ -79,6 +81,8 @@ impl Tcb {
             duplicate_ack_count_helper: seq.into(),
             max_unacked_bytes,
             read_buffer_size,
+            queued_read_bytes: 0,
+            last_advertised_window: read_buffer_size.min(u16::MAX as usize) as u16,
             max_count_for_dup_ack,
             rto,
             max_retransmit_count,
@@ -104,16 +108,54 @@ impl Tcb {
         self.duplicate_ack_count >= self.max_count_for_dup_ack
     }
 
-    pub(super) fn add_unordered_packet(&mut self, seq: SeqNum, buf: Vec<u8>) {
+    pub(super) fn add_unordered_packet(&mut self, mut seq: SeqNum, mut buf: Vec<u8>) {
         if seq < self.ack {
-            #[rustfmt::skip]
-            log::warn!("{:?}: Received packet seq {seq} < self ack {}, len = {}", self.state, self.ack, buf.len());
+            let overlap = self.ack.distance(seq) as usize;
+            if overlap >= buf.len() {
+                #[rustfmt::skip]
+                log::trace!("{:?}: Received duplicate packet seq {seq} < self ack {}, len = {}", self.state, self.ack, buf.len());
+                return;
+            }
+            buf.drain(..overlap);
+            seq = self.ack;
+        }
+        let room = self.remaining_queue_room();
+        let offset = seq.distance(self.ack) as usize;
+        if offset >= room {
             return;
         }
-        self.unordered_packets.insert(seq, buf);
+        let max_len = room - offset;
+        if buf.len() > max_len {
+            buf.truncate(max_len);
+        }
+        if !buf.is_empty() {
+            self.unordered_packets.insert(seq, buf);
+        }
+    }
+    pub(super) fn remaining_queue_room(&self) -> usize {
+        self.read_buffer_size.saturating_sub(self.queued_read_bytes)
+    }
+    pub(super) fn on_data_queued(&mut self, len: usize) {
+        self.queued_read_bytes = self.queued_read_bytes.saturating_add(len);
+    }
+    pub(super) fn on_data_consumed(&mut self, len: usize) {
+        self.queued_read_bytes = self.queued_read_bytes.saturating_sub(len);
+    }
+    pub(super) fn set_last_advertised_window(&mut self, win: u16) {
+        self.last_advertised_window = win;
+    }
+    pub(super) fn should_send_window_update(&self) -> bool {
+        if self.state != TcpState::Established {
+            return false;
+        }
+        let cur = self.get_recv_window();
+        let half = (self.read_buffer_size / 2).min(u16::MAX as usize) as u16;
+        (self.last_advertised_window == 0 && cur >= self.mtu.min(half))
+            || (self.last_advertised_window < half && cur >= half)
     }
     pub(super) fn get_available_read_buffer_size(&self) -> usize {
-        self.read_buffer_size.saturating_sub(self.get_unordered_packets_total_len())
+        let used = self.get_unordered_packets_total_len().saturating_add(self.queued_read_bytes);
+        self.read_buffer_size.saturating_sub(used)
     }
     #[inline]
     pub(crate) fn get_unordered_packets_total_len(&self) -> usize {
@@ -455,5 +497,40 @@ mod tests {
         let packets = tcb.collect_timed_out_inflight_packets();
         assert!(packets.is_empty());
         assert!(tcb.inflight_packets.is_empty());
+    }
+
+    #[test]
+    fn test_recv_window_zero_backpressure_and_reopen() {
+        let mut tcb = Tcb::new(
+            SeqNum(1000),
+            1500,
+            MAX_UNACK,
+            4096,
+            MAX_COUNT_FOR_DUP_ACK,
+            RTO,
+            MAX_RETRANSMIT_COUNT,
+        );
+        tcb.change_state(TcpState::Established);
+        assert_eq!(tcb.get_recv_window(), 4096);
+
+        // Enqueue 4096 bytes -> advertised window drops to 0.
+        tcb.add_unordered_packet(SeqNum(1000), vec![0xaa; 4096]);
+        let consumed = tcb.consume_unordered_packets(4096).unwrap();
+        assert_eq!(consumed.len(), 4096);
+        tcb.on_data_queued(consumed.len());
+        assert_eq!(tcb.get_recv_window(), 0);
+        tcb.set_last_advertised_window(0);
+
+        // Packet arriving while window is 0 must not be buffered or advance ack.
+        tcb.add_unordered_packet(SeqNum(5096), vec![0xbb; 500]);
+        assert!(tcb.consume_unordered_packets(500).is_none());
+        assert_eq!(tcb.get_ack(), SeqNum(5096));
+
+        // Reader drains 2048 bytes -> window reopens and triggers window update ACK.
+        tcb.on_data_consumed(2048);
+        assert_eq!(tcb.get_recv_window(), 2048);
+        assert!(tcb.should_send_window_update());
+        tcb.set_last_advertised_window(2048);
+        assert!(!tcb.should_send_window_update());
     }
 }

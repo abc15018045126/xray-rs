@@ -59,8 +59,8 @@ impl FrameMetadata {
             buf.extend_from_slice(&target.port.to_be_bytes());
             match &target.address {
                 Address::Ipv4(v4) => { buf.push(1); buf.extend_from_slice(&v4.octets()); }
-                Address::Ipv6(v6) => { buf.push(2); buf.extend_from_slice(&v6.octets()); }
-                Address::Domain(d) => { buf.extend_from_slice(&[3, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+                Address::Domain(d) => { buf.extend_from_slice(&[2, d.len() as u8]); buf.extend_from_slice(d.as_bytes()); }
+                Address::Ipv6(v6) => { buf.push(3); buf.extend_from_slice(&v6.octets()); }
             }
         }
         let meta_len = (buf.len() - meta_start) as u16;
@@ -70,6 +70,7 @@ impl FrameMetadata {
     pub fn unmarshal(&mut self, bytes: &[u8]) -> Result<usize> {
         if bytes.len() < 2 { return Err(Error::Protocol("Insufficient buffer for meta length".into())); }
         let meta_len = u16::from_be_bytes([bytes[0], bytes[1]]) as usize;
+        if meta_len > 512 { return Err(Error::Protocol(format!("Invalid metalen {}", meta_len))); }
         if bytes.len() < 2 + meta_len { return Err(Error::Protocol("Insufficient buffer for metadata".into())); }
         if meta_len < 4 { return Err(Error::Protocol("Meta length too short".into())); }
         let slice = &bytes[2..2 + meta_len];
@@ -88,15 +89,15 @@ impl FrameMetadata {
                     Address::Ipv4(std::net::Ipv4Addr::from(b))
                 }
                 2 => {
-                    let b: [u8; 16] = rest.get(..16).and_then(|s| s.try_into().ok())
-                        .ok_or_else(|| Error::Protocol("Short IPv6 address".into()))?;
-                    Address::Ipv6(std::net::Ipv6Addr::from(b))
-                }
-                3 => {
                     let dlen = *rest.first().ok_or_else(|| Error::Protocol("Short domain length".into()))? as usize;
                     let raw = rest.get(1..1 + dlen).ok_or_else(|| Error::Protocol("Short domain string".into()))?;
                     let s = std::str::from_utf8(raw).map_err(|e| Error::Protocol(format!("Invalid domain: {}", e)))?;
                     Address::Domain(s.to_string())
+                }
+                3 => {
+                    let b: [u8; 16] = rest.get(..16).and_then(|s| s.try_into().ok())
+                        .ok_or_else(|| Error::Protocol("Short IPv6 address".into()))?;
+                    Address::Ipv6(std::net::Ipv6Addr::from(b))
                 }
                 other => return Err(Error::Protocol(format!("Unknown address type: {}", other))),
             };
@@ -129,7 +130,7 @@ impl Frame {
         Self {
             session_id,
             status: SessionStatus::New,
-            option: OPTION_DATA,
+            option: if !payload.is_empty() { OPTION_DATA } else { 0 },
             target: Some(target),
             payload,
         }
@@ -162,8 +163,8 @@ impl Frame {
             header_buf.extend_from_slice(&target.port.to_be_bytes());
             match &target.address {
                 Address::Ipv4(v4) => { header_buf.push(1); header_buf.extend_from_slice(&v4.octets()); }
-                Address::Ipv6(v6) => { header_buf.push(2); header_buf.extend_from_slice(&v6.octets()); }
-                Address::Domain(d) => { header_buf.push(3); header_buf.push(d.len() as u8); header_buf.extend_from_slice(d.as_bytes()); }
+                Address::Domain(d) => { header_buf.push(2); header_buf.push(d.len() as u8); header_buf.extend_from_slice(d.as_bytes()); }
+                Address::Ipv6(v6) => { header_buf.push(3); header_buf.extend_from_slice(&v6.octets()); }
             }
         }
         let total = header_buf.len() + self.payload.len();
@@ -200,17 +201,17 @@ impl Frame {
                     Address::Ipv4(std::net::Ipv4Addr::from(ip))
                 }
                 2 => {
-                    let mut ip = [0u8; 16];
-                    reader.read_exact(&mut ip).await?;
-                    bytes_read += 16;
-                    Address::Ipv6(std::net::Ipv6Addr::from(ip))
-                }
-                3 => {
                     let len = reader.read_u8().await? as usize;
                     let mut dom = vec![0u8; len];
                     reader.read_exact(&mut dom).await?;
                     bytes_read += 1 + len;
                     Address::Domain(String::from_utf8(dom).map_err(|e| Error::Protocol(format!("Invalid UTF-8 domain: {}", e)))?)
+                }
+                3 => {
+                    let mut ip = [0u8; 16];
+                    reader.read_exact(&mut ip).await?;
+                    bytes_read += 16;
+                    Address::Ipv6(std::net::Ipv6Addr::from(ip))
                 }
                 other => return Err(Error::Protocol(format!("Invalid Mux address type: {}", other))),
             };

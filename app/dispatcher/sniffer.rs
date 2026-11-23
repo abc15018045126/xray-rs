@@ -92,13 +92,26 @@ impl Sniffer {
         }
         None
     }
+    pub fn is_incomplete_tls_client_hello(payload: &[u8]) -> bool {
+        if payload.len() < 5 || payload[0] != 0x16 || payload[1] != 0x03 { return false; }
+        let record_len = u16::from_be_bytes([payload[3], payload[4]]) as usize;
+        payload.len() < 5 + record_len
+    }
     pub fn sniff_http_host(payload: &[u8]) -> Option<String> {
-        let text = std::str::from_utf8(payload).ok()?;
-        for line in text.lines() {
-            let lower = line.to_lowercase();
-            if lower.starts_with("host:") {
+        const METHODS: &[&[u8]] = &[
+            b"GET ", b"POST ", b"HEAD ", b"PUT ", b"DELETE ", b"OPTIONS ", b"CONNECT ", b"PATCH ", b"TRACE ",
+        ];
+        if !METHODS.iter().any(|m| payload.starts_with(m)) { return None; }
+        let header_end = payload.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(payload.len());
+        let text = std::str::from_utf8(&payload[..header_end]).ok()?;
+        for line in text.lines().skip(1) {
+            if line.len() >= 5 && line[..5].eq_ignore_ascii_case("host:") {
                 let host = line[5..].trim();
-                let domain = host.split(':').next()?.trim();
+                let domain = if let Some(rest) = host.strip_prefix('[') {
+                    rest.split(']').next()?.trim()
+                } else {
+                    host.split(':').next()?.trim()
+                };
                 if !domain.is_empty() { return Some(domain.to_string()); }
             }
         }

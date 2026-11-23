@@ -218,7 +218,11 @@ impl SplitHttpConfig {
                     v.to_string()
                 }
                 PLACEMENT_QUERY => query_pairs.get(key).cloned().unwrap_or_default(),
-                PLACEMENT_HEADER => headers.get(key).cloned().unwrap_or_default(),
+                PLACEMENT_HEADER => headers
+                    .get(key)
+                    .or_else(|| headers.get(&key.to_ascii_lowercase()))
+                    .cloned()
+                    .unwrap_or_default(),
                 PLACEMENT_COOKIE => cookies.get(key).cloned().unwrap_or_default(),
                 _ => String::new(),
             }

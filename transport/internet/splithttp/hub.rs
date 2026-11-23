@@ -42,15 +42,24 @@ impl SplitHttpServer {
     ) -> Result<Option<BoxStream>> {
         let mut header_buf = [0u8; 4096];
         let mut n_read = 0;
-        let header_end = loop {
-            let n = stream.read(&mut header_buf[n_read..]).await?;
-            if n == 0 { return Ok(None); }
-            n_read += n;
-            if let Some(pos) = header_buf[..n_read].windows(4).position(|w| w == b"\r\n\r\n") { break pos + 4; }
-            if n_read >= header_buf.len() {
-                let _ = stream.write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n").await;
-                return Ok(None);
+        let header_end = match pingora_timeout::timeout(std::time::Duration::from_secs(4), async {
+            loop {
+                let n = stream.read(&mut header_buf[n_read..]).await?;
+                if n == 0 { return Ok::<Option<usize>, Error>(None); }
+                n_read += n;
+                if let Some(pos) = header_buf[..n_read].windows(4).position(|w| w == b"\r\n\r\n") {
+                    return Ok(Some(pos + 4));
+                }
+                if n_read >= header_buf.len() {
+                    let _ = stream.write_all(b"HTTP/1.1 431 Request Header Fields Too Large\r\n\r\n").await;
+                    return Ok(None);
+                }
             }
+        })
+        .await
+        {
+            Ok(Ok(Some(end))) => end,
+            _ => return Ok(None),
         };
         let header_str = String::from_utf8_lossy(&header_buf[..header_end]);
         let mut lines = header_str.lines();
@@ -93,11 +102,20 @@ impl SplitHttpServer {
         if !is_post && method != "GET" { return Ok(None); }
         let session = {
             let mut map = sessions.lock().await;
-            map.entry(session_id)
+            map.entry(session_id.clone())
                 .or_insert_with(|| Arc::new(HttpSession::new(config.get_normalized_sc_max_buffered_posts()))).clone()
         };
         if is_post {
+            let max_post = config.get_normalized_sc_max_each_post_bytes().to.max(1024 * 1024) as usize;
             let content_len: usize = headers.get("content-length").and_then(|v| v.parse().ok()).unwrap_or(0);
+            if content_len > max_post {
+                let _ = stream.write_all(b"HTTP/1.1 413 Payload Too Large\r\nContent-Length: 0\r\n\r\n").await;
+                return Ok(None);
+            }
+            let Ok(seq) = (if seq_str.is_empty() { Ok(0u64) } else { seq_str.parse::<u64>() }) else {
+                let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n").await;
+                return Ok(None);
+            };
             let mut body_bytes = Vec::with_capacity(content_len);
             body_bytes.extend_from_slice(&header_buf[header_end..n_read]);
             while body_bytes.len() < content_len {
@@ -106,17 +124,23 @@ impl SplitHttpServer {
                 if n == 0 { break; }
                 body_bytes.extend_from_slice(&chunk[..n]);
             }
-            let _ = session.upload_queue.push(body_bytes, seq_str.parse::<u64>().unwrap_or(0)).await;
+            if session.upload_queue.push(body_bytes, seq).await.is_err() {
+                let _ = stream.write_all(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n").await;
+                return Ok(None);
+            }
             stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nCache-Control: no-store\r\n\r\n").await?;
             stream.flush().await?;
             return Ok(None);
         }
         stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nX-Accel-Buffering: no\r\nCache-Control: no-store\r\n\r\n")
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nX-Accel-Buffering: no\r\nCache-Control: no-store\r\n\r\n")
             .await?;
         stream.flush().await?;
         let (down_tx, mut down_rx) = tokio::io::duplex(64 * 1024);
         let (stream_read, mut stream_write) = tokio::io::split(stream);
+        let sessions_cleanup = Arc::clone(sessions);
+        let sid_cleanup = session_id;
+        let uq_cleanup = session.upload_queue.clone();
         tokio::spawn(async move {
             let _keep_read = stream_read;
             let mut buf = [0u8; 8192];
@@ -125,6 +149,8 @@ impl SplitHttpServer {
                     break;
                 }
             }
+            uq_cleanup.close().await;
+            sessions_cleanup.lock().await.remove(&sid_cleanup);
         });
         let (mut q_tx, q_rx) = tokio::io::duplex(64 * 1024);
         let uq = session.upload_queue.clone();

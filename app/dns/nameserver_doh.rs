@@ -9,9 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use crate::app::dns::hosts::StaticHosts;
-use crate::app::dns::nameserver::{NameServer, build_dns_query_with_ecs, parse_dns_response};
-#[cfg(not(target_os = "android"))]
-use crate::app::dns::nameserver_local::LocalNameServer;
+use crate::app::dns::nameserver::{NameServer, build_dns_query_with_ecs, parse_dns_response_with_ttl};
 use crate::app::router::Router;
 use crate::common::errors::{Error, Result};
 use crate::common::net::{Address, BoxStream, Destination};
@@ -215,18 +213,18 @@ impl DohNameServer {
         if out.is_empty() { return Err(Error::Protocol("Invalid or empty DoH H2 response".into())); }
         Ok(out)
     }
-    async fn execute_doh(&self, domain: &str) -> Result<Vec<IpAddr>> {
+    async fn execute_doh(&self, domain: &str, qtype: u16) -> Result<(Vec<IpAddr>, u32)> {
         let (is_https, host, port, path) = self.parse_url();
         let clean = domain.trim_end_matches('.');
         if clean.eq_ignore_ascii_case(&host) {
             return Err(Error::Protocol(format!("DoH server '{}' tries to resolve itself", self.url)));
         }
-        let query = build_dns_query_with_ecs(clean, 1, self.client_ip);
+        let query = build_dns_query_with_ecs(clean, qtype, self.client_ip);
         if is_https {
             for attempt in 0..2 {
                 let send_req = self.get_or_connect_h2(&host, port).await?;
                 match self.send_h2_query(send_req, &host, port, &path, &query).await {
-                    Ok(body) => return parse_dns_response(&body, clean),
+                    Ok(body) => return parse_dns_response_with_ttl(&body, clean),
                     Err(e) if attempt == 0 => {
                         *self.h2_client.lock().await = None;
                         tracing::debug!("DoH H2 query failed for '{}' on attempt 0 ({}), retrying on fresh H2 conn", clean, e);
@@ -237,13 +235,17 @@ impl DohNameServer {
             return Err(Error::Protocol("DoH H2 retry exhausted".into()));
         }
         let mut stream = self.dial_transport(&host, port).await?;
+        let host_hdr = if port == 80 { host.clone() } else { format!("{}:{}", host, port) };
         let req = format!(
             "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: xray/dns\r\nAccept: application/dns-message\r\nContent-Type: application/dns-message\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            path, host, query.len()
+            path, host_hdr, query.len()
         );
-        stream.write_all(req.as_bytes()).await.map_err(Error::Io)?;
-        stream.write_all(&query).await.map_err(Error::Io)?;
-        stream.flush().await.map_err(Error::Io)?;
+        pingora_timeout::timeout(self.timeout, async {
+            stream.write_all(req.as_bytes()).await?;
+            stream.write_all(&query).await?;
+            stream.flush().await
+        })
+        .await.map_err(|_| Error::Timeout)?.map_err(Error::Io)?;
         let mut buf = Vec::with_capacity(2048);
         let mut chunk = [0u8; 1024];
         let (mut header_len, mut content_len, mut is_chunked, mut decoded_chunked) = (0, None, false, None);
@@ -284,9 +286,9 @@ impl DohNameServer {
         if header_len == 0 || buf.len() <= header_len {
             return Err(Error::Protocol("Invalid or empty DoH response".into()));
         }
-        if let Some(body) = decoded_chunked { return parse_dns_response(&body, clean); }
+        if let Some(body) = decoded_chunked { return parse_dns_response_with_ttl(&body, clean); }
         let end = content_len.map_or(buf.len(), |clen| (header_len + clen).min(buf.len()));
-        parse_dns_response(&buf[header_len..end], clean)
+        parse_dns_response_with_ttl(&buf[header_len..end], clean)
     }
 }
 
@@ -318,15 +320,32 @@ impl NameServer for DohNameServer {
         !matches!(ctx.router.pick_outbound(&session).unwrap_or("direct"), "direct" | "freedom" | "dns" | "block" | "blackhole")
     }
     async fn query_ip(&self, domain: &str) -> Result<Vec<IpAddr>> {
-        match self.execute_doh(domain).await {
-            Ok(ips) => Ok(ips),
-            Err(e) => {
-                tracing::warn!("DoH query failed for '{}' via '{}': {}", domain, self.url, e);
-                #[cfg(target_os = "android")]
-                { Err(e) }
-                #[cfg(not(target_os = "android"))]
-                { LocalNameServer::new().query_ip(domain).await.map_err(|_| e) }
+        self.query_ip_with_opt(domain, true, false).await.map(|(ips, _)| ips)
+    }
+    async fn query_ip_with_opt(&self, domain: &str, ipv4: bool, ipv6: bool) -> Result<(Vec<IpAddr>, u32)> {
+        let (mut ips, mut ttl, mut last_err) = (Vec::new(), u32::MAX, None);
+        if ipv4 {
+            match self.execute_doh(domain, 1).await {
+                Ok((v, t)) => { ips.extend(v); ttl = ttl.min(t); }
+                Err(e) => {
+                    tracing::warn!("DoH A query failed for '{}' via '{}': {}", domain, self.url, e);
+                    last_err = Some(e);
+                }
             }
+        }
+        if ipv6 {
+            match self.execute_doh(domain, 28).await {
+                Ok((v, t)) => { ips.extend(v); ttl = ttl.min(t); }
+                Err(e) => {
+                    tracing::warn!("DoH AAAA query failed for '{}' via '{}': {}", domain, self.url, e);
+                    last_err = Some(e);
+                }
+            }
+        }
+        if !ips.is_empty() {
+            Ok((ips, if ttl == u32::MAX { 60 } else { ttl }))
+        } else {
+            Err(last_err.unwrap_or_else(|| Error::NotFound(format!("DoH returned no IP for {}", domain))))
         }
     }
 }

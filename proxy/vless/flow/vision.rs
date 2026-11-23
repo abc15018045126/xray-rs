@@ -6,7 +6,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
 use crate::common::errors::Result;
 use crate::proxy::proxy::{
     COMMAND_PADDING_CONTINUE, COMMAND_PADDING_DIRECT, COMMAND_PADDING_END, TrafficState,
-    xtls_filter_tls, xtls_padding, xtls_unpadding,
+    is_complete_record, xtls_filter_tls, xtls_padding, xtls_unpadding,
 };
 
 pub const FLOW_VISION: &str = "xtls-rprx-vision";
@@ -65,6 +65,7 @@ pub struct VisionStream<S> {
     read_direct: bool,
     write_direct: bool,
     write_uuid_sent: bool,
+    raw_read_buf: Vec<u8>,
     read_buf: Vec<u8>,
     write_buf: Vec<u8>,
 }
@@ -78,6 +79,7 @@ impl<S> VisionStream<S> {
             read_direct: false,
             write_direct: false,
             write_uuid_sent: false,
+            raw_read_buf: Vec::new(),
             read_buf: Vec::with_capacity(4096),
             write_buf: Vec::with_capacity(4096),
         }
@@ -88,24 +90,51 @@ impl<S> VisionStream<S> {
 }
 
 impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
-        if !self.read_buf.is_empty() {
-            let n = buf.remaining().min(self.read_buf.len());
-            buf.put_slice(&self.read_buf[..n]);
-            self.read_buf.drain(..n);
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+        let this = self.get_mut();
+        if !this.read_buf.is_empty() {
+            let n = buf.remaining().min(this.read_buf.len());
+            buf.put_slice(&this.read_buf[..n]);
+            this.read_buf.drain(..n);
             return Poll::Ready(Ok(()));
         }
-        if self.read_direct || self.context.is_direct_copy() { return Pin::new(&mut self.inner).poll_read(cx, buf); }
+        if this.read_direct || this.context.is_direct_copy() { return Pin::new(&mut this.inner).poll_read(cx, buf); }
         let mut raw = [0u8; 4096];
         let mut read_buf = ReadBuf::new(&mut raw);
-        match Pin::new(&mut self.inner).poll_read(cx, &mut read_buf) {
+        match Pin::new(&mut this.inner).poll_read(cx, &mut read_buf) {
             Poll::Ready(Ok(())) => {
                 let filled = read_buf.filled();
-                if filled.is_empty() { return Poll::Ready(Ok(())); }
+                if filled.is_empty() {
+                    if !this.raw_read_buf.is_empty() {
+                        let leftover = std::mem::take(&mut this.raw_read_buf);
+                        let n = buf.remaining().min(leftover.len());
+                        buf.put_slice(&leftover[..n]);
+                        this.read_buf.extend_from_slice(&leftover[n..]);
+                    }
+                    return Poll::Ready(Ok(()));
+                }
                 let (unpadded, switch_direct) = {
-                    let mut state = self.context.traffic_state.lock().unwrap();
-                    let data = xtls_unpadding(filled, &mut state, self.is_inbound);
-                    let (cmd, direct_flag, rem_c, rem_p) = if self.is_inbound {
+                    let mut state = this.context.traffic_state.lock().unwrap();
+                    let need_first_hdr = if this.is_inbound {
+                        state.inbound.remaining_command == -1
+                    } else {
+                        state.outbound.remaining_command == -1
+                    };
+                    let input_owned;
+                    let input: &[u8] = if need_first_hdr {
+                        this.raw_read_buf.extend_from_slice(filled);
+                        if this.raw_read_buf.len() < 21 {
+                            cx.waker().wake_by_ref();
+                            return Poll::Pending;
+                        }
+                        input_owned = std::mem::take(&mut this.raw_read_buf);
+                        &input_owned
+                    } else {
+                        filled
+                    };
+                    let data = xtls_unpadding(input, &mut state, this.is_inbound);
+                    if !data.is_empty() { xtls_filter_tls(&data, &mut state); }
+                    let (cmd, direct_flag, rem_c, rem_p) = if this.is_inbound {
                         let s = &state.inbound;
                         (s.current_command, s.uplink_reader_direct_copy, s.remaining_content, s.remaining_padding)
                     } else {
@@ -117,8 +146,8 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                     (data, should_direct)
                 };
                 if switch_direct {
-                    self.read_direct = true;
-                    if self.write_direct { self.context.set_direct_copy(true); }
+                    this.read_direct = true;
+                    if this.write_direct { this.context.set_direct_copy(true); }
                 }
                 if unpadded.is_empty() {
                     cx.waker().wake_by_ref();
@@ -126,7 +155,7 @@ impl<S: AsyncRead + Unpin> AsyncRead for VisionStream<S> {
                 }
                 let n = buf.remaining().min(unpadded.len());
                 buf.put_slice(&unpadded[..n]);
-                self.read_buf.extend_from_slice(&unpadded[n..]);
+                this.read_buf.extend_from_slice(&unpadded[n..]);
                 Poll::Ready(Ok(()))
             }
             other => other,
@@ -139,17 +168,27 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
         let this = self.get_mut();
         while !this.write_buf.is_empty() {
             match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
+                Poll::Ready(Ok(0)) => {
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "vision inner write zero")));
+                }
                 Poll::Ready(Ok(n)) => { this.write_buf.drain(..n); }
                 other => return other,
             }
         }
         if this.write_direct || this.context.is_direct_copy() { return Pin::new(&mut this.inner).poll_write(cx, buf); }
+        const MAX_VISION_CHUNK: usize = 2048 - 21;
+        let chunk = &buf[..buf.len().min(MAX_VISION_CHUNK)];
         let (padded_frame, switch_direct) = {
             let mut state = this.context.traffic_state.lock().unwrap();
-            xtls_filter_tls(buf, &mut state);
-            let cmd = if state.is_tls && state.is_tls12_or_above {
-                COMMAND_PADDING_DIRECT
-            } else if state.number_of_packet_to_filter <= 0 {
+            xtls_filter_tls(chunk, &mut state);
+            let is_complete_app_data = chunk.len() >= 3
+                && chunk[0] == 0x17
+                && chunk[1] == 0x03
+                && chunk[2] == 0x03
+                && is_complete_record(chunk);
+            let cmd = if (state.is_tls && is_complete_app_data)
+                || (!state.is_tls12_or_above && state.number_of_packet_to_filter <= 1)
+            {
                 COMMAND_PADDING_END
             } else {
                 COMMAND_PADDING_CONTINUE
@@ -158,25 +197,34 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
                 this.write_uuid_sent = true;
                 state.user_uuid.as_slice()
             });
-            let frame = xtls_padding(Some(buf), cmd, uuid, true, None);
+            let long_padding = state.is_tls;
+            let frame = xtls_padding(Some(chunk), cmd, uuid, long_padding, None);
             (frame, cmd == COMMAND_PADDING_DIRECT || cmd == COMMAND_PADDING_END)
         };
         if switch_direct {
             this.write_direct = true;
             if this.read_direct { this.context.set_direct_copy(true); }
         }
-        match Pin::new(&mut this.inner).poll_write(cx, &padded_frame) {
-            Poll::Ready(Ok(n)) => {
-                this.write_buf.extend_from_slice(&padded_frame[n..]);
-                Poll::Ready(Ok(buf.len()))
+        this.write_buf = padded_frame;
+        while !this.write_buf.is_empty() {
+            match Pin::new(&mut this.inner).poll_write(cx, &this.write_buf) {
+                Poll::Ready(Ok(0)) => {
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "vision inner write zero")));
+                }
+                Poll::Ready(Ok(n)) => { this.write_buf.drain(..n); }
+                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Pending => break,
             }
-            other => other,
         }
+        Poll::Ready(Ok(chunk.len()))
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
         let s = self.get_mut();
         while !s.write_buf.is_empty() {
             match Pin::new(&mut s.inner).poll_write(cx, &s.write_buf) {
+                Poll::Ready(Ok(0)) => {
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "vision flush write zero")));
+                }
                 Poll::Ready(Ok(n)) => { s.write_buf.drain(..n); }
                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 Poll::Pending => return Poll::Pending,
@@ -184,7 +232,18 @@ impl<S: AsyncWrite + Unpin> AsyncWrite for VisionStream<S> {
         }
         Pin::new(&mut s.inner).poll_flush(cx)
     }
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.inner).poll_shutdown(cx)
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        let s = self.get_mut();
+        while !s.write_buf.is_empty() {
+            match Pin::new(&mut s.inner).poll_write(cx, &s.write_buf) {
+                Poll::Ready(Ok(0)) => {
+                    return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::WriteZero, "vision shutdown write zero")));
+                }
+                Poll::Ready(Ok(n)) => { s.write_buf.drain(..n); }
+                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+        Pin::new(&mut s.inner).poll_shutdown(cx)
     }
 }

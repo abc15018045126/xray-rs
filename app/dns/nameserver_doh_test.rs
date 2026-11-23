@@ -33,7 +33,7 @@ mod tests {
             ))),
         );
         assert_eq!(&v6[10..12], &[0x00, 0x01]);
-        assert_eq!(v6.len(), plain.len() + 26);
-        assert_eq!(&v6[v6.len() - 7..], &[0x20, 0x01, 0x0d, 0xb8, 0x12, 0x34, 0x56]);
+        assert_eq!(v6.len(), plain.len() + 31);
+        assert_eq!(&v6[v6.len() - 12..], &[0x20, 0x01, 0x0d, 0xb8, 0x12, 0x34, 0x56, 0, 0, 0, 0, 0]);
     }
 }

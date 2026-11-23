@@ -93,9 +93,6 @@ pub async fn copy_one_way<R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: FnMut(
     loop {
         match reader.read(&mut buf).await {
             Ok(0) => { let _ = writer.flush().await; let _ = writer.shutdown().await; return Ok(total); }
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                let _ = writer.flush().await; let _ = writer.shutdown().await; return Ok(total);
-            }
             Err(e) => { let _ = writer.shutdown().await; return Err(e); }
             Ok(n) => {
                 total += n as u64;

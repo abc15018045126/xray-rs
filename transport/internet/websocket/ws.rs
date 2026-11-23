@@ -146,7 +146,28 @@ impl WebSocketStream {
         sha1.update(key.as_bytes());
         sha1.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
         let accept_key = base64::engine::general_purpose::STANDARD.encode(sha1.finalize());
-        let resp = format!("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n", accept_key);
+        let ed_decoded = early_data_hdr.as_deref().and_then(|ed_raw| {
+            if ed_raw.is_empty() { return None; }
+            let normalized: String = ed_raw
+                .chars()
+                .filter(|&c| c != '=')
+                .map(|c| match c { '+' => '-', '/' => '_', _ => c })
+                .collect();
+            base64::engine::general_purpose::URL_SAFE_NO_PAD
+                .decode(&normalized)
+                .ok()
+                .filter(|b| !b.is_empty())
+        });
+        let resp = match (&early_data_hdr, &ed_decoded) {
+            (Some(raw), Some(_)) if !raw.contains(['\r', '\n']) => format!(
+                "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\nSec-WebSocket-Protocol: {}\r\n\r\n",
+                accept_key, raw
+            ),
+            _ => format!(
+                "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {}\r\n\r\n",
+                accept_key
+            ),
+        };
         stream.write_all(resp.as_bytes()).await.map_err(|e| Error::Protocol(format!("WebSocket 101 write failed: {}", e)))?;
         stream.flush().await.map_err(|e| Error::Protocol(format!("WebSocket 101 flush failed: {}", e)))?;
         let raw_stream = with_prefix(req_buf[hdr_end..].to_vec(), stream);
@@ -157,13 +178,7 @@ impl WebSocketStream {
         )
         .await;
         let bridged = bridge_ws_stream(ws_stream, 0);
-        if let Some(ed_raw) = early_data_hdr
-            && !ed_raw.is_empty()
-            && let Ok(ed_bytes) = base64::engine::general_purpose::URL_SAFE_NO_PAD
-                .decode(ed_raw.trim_end_matches('='))
-                .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(&ed_raw))
-                .or_else(|_| base64::engine::general_purpose::STANDARD.decode(&ed_raw)) && !ed_bytes.is_empty()
-        { return Ok(with_prefix(ed_bytes, bridged)); }
+        if let Some(ed_bytes) = ed_decoded { return Ok(with_prefix(ed_bytes, bridged)); }
         Ok(bridged)
     }
 }
@@ -177,15 +192,19 @@ fn is_reserved_ws_header(k: &str) -> bool {
 }
 
 async fn read_http_header(stream: &mut BoxStream, max_len: usize, ctx: &str) -> Result<(Vec<u8>, usize)> {
-    let mut buf = Vec::with_capacity(1024);
-    let mut tmp = [0u8; 1024];
-    loop {
-        let n = stream.read(&mut tmp).await.map_err(|e| Error::Protocol(format!("{} read failed: {}", ctx, e)))?;
-        if n == 0 { return Err(Error::Protocol(format!("{} EOF before header end", ctx))); }
-        buf.extend_from_slice(&tmp[..n]);
-        if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") { return Ok((buf, pos + 4)); }
-        if buf.len() > max_len { return Err(Error::Protocol(format!("{} header too large", ctx))); }
-    }
+    pingora_timeout::timeout(std::time::Duration::from_secs(8), async {
+        let mut buf = Vec::with_capacity(1024);
+        let mut tmp = [0u8; 1024];
+        loop {
+            let n = stream.read(&mut tmp).await.map_err(|e| Error::Protocol(format!("{} read failed: {}", ctx, e)))?;
+            if n == 0 { return Err(Error::Protocol(format!("{} EOF before header end", ctx))); }
+            buf.extend_from_slice(&tmp[..n]);
+            if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") { return Ok((buf, pos + 4)); }
+            if buf.len() > max_len { return Err(Error::Protocol(format!("{} header too large", ctx))); }
+        }
+    })
+    .await
+    .map_err(|_| Error::Protocol(format!("{} header read timeout", ctx)))?
 }
 
 fn with_prefix(prefix: Vec<u8>, inner: BoxStream) -> BoxStream {

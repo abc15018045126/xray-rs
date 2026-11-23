@@ -26,7 +26,7 @@ const TWO_MSL: Duration = Duration::from_secs(2);
 const CLOSE_WAIT_TIMEOUT: Duration = Duration::from_secs(5);
 const LAST_ACK_MAX_RETRIES: usize = 3;
 const LAST_ACK_TIMEOUT: Duration = Duration::from_millis(500);
-const TIMEOUT: Duration = Duration::from_secs(60);
+const TIMEOUT: Duration = Duration::from_secs(300);
 
 #[non_exhaustive]
 #[derive(Debug, Clone)]
@@ -213,6 +213,21 @@ impl IpStackTcpStream {
     pub fn stream_sender(&self) -> PacketSender {
         self.stream_sender.clone()
     }
+
+    fn notify_consumed(&self, consumed: usize) {
+        if consumed == 0 {
+            return;
+        }
+        let network_tuple = self.network_tuple();
+        let mut tcb = self.tcb.lock().unwrap();
+        tcb.on_data_consumed(consumed);
+        if tcb.should_send_window_update() {
+            let win = tcb.get_recv_window();
+            if write_packet_to_device(&self.up_packet_sender, network_tuple, &tcb, None, ACK, None, None).is_ok() {
+                tcb.set_last_advertised_window(win);
+            }
+        }
+    }
 }
 
 impl AsyncRead for IpStackTcpStream {
@@ -221,6 +236,7 @@ impl AsyncRead for IpStackTcpStream {
             let len = std::cmp::min(buf.remaining(), self.temp_read_buffer.len());
             buf.put_slice(&self.temp_read_buffer[..len]);
             self.temp_read_buffer.drain(..len);
+            self.notify_consumed(len);
             return Poll::Ready(Ok(()));
         }
 
@@ -254,12 +270,15 @@ impl AsyncRead for IpStackTcpStream {
         match self.data_rx.poll_recv(cx) {
             Poll::Ready(Some(data)) => {
                 let capacity = buf.remaining();
-                if capacity >= data.len() {
+                let delivered = if capacity >= data.len() {
                     buf.put_slice(&data);
+                    data.len()
                 } else {
                     buf.put_slice(&data[..capacity]);
                     self.temp_read_buffer.extend_from_slice(&data[capacity..]);
-                }
+                    capacity
+                };
+                self.notify_consumed(delivered);
                 Poll::Ready(Ok(()))
             }
             Poll::Ready(None) => Poll::Ready(Ok(())),
@@ -702,9 +721,10 @@ async fn tcp_main_logic_loop(
                         ));
                     }
                 } else if flags == (ACK | PSH) && pkt_type == PacketType::NewPacket {
-                    if !payload.is_empty() && tcb.get_ack() == incoming_seq {
+                    if !payload.is_empty() {
                         tcb.add_unordered_packet(incoming_seq, payload);
                         extract_data_n_write_upstream(&up_packet_sender, &mut tcb, network_tuple, &data_tx, &read_notify)?;
+                        write_notify.lock().unwrap().take().map(|w| w.wake_by_ref()).unwrap_or(());
                     }
                 } else {
                     log::trace!("{network_tuple} {state:?}: {l_info}, {pkt_type:?}, unnormal case, we do nothing here");
@@ -820,13 +840,18 @@ fn extract_data_n_write_upstream(
         return Ok(());
     }
 
-    if let Some(data) = tcb.consume_unordered_packets(8192) {
+    let room = tcb.remaining_queue_room();
+    if room > 0 && let Some(data) = tcb.consume_unordered_packets(room.min(16384)) {
+        let len = data.len();
         let hint = if state == TcpState::Established { "normally" } else { "still" };
-        log::trace!("{network_tuple} {state:?}: {l_info} {hint} receiving data, len = {}", data.len());
+        log::trace!("{network_tuple} {state:?}: {l_info} {hint} receiving data, len = {len}");
         data_tx.send(data).map_err(|e| std::io::Error::new(BrokenPipe, e))?;
+        tcb.on_data_queued(len);
         read_notify.lock().unwrap().take().map(|w| w.wake_by_ref()).unwrap_or(());
-        write_packet_to_device(up_packet_sender, network_tuple, tcb, None, ACK, None, None)?;
     }
+    let win = tcb.get_recv_window();
+    write_packet_to_device(up_packet_sender, network_tuple, tcb, None, ACK, None, None)?;
+    tcb.set_last_advertised_window(win);
     Ok(())
 }
 
@@ -841,7 +866,7 @@ pub(crate) fn write_packet_to_device(
 ) -> std::io::Result<usize> {
     use std::io::Error;
     let seq = seq.unwrap_or(tcb.get_seq()).0;
-    let (ack, window_size) = (tcb.get_ack().0, tcb.get_recv_window().max(tcb.get_mtu()));
+    let (ack, window_size) = (tcb.get_ack().0, tcb.get_recv_window());
     let (src, dst) = (tuple.dst, tuple.src);
     let calc = |ip_header_len: usize, tcp_header_len: usize| tcb.calculate_payload_max_len(ip_header_len, tcp_header_len);
     let packet = create_raw_packet(

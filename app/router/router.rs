@@ -119,6 +119,7 @@ impl Feature for Router {
 impl RouterFeature for Router {
     fn pick_outbound(&self, session: &SessionContext) -> Option<&str> {
         let mut cached_ips: Option<Vec<IpAddr>> = None;
+        let mut cached_proc = None;
         for rule in &self.rules {
             let extra_ips: &[IpAddr] = if self.domain_strategy == DomainStrategy::IpOnDemand && !rule.ip_matchers.is_empty() {
                 if cached_ips.is_none() {
@@ -132,7 +133,7 @@ impl RouterFeature for Router {
             } else {
                 &[]
             };
-            if rule.matches_with_ips(session, extra_ips)
+            if rule.matches_with_cache(session, extra_ips, &mut cached_proc)
                 && let Some(target) = self.resolve_rule_target(rule)
             {
                 return Some(target);
@@ -144,7 +145,7 @@ impl RouterFeature for Router {
             let ips = self.resolve_domain_ips(domain, session.destination.port);
             if !ips.is_empty() {
                 for rule in &self.rules {
-                    if rule.matches_with_ips(session, &ips)
+                    if rule.matches_with_cache(session, &ips, &mut cached_proc)
                         && let Some(target) = self.resolve_rule_target(rule)
                     {
                         return Some(target);

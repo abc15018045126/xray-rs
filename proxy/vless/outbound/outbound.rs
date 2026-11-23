@@ -374,11 +374,20 @@ impl Client {
 impl OutboundHandler for Client {
     fn tag(&self) -> &str { &self.tag }
     async fn connect(&self, session: &SessionContext) -> Result<BoxStream> {
-        let stream = self.take_or_dial(session).await?;
         let command = if session.destination.network == Network::Udp { RequestCommand::Udp } else { RequestCommand::Tcp };
+        if command == RequestCommand::Udp
+            && session.destination.port == 443
+            && self.flow.as_deref() == Some(FLOW_VISION)
+        {
+            return Err(Error::Protocol("XTLS Vision rejected UDP/443 traffic (use xtls-rprx-vision-udp443 to allow)".into()));
+        }
+        let stream = self.take_or_dial(session).await?;
         let mut req = RequestHeader::new(self.user_id, command, session.destination.clone());
-        if let Some(ref flow) = self.flow { req.addons = Addons::new(flow.clone()); }
         let is_vision = matches!(self.flow.as_deref(), Some(FLOW_VISION) | Some(crate::proxy::vless::flow::FLOW_VISION_UDP443));
+        if let Some(ref flow) = self.flow {
+            let wire_flow = flow.strip_suffix("-udp443").unwrap_or(flow.as_str());
+            req.addons = Addons::new(wire_flow.to_string());
+        }
         let vless: BoxStream = Box::pin(VlessStream::with_pending_header(stream, command == RequestCommand::Udp && !is_vision, req.encode_bytes()));
         Ok(if is_vision {
             Box::pin(VisionStream::new(vless, crate::proxy::vless::flow::VisionContext::new(self.user_id.into_bytes().to_vec(), true), false))
@@ -455,7 +464,9 @@ impl AsyncRead for VlessStream {
                 .get_or_insert_with(|| Box::pin(tokio::time::sleep(Duration::from_millis(500))))
                 .as_mut().poll(cx).is_ready()
         { self.promote_pending_header(); }
-        if !self.pending_write.is_empty() { let _ = self.flush_pending_write(cx); }
+        if !self.pending_write.is_empty()
+            && let Poll::Ready(Err(e)) = self.flush_pending_write(cx)
+        { return Poll::Ready(Err(e)); }
         loop {
             if self.header_parsed {
                 if self.is_udp {
@@ -487,9 +498,23 @@ impl AsyncRead for VlessStream {
             match Pin::new(&mut self.inner).poll_read(cx, &mut temp_read_buf) {
                 Poll::Ready(Ok(())) => {
                     let filled = temp_read_buf.filled();
-                    if filled.is_empty() { return Poll::Ready(Ok(())); }
+                    if filled.is_empty() {
+                        if !self.header_parsed || (self.is_udp && (self.udp_pkt_remaining > 0 || !self.pending_buf.is_empty())) {
+                            return Poll::Ready(Err(std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                "VLESS stream closed mid-header or mid-UDP frame",
+                            )));
+                        }
+                        return Poll::Ready(Ok(()));
+                    }
                     self.pending_buf.extend_from_slice(filled);
                     if !self.header_parsed && self.pending_buf.len() >= 2 {
+                        if self.pending_buf[0] != crate::proxy::vless::encoding::VLESS_VERSION {
+                            return Poll::Ready(Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                format!("Unsupported VLESS response version: {}", self.pending_buf[0]),
+                            )));
+                        }
                         let header_len = 2 + self.pending_buf[1] as usize;
                         if self.pending_buf.len() >= header_len {
                             self.header_parsed = true;
@@ -513,6 +538,7 @@ impl AsyncWrite for VlessStream {
             }
         }
         let payload = if self.is_udp && buf.len() > u16::MAX as usize { &buf[..u16::MAX as usize] } else { buf };
+        if self.is_udp && payload.is_empty() { return Poll::Ready(Ok(0)); }
         if self.pending_header.is_none() && !self.is_udp { return Pin::new(&mut self.inner).poll_write(cx, payload); }
         let mut frame = Vec::with_capacity(
             self.pending_header.as_ref().map_or(0, Vec::len) + if self.is_udp { 2 } else { 0 } + payload.len(),

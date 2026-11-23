@@ -34,6 +34,7 @@ enum DelayDialState {
         ed_len: usize,
     },
     Connected(BoxStream),
+    Failed(String),
     Closed,
 }
 
@@ -63,6 +64,7 @@ impl AsyncRead for DelayDialConn {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         match &mut self.state {
             DelayDialState::Connected(stream) => Pin::new(stream).poll_read(cx, buf),
+            DelayDialState::Failed(msg) => Poll::Ready(Err(std::io::Error::other(msg.clone()))),
             DelayDialState::Closed => Poll::Ready(Ok(())),
             DelayDialState::Idle | DelayDialState::Dialing { .. } => {
                 self.register_waker(cx.waker());
@@ -102,12 +104,13 @@ impl AsyncWrite for DelayDialConn {
                             Ok(Err(e)) => e.to_string(),
                             _ => "WebSocket early-data dial task cancelled".into(),
                         };
-                        self.state = DelayDialState::Closed;
+                        self.state = DelayDialState::Failed(msg.clone());
                         self.wake_all();
                         return Poll::Ready(Err(std::io::Error::other(msg)));
                     }
                 },
                 DelayDialState::Connected(stream) => return Pin::new(stream).poll_write(cx, buf),
+                DelayDialState::Failed(msg) => return Poll::Ready(Err(std::io::Error::other(msg.clone()))),
                 DelayDialState::Closed => {
                     return Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "delayDialConn closed")));
                 }
